@@ -5,35 +5,50 @@ import org.springframework.data.domain.Page;
 import java.util.List;
 
 /**
- * Serialization-friendly wrapper around a Spring Data {@link Page}.
+ * Stable JSON envelope for paginated REST responses.
  * <p>
- * Exposes a stable JSON contract for paginated REST responses across all bounded contexts.
+ * Uses a nested {@code page} metadata object ({@code {content, page:{...}}}) — the same shape as
+ * Spring's {@code PagedModel} — so the contract stays stable regardless of internal changes.
  *
- * @param content       page items
- * @param page          zero-based page index
- * @param size          page size
- * @param totalElements total matching elements
- * @param totalPages    total number of pages
- * @param first         whether this is the first page
- * @param last          whether this is the last page
+ * @param <T> item type
  */
-public record PageResponse<T>(
-        List<T> content,
-        int page,
-        int size,
-        long totalElements,
-        int totalPages,
-        boolean first,
-        boolean last
-) {
+public record PageResponse<T>(List<T> content, PageInfo page) {
+
     public static <T> PageResponse<T> of(Page<T> page) {
         return new PageResponse<>(
                 page.getContent(),
-                page.getNumber(),
-                page.getSize(),
-                page.getTotalElements(),
-                page.getTotalPages(),
-                page.isFirst(),
-                page.isLast());
+                new PageInfo(
+                        page.getNumber(),
+                        page.getSize(),
+                        page.getTotalElements(),
+                        page.getTotalPages(),
+                        page.isFirst(),
+                        page.isLast(),
+                        page.hasNext(),
+                        page.hasPrevious()));
+    }
+
+    /**
+     * Pagination metadata.
+     *
+     * @param number        zero-based page index
+     * @param size          page size
+     * @param totalElements total matching elements across all pages
+     * @param totalPages    total number of pages
+     * @param first         whether this is the first page
+     * @param last          whether this is the last page
+     * @param hasNext       whether a next page exists
+     * @param hasPrevious   whether a previous page exists
+     */
+    public record PageInfo(
+            int number,
+            int size,
+            long totalElements,
+            int totalPages,
+            boolean first,
+            boolean last,
+            boolean hasNext,
+            boolean hasPrevious
+    ) {
     }
 }

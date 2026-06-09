@@ -6,11 +6,11 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
 
 /**
- * Builds {@link Pageable}s from raw request parameters, applying the configured
- * {@link PaginationProperties} limits.
+ * Builds {@link Pageable}s from request input, applying the configured {@link PaginationProperties}
+ * limits and a {@link SortPolicy} (validated sort + {@code id} tie-breaker).
  * <p>
- * Controllers/query handlers use this instead of trusting client-supplied {@code size} directly, so
- * a request can never demand an unbounded page. Page index is zero-based and floored at 0.
+ * Controllers/query handlers use this instead of trusting a client-supplied {@code size} or sort
+ * field directly. Page index is zero-based and floored at 0.
  */
 @Component
 public class PageRequestFactory {
@@ -21,12 +21,22 @@ public class PageRequestFactory {
         this.properties = properties;
     }
 
-    public Pageable of(Integer page, Integer size) {
-        return PageRequest.of(resolvePage(page), properties.resolveSize(size));
+    /** Builds a {@link Pageable} from raw criteria, validating the sort against the given policy. */
+    public Pageable toPageable(PageCriteria criteria, SortPolicy sortPolicy) {
+        return PageRequest.of(
+                resolvePage(criteria.page()),
+                properties.resolveSize(criteria.size()),
+                sortPolicy.toSort(criteria.sortBy(), criteria.sortDirection()));
     }
 
-    public Pageable of(Integer page, Integer size, Sort sort) {
+    /** Builds a {@link Pageable} with an explicit, already-trusted sort. */
+    public Pageable toPageable(Integer page, Integer size, Sort sort) {
         return PageRequest.of(resolvePage(page), properties.resolveSize(size), sort);
+    }
+
+    /** Builds an unsorted {@link Pageable}. */
+    public Pageable toPageable(Integer page, Integer size) {
+        return toPageable(page, size, Sort.unsorted());
     }
 
     private int resolvePage(Integer page) {
