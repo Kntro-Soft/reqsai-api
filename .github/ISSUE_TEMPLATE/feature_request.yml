@@ -1,0 +1,49 @@
+name: Feature request
+description: Propose a new feature or capability
+title: "feat: <short description>"
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      description: What user need or technical problem does this address?
+    validations:
+      required: true
+  - type: dropdown
+    id: context
+    attributes:
+      label: Bounded context / area
+      options:
+        - iam
+        - billing
+        - workspace
+        - discovery
+        - gateway
+        - shared
+        - build / ci
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+  - type: input
+    id: user-story
+    attributes:
+      label: Related User Story (Jira)
+      placeholder: REQ-XX
+    validations:
+      required: false
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      placeholder: |
+        - Given ...
+        - When ...
+        - Then ...
+    validations:
+      required: false
