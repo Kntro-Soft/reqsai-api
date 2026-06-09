@@ -16,6 +16,7 @@ one (and update the old one's status).
 | [0004](./0004-uuid-v7-identifiers.md)                     | UUID v7 identifiers                          | Accepted |
 | [0005](./0005-rsa-jwt-authentication.md)                  | Stateless authentication with RS256 JWT     | Accepted |
 | [0006](./0006-deploy-on-aws-ecs-fargate.md)               | Deploy on AWS ECS Fargate                    | Accepted |
+| [0007](./0007-realtime-stomp-switchable-broker.md)        | Real-time over STOMP with a switchable broker | Accepted |
 
 ## Template
 
