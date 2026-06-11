@@ -1,5 +1,6 @@
 package com.kntro.reqsai;
 
+import com.kntro.reqsai.testsupport.TestJwtFactory;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -83,5 +84,18 @@ class SmokeTest {
         // metrics is exposed but must be secured (only health/** is public).
         HttpStatusCode status = get("/actuator/metrics").getStatusCode();
         assertThat(status).isIn(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void validJwtClearsTheSecurityChain() {
+        ResponseEntity<String> res = client().get().uri("/api/v1/whoami")
+                .header("Authorization", TestJwtFactory.bearer(
+                        "00000000-0000-0000-0000-000000000001",
+                        "00000000-0000-0000-0000-000000000009",
+                        "ROLE_USER"))
+                .exchange((request, response) -> ResponseEntity.status(response.getStatusCode())
+                        .body(response.bodyTo(String.class)));
+        assertThat(res.getStatusCode())
+                .isNotIn(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN);
     }
 }
