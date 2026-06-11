@@ -53,8 +53,10 @@ context builds on.
 - **Multitenancy (schema-per-tenant)**: `TenantContext`, `CurrentTenantIdentifierResolverImpl`,
   `MultiTenantConnectionProviderImpl`, `TenantSchemaResolver` (Caffeine-cached), `ProvisioningService`,
   `TenantMigrationRunner`.
-- **Security**: stateless Spring Security with RS256 JWT (`JwtProperties`, `JwtTokenService`,
-  `JwtAuthenticationFilter`, `SecurityConfiguration`, `SecurityBeans`); dev key generation script.
+- **Security**: stateless Spring Security with RS256 JWT, split into a `TokenVerifier` port +
+  `JjwtTokenVerifier` adapter (public key only, in `shared`) consumed by `JwtAuthenticationFilter`;
+  token issuance (private key) is left to the `iam` context. `JwtProperties`, `SecurityConfiguration`,
+  `SecurityBeans`; dev key generation script.
 - **Error handling**: `ErrorCatalog` interface (per-context error codes; HTTP status per code) with
   shared `CommonError` for cross-cutting codes, minimal exception hierarchy + cross-cutting
   `Exceptions` factory, `GlobalExceptionHandler` producing RFC 9457 `ProblemDetail` (extends
@@ -68,6 +70,13 @@ context builds on.
 - **Shared infrastructure layout**: organized into `cache/`, `documentation/openapi/{,annotations}`,
   `persistence/{auditing,multitenancy}`, `security/`, `web/{,error}`, and `interfaces/pagination/`,
   each with a `package-info.java`.
+- **Query & pagination**: `PageResponse` (nested page metadata), `PageCriteria`, `PageRequestFactory`
+  (size clamping), `SortPolicy` (whitelisted sort + `id` tie-breaker for stable paging), and
+  `Specifications` (functional, null-safe JPA Specification composition — no per-entity subclass).
+- **Real-time**: STOMP-over-WebSocket infra — `WebSocketConfig` + `WebSocketProperties` with a
+  **switchable broker** (in-memory `SIMPLE` with heartbeats, or `RELAY` to an external broker for
+  multi-instance — config only), `StompAuthChannelInterceptor` (authenticates CONNECT via the shared
+  `TokenVerifier`), and the `RealtimeNotifier` port + `StompRealtimeNotifier` adapter. See ADR-0007.
 - **Modules**: `shared` (OPEN) plus the `iam`, `billing`, `workspace`, `discovery`, `gateway`
   bounded-context skeletons, with boundaries verified by `ModularityTests`.
 - **Configuration**: `application.yml` + `dev`/`prod`/`test` profiles under a single `reqsai.*`
@@ -76,14 +85,20 @@ context builds on.
   prod); actuator limited to `health,info,metrics,modulith` (only health public, mail health indicator
   disabled until SMTP is configured); pgvector vector-store auto-config excluded until the `discovery`
   context wires embeddings; `compose.yaml` (pgvector); Flyway migrations (`common`: event_publication,
-  organizations; `tenant`: baseline).
+  organizations; `tenant`: baseline). Local `compose.yaml` uses a `core` profile (PostgreSQL/pgvector
+  + Mailpit for dev email) with healthchecks; Spring Boot starts it via `docker.compose.profiles.active`.
 - **Verified**: boots against PostgreSQL/pgvector (Flyway applies the common migrations, security
   chain orders CorrelationFilter → JwtAuthenticationFilter, `/actuator/health` UP, protected routes
   return 401/403, Swagger/OpenAPI served). Security filters are wired into the chain (not registered
   as standalone servlet filters).
 - **CI/CD & docs**: GitHub Actions (`ci`, `codeql`, `deploy` → AWS ECR/ECS Fargate), multi-stage
-  `Dockerfile`, Dependabot, repository governance (`CONTRIBUTING`, `CODEOWNERS`, `SECURITY`,
-  templates), architecture reference (`docs/ARCHITECTURE.md`), ADRs (`docs/adr/`) and contributor docs.
+  `Dockerfile` (layered jar extraction for cache-friendly redeploys, non-root, `JarLauncher` exec
+  entrypoint, container-aware JVM flags, `TZ=America/Lima`), Dependabot, repository governance
+  (`CONTRIBUTING`, `CODEOWNERS`, `SECURITY`, templates), ADRs (`docs/adr/`) and contributor docs (the
+  architecture overview lives in the README; the rationale in the ADRs).
+- **AI autoconfig**: Spring AI (Gemini chat/embeddings + pgvector) auto-configurations are excluded
+  so the app boots in every profile without AI credentials; the `discovery` context removes the
+  exclusions and provides the Gemini key when it implements the AI pipeline.
 
 **Author:** Gutiérrez Soto, Jhosepmyr Orlando
 
