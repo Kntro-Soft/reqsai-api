@@ -94,7 +94,7 @@ objects/aggregates; use Bean Validation (`@Valid`) for request DTOs.
 
 ### Auth: verification (shared) vs issuance (iam)
 
-`shared` owns **token verification** (the `TokenVerifier` port + `JjwtTokenVerifier` adapter, public key
+`shared` owns **token verification** (the `TokenVerifier` port + `JwtTokenVerifier` adapter, public key
 only) because every request passes through the security filter chain. **Token issuance** (login,
 refresh) belongs to `iam`: implement a `TokenIssuer` adapter there that signs with the private key
 (`reqsai.jwt.private-key-path`) and exposes the `/api/v1/auth/**` endpoints.
@@ -130,20 +130,38 @@ refresh) belongs to `iam`: implement a `TokenIssuer` adapter there that signs wi
    `jdbc:tc:postgresql` URL covers plain JPA ITs. Never H2 for multitenancy/pgvector.
 4. **Architecture** — `ModularityTests` (`@Tag("modularity")`) runs on every build via `verifyModularity`.
 
+#### Testing secured endpoints
+
+Everything behind the filter chain requires an authenticated principal, so a test that just hits a
+protected route gets `401`/`403`. Two helpers (in the `com.kntro.reqsai.testsupport` package) cover the two needs — no test
+ever has to fake Spring Security by hand:
+
+- **Slice / method-security** — annotate with `@WithMockReqsaiUser(role = "ROLE_ADMIN")`. It populates
+  the `SecurityContext` exactly like `JwtAuthenticationFilter` (principal = `userId`, one authority =
+  `role`) without minting a token. Ideal for `@WebMvcTest`.
+- **End-to-end through the JWT filter** — send a real RS256 token:
+  `.header("Authorization", TestJwtFactory.bearer(userId, orgId, role))`. It signs with the **committed
+  throwaway test keypair** (`src/test/resources/certs`, see the README there), so the genuine
+  verification path is exercised. This is what `SmokeTest.validJwtClearsTheSecurityChain` does.
+
+Because the keypair is committed and bound by the `test` profile (`application-test.yml`, on the
+**test** classpath only — never in the production jar), secured tests run on a clean checkout and in CI
+with zero setup. Production keys stay git-ignored and come from env/secrets.
+
 ---
 
 ## Branch Structure
 
 We follow **Gitflow**:
 
-| Branch                  | Purpose                                                                 |
-|-------------------------|-------------------------------------------------------------------------|
-| `main`                  | Production-ready. Only merged from `develop` (tagged releases).         |
-| `develop`               | Integration branch. All features merge here first.                      |
-| `feature/<description>` | New feature, module, or capability.                                     |
-| `bugfix/<description>`  | Fix for a bug found during development.                                 |
+| Branch                  | Purpose                                                                   |
+|-------------------------|---------------------------------------------------------------------------|
+| `main`                  | Production-ready. Only merged from `develop` (tagged releases).           |
+| `develop`               | Integration branch. All features merge here first.                        |
+| `feature/<description>` | New feature, module, or capability.                                       |
+| `bugfix/<description>`  | Fix for a bug found during development.                                   |
 | `hotfix/<description>`  | Urgent fix branched from `main` (then merged back to `main` + `develop`). |
-| `release/<version>`     | Stabilization before a release (branched from `develop`).               |
+| `release/<version>`     | Stabilization before a release (branched from `develop`).                 |
 
 **Branch name examples:**
 ```
@@ -161,18 +179,18 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/)
 <type>(<scope>): <short description in lowercase>
 ```
 
-| Type       | When to use                                                            |
-|------------|------------------------------------------------------------------------|
-| `feat`     | New feature or capability                                              |
-| `fix`      | Bug fix                                                                |
-| `refactor` | Code change that neither fixes a bug nor adds a feature                |
-| `test`     | Adding or fixing tests                                                 |
-| `docs`     | Documentation only (README, CHANGELOG, docs/, ADRs)                    |
-| `build`    | Build system or dependencies (`build.gradle.kts`, Gradle)             |
-| `ci`       | CI/CD configuration (GitHub Actions, Dockerfile)                       |
-| `chore`    | Maintenance, config, `.gitignore`                                      |
-| `style`    | Formatting only (no logic change)                                      |
-| `perf`     | Performance improvement                                                |
+| Type       | When to use                                               |
+|------------|-----------------------------------------------------------|
+| `feat`     | New feature or capability                                 |
+| `fix`      | Bug fix                                                   |
+| `refactor` | Code change that neither fixes a bug nor adds a feature   |
+| `test`     | Adding or fixing tests                                    |
+| `docs`     | Documentation only (README, CHANGELOG, docs/, ADRs)       |
+| `build`    | Build system or dependencies (`build.gradle.kts`, Gradle) |
+| `ci`       | CI/CD configuration (GitHub Actions, Dockerfile)          |
+| `chore`    | Maintenance, config, `.gitignore`                         |
+| `style`    | Formatting only (no logic change)                         |
+| `perf`     | Performance improvement                                   |
 
 **Scope** = bounded context or area: `iam`, `billing`, `workspace`, `discovery`, `gateway`,
 `shared`, `build`, `ci`, `config`, `db`.
