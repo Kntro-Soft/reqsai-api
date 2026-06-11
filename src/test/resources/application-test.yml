@@ -1,0 +1,21 @@
+spring:
+  datasource:
+    url: jdbc:tc:postgresql:16:///reqsai_test
+    driver-class-name: org.testcontainers.jdbc.ContainerDatabaseDriver
+  jpa:
+    show-sql: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration/common
+
+reqsai:
+  jwt:
+    public-key-path: classpath:certs/public_key.pem
+    issuer: reqsai-test
+  cors:
+    allowed-origins: http://localhost:4200
+    allow-credentials: true
+
+logging:
+  level:
+    com.kntro.reqsai: DEBUG
