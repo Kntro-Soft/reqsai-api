@@ -55,15 +55,19 @@ spring:
 
   ai:
     model:
-      chat: ${SPRING_AI_MODEL_CHAT:ollama}
-      embedding: ${SPRING_AI_MODEL_EMBEDDING:ollama}
+      chat: ${SPRING_AI_MODEL_CHAT:none}
+      embedding: ${SPRING_AI_MODEL_EMBEDDING:none}
+      image: none
+      moderation: none
+      audio:
+        transcription: ${SPRING_AI_MODEL_AUDIO_TRANSCRIPTION:none}
+        speech: none
     ollama:
       base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
       init:
         pull-model-strategy: never
       chat:
-        options:
-          model: ${OLLAMA_CHAT_MODEL:llama3.1:8b}
+        model: ${OLLAMA_CHAT_MODEL:llama3.1:8b}
       embedding:
         options:
           model: ${OLLAMA_EMBEDDING_MODEL:nomic-embed-text}
@@ -71,11 +75,17 @@ spring:
       genai:
         api-key: ${GEMINI_API_KEY:}
         chat:
-          options:
-            model: ${GEMINI_CHAT_MODEL:gemini-2.0-flash}
+          model: ${GEMINI_CHAT_MODEL:gemini-2.0-flash}
         embedding:
-          options:
-            model: ${GEMINI_EMBEDDING_MODEL:text-embedding-004}
+          text:
+            options:
+              model: ${GEMINI_EMBEDDING_MODEL:text-embedding-004}
+    openai:
+      audio:
+        transcription:
+          base-url: ${WHISPER_BASE_URL:http://localhost:9000/v1}
+          api-key: ${WHISPER_API_KEY:not-needed}
+          model: ${WHISPER_MODEL:small}
     vectorstore:
       pgvector:
         initialize-schema: false
