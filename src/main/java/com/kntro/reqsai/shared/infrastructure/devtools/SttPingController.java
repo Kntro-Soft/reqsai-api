@@ -6,6 +6,7 @@ import org.springframework.ai.audio.transcription.AudioTranscriptionPrompt;
 import org.springframework.ai.audio.transcription.TranscriptionModel;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Profile;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -34,7 +35,7 @@ public class SttPingController {
 
     private final TranscriptionModel transcriptionModel;
 
-    @PostMapping("/transcribe")
+    @PostMapping(value = "/transcribe", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public Map<String, Object> transcribe(@RequestParam("file") MultipartFile file) {
         try {
             String transcript = transcriptionModel
