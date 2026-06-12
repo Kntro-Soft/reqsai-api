@@ -1,0 +1,38 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT:5432}/${DB_NAME}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:20}
+      minimum-idle: 5
+  jpa:
+    show-sql: false
+  flyway:
+    clean-disabled: true
+  ai:
+    model:
+      chat: google-genai
+      embedding: google-genai
+    vectorstore:
+      pgvector:
+        initialize-schema: false
+
+server:
+  compression:
+    enabled: true
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+logging:
+  structured:
+    format:
+      console: ecs
+  level:
+    root: WARN
+    com.kntro.reqsai: INFO
+    org.hibernate.SQL: ERROR
