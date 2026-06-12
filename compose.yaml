@@ -29,12 +29,9 @@ services:
       retries: 5
       start_period: 15s
     labels:
-      # Spring Boot Docker Compose support auto-wires the datasource from this container.
       - "org.springframework.boot.service-connection=postgres"
     logging: *default-logging
 
-  # Local SMTP server with a web UI — dev mail.
-  # SMTP on 1025, inbox UI on http://localhost:8025
   mailpit:
     profiles: [core]
     container_name: reqsai-mailpit
@@ -45,9 +42,6 @@ services:
       - "${MAILPIT_UI_PORT:-8025}:8025"
     logging: *default-logging
 
-  # Optional: run the app itself in a container with live rebuild on source changes.
-  # Start with: docker compose --profile core --profile app watch
-  # (Default dev flow is `./gradlew bootRun`, which already hot-reloads via DevTools.)
   app:
     profiles: [app]
     container_name: reqsai-app
@@ -79,6 +73,23 @@ services:
           action: rebuild
     logging: *default-logging
 
+  whisper:
+    profiles: [ai]
+    container_name: reqsai-whisper
+    image: hwdsl2/whisper-server
+    restart: unless-stopped
+    environment:
+      WHISPER_MODEL: ${WHISPER_MODEL:-small}
+      WHISPER_LANGUAGE: ${WHISPER_LANGUAGE:-auto}
+      WHISPER_DIARIZATION: ${WHISPER_DIARIZATION:-false}
+    ports:
+      - "${WHISPER_PORT:-9000}:9000"
+    volumes:
+      - reqsai_whisper_data:/var/lib/whisper
+    logging: *default-logging
+
 volumes:
   reqsai_db_data:
     name: reqsai-db-data
+  reqsai_whisper_data:
+    name: reqsai-whisper-data
