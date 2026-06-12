@@ -104,41 +104,44 @@ near-live** transcription (the WebSocket capture flow), use
 
 ## 2. Select providers — profiles + per-capability switches
 
-**Dependencies & where it lives.** The Gemini and Ollama starters are already on the classpath
-(`build.gradle.kts`); only `spring-ai-starter-model-openai` (for STT) is added later when `discovery`
-wires transcription. The base config is in `application.yml` under `spring.ai.*` — the `model.chat`/
-`model.embedding` switches (default `ollama`, env-overridable), the `ollama` block (`base-url`, models,
-`pull-model-strategy: never` so models are pulled out-of-band, not at boot), the `google.genai` block
-(key + models), and `vectorstore.pgvector` (HNSW, cosine, **768** dimensions). `application-prod.yml`
-flips the switches to `google-genai`. No manual chat/embedding autoconfig excludes are needed — the
-switch keeps the unused provider dormant; only `PgVectorStoreAutoConfiguration` stays excluded until
-`discovery` persists embeddings (tests run on plain `postgres:16`, no vector extension). Tweak by env,
-not by editing files per environment.
+**Dependencies & where it lives.** The Gemini, Ollama and OpenAI starters are all on the classpath
+(`build.gradle.kts`) — OpenAI is the adapter that talks to the local Whisper for STT. The base config is
+in `application.yml` under `spring.ai.*` — the `model.*` switches (**default `none`** = AI off; the
+`local-ai` overlay flips chat/embedding to `ollama` and transcription to `openai`), the `ollama` block
+(`base-url`, models, `pull-model-strategy: never`), the `google.genai` block (key + models), the
+`openai.audio.transcription` block (Whisper `base-url` ending in **`/v1`**, model), and
+`vectorstore.pgvector` (HNSW, cosine, **768** dims). `application-prod.yml` flips chat/embedding to
+`google-genai`. No chat/embedding autoconfig excludes are needed — the switch keeps unused providers
+dormant; the OpenAI starter's other model types (`image`, `moderation`, `audio.speech`) are pinned to
+`none` because they'd otherwise demand an API key at boot. Only `PgVectorStoreAutoConfiguration` stays
+excluded until `discovery` persists embeddings (tests run on plain `postgres:16`, no vector extension).
+Tweak by env, not by editing files per environment.
 
 ### Recipe A — everything local (`dev`, offline, free)
 
-The chat + embedding half is **already in `application.yml`** (the `dev` default selects `ollama`). The
-`audio.transcription` / `openai` block is the **STT add-on** `discovery` will introduce. Effective config:
+Turn it on with the `local-ai` overlay (`SPRING_PROFILES_ACTIVE=dev,local-ai`), which sets
+`chat`/`embedding: ollama`; the `ollama` block itself lives in `application.yml`. The
+`audio.transcription` / `openai` block wires STT to your local Whisper (compose `ai` profile). Effective config (all three local):
 
 ```yaml
 spring:
   ai:
-    model:
+    model:                       # provider per capability; unused OpenAI types off so they need no key
       chat: ollama
       embedding: ollama
-      audio:
-        transcription: openai        # talks to the LOCAL OpenAI-compatible Whisper server
+      image: none
+      moderation: none
+      audio: { transcription: openai, speech: none }
     ollama:
       base-url: http://localhost:11434
-      init: { pull-model-strategy: when_missing }
       chat:      { options: { model: llama3.1:8b } }
       embedding: { options: { model: nomic-embed-text } }   # 768-dim
     openai:
-      base-url: http://localhost:9000     # local Whisper server (compose `ai` profile)
-      api-key: not-needed                 # local server ignores it
       audio:
         transcription:
-          options: { model: whisper-1 }
+          base-url: http://localhost:9000/v1   # the /v1 matters — Spring appends /audio/transcriptions
+          api-key: not-needed                  # local Whisper ignores it
+          options: { model: small }            # the model your Whisper container serves
     vectorstore:
       pgvector: { initialize-schema: true, dimensions: 768 }
 ```
@@ -159,7 +162,7 @@ spring:
       genai:
         api-key: ${GEMINI_API_KEY}
         chat:      { options: { model: ${GEMINI_CHAT_MODEL:gemini-2.0-flash} } }
-        embedding: { options: { model: ${GEMINI_EMBEDDING_MODEL:text-embedding-004} } }  # 768-dim
+        embedding: { text: { options: { model: ${GEMINI_EMBEDDING_MODEL:text-embedding-004} } } }  # 768-dim
     openai:
       api-key: ${OPENAI_API_KEY}
       audio: { transcription: { options: { model: whisper-1 } } }
@@ -217,15 +220,37 @@ cloud) and push `TranscriptSegment`s over STOMP — see [REALTIME.md](REALTIME.m
 ## 4. Run the full stack locally
 
 ```bash
-docker compose --profile core --profile ai up -d    # 1. Postgres/pgvector + Mailpit + Whisper (STT)
-ollama serve                                         # 2. LLM + embeddings (native; models pulled)
-./gradlew bootRun                                    # 3. backend (dev → all local)
-cd ../reqsai-web && npm start                        # 4. frontend (http://localhost:4200)
+docker compose --profile core --profile ai up -d        # 1. Postgres/pgvector + Mailpit + Whisper (STT)
+ollama serve                                             # 2. LLM + embeddings (native; models pulled)
+SPRING_PROFILES_ACTIVE=dev,local-ai ./gradlew bootRun    # 3. backend (dev + AI on)
+cd ../reqsai-web && npm start                            # 4. frontend (http://localhost:4200)
 ```
 
-(Not doing AI work? Drop `--profile ai` and skip step 2 — the rest runs the same.)
+(Not doing AI work? Run plain `./gradlew bootRun` and `docker compose --profile core up -d` — AI stays off
+and nothing breaks.)
 
-Everything offline and free for development; flip to cloud with `--spring.profiles.active=prod` and the
+**Verify your local AI actually responds.** A throwaway dev endpoint (`@Profile("local-ai")`) pings the
+active chat + embedding models. It requires a JWT like any endpoint — mint one with the dev-only token
+minter (no `iam` yet). Replaced by `discovery`:
+
+```bash
+TOKEN=$(curl -s 'http://localhost:8080/api/v1/auth/dev-token' | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
+
+# chat + embeddings (Ollama)
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/v1/ai/ping
+# → {"ok":true,"chatReply":"...","embeddingDimensions":768}
+
+# STT (Whisper) — upload an audio file
+curl -H "Authorization: Bearer $TOKEN" -F file=@meeting.wav http://localhost:8080/api/v1/ai/transcribe
+# → {"ok":true,"transcript":"..."}
+```
+
+`ok:true` means the models are reachable through the app: `/ping` → chat (Ollama `llama3.1:8b`) +
+embeddings (`nomic-embed-text`, 768-dim); `/transcribe` → STT (Whisper). A `403` means you forgot the
+token; `ok:false` means the call failed (engine down, or a name/URL mismatch with the `OLLAMA_*` /
+`WHISPER_*` env). No `say` handy? `say -o s.aiff "hello"; afconvert s.aiff meeting.wav -f WAVE -d LEI16@16000 -c 1`.
+
+Everything is offline and free for development; flip to cloud with `--spring.profiles.active=prod` and the
 API keys. Behaviour stays consistent because the abstractions and the 768-dim vector column are shared.
 
 ## Tips
