@@ -1,5 +1,6 @@
 package com.kntro.reqsai.shared.infrastructure.devtools;
 
+import com.kntro.reqsai.shared.infrastructure.configuration.ApiVersioning;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.audio.transcription.AudioTranscriptionPrompt;
@@ -23,10 +24,10 @@ import java.util.Map;
  * Throwaway scaffolding; {@code discovery} replaces it. Requires a JWT (mint one via
  * {@code /api/v1/auth/dev-token}).
  * <p>
- * {@code POST /api/v1/ai/transcribe} (multipart {@code file}) → returns the transcript.
+ * {@code POST /api/ai/transcribe} (multipart {@code file}) → returns the transcript.
  */
 @RestController
-@RequestMapping("/api/v1/ai")
+@RequestMapping("/api/ai")
 @Profile("local-ai")
 @ConditionalOnProperty(name = "spring.ai.model.audio.transcription", havingValue = "openai")
 @RequiredArgsConstructor
@@ -35,7 +36,7 @@ public class SttPingController {
 
     private final TranscriptionModel transcriptionModel;
 
-    @PostMapping(value = "/transcribe", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PostMapping(value = "/transcribe", consumes = MediaType.MULTIPART_FORM_DATA_VALUE, version = ApiVersioning.V1)
     public Map<String, Object> transcribe(@RequestParam("file") MultipartFile file) {
         try {
             String transcript = transcriptionModel
