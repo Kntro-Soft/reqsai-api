@@ -8,6 +8,7 @@ spring:
       minimum-idle: 2
       connection-timeout: 20000
       validation-timeout: 3000
+      leak-detection-threshold: 30000
   jpa:
     show-sql: true
   mail:
@@ -34,5 +35,6 @@ logging:
     org.springframework.security: DEBUG
     org.hibernate.SQL: DEBUG
     org.hibernate.orm.jdbc.bind: TRACE
+    org.hibernate.orm.connections.pooling: WARN
   pattern:
     console: "%d{HH:mm:ss} %-5level [%X{tenantId}][%X{correlationId}] %logger{30} - %msg%n"
