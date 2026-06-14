@@ -1,5 +1,6 @@
 package com.kntro.reqsai.shared.infrastructure.devtools;
 
+import com.kntro.reqsai.shared.infrastructure.configuration.ApiVersioning;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ChatModel;
@@ -17,13 +18,13 @@ import java.util.Map;
  * <p>
  * Active only under the {@code local-ai} profile (run {@code dev,local-ai}) — that profile is what turns
  * the Ollama chat/embedding beans on, so this controller never loads without them. It requires a JWT
- * like any endpoint; mint one in dev via {@code GET /api/v1/auth/dev-token}. Throwaway scaffolding;
+ * like any endpoint; mint one in dev via {@code GET /api/auth/dev-token}. Throwaway scaffolding;
  * {@code discovery} replaces it.
  * <p>
- * {@code GET /api/v1/ai/ping} → calls the active chat + embedding models and reports what came back.
+ * {@code GET /api/ai/ping} → calls the active chat + embedding models and reports what came back.
  */
 @RestController
-@RequestMapping("/api/v1/ai")
+@RequestMapping("/api/ai")
 @Profile("local-ai")
 @RequiredArgsConstructor
 @Slf4j
@@ -32,7 +33,7 @@ public class AiPingController {
     private final ChatModel chatModel;
     private final EmbeddingModel embeddingModel;
 
-    @GetMapping("/ping")
+    @GetMapping(value = "/ping", version = ApiVersioning.V1)
     public Map<String, Object> ping() {
         String prompt = "Reply with exactly one word: pong";
         try {

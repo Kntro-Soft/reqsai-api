@@ -1,5 +1,6 @@
 package com.kntro.reqsai.shared.infrastructure.devtools;
 
+import com.kntro.reqsai.shared.infrastructure.configuration.ApiVersioning;
 import io.jsonwebtoken.Jwts;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
@@ -25,14 +26,14 @@ import java.util.Map;
 /**
  * Dev-only token minter — a stopgap until {@code iam} ships real login/refresh. It signs a genuine
  * RS256 JWT with the dev private key, so you can exercise authenticated endpoints (real authorization,
- * not a bypass) before the issuer exists. Active only under the {@code dev} profile; {@code /api/v1/auth/**}
- * is already public. {@code iam} replaces this with a real {@code TokenIssuer} + {@code /api/v1/auth/login}.
+ * not a bypass) before the issuer exists. Active only under the {@code dev} profile; {@code /api/auth/**}
+ * is already public. {@code iam} replaces this with a real {@code TokenIssuer} + {@code /api/auth/login}.
  * <p>
  * {@code GET /api/v1/auth/dev-token?userId=..&orgId=..&role=ROLE_USER} → returns a signed token to drop
  * into the {@code Authorization} header.
  */
 @RestController
-@RequestMapping("/api/v1/auth")
+@RequestMapping(path = ApiVersioning.BASE + "/auth")
 @Profile("dev")
 @Slf4j
 public class DevTokenController {
@@ -59,10 +60,10 @@ public class DevTokenController {
             byte[] der = Base64.getDecoder().decode(pem);
             this.privateKey = KeyFactory.getInstance("RSA").generatePrivate(new PKCS8EncodedKeySpec(der));
         }
-        log.warn("DEV token endpoint active at GET /api/v1/auth/dev-token — dev profile only, never in prod");
+        log.warn("DEV token endpoint active at GET /api/auth/dev-token — dev profile only, never in prod");
     }
 
-    @GetMapping("/dev-token")
+    @GetMapping(value = "/dev-token", version = ApiVersioning.V1)
     public Map<String, Object> devToken(
             @RequestParam(defaultValue = "00000000-0000-0000-0000-000000000001") String userId,
             @RequestParam(defaultValue = "00000000-0000-0000-0000-000000000009") String orgId,

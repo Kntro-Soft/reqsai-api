@@ -13,6 +13,22 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
 
 ### Added
 
+- **Workspace — Create Organization use case** (first business vertical slice, domain → controller):
+  `Organization` aggregate in the global `public.organizations` registry with `Slug`, `GenerationSettings`
+  and `PlanLimits` value objects (the last two mapped `@Embedded`; `Slug` via `@Convert`); `OrgStatus`
+  adds `PENDING` for the provisioning window. `CreateOrganizationCommand` + handler validates slug
+  uniqueness, persists `PENDING`, provisions the `tenant_<slug>` schema, then `activate()`s (→ `ACTIVE`,
+  raising `OrganizationCreatedEvent`). REST `POST /api/organizations` split into a documented swagger
+  interface + clean `@RestController` impl + dedicated request/response mappers; common migration
+  `V2__organizations.sql`. This is what unblocks any tenant-scoped endpoint (creating an org provisions
+  its schema). `LanguageCode` promoted to the **Shared Kernel** (shared by workspace `meetingLanguage`
+  and discovery), with an `autoApply` `LanguageCodeConverter`.
+- **Header-based API versioning** (Spring Framework 7 / Boot 4 native): `ApiVersioning` (base `/api`,
+  `Api-Version` header, default `V1`) + `ApiVersioningConfig`; endpoints use `@PostMapping(version = V1)`.
+- **Test data builders & parallel execution** ([ADR-0009](docs/adr/0009-test-data-builders-and-parallel-execution.md)):
+  Datafaker-backed fluent **Builders** + **Object Mothers** (+ command mothers) in `mothers/` packages;
+  Gradle `maxParallelForks` runs test classes in parallel across forked JVMs (each fork reuses its own
+  Testcontainers DB + cached context), cutting the suite to ~20s.
 - **Foundation regression tests**: `ApplicationContextTest` (full-context boot over a Testcontainers
   PostgreSQL — fails CI if any bean fails to wire) and `SmokeTest` (`RANDOM_PORT`, no port collisions;
   asserts health UP, readiness probe UP, anonymous requests rejected, `X-Request-ID` emitted, own
@@ -22,6 +38,10 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
 
 ### Changed
 
+- **API versioning moved from path to header**: routes are now `/api/<resource>` (e.g.
+  `/api/organizations`) selected by the `Api-Version` header, instead of `/api/v1/<resource>` in the
+  path; `SecurityConfiguration` public matchers updated (`/api/auth/**`). `Created` responses now build
+  their `Location` via `ServletUriComponentsBuilder` instead of a hardcoded path.
 - **Health groups**: `readiness` now includes only `readinessState` + `db`; `liveness` only
   `livenessState`. External/optional services (mail, Gemini) no longer gate readiness, so an
   unconfigured or down SMTP/AI provider cannot pull the app out of Cloud Run rotation.
