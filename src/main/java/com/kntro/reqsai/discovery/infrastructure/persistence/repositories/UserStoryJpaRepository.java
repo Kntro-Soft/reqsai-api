@@ -1,6 +1,8 @@
 package com.kntro.reqsai.discovery.infrastructure.persistence.repositories;
 
 import com.kntro.reqsai.discovery.domain.model.UserStory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -10,6 +12,10 @@ import java.util.UUID;
 
 /** Spring Data repository for {@link UserStory} (tenant-scoped table {@code user_stories}). */
 public interface UserStoryJpaRepository extends JpaRepository<UserStory, UUID> {
+
+    Page<UserStory> findAllByProjectId(UUID projectId, Pageable pageable);
+
+    Page<UserStory> findAllBySessionId(UUID sessionId, Pageable pageable);
 
     /**
      * Smallest pgvector cosine <em>distance</em> ({@code <=>}, in {@code [0,2]}) between the given
