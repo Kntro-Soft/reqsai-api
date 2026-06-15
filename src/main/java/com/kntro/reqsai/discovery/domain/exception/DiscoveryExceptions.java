@@ -1,6 +1,7 @@
 package com.kntro.reqsai.discovery.domain.exception;
 
 import com.kntro.reqsai.shared.domain.exception.DomainException;
+import com.kntro.reqsai.shared.domain.exception.EntityNotFoundException;
 
 /**
  * Factory for Requirement Discovery domain exceptions — the context-specific counterpart of the shared
@@ -15,5 +16,15 @@ public final class DiscoveryExceptions {
     public static DomainException duplicateUserStory(double similarity) {
         return new DomainException(DiscoveryError.DUPLICATE_USER_STORY,
                 "A near-duplicate user story already exists (similarity %.2f)".formatted(similarity));
+    }
+
+    public static EntityNotFoundException sessionNotFound(java.util.UUID id) {
+        return new EntityNotFoundException(DiscoveryError.SESSION_NOT_FOUND,
+                "Discovery session '%s' not found".formatted(id));
+    }
+
+    public static EntityNotFoundException userStoryNotFound(java.util.UUID id) {
+        return new EntityNotFoundException(DiscoveryError.USER_STORY_NOT_FOUND,
+                "User story '%s' not found".formatted(id));
     }
 }
