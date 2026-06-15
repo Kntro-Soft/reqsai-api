@@ -32,6 +32,18 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
 
 ### Changed
 
+- **OpenAPI annotations — requests and responses enriched**: all request DTOs now carry `@Schema`
+  per field with `description`, `example`, `minLength`/`maxLength`, and `requiredMode`
+  (`REQUIRED` / `NOT_REQUIRED`) so Swagger UI shows constraints and examples instead of bare `string`.
+  All response DTOs carry `@Schema` per field with `description`, `example`, `nullable`, and
+  `allowableValues` for string-encoded enums (`status`). Swagger interfaces updated with `@Parameter`
+  on every `@PathVariable` and `@ApiResponse(201)` now includes `@Content` + `@ExampleObject`
+  showing the full JSON response body. Affected: `CreateDiscoverySessionRequest`,
+  `CreateOrganizationRequest`, `DiscoverySessionResponse`, `OrganizationResponse`,
+  `DiscoverySessionController` (swagger), `OrganizationController` (swagger).
+- **`USE_CASE_PLAYBOOK.md` Step 4 updated**: documents the OpenAPI annotation conventions for
+  request DTOs (`@Schema` fields, `requiredMode`), response DTOs (ADR-0011 rules + `allowableValues`,
+  `nullable`), and swagger interfaces (`@Parameter`, `@Content`, `@ExampleObject`).
 - **`OrganizationResponse`** now includes `createdAt` and `updatedAt` — aligns with ADR-0011 rule
   that all response DTOs expose these two audit timestamps consistently.
 
