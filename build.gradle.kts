@@ -182,4 +182,9 @@ sourceSets {
             )
         }
     }
+    test {
+        java {
+            srcDirs("src/test/java")
+        }
+    }
 }
