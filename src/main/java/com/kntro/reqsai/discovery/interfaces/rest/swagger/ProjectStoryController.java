@@ -2,9 +2,11 @@ package com.kntro.reqsai.discovery.interfaces.rest.swagger;
 
 import com.kntro.reqsai.discovery.interfaces.rest.dto.request.CreateUserStoryRequest;
 import com.kntro.reqsai.discovery.interfaces.rest.dto.response.UserStoryResponse;
+import com.kntro.reqsai.shared.interfaces.pagination.PageResponse;
 import com.kntro.reqsai.shared.infrastructure.configuration.ApiVersioning;
 import com.kntro.reqsai.shared.infrastructure.documentation.openapi.OpenApiConfiguration;
 import com.kntro.reqsai.shared.infrastructure.documentation.openapi.annotations.ApiResponseBadRequest;
+import com.kntro.reqsai.shared.infrastructure.documentation.openapi.annotations.ApiResponseNotFound;
 import com.kntro.reqsai.shared.infrastructure.documentation.openapi.annotations.ApiStandardErrorResponses;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -17,10 +19,12 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.UUID;
 
@@ -55,6 +59,7 @@ public interface ProjectStoryController {
                               "priority": "HIGH",
                               "storyPoints": 5,
                               "status": "DRAFT",
+                              "embeddingIndexed": false,
                               "createdAt": "2026-06-15T13:55:00Z",
                               "updatedAt": "2026-06-15T13:55:00Z"
                             }""")))
@@ -66,4 +71,45 @@ public interface ProjectStoryController {
             @Parameter(description = "Project to create the story under", required = true, example = "019756a0-1234-7abc-8def-000000000002")
             @PathVariable UUID projectId,
             @Valid @RequestBody CreateUserStoryRequest request);
+
+    @Operation(
+            summary = "Get a user story by id",
+            description = "Returns a single user story belonging to the given project and the authenticated tenant.")
+    @ApiResponse(
+            responseCode = "200",
+            description = "Story found",
+            content = @Content(
+                    mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    schema = @Schema(implementation = UserStoryResponse.class)))
+    @ApiResponseNotFound
+    @ApiStandardErrorResponses
+    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
+    @GetMapping(path = "/{storyId}", version = ApiVersioning.V1)
+    ResponseEntity<UserStoryResponse> getById(
+            @Parameter(description = "Project the story belongs to", required = true)
+            @PathVariable UUID projectId,
+            @Parameter(description = "Story identifier", required = true)
+            @PathVariable UUID storyId);
+
+    @Operation(
+            summary = "List user stories for a project (backlog)",
+            description = "Returns a paginated list of user stories for the given project, scoped to the authenticated tenant.")
+    @ApiResponse(
+            responseCode = "200",
+            description = "Paginated project backlog",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE))
+    @ApiStandardErrorResponses
+    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
+    @GetMapping(version = ApiVersioning.V1)
+    ResponseEntity<PageResponse<UserStoryResponse>> list(
+            @Parameter(description = "Project whose backlog to list", required = true)
+            @PathVariable UUID projectId,
+            @Parameter(description = "Zero-based page index", example = "0")
+            @RequestParam(required = false) Integer page,
+            @Parameter(description = "Page size (max 100)", example = "20")
+            @RequestParam(required = false) Integer size,
+            @Parameter(description = "Sort field: createdAt | title | priority | status", example = "createdAt")
+            @RequestParam(required = false) String sortBy,
+            @Parameter(description = "Sort direction: ASC | DESC", example = "DESC")
+            @RequestParam(required = false) String sortDirection);
 }

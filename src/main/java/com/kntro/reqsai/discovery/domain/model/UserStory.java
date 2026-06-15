@@ -101,6 +101,17 @@ public class UserStory extends AggregateRoot {
     }
 
     /**
+     * True, when this story is part of the vector index for similarity search — the embedding model
+     * was available at creation time, the story was compared against the project's existing stories,
+     * and no near-duplicate was found (a duplicate would have been rejected with 409).
+     * False means the model was unavailable: no dedup check was performed, and the story is not
+     * searchable by similarity until it is re-indexed.
+     */
+    public boolean isIndexed() {
+        return embedding != null;
+    }
+
+    /**
      * Attaches the duplicate-detection embedding once it has been computed by the embedding port.
      * Vector length must match {@link #EMBEDDING_DIMENSIONS}.
      */

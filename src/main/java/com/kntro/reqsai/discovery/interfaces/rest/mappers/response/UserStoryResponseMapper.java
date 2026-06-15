@@ -22,6 +22,7 @@ public final class UserStoryResponseMapper {
                 story.getPriority().name(),
                 story.getStoryPoints(),
                 story.getStatus().name(),
+                story.isIndexed(),
                 story.getCreatedAt(),
                 story.getUpdatedAt());
     }

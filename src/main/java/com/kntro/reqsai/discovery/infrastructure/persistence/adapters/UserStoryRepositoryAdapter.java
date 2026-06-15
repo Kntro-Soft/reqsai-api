@@ -4,6 +4,8 @@ import com.kntro.reqsai.discovery.application.port.UserStoryRepository;
 import com.kntro.reqsai.discovery.domain.model.UserStory;
 import com.kntro.reqsai.discovery.infrastructure.persistence.repositories.UserStoryJpaRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
@@ -20,6 +22,21 @@ public class UserStoryRepositoryAdapter implements UserStoryRepository {
     @Override
     public UserStory save(UserStory story) {
         return jpa.save(story);
+    }
+
+    @Override
+    public Optional<UserStory> findById(UUID id) {
+        return jpa.findById(id);
+    }
+
+    @Override
+    public Page<UserStory> findAllByProjectId(UUID projectId, Pageable pageable) {
+        return jpa.findAllByProjectId(projectId, pageable);
+    }
+
+    @Override
+    public Page<UserStory> findAllBySessionId(UUID sessionId, Pageable pageable) {
+        return jpa.findAllBySessionId(sessionId, pageable);
     }
 
     @Override

@@ -1,28 +1,20 @@
 package com.kntro.reqsai.discovery.interfaces.rest;
 
-import com.kntro.reqsai.discovery.application.port.EmbeddingPort;
-import com.kntro.reqsai.discovery.domain.model.UserStory;
 import com.kntro.reqsai.testsupport.AbstractIntegrationTest;
+import com.kntro.reqsai.testsupport.StubEmbeddingConfig;
 import com.kntro.reqsai.testsupport.TestJwtFactory;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.web.client.RestClient;
-
 import java.util.Map;
-import java.util.Random;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -33,12 +25,12 @@ import static org.assertj.core.api.Assertions.assertThat;
  * {@code embedding} column), then — with a JWT carrying that {@code orgId} — creates stories and
  * verifies persistence and embedding-based duplicate detection in the tenant's schema.
  * <p>
- * A deterministic {@link EmbeddingPort} stub stands in for Ollama/Gemini so the dedup path is exercised
+ * A deterministic {@link StubEmbeddingConfig} stub stands in for Ollama/Gemini so the dedup path is exercised
  * with real pgvector (the {@code <=>} operator) but without any external AI service.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
-@Import(CreateUserStoryIntegrationTest.StubEmbeddingConfig.class)
+@Import(StubEmbeddingConfig.class)
 @Tag("integration")
 @DisplayName("Integration: Create User Story")
 class CreateUserStoryIntegrationTest extends AbstractIntegrationTest {
@@ -47,9 +39,6 @@ class CreateUserStoryIntegrationTest extends AbstractIntegrationTest {
     private static final Map<String, String> STORY = Map.of(
             "title", "Bulk import", "role", "analyst",
             "action", "upload a CSV", "benefit", "save time", "priority", "HIGH");
-
-    @LocalServerPort
-    private int port;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -129,39 +118,5 @@ class CreateUserStoryIntegrationTest extends AbstractIntegrationTest {
                 .body(body)
                 .exchange((req, response) -> ResponseEntity.status(response.getStatusCode())
                         .body(response.bodyTo(String.class)), false);
-    }
-
-    private RestClient client() {
-        return RestClient.create("http://localhost:" + port);
-    }
-
-    /**
-     * Deterministic stand-in for the Spring AI embedding model: identical text yields an identical
-     * vector (cosine 1.0 ⇒ duplicate), different text yields a near-orthogonal vector (cosine ≈ 0 ⇒
-     * distinct). Marked {@code @Primary} so it overrides {@code SpringAiEmbeddingPort} in tests.
-     */
-    @TestConfiguration
-    static class StubEmbeddingConfig {
-
-        @Bean
-        @Primary
-        EmbeddingPort stubEmbeddingPort() {
-            return new EmbeddingPort() {
-                @Override
-                public boolean isAvailable() {
-                    return true;
-                }
-
-                @Override
-                public float[] embed(String text) {
-                    Random rnd = new Random(text.hashCode());
-                    float[] vector = new float[UserStory.EMBEDDING_DIMENSIONS];
-                    for (int i = 0; i < vector.length; i++) {
-                        vector[i] = (float) rnd.nextGaussian();
-                    }
-                    return vector;
-                }
-            };
-        }
     }
 }

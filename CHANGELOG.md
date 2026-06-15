@@ -13,6 +13,27 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
 
 ### Added
 
+- **Discovery — GET endpoints for Sessions and User Stories (three scopes)**:
+  `ProjectSessionController` — `GET /api/projects/{projectId}/sessions/{sessionId}` (get by id, 404 on missing
+  or project mismatch) and `GET /api/projects/{projectId}/sessions` (paginated list, sorted `createdAt DESC`,
+  sortable by `title`/`status`/`createdAt`).
+  `ProjectStoryController` — `GET /api/projects/{projectId}/stories/{storyId}` and
+  `GET /api/projects/{projectId}/stories` (paginated backlog, sortable by `title`/`priority`/`status`/`createdAt`).
+  `SessionStoryController` — `GET /api/sessions/{sessionId}/stories/{storyId}` (only AI-generated stories;
+  manual stories with null `sessionId` return 404) and `GET /api/sessions/{sessionId}/stories` (paginated;
+  unknown `sessionId` → 404 `SESSION_NOT_FOUND`, not an empty page).
+  Application layer: `GetProjectSessionQuery`, `ListProjectSessionsQuery`, `GetProjectStoryQuery`,
+  `ListProjectStoriesQuery`, `GetSessionStoryQuery`, `ListSessionStoriesQuery` + their handlers; port read
+  methods (`findById`, `findAllByProjectId`, `findAllBySessionId`) added to both `DiscoverySessionRepository`
+  and `UserStoryRepository`; Spring Data `Page`-backed adapters; `SESSION_NOT_FOUND` / `USER_STORY_NOT_FOUND`
+  error codes (404 via `EntityNotFoundException`). `UserStoryResponse` now includes `embeddingIndexed: boolean`
+  (true = embedding model was available at creation, story was dedup-checked and not a duplicate; false = model
+  unavailable, dedup skipped, story not yet searchable by similarity). Integration and unit tests cover
+  happy-path, 404, scope isolation, manual-story exclusion from session scope, and unauthenticated access.
+- **ADR-0012 — REST route design and controller naming convention**: documents the `{scope}{Resource}Controller`
+  convention (controller name reflects the URL parent context, not the bounded context); full table of all three
+  discovery controllers with their routes and resources; rationale for two orthogonal scopes for `UserStory`;
+  consequences including the divergence from the academic report's original session-only model.
 - **Discovery — Create Discovery Session use case** (first discovery vertical slice): `DiscoverySession`
   aggregate root with the full domain model — `projectId`, `title`, `language`, `status`, `transcript`,
   `startedAt`, `endedAt`, `audioDurationMs`, `lastSequence`, `processingError`; `SessionStatus` enum with
@@ -49,6 +70,13 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
 
 ### Changed
 
+- **Test infrastructure — `AbstractIntegrationTest` now provides `client()`**: `@LocalServerPort` and
+  `protected RestClient client()` moved from every integration test class into `AbstractIntegrationTest`.
+  Removes 3 fields and 6 methods across the 6 existing test classes; new tests inherit `client()` for free.
+- **Test infrastructure — `StubEmbeddingConfig` extracted to shared `testsupport` package**: the
+  deterministic embedding stub (same seed → same vector, dedup exercised without Ollama/Gemini) was
+  duplicated as an inner `@TestConfiguration` in three test classes. Moved to
+  `com.kntro.reqsai.testsupport.StubEmbeddingConfig`; each test now uses `@Import(StubEmbeddingConfig.class)`.
 - **OpenAPI annotations — requests and responses enriched**: all request DTOs now carry `@Schema`
   per field with `description`, `example`, `minLength`/`maxLength`, and `requiredMode`
   (`REQUIRED` / `NOT_REQUIRED`) so Swagger UI shows constraints and examples instead of bare `string`.

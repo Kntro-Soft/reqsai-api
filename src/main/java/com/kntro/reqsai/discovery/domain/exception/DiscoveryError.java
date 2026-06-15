@@ -10,7 +10,9 @@ import org.springframework.http.HttpStatus;
  */
 public enum DiscoveryError implements ErrorCatalog {
 
-    DUPLICATE_USER_STORY(HttpStatus.CONFLICT);
+    DUPLICATE_USER_STORY(HttpStatus.CONFLICT),
+    SESSION_NOT_FOUND(HttpStatus.NOT_FOUND),
+    USER_STORY_NOT_FOUND(HttpStatus.NOT_FOUND);
 
     private final HttpStatus status;
 
