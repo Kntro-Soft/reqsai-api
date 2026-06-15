@@ -8,15 +8,12 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.web.client.RestClient;
-
 import java.util.Map;
 import java.util.UUID;
 
@@ -40,9 +37,6 @@ class GetProjectStoriesIntegrationTest extends AbstractIntegrationTest {
     private static final Map<String, String> STORY_B = Map.of(
             "title", "Export report", "role", "manager",
             "action", "export a monthly report", "benefit", "share with stakeholders", "priority", "MEDIUM");
-
-    @LocalServerPort
-    private int port;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -152,9 +146,4 @@ class GetProjectStoriesIntegrationTest extends AbstractIntegrationTest {
                         .headers(response.getHeaders())
                         .body(response.bodyTo(String.class)), false);
     }
-
-    private RestClient client() {
-        return RestClient.create("http://localhost:" + port);
-    }
-
 }

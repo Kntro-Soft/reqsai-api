@@ -7,14 +7,11 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.web.client.RestClient;
-
 import java.util.Map;
 import java.util.UUID;
 
@@ -31,9 +28,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 class GetDiscoverySessionIntegrationTest extends AbstractIntegrationTest {
 
     private static final String USER_ID = "00000000-0000-0000-0000-000000000001";
-
-    @LocalServerPort
-    private int port;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -142,9 +136,5 @@ class GetDiscoverySessionIntegrationTest extends AbstractIntegrationTest {
                 .exchange((req, response) -> ResponseEntity.status(response.getStatusCode())
                         .headers(response.getHeaders())
                         .body(response.bodyTo(String.class)));
-    }
-
-    private RestClient client() {
-        return RestClient.create("http://localhost:" + port);
     }
 }

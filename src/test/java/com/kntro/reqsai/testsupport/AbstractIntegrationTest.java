@@ -1,7 +1,9 @@
 package com.kntro.reqsai.testsupport;
 
+import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.web.client.RestClient;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
@@ -14,6 +16,13 @@ import org.testcontainers.utility.DockerImageName;
  * datasource so each Spring context connects to the same running instance.
  */
 public abstract class AbstractIntegrationTest {
+
+    @LocalServerPort
+    private int port;
+
+    protected RestClient client() {
+        return RestClient.create("http://localhost:" + port);
+    }
 
     private static final PostgreSQLContainer POSTGRES =
             new PostgreSQLContainer(DockerImageName.parse("pgvector/pgvector:pg16")

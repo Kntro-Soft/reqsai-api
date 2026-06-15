@@ -5,7 +5,6 @@ import com.kntro.reqsai.testsupport.TestJwtFactory;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
@@ -29,13 +28,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ActiveProfiles("test")
 @Tag("integration")
 class SmokeTest extends AbstractIntegrationTest {
-
-    @LocalServerPort
-    private int port;
-
-    private RestClient client() {
-        return RestClient.create("http://localhost:" + port);
-    }
 
     /** GET that captures status + headers + body without throwing on non-2xx. */
     private ResponseEntity<String> get(String path) {
