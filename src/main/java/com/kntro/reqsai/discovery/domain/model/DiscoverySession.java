@@ -1,5 +1,6 @@
 package com.kntro.reqsai.discovery.domain.model;
 
+import com.kntro.reqsai.discovery.domain.event.DiscoverySessionCreatedEvent;
 import com.kntro.reqsai.shared.domain.model.AggregateRoot;
 import com.kntro.reqsai.shared.domain.support.Assert;
 import com.kntro.reqsai.shared.domain.valueobjects.LanguageCode;
@@ -67,5 +68,6 @@ public class DiscoverySession extends AggregateRoot {
         this.title = Assert.maxLength(Assert.notBlank(title, "title"), "title", TITLE_MAX);
         this.language = Assert.notNull(language, "language");
         this.status = SessionStatus.DRAFT;
+        registerEvent(DiscoverySessionCreatedEvent.of(getId(), projectId));
     }
 }
