@@ -154,25 +154,84 @@ CREATE INDEX idx_sessions_project ON discovery_sessions (project_id);
 
 ## Step 4 — Interface (DTOs → mappers → swagger interface → impl)
 
-**4a. DTOs** (`dto/request`, `dto/response`) — flat, with bean validation on the request.
-**4b. Mappers** (`mappers/request`, `mappers/response`) — static `toCommand(...)` / `toResponse(...)`.
-**4c. Swagger interface** (`interfaces/rest/swagger/`) — all OpenAPI annotations + header versioning:
+**4a. Request DTO** (`dto/request/`) — flat record, bean validation + `@Schema` per field so Swagger
+shows descriptions, examples, and constraints instead of bare `string`:
+
+```java
+@Schema(description = "Request body to create a requirements-elicitation session")
+public record CreateDiscoverySessionRequest(
+
+        @Schema(description = "Descriptive title for the session",
+                example = "Sprint 24 — Requirements Elicitation",
+                minLength = 1, maxLength = 200,
+                requiredMode = Schema.RequiredMode.REQUIRED)
+        @NotBlank @Size(max = 200)
+        String title,
+
+        @Schema(description = "BCP-47 language tag for the meeting — used by STT and AI generation",
+                example = "es-PE", minLength = 2, maxLength = 8,
+                requiredMode = Schema.RequiredMode.REQUIRED)
+        @NotBlank @Size(max = 8)
+        String language
+) {}
+```
+
+Optional fields use `requiredMode = NOT_REQUIRED` and `@Nullable`.
+
+**4b. Response DTO** (`dto/response/`) — one shared DTO per resource (ADR-0011); `@Schema` per field
+with description, example, `nullable`, and `allowableValues` for enums:
+
+```java
+@Schema(description = "Discovery session resource")
+public record DiscoverySessionResponse(
+        @Schema(description = "Session unique identifier", example = "019756a0-...")  UUID id,
+        @Schema(description = "Current lifecycle state", example = "DRAFT",
+                allowableValues = {"DRAFT","RECORDING","PAUSED","STOPPED","PROCESSING","COMPLETED","FAILED"})
+        String status,
+        @Schema(description = "Timestamp when recording started; null until then", nullable = true)
+        Instant startedAt,
+        // … all fields annotated
+        @Schema(description = "Timestamp when the session was created", example = "2026-06-15T13:55:00Z")
+        Instant createdAt,
+        @Schema(description = "Timestamp of the last update", example = "2026-06-15T13:55:00Z")
+        Instant updatedAt
+) {}
+```
+
+Rules (ADR-0011): include `createdAt`/`updatedAt`; exclude `createdBy`/`updatedBy`; large fields
+(transcript, embedding) in a separate endpoint.
+
+**4c. Mappers** (`mappers/request`, `mappers/response`) — static `toCommand(...)` / `toResponse(...)`, no annotation noise.
+
+**4d. Swagger interface** (`interfaces/rest/swagger/`) — all OpenAPI annotations here, zero in the controller impl.
+Key elements: `@Tag` with description, `@Operation` with multi-line description, `@Parameter` for every
+`@PathVariable`, `@ApiResponse(201)` with `@Content` + `@ExampleObject` showing the full JSON body:
 
 ```java
 @RequestMapping(path = ApiVersioning.BASE + "/projects/{projectId}/sessions", produces = APPLICATION_JSON_VALUE)
-@Tag(name = "Discovery Sessions")
+@Tag(name = "Discovery Sessions", description = "Requirements-elicitation sessions — lifecycle from DRAFT to COMPLETED")
 public interface DiscoverySessionController {
-    @Operation(summary = "Create a discovery session")
-    @ApiResponse(responseCode = "201", description = "Session created")
-    @ApiResponseBadRequest @ApiStandardErrorResponses
+
+    @Operation(summary = "Create a discovery session", description = """
+            Creates a new session in **DRAFT** under the given project, scoped to the caller's tenant.""")
+    @ApiResponse(responseCode = "201", description = "Session created — Location header points to the new resource",
+            content = @Content(mediaType = APPLICATION_JSON_VALUE,
+                    schema = @Schema(implementation = DiscoverySessionResponse.class),
+                    examples = @ExampleObject(value = """
+                            { "id": "019756a0-...", "status": "DRAFT", "audioDurationMs": 0, ... }""")))
+    @ApiResponseBadRequest
+    @ApiStandardErrorResponses
     @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
     @PostMapping(version = ApiVersioning.V1)
-    ResponseEntity<DiscoverySessionResponse> create(@PathVariable UUID projectId,
-            @Valid @RequestBody CreateDiscoverySessionRequest request, Authentication authentication);
+    ResponseEntity<DiscoverySessionResponse> create(
+            @Parameter(description = "Project to create the session under", required = true,
+                    example = "019756a0-1234-7abc-8def-000000000002")
+            @PathVariable UUID projectId,
+            @Valid @RequestBody CreateDiscoverySessionRequest request);
 }
 ```
 
-**4d. Controller impl** (`interfaces/rest/controllers/`) — clean, `implements` the interface, builds the
+**4e. Controller impl** (`interfaces/rest/controllers/`) — clean, `implements` the interface, builds the
 `Location` with `ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}")`. Add a `GroupedOpenApi`
 bean for the BC in `OpenApiConfiguration` the first time it gets a controller.
 
