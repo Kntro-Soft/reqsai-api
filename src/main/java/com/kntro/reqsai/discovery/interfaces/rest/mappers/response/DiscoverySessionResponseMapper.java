@@ -16,6 +16,12 @@ public final class DiscoverySessionResponseMapper {
                 session.getProjectId(),
                 session.getTitle(),
                 session.getLanguage().value(),
-                session.getStatus().name());
+                session.getStatus().name(),
+                session.getStartedAt(),
+                session.getEndedAt(),
+                session.getAudioDurationMs(),
+                session.getProcessingError(),
+                session.getCreatedAt(),
+                session.getUpdatedAt());
     }
 }
