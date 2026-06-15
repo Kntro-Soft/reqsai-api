@@ -91,8 +91,15 @@ src/main/resources/db/migration/
 Spring Security **stateless** con **JWT firmado por RSA (RS256)**. La **verificación** del token es
 cross-cutting (puerto `TokenVerifier` + adaptador `JjwtTokenVerifier`, solo clave pública, en
 `shared`); la **emisión** (login/refresh, clave privada) es de `iam`. Claves de dev: `scripts/generate-jwt-keys.sh`;
-en prod, secretos montados (ver `.github/workflows/deploy.yml`). Endpoints públicos: `/api/v1/auth/**`,
+en prod, secretos montados (ver `.github/workflows/deploy.yml`). Endpoints públicos: `/api/auth/**`,
 Swagger, `/actuator/health`, `/ws/**`. Ver [ADR-0005](./docs/adr/0005-rsa-jwt-authentication.md).
+
+## Versionado de API
+
+Las rutas tienen la forma `/api/<recurso>` (ej. `/api/organizations`). La versión se negocia mediante
+el header **`Api-Version: 1`** (no en el path). El valor por defecto es `V1`. Spring Framework 7 resuelve
+el endpoint correcto de forma nativa sin ningún middleware adicional. El header es obligatorio en todos
+los endpoints de negocio; los endpoints públicos (Swagger, actuator, `/ws/**`) no lo requieren.
 
 ## Patrones transversales (shared)
 
