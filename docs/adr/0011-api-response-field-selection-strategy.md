@@ -19,16 +19,30 @@ domain-specific fields. We need a consistent rule for:
 
 ### Options considered
 
-| Option                                           | Description                                                                    | Why rejected                                                                                                                                                                            |
-|--------------------------------------------------|--------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Static DTOs per use case** *(chosen)*          | One DTO per endpoint family; fields explicitly chosen.                         | —                                                                                                                                                                                       |
-| **`@JsonView` (Jackson)**                        | Single DTO class, fields annotated with view markers; controller selects view. | Couples serialisation concerns to the DTO with annotations; less readable; unusual for new contributors.                                                                                |
-| **Sparse fieldsets (JSON:API / Google AIP-157)** | Client passes `?fields=id,title` to pick fields at runtime.                    | Client-driven selection shifts the security burden to runtime whitelist validation; adds complexity without benefit for a known internal frontend. Revisit when the API becomes public. |
-| **GraphQL**                                      | Client defines the response shape.                                             | Paradigm shift; unjustified at this stage.                                                                                                                                              |
+| Option                                           | Description                                                                                                                                                                               | Why rejected                                                                                                                                                                            |
+|--------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **One DTO per resource** *(chosen)*              | One shared DTO per aggregate (e.g. `DiscoverySessionResponse`) used by all endpoints for that resource; fields explicitly chosen. Split into Summary/Detail only when a real need arises. | —                                                                                                                                                                                       |
+| **One DTO per use case**                         | Separate `CreateXxxResponse`, `GetXxxResponse`, `ListXxxResponse`… for every operation.                                                                                                   | Extreme proliferation; the same fields end up duplicated across many classes with no real benefit at this scale.                                                                        |
+| **`@JsonView` (Jackson)**                        | Single DTO class, fields annotated with view markers; controller selects view.                                                                                                            | Couples serialisation concerns to the DTO with annotations; less readable; unusual for new contributors.                                                                                |
+| **Sparse fieldsets (JSON:API / Google AIP-157)** | Client passes `?fields=id,title` to pick fields at runtime.                                                                                                                               | Client-driven selection shifts the security burden to runtime whitelist validation; adds complexity without benefit for a known internal frontend. Revisit when the API becomes public. |
+| **GraphQL**                                      | Client defines the response shape.                                                                                                                                                        | Paradigm shift; unjustified at this stage.                                                                                                                                              |
 
 ## Decision
 
-### Rule 1 — Fields included in every response DTO
+### Rule 1 — One DTO per resource, shared across use cases
+
+All endpoints for the same resource share one DTO:
+
+```
+POST   /projects/{p}/sessions    → DiscoverySessionResponse  (create)
+GET    /projects/{p}/sessions    → DiscoverySessionResponse  (list)
+GET    /projects/{p}/sessions/{id} → DiscoverySessionResponse (detail)
+```
+
+The DTO is split into `XxxSummaryResponse` + `XxxDetailResponse` only when a list endpoint
+demonstrably needs a lighter payload than the detail view (Rule 5).
+
+### Rule 2 — Fields included in every response DTO
 
 | Category                                                | Include? | Rationale                                                                    |
 |---------------------------------------------------------|----------|------------------------------------------------------------------------------|
@@ -37,29 +51,29 @@ domain-specific fields. We need a consistent rule for:
 | `createdBy`, `updatedBy`                                | ❌ No     | Internal audit trail; not needed by the frontend                             |
 | Large / expensive fields (`transcript`, `embedding`, …) | ❌ No     | Separate endpoint on explicit request (e.g. `GET /sessions/{id}/transcript`) |
 
-### Rule 2 — No `createdBy` / `updatedBy` in responses
+### Rule 3 — No `createdBy` / `updatedBy` in responses
 
 These are persisted for compliance and internal traceability only.
 They must not appear in any response DTO unless a specific use case explicitly requires them
 (e.g. an admin audit log endpoint).
 
-### Rule 3 — Consistency across all aggregates
+### Rule 4 — Consistency across all aggregates
 
 Every response DTO must follow the same rule. Inconsistency between aggregates
 (one includes `createdAt`, another does not) is treated as a defect.
 
-### Rule 4 — Separate endpoints for heavy fields
+### Rule 5 — Separate endpoints for heavy fields
 
 Fields that can be large (full text, binary, embeddings) are never included in the standard
 resource response. They are served from a dedicated sub-resource endpoint so that list/detail
 views stay fast.
 
 ```
-GET /api/projects/{p}/sessions/{id}           → DiscoverySessionResponse  (no transcript)
-GET /api/projects/{p}/sessions/{id}/transcript → plain text or {text: "..."}
+GET /api/projects/{p}/sessions/{id}            → DiscoverySessionResponse  (no transcript)
+GET /api/projects/{p}/sessions/{id}/transcript → { "transcript": "..." }
 ```
 
-### Rule 5 — Future: Summary vs Detail views
+### Rule 6 — Future: Summary vs Detail split
 
 When the API grows and a list endpoint needs a lighter payload than a detail endpoint, introduce
 a second DTO (`XxxSummaryResponse` + `XxxDetailResponse`) rather than switching to `@JsonView`
@@ -71,6 +85,6 @@ or sparse fieldsets. Two explicit DTOs are clearer and safer than one annotated 
   construction; no runtime whitelist needed.
 - **Consistency:** all response DTOs include `createdAt` / `updatedAt` and exclude
   `createdBy` / `updatedBy` and heavy fields.
-- **Maintenance:** one rule to follow; new fields are added once per DTO and reviewed in the PR.
-- **Trade-off:** a list endpoint and a detail endpoint on the same resource share the same DTO
-  until Rule 5 is triggered — slightly over-fetching on lists. Acceptable at this scale.
+- **Maintenance:** one shared DTO per resource; new fields are added once and reviewed in the PR.
+- **Trade-off:** list and detail endpoints share the same DTO until Rule 6 is triggered —
+  slightly over-fetching on lists. Acceptable at this scale.
