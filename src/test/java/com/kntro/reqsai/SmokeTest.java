@@ -1,5 +1,6 @@
 package com.kntro.reqsai;
 
+import com.kntro.reqsai.testsupport.AbstractIntegrationTest;
 import com.kntro.reqsai.testsupport.TestJwtFactory;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -27,7 +28,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
 @Tag("integration")
-class SmokeTest {
+class SmokeTest extends AbstractIntegrationTest {
 
     @LocalServerPort
     private int port;

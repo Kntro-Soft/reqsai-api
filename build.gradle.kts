@@ -60,6 +60,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-flyway")
     implementation("org.flywaydb:flyway-database-postgresql")
+    implementation("org.hibernate.orm:hibernate-vector")
     runtimeOnly("org.postgresql:postgresql")
 
     // ==================================
@@ -179,6 +180,11 @@ sourceSets {
                 "src/main/java",
                 "$projectDir/build/generated/sources/annotationProcessor/java/main"
             )
+        }
+    }
+    test {
+        java {
+            srcDirs("src/test/java")
         }
     }
 }

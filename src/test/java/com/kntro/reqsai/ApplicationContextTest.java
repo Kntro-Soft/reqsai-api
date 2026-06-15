@@ -1,12 +1,13 @@
 package com.kntro.reqsai;
 
+import com.kntro.reqsai.testsupport.AbstractIntegrationTest;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 
 /**
- * Boots the full Spring context against a Testcontainers PostgreSQL (see {@code application-test.yml}).
+ * Boots the full Spring context against a Testcontainers PostgreSQL.
  * <p>
  * This is the cheapest regression net for the foundation: it fails if any bean fails to wire — which is
  * exactly how the smoke-test boot bugs would surface in CI instead of only at {@code bootRun} time
@@ -16,7 +17,7 @@ import org.springframework.test.context.ActiveProfiles;
 @SpringBootTest
 @ActiveProfiles("test")
 @Tag("integration")
-class ApplicationContextTest {
+class ApplicationContextTest extends AbstractIntegrationTest {
     @Test
     void contextLoads() {}
 }

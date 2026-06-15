@@ -1,7 +1,5 @@
 spring:
   datasource:
-    url: jdbc:tc:postgresql:16:///reqsai_test
-    driver-class-name: org.testcontainers.jdbc.ContainerDatabaseDriver
     hikari:
       maximum-pool-size: 3
       minimum-idle: 1
