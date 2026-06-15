@@ -1,5 +1,6 @@
 package com.kntro.reqsai.workspace.interfaces.rest;
 
+import com.kntro.reqsai.testsupport.AbstractIntegrationTest;
 import com.kntro.reqsai.testsupport.TestJwtFactory;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -30,7 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ActiveProfiles("test")
 @Tag("integration")
 @DisplayName("Integration: Create Organization")
-class CreateOrganizationIntegrationTest {
+class CreateOrganizationIntegrationTest extends AbstractIntegrationTest {
 
     private static final String USER_ID = "00000000-0000-0000-0000-000000000001";
     private static final String ORG_ID = "00000000-0000-0000-0000-000000000009";
