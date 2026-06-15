@@ -41,6 +41,10 @@ public record UserStoryResponse(
                 allowableValues = {"DRAFT", "APPROVED", "REJECTED", "MERGED", "EXPORTED"})
         String status,
 
+        @Schema(description = "True if the story has a similarity-search embedding (embedding model was available at creation and no near-duplicate was found); false if the dedup check was skipped due to the model being unavailable.",
+                example = "false")
+        boolean embeddingIndexed,
+
         @Schema(description = "Timestamp when the story was created", example = "2026-06-15T13:55:00Z")
         Instant createdAt,
 
