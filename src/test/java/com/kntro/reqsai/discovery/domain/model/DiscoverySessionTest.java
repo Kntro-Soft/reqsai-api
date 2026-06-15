@@ -1,7 +1,9 @@
 package com.kntro.reqsai.discovery.domain.model;
 
+import com.kntro.reqsai.discovery.domain.event.DiscoverySessionCreatedEvent;
 import com.kntro.reqsai.discovery.mothers.DiscoverySessionMother;
 import com.kntro.reqsai.shared.domain.exception.DomainException;
+import com.kntro.reqsai.testsupport.AggregateEvents;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -27,6 +29,17 @@ class DiscoverySessionTest {
         assertThat(session.getId()).isNotNull();
         assertThat(session.getProjectId()).isNotNull();
         assertThat(session.getLanguage()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("should register DiscoverySessionCreatedEvent on creation")
+    void should_register_created_event() {
+        // Act
+        DiscoverySession session = DiscoverySessionMother.draft().build();
+
+        // Assert
+        assertThat(AggregateEvents.of(session))
+                .anySatisfy(e -> assertThat(e).isInstanceOf(DiscoverySessionCreatedEvent.class));
     }
 
     @Test
