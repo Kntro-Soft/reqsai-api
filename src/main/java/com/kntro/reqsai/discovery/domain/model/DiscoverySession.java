@@ -12,12 +12,11 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import lombok.Getter;
 
+import java.time.Instant;
 import java.util.UUID;
 
 /**
- * Aggregate root of a requirements-elicitation session. This slice covers only its <strong>creation</strong>
- * (starts in {@code DRAFT}). Recording, transcript segments, and AI processing (with their methods, events,
- * and error codes) arrive with their own use cases.
+ * Aggregate root of a requirements-elicitation session.
  */
 @Entity
 @Table(name = "discovery_sessions")
@@ -39,6 +38,24 @@ public class DiscoverySession extends AggregateRoot {
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 16)
     private SessionStatus status;
+
+    @Column(name = "transcript", columnDefinition = "TEXT")
+    private String transcript;
+
+    @Column(name = "started_at")
+    private Instant startedAt;
+
+    @Column(name = "ended_at")
+    private Instant endedAt;
+
+    @Column(name = "audio_duration_ms", nullable = false)
+    private long audioDurationMs = 0;
+
+    @Column(name = "last_sequence", nullable = false)
+    private int lastSequence = 0;
+
+    @Column(name = "processing_error", length = 1000)
+    private String processingError;
 
     protected DiscoverySession() {
         super();
