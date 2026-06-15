@@ -20,6 +20,8 @@ public final class OrganizationResponseMapper {
                 organization.getStatus().name(),
                 organization.getOwnerId(),
                 settings.meetingLanguage().value(),
-                settings.audioRetentionDays());
+                settings.audioRetentionDays(),
+                organization.getCreatedAt(),
+                organization.getUpdatedAt());
     }
 }

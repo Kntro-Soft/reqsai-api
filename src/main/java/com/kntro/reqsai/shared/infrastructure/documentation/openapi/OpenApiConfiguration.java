@@ -8,10 +8,12 @@ import io.swagger.v3.oas.models.info.License;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.oas.models.servers.Server;
+import org.springdoc.core.models.GroupedOpenApi;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 
 import java.util.List;
 
@@ -58,5 +60,30 @@ public class OpenApiConfiguration {
                                 .scheme("bearer")
                                 .bearerFormat("JWT")
                                 .description("JWT access token (RS256). Paste the token without the 'Bearer ' prefix.")));
+    }
+
+    @Bean
+    public GroupedOpenApi workspaceApi() {
+        return GroupedOpenApi.builder()
+                .group("workspace")
+                .packagesToScan("com.kntro.reqsai.workspace.interfaces")
+                .build();
+    }
+
+    @Bean
+    public GroupedOpenApi discoveryApi() {
+        return GroupedOpenApi.builder()
+                .group("discovery")
+                .packagesToScan("com.kntro.reqsai.discovery.interfaces")
+                .build();
+    }
+
+    @Bean
+    @Profile({"dev", "local-ai"})
+    public GroupedOpenApi devToolsApi() {
+        return GroupedOpenApi.builder()
+                .group("dev-tools")
+                .packagesToScan("com.kntro.reqsai.shared.infrastructure.devtools")
+                .build();
     }
 }

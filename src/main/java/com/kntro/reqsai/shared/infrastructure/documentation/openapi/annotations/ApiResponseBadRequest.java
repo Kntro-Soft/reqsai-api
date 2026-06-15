@@ -25,7 +25,7 @@ import java.lang.annotation.Target;
                   "title": "Bad Request",
                   "status": 400,
                   "detail": "Request validation failed",
-                  "instance": "/api/v1/workspaces",
+                  "instance": "/api/workspaces",
                   "code": "VALIDATION_FAILED",
                   "correlationId": "a3f2c1d0-8e4b-4f1a-9d2e-4f1a8b3c5d6e",
                   "fieldErrors": [
