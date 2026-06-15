@@ -24,6 +24,23 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
   with swagger interface + controller + request/response mappers. Tenant-scoped migration
   `V2__discovery_sessions.sql` (complete schema including nullable temporal and error fields).
   Unit tests (domain + handler) and integration test (full multitenant flow with Testcontainers).
+- **Discovery — Create User Story (manual) use case**: `UserStory` aggregate (`sessionId` nullable for
+  manually-created stories, `projectId`, `title`, `role`, `action`, `benefit`, `priority`,
+  `storyPoints?`, `status = DRAFT`, 768-dim `embedding`) + `Priority` / `StoryStatus` enums;
+  `CreateUserStoryCommand` + handler raising `UserStoryCreatedEvent`; repo port + adapter; REST
+  `POST /api/projects/{projectId}/stories` (swagger interface + controller + request/response mappers);
+  tenant migrations `V3__user_stories.sql` + `V4__user_stories_embedding.sql`. For teams that already
+  have a backlog and want to upload stories directly — a product extension beyond the report's
+  AI-generated stories. Acceptance criteria and the external tracker ref are deferred to their own use
+  cases. 11 tests (domain + handler + multitenant E2E incl. duplicate rejection).
+- **Discovery — embedding-based duplicate detection** (manual create now, AI-generation later): on
+  create the story text is embedded via `EmbeddingPort` → Spring AI `EmbeddingModel` (Ollama
+  `nomic-embed-text` locally / Gemini in prod, selected by `ai.model.embedding`; dedup is skipped, and
+  the app still boots, when none is configured) and compared to the project's existing stories with
+  pgvector cosine distance (`<=>`); a similarity ≥ `0.85` is rejected `409 DUPLICATE_USER_STORY`. Vectors
+  map via `hibernate-vector` (`@JdbcTypeCode(VECTOR)` → `vector(768)`); the `vector` extension is enabled
+  in `public`. Integration tests run on a `pgvector/pgvector:pg16` Testcontainer (`AbstractIntegrationTest`)
+  with a deterministic embedding stub — no external AI needed.
 - **ADR-0011 — API response field-selection strategy**: documents the decision to use one shared DTO
   per resource (not one per use case), the rules for which fields to include (`createdAt`/`updatedAt`
   yes; `createdBy`/`updatedBy` no; large fields in separate endpoints), the security rationale
