@@ -20,6 +20,7 @@ one (and update the old one's status).
 | [0008](./0008-testing-strategy-and-security-test-support.md) | Testing strategy and security test support     | Accepted |
 | [0009](./0009-test-data-builders-and-parallel-execution.md)  | Test data builders and parallel test execution | Accepted |
 | [0010](./0010-use-case-vertical-slice-workflow.md)           | Use-case (vertical slice) development workflow | Accepted |
+| [0011](./0011-api-response-field-selection-strategy.md)      | API response field-selection strategy          | Accepted |
 
 ## Template
 
