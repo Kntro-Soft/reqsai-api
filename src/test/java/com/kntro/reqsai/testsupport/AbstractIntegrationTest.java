@@ -1,6 +1,6 @@
 package com.kntro.reqsai.testsupport;
 
-import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.web.client.RestClient;
@@ -17,7 +17,7 @@ import org.testcontainers.utility.DockerImageName;
  */
 public abstract class AbstractIntegrationTest {
 
-    @LocalServerPort
+    @Value("${local.server.port:0}")
     private int port;
 
     protected RestClient client() {
