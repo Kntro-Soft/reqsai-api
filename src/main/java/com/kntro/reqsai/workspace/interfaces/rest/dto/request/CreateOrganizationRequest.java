@@ -5,7 +5,7 @@ import jakarta.validation.constraints.Size;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Request body for {@code POST /api/v1/organizations}. Only {@code name} is required; {@code slug} is
+ * Request body for {@code POST /api/organizations}. Only {@code name} is required; {@code slug} is
  * derived from the name and {@code meetingLanguage} defaults when omitted.
  */
 public record CreateOrganizationRequest(
