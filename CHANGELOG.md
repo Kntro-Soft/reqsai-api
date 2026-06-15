@@ -13,6 +13,30 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
 
 ### Added
 
+- **Discovery — Create Discovery Session use case** (first discovery vertical slice): `DiscoverySession`
+  aggregate root with the full domain model — `projectId`, `title`, `language`, `status`, `transcript`,
+  `startedAt`, `endedAt`, `audioDurationMs`, `lastSequence`, `processingError`; `SessionStatus` enum with
+  all lifecycle states (`DRAFT → RECORDING → PAUSED → STOPPED → PROCESSING → COMPLETED / FAILED`) and
+  inline comments mapping the streaming vs batch paths and the live-assistance loop. Transition methods
+  (`startRecording`, `appendSegment`, `stopRecording`, `startProcessing`, `complete`, `fail`, `reset`)
+  stashed — arrive with their own use-case slices. `CreateDiscoverySessionCommand` + handler validates
+  input, persists in `DRAFT`, raises `DiscoverySessionCreatedEvent`. REST `POST /api/projects/{p}/sessions`
+  with swagger interface + controller + request/response mappers. Tenant-scoped migration
+  `V2__discovery_sessions.sql` (complete schema including nullable temporal and error fields).
+  Unit tests (domain + handler) and integration test (full multitenant flow with Testcontainers).
+- **ADR-0011 — API response field-selection strategy**: documents the decision to use one shared DTO
+  per resource (not one per use case), the rules for which fields to include (`createdAt`/`updatedAt`
+  yes; `createdBy`/`updatedBy` no; large fields in separate endpoints), the security rationale
+  (OWASP API3:2023), and the future Summary/Detail split trigger. Rejected alternatives:
+  `@JsonView`, sparse fieldsets (JSON:API / Google AIP-157), GraphQL.
+
+### Changed
+
+- **`OrganizationResponse`** now includes `createdAt` and `updatedAt` — aligns with ADR-0011 rule
+  that all response DTOs expose these two audit timestamps consistently.
+
+### Added
+
 - **Workspace — Create Organization use case** (first business vertical slice, domain → controller):
   `Organization` aggregate in the global `public.organizations` registry with `Slug`, `GenerationSettings`
   and `PlanLimits` value objects (the last two mapped `@Embedded`; `Slug` via `@Convert`); `OrgStatus`
