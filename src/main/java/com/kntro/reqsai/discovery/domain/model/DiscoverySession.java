@@ -1,6 +1,11 @@
 package com.kntro.reqsai.discovery.domain.model;
 
 import com.kntro.reqsai.discovery.domain.event.DiscoverySessionCreatedEvent;
+import com.kntro.reqsai.discovery.domain.event.DiscoverySessionProcessingCompletedEvent;
+import com.kntro.reqsai.discovery.domain.event.DiscoverySessionProcessingFailedEvent;
+import com.kntro.reqsai.discovery.domain.event.DiscoverySessionProcessingStartedEvent;
+import com.kntro.reqsai.discovery.domain.event.DiscoverySessionTranscriptUploadedEvent;
+import com.kntro.reqsai.discovery.domain.exception.DiscoveryError;
 import com.kntro.reqsai.shared.domain.model.AggregateRoot;
 import com.kntro.reqsai.shared.domain.support.Assert;
 import com.kntro.reqsai.shared.domain.valueobjects.LanguageCode;
@@ -69,5 +74,37 @@ public class DiscoverySession extends AggregateRoot {
         this.language = Assert.notNull(language, "language");
         this.status = SessionStatus.DRAFT;
         registerEvent(DiscoverySessionCreatedEvent.of(getId(), projectId));
+    }
+
+    /** Batch/demo path: saves the pre-recorded transcript and transitions {@code DRAFT → STOPPED}. */
+    public void uploadTranscript(String transcript) {
+        Assert.isTrue(this.status == SessionStatus.DRAFT, "status", "uploadTranscript requires DRAFT but was " + this.status, DiscoveryError.INVALID_SESSION_STATUS);
+        this.transcript = Assert.notBlank(transcript, "transcript");
+        this.status = SessionStatus.STOPPED;
+        this.endedAt = java.time.Instant.now();
+        registerEvent(DiscoverySessionTranscriptUploadedEvent.of(getId(), projectId));
+    }
+
+    /** Transitions {@code STOPPED} or {@code FAILED} → {@code PROCESSING} to begin AI extraction. */
+    public void startProcessing() {
+        Assert.isTrue(this.status == SessionStatus.STOPPED || this.status == SessionStatus.FAILED, "status", "startProcessing requires STOPPED or FAILED but was " + this.status, DiscoveryError.INVALID_SESSION_STATUS);
+        this.status = SessionStatus.PROCESSING;
+        this.processingError = null;
+        registerEvent(DiscoverySessionProcessingStartedEvent.of(getId(), projectId));
+    }
+
+    /** Transitions {@code PROCESSING} → {@code COMPLETED} after successful AI extraction. */
+    public void complete() {
+        Assert.isTrue(this.status == SessionStatus.PROCESSING, "status", "complete requires PROCESSING but was " + this.status, DiscoveryError.INVALID_SESSION_STATUS);
+        this.status = SessionStatus.COMPLETED;
+        registerEvent(DiscoverySessionProcessingCompletedEvent.of(getId(), projectId));
+    }
+
+    /** Transitions {@code PROCESSING} → {@code FAILED} and stores the failure reason. */
+    public void fail(String reason) {
+        Assert.isTrue(this.status == SessionStatus.PROCESSING, "status", "fail requires PROCESSING but was " + this.status, DiscoveryError.INVALID_SESSION_STATUS);
+        this.status = SessionStatus.FAILED;
+        this.processingError = Assert.notBlank(reason, "reason");
+        registerEvent(DiscoverySessionProcessingFailedEvent.of(getId(), projectId, reason));
     }
 }
