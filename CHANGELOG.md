@@ -13,6 +13,89 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
 
 ### Added
 
+- **Discovery — Upload Transcript + Process Transcript use cases** (full STT → LLM pipeline):
+  `POST /api/sessions/{id}/upload` (multipart `file`) transcribes the audio via the configured STT
+  provider and transitions the session `DRAFT → STOPPED` with the transcript and audio duration stored.
+  `POST /api/sessions/{id}/process` runs the LLM requirement-generation pipeline on the stored
+  transcript, extracting and persisting user stories, and transitions `STOPPED → PROCESSING → COMPLETED`
+  (or `FAILED` on error, with `processingError` persisted for retry). `GET /api/sessions/{id}/transcript`
+  returns the raw transcript text.
+  Application layer: `UploadTranscriptCommand` + handler (load session, call STT port, save),
+  `StartDiscoveryProcessingCommand` + handler (load+validate, call generation port, extract stories via
+  `StoryExtractionService`, complete or fail), `GetSessionTranscriptQuery` + handler.
+  Domain: `DiscoverySession.uploadTranscript(transcript, audioDurationMs)` (`DRAFT → STOPPED`, sets
+  `endedAt` + `audioDurationMs`); `startedAt` now set in constructor; `startProcessing()` /
+  `complete()` / `fail(reason)` transitions already present; `processingError` cleared on retry via
+  `startProcessing()`.
+  STT infrastructure — `TranscriptionPort` + `TranscriptionResult` record (rich: `text`,
+  `detectedLanguage`, `durationMs`, `confidence`, `segments` with speaker labels; optional fields are
+  null when the provider does not support them). `SttRouter` selects the adapter at runtime via
+  `STT_PROVIDER` env var. Three adapters: **`WhisperAdapter`** (Spring AI `OpenAiAudioTranscriptionModel`,
+  OpenAI-compatible protocol — works with `faster-whisper-server` locally and OpenAI cloud unchanged;
+  returns text + language + duration from response metadata, no diarization);
+  **`AssemblyAiAdapter`** (pure `RestClient` three-step async flow: upload → submit → poll; speaker
+  diarization with labels "A"/"B"; `BASE_URL = https://api.assemblyai.com/v2`; `detectLanguage`
+  auto-detected); **`DeepgramAdapter`** (official Deepgram Java SDK, synchronous, speaker labels "0"/"1",
+  `detectLanguage(true)` required for non-English audio). All adapters throw `InfrastructureException`
+  on empty transcript instead of surfacing a domain error.
+  Generation infrastructure — `RequirementGenerationPort` + `GenerationResult` (list of
+  `GeneratedStory` with title, role, action, benefit, priority, storyPoints, acceptance criteria).
+  `RequirementGenerationRouter` selects adapter via `GENERATION_PROVIDER`. Two adapters via
+  `AbstractLlmGenerationAdapter` (shared prompt construction, JSON extraction, `stripMarkdown`):
+  `GeminiRequirementGenerationAdapter` and `OpenAiRequirementGenerationAdapter`.
+  `StoryExtractionService` iterates generated stories: constructs `UserStory`, calls
+  `UserStoryDeduplicationService.embedAndGuardDuplicates()` (skips and publishes
+  `UserStoryNearDuplicateDetectedEvent` on `DUPLICATE_USER_STORY`), skips silently on construction
+  validation failure, persists on success.
+  Shared: `FileUploadUtils.readBytes(MultipartFile)` (shared kernel, throws
+  `ResponseStatusException(422)` on I/O failure); `UNPROCESSABLE_REQUEST` added to `CommonError`;
+  `GlobalExceptionHandler` now handles `ResponseStatusException` with consistent `ProblemDetail` +
+  correlation ID. Integration tests (`ProcessTranscriptIntegrationTest`): full upload → process flow
+  with stub STT + stub generation, GET transcript, and 422 when session is not STOPPED.
+- **ADR-0013 — Exception handling strategy**: documents the two-layer pattern — domain layer
+  (`XxxError` enum + `XxxExceptions` factory → `DomainException`) and infrastructure layer
+  (`XxxInfrastructureError` + `XxxInfrastructureExceptions` + provider subclasses →
+  `InfrastructureException`). Defines the golden rule (adapters never throw `DomainException`),
+  `GlobalExceptionHandler` routing table (`DomainException` → message exposed WARN; `InfrastructureException`
+  → "A server error occurred" ERROR with stacktrace; `ResponseStatusException` → reason exposed WARN),
+  and package layout per bounded context.
+
+### Changed
+
+- **AI provider configuration — `local-ai` profile eliminated**: the `application-local-ai.yml`
+  overlay is deleted. AI providers are now activated exclusively via env vars (`SPRING_AI_MODEL_CHAT`,
+  `SPRING_AI_MODEL_EMBEDDING`, `SPRING_AI_MODEL_AUDIO_TRANSCRIPTION`) and provider selectors
+  (`GENERATION_PROVIDER`, `EMBEDDING_PROVIDER`, `STT_PROVIDER`) — no profile change needed.
+  `AiPingController` and `SttPingController` moved from `@Profile("local-ai")` to `@Profile("dev")`
+  with `ObjectProvider<ChatModel>` / `ObjectProvider<EmbeddingModel>` / `ObjectProvider<TranscriptionModel>`
+  — respond `{"ok":false,"reason":"..."}` when the provider bean is absent, so they load in dev
+  regardless of AI configuration. `OpenApiConfiguration.devToolsApi` simplified from
+  `@Profile({"dev","local-ai"})` to `@Profile("dev")`. `.env.example` rewritten with commented
+  per-provider sections (Gemini, OpenAI, Ollama, Whisper, AssemblyAI, Deepgram). `docs/PROFILES.md`
+  and `docs/LOCAL_AI.md` updated to reflect env-var-only approach.
+
+### Fixed
+
+- **`AssemblyAiAdapter` — correct API base URL**: `BASE_URL` changed from
+  `https://api.assemblyai.com` to `https://api.assemblyai.com/v2`; the unversioned path returns 404
+  on all current AssemblyAI accounts.
+- **`AssemblyAiAdapter` — isolated `RestClient`**: the adapter now receives `RestClient.create()`
+  instead of the shared `RestClient.Builder`, preventing Spring AI's Whisper `baseUrl` from being
+  inherited and corrupting absolute URLs.
+- **`DeepgramAdapter` — language detection**: added `detectLanguage(true)` to the transcription
+  request; without it Deepgram defaults to the English model and returns an empty transcript for
+  non-English audio.
+- **`DiscoverySession.startedAt`** was never populated — now set in the constructor so the field
+  is non-null from creation.
+- **`DiscoverySession.audioDurationMs`** was never written — `uploadTranscript` signature extended
+  to `uploadTranscript(String transcript, long audioDurationMs)`; the STT handler now passes
+  `result.durationMs()` from the provider.
+- **`AbstractLlmGenerationAdapter`** — removed three dead null checks (`response == null`,
+  `output == null`) that the IDE flagged as always-false; replaced with a single safe guard on
+  `getResult()` which can legitimately be null.
+
+---
+
 - **Discovery — GET endpoints for Sessions and User Stories (three scopes)**:
   `ProjectSessionController` — `GET /api/projects/{projectId}/sessions/{sessionId}` (get by id, 404 on missing
   or project mismatch) and `GET /api/projects/{projectId}/sessions` (paginated list, sorted `createdAt DESC`,
