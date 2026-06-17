@@ -30,6 +30,11 @@ public class UserStoryRepositoryAdapter implements UserStoryRepository {
     }
 
     @Override
+    public Optional<UserStory> findByIdAndProjectId(UUID storyId, UUID projectId) {
+        return jpa.findByIdAndProjectId(storyId, projectId);
+    }
+
+    @Override
     public Page<UserStory> findAllByProjectId(UUID projectId, Pageable pageable) {
         return jpa.findAllByProjectId(projectId, pageable);
     }

@@ -17,6 +17,8 @@ public interface UserStoryJpaRepository extends JpaRepository<UserStory, UUID> {
 
     Page<UserStory> findAllBySessionId(UUID sessionId, Pageable pageable);
 
+    Optional<UserStory> findByIdAndProjectId(UUID id, UUID projectId);
+
     void deleteAllBySessionId(UUID sessionId);
 
     /**

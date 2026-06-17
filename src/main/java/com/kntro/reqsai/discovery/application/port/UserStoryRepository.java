@@ -17,6 +17,12 @@ public interface UserStoryRepository {
 
     Optional<UserStory> findById(UUID id);
 
+    /**
+     * Finds a story by id and validates it belongs to the given project.
+     * Used by criterion handlers to scope-check in a single call.
+     */
+    Optional<UserStory> findByIdAndProjectId(UUID storyId, UUID projectId);
+
     Page<UserStory> findAllByProjectId(UUID projectId, Pageable pageable);
 
     Page<UserStory> findAllBySessionId(UUID sessionId, Pageable pageable);
