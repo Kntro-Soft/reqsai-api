@@ -153,4 +153,32 @@ class DiscoverySessionTest {
         // Assert
         assertThat(session.getStatus()).isEqualTo(SessionStatus.COMPLETED);
     }
+
+    @Test
+    @DisplayName("should transition status to RECORDING and set startedAt when starting recording")
+    void should_transition_to_recording() {
+        // Arrange
+        DiscoverySession session = DiscoverySessionMother.draft().build();
+
+        // Act
+        session.startRecording();
+
+        // Assert
+        assertThat(session.getStatus()).isEqualTo(SessionStatus.RECORDING);
+        assertThat(session.getStartedAt()).isNotNull();
+        assertThat(session.getProcessingError()).isNull();
+    }
+
+    @Test
+    @DisplayName("should reject starting recording if session is not in DRAFT")
+    void should_reject_start_recording_if_not_in_draft() {
+        // Arrange
+        DiscoverySession session = DiscoverySessionMother.draft().build();
+        session.startRecording(); // Now status is RECORDING
+
+        // Act & Assert
+        assertThatThrownBy(session::startRecording)
+                .isInstanceOf(DomainException.class)
+                .hasMessageContaining("Cannot perform 'startRecording'");
+    }
 }
