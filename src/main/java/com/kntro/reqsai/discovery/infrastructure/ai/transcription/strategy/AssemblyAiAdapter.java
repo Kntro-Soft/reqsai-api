@@ -117,6 +117,9 @@ public class AssemblyAiAdapter {
         long durationMs = job.audioDuration() != null ? (long) (job.audioDuration() * 1000) : 0L;
         List<TranscriptionResult.SpeakerSegment> segments = extractSegments(job);
         log.debug("AssemblyAI transcribed {} chars, {} utterances", text.length(), segments != null ? segments.size() : 0);
+        if (text.isBlank()) {
+            throw DiscoveryInfrastructureExceptions.transcriptionFailed("AssemblyAI returned an empty transcript");
+        }
         return new TranscriptionResult(text, job.languageCode(), durationMs, job.confidence(), segments);
     }
 

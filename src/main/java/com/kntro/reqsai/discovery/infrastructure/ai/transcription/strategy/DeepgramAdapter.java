@@ -44,6 +44,7 @@ public class DeepgramAdapter {
                 .body(audio)
                 .diarize(true)
                 .punctuate(true)
+                .detectLanguage(true)
                 .build();
 
         MediaTranscribeResponse response = deepgram.listen().v1().media().transcribeFile(request);
@@ -93,6 +94,9 @@ public class DeepgramAdapter {
         }
 
         log.debug("Deepgram transcribed {} chars, {} utterances", text.length(), segments != null ? segments.size() : 0);
+        if (text.isBlank()) {
+            throw DiscoveryInfrastructureExceptions.transcriptionFailed("Deepgram returned an empty transcript");
+        }
         return new TranscriptionResult(text, language, durationMs, confidence, segments);
     }
 
