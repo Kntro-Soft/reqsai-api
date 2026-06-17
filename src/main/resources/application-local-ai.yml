@@ -5,3 +5,12 @@ spring:
       embedding: ollama
       audio:
         transcription: openai
+
+reqsai:
+  ai:
+    stt:
+      provider: whisper
+    generation:
+      provider: gemini
+    embedding:
+      provider: auto
