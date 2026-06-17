@@ -21,6 +21,8 @@ public interface UserStoryRepository {
 
     Page<UserStory> findAllBySessionId(UUID sessionId, Pageable pageable);
 
+    void deleteAllBySessionId(UUID sessionId);
+
     /**
      * Highest cosine similarity (0..1) between {@code embedding} and any already-embedded story of the
      * project, or empty when the project has none yet. Used to reject near-duplicates on creation.

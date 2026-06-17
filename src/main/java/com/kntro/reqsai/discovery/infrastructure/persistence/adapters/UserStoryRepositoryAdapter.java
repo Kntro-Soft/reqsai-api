@@ -40,6 +40,11 @@ public class UserStoryRepositoryAdapter implements UserStoryRepository {
     }
 
     @Override
+    public void deleteAllBySessionId(UUID sessionId) {
+        jpa.deleteAllBySessionId(sessionId);
+    }
+
+    @Override
     public Optional<Double> highestSimilarity(UUID projectId, float[] embedding) {
         // cosine similarity = 1 - cosine distance (pgvector <=>)
         return jpa.minCosineDistance(projectId, toVectorLiteral(embedding))

@@ -17,6 +17,8 @@ public interface UserStoryJpaRepository extends JpaRepository<UserStory, UUID> {
 
     Page<UserStory> findAllBySessionId(UUID sessionId, Pageable pageable);
 
+    void deleteAllBySessionId(UUID sessionId);
+
     /**
      * Smallest pgvector cosine <em>distance</em> ({@code <=>}, in {@code [0,2]}) between the given
      * vector literal and any embedded story of the project. Native because pgvector operators are not
