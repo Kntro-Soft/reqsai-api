@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 import java.net.URI;
@@ -67,6 +68,18 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     public ProblemDetail handleDomain(DomainException ex, HttpServletRequest req) {
         log.warn("[{}] Domain error [{}]: {}", tenantId(), ex.error().code(), ex.getMessage());
         return problem(ex, req);
+    }
+
+    // ResponseStatusException — thrown at the interface layer for client input errors
+    @ExceptionHandler(ResponseStatusException.class)
+    public ProblemDetail handleResponseStatus(ResponseStatusException ex, HttpServletRequest req) {
+        log.warn("[{}] Request error on {}: {}", tenantId(), req.getRequestURI(), ex.getReason());
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(ex.getStatusCode(),
+                ex.getReason() != null ? ex.getReason() : "The request could not be processed");
+        pd.setProperty("code", CommonError.UNPROCESSABLE_REQUEST.code());
+        pd.setProperty("correlationId", correlationId());
+        pd.setInstance(URI.create(req.getRequestURI()));
+        return pd;
     }
 
     // Validation (@Valid) — override the base handler to enrich the body
