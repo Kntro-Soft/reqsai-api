@@ -107,8 +107,20 @@ class DiscoverySessionLifecycleIntegrationTest extends AbstractIntegrationTest {
 
         assertDatabaseStatus(expectedSlug, sessionId, "STOPPED");
 
-        // 7. Verify Unhappy Path (Try pausing a STOPPED session)
-        ResponseEntity<String> invalidTransitionRes = client().post().uri("/api/projects/{p}/sessions/{s}/pause", projectId, sessionId)
+        // 7. Reset Session (STOPPED -> DRAFT)
+        ResponseEntity<String> resetRes = client().post().uri("/api/projects/{p}/sessions/{s}/reset", projectId, sessionId)
+                .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId, "ROLE_USER"))
+                .header("Api-Version", "1")
+                .exchange((req, response) -> ResponseEntity.status(response.getStatusCode()).body(response.bodyTo(String.class)));
+        assertThat(resetRes.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(resetRes.getBody()).contains("\"status\":\"DRAFT\"");
+        assertThat(resetRes.getBody()).contains("\"startedAt\":null");
+        assertThat(resetRes.getBody()).contains("\"endedAt\":null");
+
+        assertDatabaseStatus(expectedSlug, sessionId, "DRAFT");
+
+        // 8. Verify Unhappy Path (Try resetting a DRAFT session)
+        ResponseEntity<String> invalidTransitionRes = client().post().uri("/api/projects/{p}/sessions/{s}/reset", projectId, sessionId)
                 .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId, "ROLE_USER"))
                 .header("Api-Version", "1")
                 .exchange((req, response) -> ResponseEntity.status(response.getStatusCode()).body(response.bodyTo(String.class)));
