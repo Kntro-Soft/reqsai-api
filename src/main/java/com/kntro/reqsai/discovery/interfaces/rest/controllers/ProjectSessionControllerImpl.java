@@ -1,6 +1,7 @@
 package com.kntro.reqsai.discovery.interfaces.rest.controllers;
 
 import com.kntro.reqsai.discovery.application.command.PauseRecordingCommand;
+import com.kntro.reqsai.discovery.application.command.ResetSessionCommand;
 import com.kntro.reqsai.discovery.application.command.ResumeRecordingCommand;
 import com.kntro.reqsai.discovery.application.command.StartRecordingCommand;
 import com.kntro.reqsai.discovery.application.command.StopRecordingCommand;
@@ -8,6 +9,7 @@ import com.kntro.reqsai.discovery.application.handler.CreateDiscoverySessionComm
 import com.kntro.reqsai.discovery.application.handler.GetProjectSessionQueryHandler;
 import com.kntro.reqsai.discovery.application.handler.ListProjectSessionsQueryHandler;
 import com.kntro.reqsai.discovery.application.handler.PauseRecordingCommandHandler;
+import com.kntro.reqsai.discovery.application.handler.ResetSessionCommandHandler;
 import com.kntro.reqsai.discovery.application.handler.ResumeRecordingCommandHandler;
 import com.kntro.reqsai.discovery.application.handler.StartRecordingCommandHandler;
 import com.kntro.reqsai.discovery.application.handler.StopRecordingCommandHandler;
@@ -41,6 +43,7 @@ public class ProjectSessionControllerImpl implements ProjectSessionController {
     private final PauseRecordingCommandHandler pauseRecording;
     private final ResumeRecordingCommandHandler resumeRecording;
     private final StopRecordingCommandHandler stopRecording;
+    private final ResetSessionCommandHandler resetSession;
 
     @Override
     public ResponseEntity<DiscoverySessionResponse> create(UUID projectId, CreateDiscoverySessionRequest request) {
@@ -88,6 +91,12 @@ public class ProjectSessionControllerImpl implements ProjectSessionController {
     @Override
     public ResponseEntity<DiscoverySessionResponse> stop(UUID projectId, UUID sessionId) {
         DiscoverySession session = stopRecording.handle(new StopRecordingCommand(projectId, sessionId));
+        return ResponseEntity.ok(DiscoverySessionResponseMapper.toResponse(session));
+    }
+
+    @Override
+    public ResponseEntity<DiscoverySessionResponse> reset(UUID projectId, UUID sessionId) {
+        DiscoverySession session = resetSession.handle(new ResetSessionCommand(projectId, sessionId));
         return ResponseEntity.ok(DiscoverySessionResponseMapper.toResponse(session));
     }
 }

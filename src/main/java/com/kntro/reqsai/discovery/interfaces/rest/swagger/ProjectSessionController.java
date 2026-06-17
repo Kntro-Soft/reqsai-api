@@ -190,4 +190,23 @@ public interface ProjectSessionController {
             @PathVariable UUID projectId,
             @Parameter(description = "Session identifier", required = true)
             @PathVariable UUID sessionId);
+
+    @Operation(
+            summary = "Reset a discovery session",
+            description = "Transitions a discovery session status back to DRAFT, clearing all recorded metadata and deleting extracted user stories.")
+    @ApiResponse(
+            responseCode = "200",
+            description = "Session reset back to DRAFT",
+            content = @Content(
+                    mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    schema = @Schema(implementation = DiscoverySessionResponse.class)))
+    @ApiResponseNotFound
+    @ApiStandardErrorResponses
+    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
+    @PostMapping(path = "/{sessionId}/reset", version = ApiVersioning.V1)
+    ResponseEntity<DiscoverySessionResponse> reset(
+            @Parameter(description = "Project the session belongs to", required = true)
+            @PathVariable UUID projectId,
+            @Parameter(description = "Session identifier", required = true)
+            @PathVariable UUID sessionId);
 }
