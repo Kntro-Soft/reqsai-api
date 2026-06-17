@@ -1,5 +1,6 @@
 package com.kntro.reqsai.discovery.domain.exception;
 
+import com.kntro.reqsai.discovery.domain.model.SessionStatus;
 import com.kntro.reqsai.shared.domain.exception.DomainException;
 import com.kntro.reqsai.shared.domain.exception.EntityNotFoundException;
 
@@ -23,8 +24,28 @@ public final class DiscoveryExceptions {
                 "Discovery session '%s' not found".formatted(id));
     }
 
+    public static DomainException invalidSessionStatus(SessionStatus current, SessionStatus required) {
+        return new DomainException(DiscoveryError.INVALID_SESSION_STATUS,
+                "Operation requires status %s but session is %s".formatted(required, current));
+    }
+
+    public static DomainException transcriptionUnavailable() {
+        return new DomainException(DiscoveryError.TRANSCRIPTION_UNAVAILABLE,
+                "Transcription service is not configured or unavailable");
+    }
+
     public static EntityNotFoundException userStoryNotFound(java.util.UUID id) {
         return new EntityNotFoundException(DiscoveryError.USER_STORY_NOT_FOUND,
                 "User story '%s' not found".formatted(id));
+    }
+
+    public static DomainException requirementGenerationUnavailable() {
+        return new DomainException(DiscoveryError.REQUIREMENT_GENERATION_UNAVAILABLE,
+                "Requirement generation service is not configured or unavailable");
+    }
+
+    public static DomainException requirementGenerationFailed(String reason) {
+        return new DomainException(DiscoveryError.REQUIREMENT_GENERATION_FAILED,
+                "Requirement generation failed: " + reason);
     }
 }
