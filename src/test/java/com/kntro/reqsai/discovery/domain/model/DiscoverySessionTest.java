@@ -278,4 +278,35 @@ class DiscoverySessionTest {
                 .isInstanceOf(DomainException.class)
                 .hasMessageContaining("Cannot perform 'stopRecording'");
     }
+
+    @Test
+    @DisplayName("should transition status to DRAFT and clear fields when resetting from STOPPED")
+    void should_reset_from_stopped() {
+        // Arrange
+        DiscoverySession session = DiscoverySessionMother.draft().build();
+        session.startRecording();
+        session.stopRecording(); // status is STOPPED
+
+        // Act
+        session.resetSession();
+
+        // Assert
+        assertThat(session.getStatus()).isEqualTo(SessionStatus.DRAFT);
+        assertThat(session.getTranscript()).isNull();
+        assertThat(session.getStartedAt()).isNull();
+        assertThat(session.getEndedAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("should reject resetting if session is in RECORDING")
+    void should_reject_reset_if_recording() {
+        // Arrange
+        DiscoverySession session = DiscoverySessionMother.draft().build();
+        session.startRecording(); // status is RECORDING
+
+        // Act & Assert
+        assertThatThrownBy(session::resetSession)
+                .isInstanceOf(DomainException.class)
+                .hasMessageContaining("Cannot perform 'resetSession'");
+    }
 }
