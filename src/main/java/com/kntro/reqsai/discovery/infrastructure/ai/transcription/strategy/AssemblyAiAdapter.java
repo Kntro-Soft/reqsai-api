@@ -24,7 +24,7 @@ import java.util.Map;
 @Slf4j
 public class AssemblyAiAdapter {
 
-    private static final String BASE_URL = "https://api.assemblyai.com";
+    private static final String BASE_URL = "https://api.assemblyai.com/v2";
     private static final int MAX_POLLS = 60;
     private static final long POLL_DELAY_MS = 3_000;
 
