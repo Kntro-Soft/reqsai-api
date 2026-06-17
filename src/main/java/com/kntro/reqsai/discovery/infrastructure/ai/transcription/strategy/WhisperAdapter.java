@@ -31,7 +31,16 @@ public class WhisperAdapter {
         AudioTranscriptionResponse response = transcriptionModel.call(
                 new AudioTranscriptionPrompt(namedResource(audio, filename)));
         String text = response.getResult().getOutput();
-        return TranscriptionResult.textOnly(text, 0L);
+        long durationMs = extractDurationMs(response);
+        return TranscriptionResult.textOnly(text, durationMs);
+    }
+
+    private static long extractDurationMs(AudioTranscriptionResponse response) {
+        Object raw = response.getMetadata().get("duration");
+        if (raw instanceof Number n) {
+            return Math.round(n.doubleValue() * 1000.0);
+        }
+        return 0L;
     }
 
     private static ByteArrayResource namedResource(byte[] audio, String filename) {

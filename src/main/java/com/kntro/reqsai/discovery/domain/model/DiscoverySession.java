@@ -75,13 +75,15 @@ public class DiscoverySession extends AggregateRoot {
         this.title = Assert.maxLength(Assert.notBlank(title, "title"), "title", TITLE_MAX);
         this.language = Assert.notNull(language, "language");
         this.status = SessionStatus.DRAFT;
+        this.startedAt = java.time.Instant.now();
         registerEvent(DiscoverySessionCreatedEvent.of(getId(), projectId));
     }
 
     /** Batch/demo path: saves the pre-recorded transcript and transitions {@code DRAFT → STOPPED}. */
-    public void uploadTranscript(String transcript) {
+    public void uploadTranscript(String transcript, long audioDurationMs) {
         Assert.isTrue(this.status == SessionStatus.DRAFT, "status", "uploadTranscript requires DRAFT but was " + this.status, DiscoveryError.INVALID_SESSION_STATUS);
         this.transcript = Assert.notBlank(transcript, "transcript");
+        this.audioDurationMs = audioDurationMs;
         this.status = SessionStatus.STOPPED;
         this.endedAt = java.time.Instant.now();
         registerEvent(DiscoverySessionTranscriptUploadedEvent.of(getId(), projectId));

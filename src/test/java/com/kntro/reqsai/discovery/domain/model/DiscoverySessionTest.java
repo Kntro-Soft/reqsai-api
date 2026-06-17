@@ -30,6 +30,7 @@ class DiscoverySessionTest {
         assertThat(session.getId()).isNotNull();
         assertThat(session.getProjectId()).isNotNull();
         assertThat(session.getLanguage()).isNotNull();
+        assertThat(session.getStartedAt()).isNotNull();
     }
 
     @Test
@@ -59,7 +60,7 @@ class DiscoverySessionTest {
         String transcript = "El cliente quiere un login con Google.";
 
         // Act
-        session.uploadTranscript(transcript);
+        session.uploadTranscript(transcript, 0L);
 
         // Assert
         assertThat(session.getStatus()).isEqualTo(SessionStatus.STOPPED);
@@ -74,7 +75,7 @@ class DiscoverySessionTest {
         DiscoverySession session = DiscoverySessionMother.draft().build();
 
         // Act & Assert
-        assertThatThrownBy(() -> session.uploadTranscript("   "))
+        assertThatThrownBy(() -> session.uploadTranscript("   ", 0L))
                 .isInstanceOf(DomainException.class);
     }
 
@@ -83,10 +84,10 @@ class DiscoverySessionTest {
     void should_reject_upload_when_not_draft() {
         // Arrange
         DiscoverySession session = DiscoverySessionMother.draft().build();
-        session.uploadTranscript("Primera transcripción.");
+        session.uploadTranscript("Primera transcripción.", 0L);
 
         // Act & Assert
-        assertThatThrownBy(() -> session.uploadTranscript("Segunda transcripción."))
+        assertThatThrownBy(() -> session.uploadTranscript("Segunda transcripción.", 0L))
                 .isInstanceOf(DomainException.class)
                 .satisfies(e -> assertThat(((DomainException) e).error())
                         .isEqualTo(DiscoveryError.INVALID_SESSION_STATUS));
@@ -97,7 +98,7 @@ class DiscoverySessionTest {
     void should_process_and_complete() {
         // Arrange
         DiscoverySession session = DiscoverySessionMother.draft().build();
-        session.uploadTranscript("Some transcript.");
+        session.uploadTranscript("Some transcript.", 0L);
 
         // Act
         session.startProcessing();
@@ -112,7 +113,7 @@ class DiscoverySessionTest {
     void should_fail_with_reason() {
         // Arrange
         DiscoverySession session = DiscoverySessionMother.draft().build();
-        session.uploadTranscript("Some transcript.");
+        session.uploadTranscript("Some transcript.", 0L);
         session.startProcessing();
 
         // Act
@@ -141,7 +142,7 @@ class DiscoverySessionTest {
     void should_allow_retry_from_failed() {
         // Arrange
         DiscoverySession session = DiscoverySessionMother.draft().build();
-        session.uploadTranscript("Some transcript.");
+        session.uploadTranscript("Some transcript.", 0L);
         session.startProcessing();
         session.fail("Timeout");
 

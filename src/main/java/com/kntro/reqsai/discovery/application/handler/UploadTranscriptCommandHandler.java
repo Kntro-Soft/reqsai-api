@@ -27,11 +27,12 @@ public class UploadTranscriptCommandHandler {
         DiscoverySession session = sessions.findById(command.sessionId())
                 .orElseThrow(() -> DiscoveryExceptions.sessionNotFound(command.sessionId()));
 
-        String transcript = transcription.transcribe(command.audioBytes(), command.filename()).text();
+        var result = transcription.transcribe(command.audioBytes(), command.filename());
 
-        session.uploadTranscript(transcript);
+        session.uploadTranscript(result.text(), result.durationMs());
         DiscoverySession saved = sessions.save(session);
-        log.info("Transcript uploaded for session {} ({} chars) — status STOPPED", saved.getId(), transcript.length());
+        log.info("Transcript uploaded for session {} ({} chars, {}ms) — status STOPPED",
+                saved.getId(), result.text().length(), result.durationMs());
         return saved;
     }
 }

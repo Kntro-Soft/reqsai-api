@@ -51,7 +51,7 @@ class StartDiscoveryProcessingCommandHandlerTest {
     void should_process_and_create_stories() {
         // Arrange
         DiscoverySession session = DiscoverySessionMother.draft().build();
-        session.uploadTranscript("El cliente quiere login con Google.");
+        session.uploadTranscript("El cliente quiere login con Google.", 0L);
         when(sessions.findById(session.getId())).thenReturn(Optional.of(session));
         when(sessions.save(any())).thenAnswer(inv -> inv.getArgument(0));
         GenerationResult generationResult = new GenerationResult(List.of(
@@ -89,7 +89,7 @@ class StartDiscoveryProcessingCommandHandlerTest {
     void should_throw_when_session_in_wrong_status() {
         // Arrange — COMPLETED has a transcript but is in a terminal state
         DiscoverySession session = DiscoverySessionMother.draft().build();
-        session.uploadTranscript("Some transcript.");
+        session.uploadTranscript("Some transcript.", 0L);
         session.startProcessing();
         session.complete();
         when(sessions.findById(session.getId())).thenReturn(Optional.of(session));
@@ -106,7 +106,7 @@ class StartDiscoveryProcessingCommandHandlerTest {
     void should_mark_failed_on_generation_error() {
         // Arrange
         DiscoverySession session = DiscoverySessionMother.draft().build();
-        session.uploadTranscript("Transcript.");
+        session.uploadTranscript("Transcript.", 0L);
         when(sessions.findById(session.getId())).thenReturn(Optional.of(session));
         when(sessions.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(requirementGeneration.generate(any(), any())).thenThrow(new RuntimeException("API timeout"));
@@ -125,7 +125,7 @@ class StartDiscoveryProcessingCommandHandlerTest {
     void should_complete_when_all_stories_are_duplicates() {
         // Arrange
         DiscoverySession session = DiscoverySessionMother.draft().build();
-        session.uploadTranscript("Transcript.");
+        session.uploadTranscript("Transcript.", 0L);
         when(sessions.findById(session.getId())).thenReturn(Optional.of(session));
         when(sessions.save(any())).thenAnswer(inv -> inv.getArgument(0));
         GenerationResult generationResult = new GenerationResult(List.of(
