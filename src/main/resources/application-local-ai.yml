@@ -1,7 +1,0 @@
-spring:
-  ai:
-    model:
-      chat: ollama
-      embedding: ollama
-      audio:
-        transcription: openai

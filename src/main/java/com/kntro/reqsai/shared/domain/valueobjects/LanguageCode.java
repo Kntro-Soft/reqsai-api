@@ -12,6 +12,9 @@ import java.util.regex.Pattern;
  */
 public record LanguageCode(String value) {
 
+    /** Maximum character length of a stored BCP-47 tag ({@code ll-RR} = 5 chars; 8 gives a safe buffer). */
+    public static final int MAX_LENGTH = 8;
+
     /** Matches {@code ll} or {@code ll-RR} (ISO-639 language, optional ISO-3166 region). */
     private static final Pattern PATTERN = Pattern.compile("^[a-z]{2}(-[A-Z]{2})?$");
 

@@ -81,6 +81,12 @@ spring:
             options:
               model: ${GEMINI_EMBEDDING_MODEL:text-embedding-004}
     openai:
+      api-key: ${OPENAI_API_KEY:}
+      chat:
+        model: ${OPENAI_CHAT_MODEL:gpt-4o-mini}
+      embedding:
+        model: ${OPENAI_EMBEDDING_MODEL:text-embedding-3-small}
+        dimensions: 768
       audio:
         transcription:
           base-url: ${WHISPER_BASE_URL:http://localhost:9000/v1}
@@ -96,6 +102,13 @@ spring:
 reqsai:
   name: ${APP_NAME:Reqs-AI}
   url: ${APP_URL:http://localhost:8080}
+  ai:
+    stt:
+      provider: ${STT_PROVIDER:whisper}
+    generation:
+      provider: ${GENERATION_PROVIDER:gemini}
+    embedding:
+      provider: ${EMBEDDING_PROVIDER:auto}
   jwt:
     private-key-path: ${JWT_PRIVATE_KEY_PATH:classpath:certs/private_key.pem}
     public-key-path: ${JWT_PUBLIC_KEY_PATH:classpath:certs/public_key.pem}

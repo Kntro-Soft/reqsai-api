@@ -22,6 +22,7 @@ one (and update the old one's status).
 | [0010](./0010-use-case-vertical-slice-workflow.md)           | Use-case (vertical slice) development workflow | Accepted |
 | [0011](./0011-api-response-field-selection-strategy.md)      | API response field-selection strategy          | Accepted |
 | [0012](./0012-rest-route-design-for-user-stories.md)         | REST route design for User Story endpoints     | Accepted |
+| [0013](./0013-exception-handling-strategy.md)                | Exception handling strategy                    | Accepted |
 
 ## Template
 

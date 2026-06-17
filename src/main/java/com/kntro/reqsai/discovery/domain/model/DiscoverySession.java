@@ -1,6 +1,11 @@
 package com.kntro.reqsai.discovery.domain.model;
 
 import com.kntro.reqsai.discovery.domain.event.DiscoverySessionCreatedEvent;
+import com.kntro.reqsai.discovery.domain.event.DiscoverySessionProcessingCompletedEvent;
+import com.kntro.reqsai.discovery.domain.event.DiscoverySessionProcessingFailedEvent;
+import com.kntro.reqsai.discovery.domain.event.DiscoverySessionProcessingStartedEvent;
+import com.kntro.reqsai.discovery.domain.event.DiscoverySessionTranscriptUploadedEvent;
+import com.kntro.reqsai.discovery.domain.exception.DiscoveryError;
 import com.kntro.reqsai.shared.domain.model.AggregateRoot;
 import com.kntro.reqsai.shared.domain.support.Assert;
 import com.kntro.reqsai.shared.domain.valueobjects.LanguageCode;
@@ -25,6 +30,8 @@ import java.util.UUID;
 public class DiscoverySession extends AggregateRoot {
 
     private static final int TITLE_MAX = 200;
+    private static final int STATUS_MAX = 16;
+    private static final int PROCESSING_ERROR_MAX = 1000;
 
     @Column(name = "project_id", columnDefinition = "uuid", nullable = false, updatable = false)
     private UUID projectId;
@@ -33,11 +40,11 @@ public class DiscoverySession extends AggregateRoot {
     private String title;
 
     @Convert(converter = LanguageCodeConverter.class)
-    @Column(name = "language", nullable = false, length = 8)
+    @Column(name = "language", nullable = false, length = LanguageCode.MAX_LENGTH)
     private LanguageCode language;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false, length = 16)
+    @Column(name = "status", nullable = false, length = STATUS_MAX)
     private SessionStatus status;
 
     @Column(name = "transcript", columnDefinition = "TEXT")
@@ -55,7 +62,7 @@ public class DiscoverySession extends AggregateRoot {
     @Column(name = "last_sequence", nullable = false)
     private int lastSequence = 0;
 
-    @Column(name = "processing_error", length = 1000)
+    @Column(name = "processing_error", length = PROCESSING_ERROR_MAX)
     private String processingError;
 
     protected DiscoverySession() {
@@ -68,6 +75,40 @@ public class DiscoverySession extends AggregateRoot {
         this.title = Assert.maxLength(Assert.notBlank(title, "title"), "title", TITLE_MAX);
         this.language = Assert.notNull(language, "language");
         this.status = SessionStatus.DRAFT;
+        this.startedAt = java.time.Instant.now();
         registerEvent(DiscoverySessionCreatedEvent.of(getId(), projectId));
+    }
+
+    /** Batch/demo path: saves the pre-recorded transcript and transitions {@code DRAFT → STOPPED}. */
+    public void uploadTranscript(String transcript, long audioDurationMs) {
+        Assert.isTrue(this.status == SessionStatus.DRAFT, "status", "uploadTranscript requires DRAFT but was " + this.status, DiscoveryError.INVALID_SESSION_STATUS);
+        this.transcript = Assert.notBlank(transcript, "transcript");
+        this.audioDurationMs = audioDurationMs;
+        this.status = SessionStatus.STOPPED;
+        this.endedAt = java.time.Instant.now();
+        registerEvent(DiscoverySessionTranscriptUploadedEvent.of(getId(), projectId));
+    }
+
+    /** Transitions {@code STOPPED} or {@code FAILED} → {@code PROCESSING} to begin AI extraction. */
+    public void startProcessing() {
+        Assert.isTrue(this.status == SessionStatus.STOPPED || this.status == SessionStatus.FAILED, "status", "startProcessing requires STOPPED or FAILED but was " + this.status, DiscoveryError.INVALID_SESSION_STATUS);
+        this.status = SessionStatus.PROCESSING;
+        this.processingError = null;
+        registerEvent(DiscoverySessionProcessingStartedEvent.of(getId(), projectId));
+    }
+
+    /** Transitions {@code PROCESSING} → {@code COMPLETED} after successful AI extraction. */
+    public void complete() {
+        Assert.isTrue(this.status == SessionStatus.PROCESSING, "status", "complete requires PROCESSING but was " + this.status, DiscoveryError.INVALID_SESSION_STATUS);
+        this.status = SessionStatus.COMPLETED;
+        registerEvent(DiscoverySessionProcessingCompletedEvent.of(getId(), projectId));
+    }
+
+    /** Transitions {@code PROCESSING} → {@code FAILED} and stores the failure reason. */
+    public void fail(String reason) {
+        Assert.isTrue(this.status == SessionStatus.PROCESSING, "status", "fail requires PROCESSING but was " + this.status, DiscoveryError.INVALID_SESSION_STATUS);
+        this.status = SessionStatus.FAILED;
+        this.processingError = Assert.maxLength(Assert.notBlank(reason, "reason"), "reason", PROCESSING_ERROR_MAX);
+        registerEvent(DiscoverySessionProcessingFailedEvent.of(getId(), projectId, reason));
     }
 }

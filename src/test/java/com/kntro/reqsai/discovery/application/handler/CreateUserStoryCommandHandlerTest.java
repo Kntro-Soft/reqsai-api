@@ -75,7 +75,7 @@ class CreateUserStoryCommandHandlerTest {
     void should_embed_and_persist_below_threshold() {
         // Arrange
         when(embeddingPort.isAvailable()).thenReturn(true);
-        when(embeddingPort.embed(any())).thenReturn(new float[UserStory.EMBEDDING_DIMENSIONS]);
+        when(embeddingPort.embed(any())).thenReturn(new float[EmbeddingPort.DIMENSIONS]);
         when(stories.highestSimilarity(any(), any())).thenReturn(Optional.of(0.42));
         when(stories.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -83,7 +83,7 @@ class CreateUserStoryCommandHandlerTest {
         UserStory story = handler.handle(CreateUserStoryCommandMother.valid());
 
         // Assert
-        assertThat(story.getEmbedding()).hasSize(UserStory.EMBEDDING_DIMENSIONS);
+        assertThat(story.getEmbedding()).hasSize(EmbeddingPort.DIMENSIONS);
         verify(stories).save(any(UserStory.class));
     }
 
@@ -92,7 +92,7 @@ class CreateUserStoryCommandHandlerTest {
     void should_reject_near_duplicate() {
         // Arrange
         when(embeddingPort.isAvailable()).thenReturn(true);
-        when(embeddingPort.embed(any())).thenReturn(new float[UserStory.EMBEDDING_DIMENSIONS]);
+        when(embeddingPort.embed(any())).thenReturn(new float[EmbeddingPort.DIMENSIONS]);
         when(stories.highestSimilarity(any(), any())).thenReturn(Optional.of(0.91));
 
         // Act & Assert

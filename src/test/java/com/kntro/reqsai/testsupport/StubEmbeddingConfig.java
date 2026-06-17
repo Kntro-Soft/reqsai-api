@@ -1,7 +1,6 @@
 package com.kntro.reqsai.testsupport;
 
 import com.kntro.reqsai.discovery.application.port.EmbeddingPort;
-import com.kntro.reqsai.discovery.domain.model.UserStory;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
@@ -34,7 +33,7 @@ public class StubEmbeddingConfig {
             @Override
             public float[] embed(String text) {
                 Random rnd = new Random(text.hashCode());
-                float[] vector = new float[UserStory.EMBEDDING_DIMENSIONS];
+                float[] vector = new float[EmbeddingPort.DIMENSIONS];
                 for (int i = 0; i < vector.length; i++) {
                     vector[i] = (float) rnd.nextGaussian();
                 }

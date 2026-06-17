@@ -17,10 +17,19 @@ spring:
   ai:
     model:
       chat: google-genai
-      embedding: google-genai
+      embedding: none
     vectorstore:
       pgvector:
         initialize-schema: false
+
+reqsai:
+  ai:
+    stt:
+      provider: ${STT_PROVIDER:assemblyai}
+    generation:
+      provider: ${GENERATION_PROVIDER:gemini}
+    embedding:
+      provider: ${EMBEDDING_PROVIDER:gemini}
 
 server:
   compression:
