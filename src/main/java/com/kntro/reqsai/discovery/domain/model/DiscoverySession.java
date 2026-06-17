@@ -125,4 +125,38 @@ public class DiscoverySession extends AggregateRoot {
         this.startedAt = Instant.now();
         this.processingError = null;
     }
+
+    /**
+     * Pauses the active recording, transitioning the status to PAUSED.
+     * Allowed only when the session is in RECORDING status.
+     */
+    public void pauseRecording() {
+        if (status != SessionStatus.RECORDING) {
+            throw DiscoveryExceptions.invalidTransition(status, "pauseRecording");
+        }
+        this.status = SessionStatus.PAUSED;
+    }
+
+    /**
+     * Resumes the paused recording, transitioning the status to RECORDING.
+     * Allowed only when the session is in PAUSED status.
+     */
+    public void resumeRecording() {
+        if (status != SessionStatus.PAUSED) {
+            throw DiscoveryExceptions.invalidTransition(status, "resumeRecording");
+        }
+        this.status = SessionStatus.RECORDING;
+    }
+
+    /**
+     * Stops the recording, transitioning the status to STOPPED.
+     * Allowed only from RECORDING or PAUSED statuses.
+     */
+    public void stopRecording() {
+        if (status != SessionStatus.RECORDING && status != SessionStatus.PAUSED) {
+            throw DiscoveryExceptions.invalidTransition(status, "stopRecording");
+        }
+        this.status = SessionStatus.STOPPED;
+        this.endedAt = Instant.now();
+    }
 }
