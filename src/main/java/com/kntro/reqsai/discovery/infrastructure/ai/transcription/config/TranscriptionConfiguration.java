@@ -11,7 +11,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.web.client.RestClient;
+import static org.springframework.web.client.RestClient.create;
 
 /**
  * Wires the STT infrastructure: instantiates each provider adapter and registers an {@link SttRouter}
@@ -25,7 +25,6 @@ class TranscriptionConfiguration {
     @ConditionalOnMissingBean(TranscriptionPort.class)
     TranscriptionPort sttRouter(
             ObjectProvider<OpenAiAudioTranscriptionModel> whisperModel,
-            RestClient.Builder restClientBuilder,
             @Value("${reqsai.ai.stt.provider:whisper}") String provider,
             @Value("${DEEPGRAM_API_KEY:}") String deepgramApiKey,
             @Value("${ASSEMBLYAI_API_KEY:}") String assemblyAiApiKey) {
@@ -33,7 +32,7 @@ class TranscriptionConfiguration {
                 provider,
                 new WhisperAdapter(whisperModel),
                 new DeepgramAdapter(deepgramApiKey),
-                new AssemblyAiAdapter(restClientBuilder.build(), assemblyAiApiKey)
+                new AssemblyAiAdapter(create(), assemblyAiApiKey)
         );
     }
 }
