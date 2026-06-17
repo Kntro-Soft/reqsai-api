@@ -19,6 +19,11 @@ public final class DiscoveryExceptions {
                 "A near-duplicate user story already exists (similarity %.2f)".formatted(similarity));
     }
 
+    public static DomainException invalidTransition(Object currentStatus, String operation) {
+        return new DomainException(DiscoveryError.INVALID_SESSION_TRANSITION,
+                "Cannot perform '%s' when session is in status '%s'".formatted(operation, currentStatus));
+    }
+
     public static EntityNotFoundException sessionNotFound(java.util.UUID id) {
         return new EntityNotFoundException(DiscoveryError.SESSION_NOT_FOUND,
                 "Discovery session '%s' not found".formatted(id));

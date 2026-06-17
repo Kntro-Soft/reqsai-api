@@ -14,7 +14,9 @@ public enum DiscoveryError implements ErrorCatalog {
     INVALID_SESSION_STATUS(HttpStatus.UNPROCESSABLE_CONTENT),
     REQUIREMENT_GENERATION_FAILED(HttpStatus.UNPROCESSABLE_CONTENT),
     SESSION_NOT_FOUND(HttpStatus.NOT_FOUND),
-    USER_STORY_NOT_FOUND(HttpStatus.NOT_FOUND);
+    USER_STORY_NOT_FOUND(HttpStatus.NOT_FOUND),
+    /** Fired when a domain transition is called on the wrong SessionStatus. */
+    INVALID_SESSION_TRANSITION(HttpStatus.UNPROCESSABLE_CONTENT);
 
     private final HttpStatus status;
 

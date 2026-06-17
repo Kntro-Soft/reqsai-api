@@ -6,6 +6,7 @@ import com.kntro.reqsai.discovery.domain.event.DiscoverySessionProcessingFailedE
 import com.kntro.reqsai.discovery.domain.event.DiscoverySessionProcessingStartedEvent;
 import com.kntro.reqsai.discovery.domain.event.DiscoverySessionTranscriptUploadedEvent;
 import com.kntro.reqsai.discovery.domain.exception.DiscoveryError;
+import com.kntro.reqsai.discovery.domain.exception.DiscoveryExceptions;
 import com.kntro.reqsai.shared.domain.model.AggregateRoot;
 import com.kntro.reqsai.shared.domain.support.Assert;
 import com.kntro.reqsai.shared.domain.valueobjects.LanguageCode;
@@ -110,5 +111,18 @@ public class DiscoverySession extends AggregateRoot {
         this.status = SessionStatus.FAILED;
         this.processingError = Assert.maxLength(Assert.notBlank(reason, "reason"), "reason", PROCESSING_ERROR_MAX);
         registerEvent(DiscoverySessionProcessingFailedEvent.of(getId(), projectId, reason));
+    }
+
+    /**
+     * Starts recording for this session, transitioning the status to RECORDING.
+     * Allowed only when the session is in DRAFT status.
+     */
+    public void startRecording() {
+        if (status != SessionStatus.DRAFT) {
+            throw DiscoveryExceptions.invalidTransition(status, "startRecording");
+        }
+        this.status = SessionStatus.RECORDING;
+        this.startedAt = Instant.now();
+        this.processingError = null;
     }
 }
