@@ -29,6 +29,7 @@ public class UserStory extends AggregateRoot {
 
     private static final int TITLE_MAX = 200;
     private static final int FIELD_MAX = 500;
+    private static final int ENUM_MAX = 16;
     /**
      * Cosine similarity threshold above which two stories are considered near-duplicates.
      * Shared by every handler that creates or generates stories (manual, AI-generated, imported).
@@ -54,14 +55,14 @@ public class UserStory extends AggregateRoot {
     private String benefit;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "priority", nullable = false, length = 16)
+    @Column(name = "priority", nullable = false, length = ENUM_MAX)
     private Priority priority;
 
     @Column(name = "story_points")
     private @Nullable Integer storyPoints;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false, length = 16)
+    @Column(name = "status", nullable = false, length = ENUM_MAX)
     private StoryStatus status;
 
     @JdbcTypeCode(SqlTypes.VECTOR)
