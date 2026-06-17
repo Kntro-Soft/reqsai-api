@@ -114,4 +114,23 @@ public interface ProjectSessionController {
             @RequestParam(required = false) String sortBy,
             @Parameter(description = "Sort direction: ASC | DESC", example = "DESC")
             @RequestParam(required = false) String sortDirection);
+
+    @Operation(
+            summary = "Start recording a discovery session",
+            description = "Transitions a discovery session status from DRAFT to RECORDING to authorize streaming capture.")
+    @ApiResponse(
+            responseCode = "200",
+            description = "Session started recording",
+            content = @Content(
+                    mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    schema = @Schema(implementation = DiscoverySessionResponse.class)))
+    @ApiResponseNotFound
+    @ApiStandardErrorResponses
+    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
+    @PostMapping(path = "/{sessionId}/start", version = ApiVersioning.V1)
+    ResponseEntity<DiscoverySessionResponse> start(
+            @Parameter(description = "Project the session belongs to", required = true)
+            @PathVariable UUID projectId,
+            @Parameter(description = "Session identifier", required = true)
+            @PathVariable UUID sessionId);
 }

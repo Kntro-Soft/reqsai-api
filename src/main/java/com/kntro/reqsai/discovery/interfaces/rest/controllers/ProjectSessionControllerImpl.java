@@ -1,8 +1,10 @@
 package com.kntro.reqsai.discovery.interfaces.rest.controllers;
 
+import com.kntro.reqsai.discovery.application.command.StartRecordingCommand;
 import com.kntro.reqsai.discovery.application.handler.CreateDiscoverySessionCommandHandler;
 import com.kntro.reqsai.discovery.application.handler.GetProjectSessionQueryHandler;
 import com.kntro.reqsai.discovery.application.handler.ListProjectSessionsQueryHandler;
+import com.kntro.reqsai.discovery.application.handler.StartRecordingCommandHandler;
 import com.kntro.reqsai.discovery.application.query.GetProjectSessionQuery;
 import com.kntro.reqsai.discovery.application.query.ListProjectSessionsQuery;
 import com.kntro.reqsai.discovery.domain.model.DiscoverySession;
@@ -29,6 +31,7 @@ public class ProjectSessionControllerImpl implements ProjectSessionController {
     private final CreateDiscoverySessionCommandHandler createSession;
     private final GetProjectSessionQueryHandler getSession;
     private final ListProjectSessionsQueryHandler listSessions;
+    private final StartRecordingCommandHandler startRecording;
 
     @Override
     public ResponseEntity<DiscoverySessionResponse> create(UUID projectId, CreateDiscoverySessionRequest request) {
@@ -53,5 +56,11 @@ public class ProjectSessionControllerImpl implements ProjectSessionController {
                         projectId, PageCriteria.of(page, size, sortBy, sortDirection)))
                         .map(DiscoverySessionResponseMapper::toResponse));
         return ResponseEntity.ok(response);
+    }
+
+    @Override
+    public ResponseEntity<DiscoverySessionResponse> start(UUID projectId, UUID sessionId) {
+        DiscoverySession session = startRecording.handle(new StartRecordingCommand(projectId, sessionId));
+        return ResponseEntity.ok(DiscoverySessionResponseMapper.toResponse(session));
     }
 }
