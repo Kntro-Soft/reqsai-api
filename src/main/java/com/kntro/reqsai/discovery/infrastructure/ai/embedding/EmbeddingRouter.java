@@ -47,8 +47,10 @@ public class EmbeddingRouter implements EmbeddingPort {
     }
 
     private EmbeddingPort activeAdapter() {
-        if ("openai".equalsIgnoreCase(provider)) return openAi;
-        if ("gemini".equalsIgnoreCase(provider)) return gemini;
-        return generic;
+        return switch (provider) {
+            case "openai" -> openAi;
+            case "gemini" -> gemini;
+            default -> generic;
+        };
     }
 }
