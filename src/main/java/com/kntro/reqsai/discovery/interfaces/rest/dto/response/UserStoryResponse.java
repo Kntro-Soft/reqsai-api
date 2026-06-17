@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import org.jspecify.annotations.Nullable;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 @Schema(description = "User story resource")
@@ -49,6 +50,9 @@ public record UserStoryResponse(
         Instant createdAt,
 
         @Schema(description = "Timestamp of the last update", example = "2026-06-15T13:55:00Z")
-        Instant updatedAt
+        Instant updatedAt,
+
+        @Schema(description = "Acceptance criteria in Given / When / Then format")
+        List<AcceptanceCriterionResponse> acceptanceCriteria
 ) {
 }

@@ -24,6 +24,9 @@ public final class UserStoryResponseMapper {
                 story.getStatus().name(),
                 story.isIndexed(),
                 story.getCreatedAt(),
-                story.getUpdatedAt());
+                story.getUpdatedAt(),
+                story.getAcceptanceCriteria().stream()
+                        .map(AcceptanceCriterionResponseMapper::toResponse)
+                        .toList());
     }
 }
