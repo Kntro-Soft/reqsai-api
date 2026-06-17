@@ -133,4 +133,61 @@ public interface ProjectSessionController {
             @PathVariable UUID projectId,
             @Parameter(description = "Session identifier", required = true)
             @PathVariable UUID sessionId);
+
+    @Operation(
+            summary = "Pause a recording session",
+            description = "Transitions a discovery session status from RECORDING to PAUSED.")
+    @ApiResponse(
+            responseCode = "200",
+            description = "Session recording paused",
+            content = @Content(
+                    mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    schema = @Schema(implementation = DiscoverySessionResponse.class)))
+    @ApiResponseNotFound
+    @ApiStandardErrorResponses
+    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
+    @PostMapping(path = "/{sessionId}/pause", version = ApiVersioning.V1)
+    ResponseEntity<DiscoverySessionResponse> pause(
+            @Parameter(description = "Project the session belongs to", required = true)
+            @PathVariable UUID projectId,
+            @Parameter(description = "Session identifier", required = true)
+            @PathVariable UUID sessionId);
+
+    @Operation(
+            summary = "Resume a paused recording session",
+            description = "Transitions a discovery session status from PAUSED to RECORDING.")
+    @ApiResponse(
+            responseCode = "200",
+            description = "Session recording resumed",
+            content = @Content(
+                    mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    schema = @Schema(implementation = DiscoverySessionResponse.class)))
+    @ApiResponseNotFound
+    @ApiStandardErrorResponses
+    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
+    @PostMapping(path = "/{sessionId}/resume", version = ApiVersioning.V1)
+    ResponseEntity<DiscoverySessionResponse> resume(
+            @Parameter(description = "Project the session belongs to", required = true)
+            @PathVariable UUID projectId,
+            @Parameter(description = "Session identifier", required = true)
+            @PathVariable UUID sessionId);
+
+    @Operation(
+            summary = "Stop a recording session",
+            description = "Transitions a discovery session status from RECORDING or PAUSED to STOPPED.")
+    @ApiResponse(
+            responseCode = "200",
+            description = "Session recording stopped",
+            content = @Content(
+                    mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    schema = @Schema(implementation = DiscoverySessionResponse.class)))
+    @ApiResponseNotFound
+    @ApiStandardErrorResponses
+    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
+    @PostMapping(path = "/{sessionId}/stop", version = ApiVersioning.V1)
+    ResponseEntity<DiscoverySessionResponse> stop(
+            @Parameter(description = "Project the session belongs to", required = true)
+            @PathVariable UUID projectId,
+            @Parameter(description = "Session identifier", required = true)
+            @PathVariable UUID sessionId);
 }

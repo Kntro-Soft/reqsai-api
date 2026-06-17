@@ -1,10 +1,16 @@
 package com.kntro.reqsai.discovery.interfaces.rest.controllers;
 
+import com.kntro.reqsai.discovery.application.command.PauseRecordingCommand;
+import com.kntro.reqsai.discovery.application.command.ResumeRecordingCommand;
 import com.kntro.reqsai.discovery.application.command.StartRecordingCommand;
+import com.kntro.reqsai.discovery.application.command.StopRecordingCommand;
 import com.kntro.reqsai.discovery.application.handler.CreateDiscoverySessionCommandHandler;
 import com.kntro.reqsai.discovery.application.handler.GetProjectSessionQueryHandler;
 import com.kntro.reqsai.discovery.application.handler.ListProjectSessionsQueryHandler;
+import com.kntro.reqsai.discovery.application.handler.PauseRecordingCommandHandler;
+import com.kntro.reqsai.discovery.application.handler.ResumeRecordingCommandHandler;
 import com.kntro.reqsai.discovery.application.handler.StartRecordingCommandHandler;
+import com.kntro.reqsai.discovery.application.handler.StopRecordingCommandHandler;
 import com.kntro.reqsai.discovery.application.query.GetProjectSessionQuery;
 import com.kntro.reqsai.discovery.application.query.ListProjectSessionsQuery;
 import com.kntro.reqsai.discovery.domain.model.DiscoverySession;
@@ -32,6 +38,9 @@ public class ProjectSessionControllerImpl implements ProjectSessionController {
     private final GetProjectSessionQueryHandler getSession;
     private final ListProjectSessionsQueryHandler listSessions;
     private final StartRecordingCommandHandler startRecording;
+    private final PauseRecordingCommandHandler pauseRecording;
+    private final ResumeRecordingCommandHandler resumeRecording;
+    private final StopRecordingCommandHandler stopRecording;
 
     @Override
     public ResponseEntity<DiscoverySessionResponse> create(UUID projectId, CreateDiscoverySessionRequest request) {
@@ -61,6 +70,24 @@ public class ProjectSessionControllerImpl implements ProjectSessionController {
     @Override
     public ResponseEntity<DiscoverySessionResponse> start(UUID projectId, UUID sessionId) {
         DiscoverySession session = startRecording.handle(new StartRecordingCommand(projectId, sessionId));
+        return ResponseEntity.ok(DiscoverySessionResponseMapper.toResponse(session));
+    }
+
+    @Override
+    public ResponseEntity<DiscoverySessionResponse> pause(UUID projectId, UUID sessionId) {
+        DiscoverySession session = pauseRecording.handle(new PauseRecordingCommand(projectId, sessionId));
+        return ResponseEntity.ok(DiscoverySessionResponseMapper.toResponse(session));
+    }
+
+    @Override
+    public ResponseEntity<DiscoverySessionResponse> resume(UUID projectId, UUID sessionId) {
+        DiscoverySession session = resumeRecording.handle(new ResumeRecordingCommand(projectId, sessionId));
+        return ResponseEntity.ok(DiscoverySessionResponseMapper.toResponse(session));
+    }
+
+    @Override
+    public ResponseEntity<DiscoverySessionResponse> stop(UUID projectId, UUID sessionId) {
+        DiscoverySession session = stopRecording.handle(new StopRecordingCommand(projectId, sessionId));
         return ResponseEntity.ok(DiscoverySessionResponseMapper.toResponse(session));
     }
 }
