@@ -9,12 +9,18 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.OneToMany;
 import lombok.Getter;
 import org.hibernate.annotations.Array;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import org.jspecify.annotations.Nullable;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -69,6 +75,9 @@ public class UserStory extends AggregateRoot {
     @Array(length = EmbeddingPort.DIMENSIONS)
     @Column(name = "embedding")
     private float @Nullable [] embedding;
+
+    @OneToMany(mappedBy = "story", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+    private List<AcceptanceCriterion> acceptanceCriteria = new ArrayList<>();
 
     protected UserStory() {
         super();
@@ -130,5 +139,20 @@ public class UserStory extends AggregateRoot {
         Assert.notNull(embedding, "embedding");
         Assert.isTrue(embedding.length == EmbeddingPort.DIMENSIONS, "embedding", "must have " + EmbeddingPort.DIMENSIONS + " dimensions");
         this.embedding = embedding;
+    }
+
+    /** Returns an unmodifiable view of the acceptance criteria. */
+    public List<AcceptanceCriterion> getAcceptanceCriteria() {
+        return Collections.unmodifiableList(acceptanceCriteria);
+    }
+
+    /**
+     * Adds a new acceptance criterion. {@code scenario} may be null.
+     * @return the newly created criterion
+     */
+    public AcceptanceCriterion addAcceptanceCriterion(@Nullable String scenario, String given, String when, String then) {
+        AcceptanceCriterion criterion = new AcceptanceCriterion(this, scenario, given, when, then);
+        acceptanceCriteria.add(criterion);
+        return criterion;
     }
 }
