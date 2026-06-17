@@ -159,4 +159,21 @@ public class DiscoverySession extends AggregateRoot {
         this.status = SessionStatus.STOPPED;
         this.endedAt = Instant.now();
     }
+
+    /**
+     * Resets the session, transitioning status back to DRAFT and clearing all recorded data.
+     * Allowed only when the session is in STOPPED, COMPLETED, or FAILED status.
+     */
+    public void resetSession() {
+        if (status != SessionStatus.STOPPED && status != SessionStatus.COMPLETED && status != SessionStatus.FAILED) {
+            throw DiscoveryExceptions.invalidTransition(status, "resetSession");
+        }
+        this.status = SessionStatus.DRAFT;
+        this.transcript = null;
+        this.startedAt = null;
+        this.endedAt = null;
+        this.processingError = null;
+        this.audioDurationMs = 0;
+        this.lastSequence = 0;
+    }
 }
