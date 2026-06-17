@@ -181,4 +181,101 @@ class DiscoverySessionTest {
                 .isInstanceOf(DomainException.class)
                 .hasMessageContaining("Cannot perform 'startRecording'");
     }
+
+    @Test
+    @DisplayName("should transition status to PAUSED when pausing recording")
+    void should_transition_to_paused() {
+        // Arrange
+        DiscoverySession session = DiscoverySessionMother.draft().build();
+        session.startRecording();
+
+        // Act
+        session.pauseRecording();
+
+        // Assert
+        assertThat(session.getStatus()).isEqualTo(SessionStatus.PAUSED);
+    }
+
+    @Test
+    @DisplayName("should reject pausing if session is not in RECORDING")
+    void should_reject_pause_if_not_recording() {
+        // Arrange
+        DiscoverySession session = DiscoverySessionMother.draft().build();
+
+        // Act & Assert
+        assertThatThrownBy(session::pauseRecording)
+                .isInstanceOf(DomainException.class)
+                .hasMessageContaining("Cannot perform 'pauseRecording'");
+    }
+
+    @Test
+    @DisplayName("should transition status to RECORDING when resuming recording")
+    void should_transition_to_recording_on_resume() {
+        // Arrange
+        DiscoverySession session = DiscoverySessionMother.draft().build();
+        session.startRecording();
+        session.pauseRecording();
+
+        // Act
+        session.resumeRecording();
+
+        // Assert
+        assertThat(session.getStatus()).isEqualTo(SessionStatus.RECORDING);
+    }
+
+    @Test
+    @DisplayName("should reject resuming if session is not in PAUSED")
+    void should_reject_resume_if_not_paused() {
+        // Arrange
+        DiscoverySession session = DiscoverySessionMother.draft().build();
+        session.startRecording();
+
+        // Act & Assert
+        assertThatThrownBy(session::resumeRecording)
+                .isInstanceOf(DomainException.class)
+                .hasMessageContaining("Cannot perform 'resumeRecording'");
+    }
+
+    @Test
+    @DisplayName("should transition status to STOPPED and update endedAt when stopping recording from RECORDING")
+    void should_transition_to_stopped_from_recording() {
+        // Arrange
+        DiscoverySession session = DiscoverySessionMother.draft().build();
+        session.startRecording();
+
+        // Act
+        session.stopRecording();
+
+        // Assert
+        assertThat(session.getStatus()).isEqualTo(SessionStatus.STOPPED);
+        assertThat(session.getEndedAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("should transition status to STOPPED and update endedAt when stopping recording from PAUSED")
+    void should_transition_to_stopped_from_paused() {
+        // Arrange
+        DiscoverySession session = DiscoverySessionMother.draft().build();
+        session.startRecording();
+        session.pauseRecording();
+
+        // Act
+        session.stopRecording();
+
+        // Assert
+        assertThat(session.getStatus()).isEqualTo(SessionStatus.STOPPED);
+        assertThat(session.getEndedAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("should reject stopping if session is not in RECORDING or PAUSED")
+    void should_reject_stop_if_invalid_status() {
+        // Arrange
+        DiscoverySession session = DiscoverySessionMother.draft().build();
+
+        // Act & Assert
+        assertThatThrownBy(session::stopRecording)
+                .isInstanceOf(DomainException.class)
+                .hasMessageContaining("Cannot perform 'stopRecording'");
+    }
 }
