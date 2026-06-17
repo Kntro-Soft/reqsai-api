@@ -1,5 +1,6 @@
 package com.kntro.reqsai.discovery.domain.model;
 
+import com.kntro.reqsai.discovery.application.port.EmbeddingPort;
 import com.kntro.reqsai.discovery.domain.event.UserStoryCreatedEvent;
 import com.kntro.reqsai.shared.domain.model.AggregateRoot;
 import com.kntro.reqsai.shared.domain.support.Assert;
@@ -17,10 +18,9 @@ import org.jspecify.annotations.Nullable;
 import java.util.UUID;
 
 /**
- * Aggregate root of a user story. This slice covers <strong>manual creation</strong> (a user uploads an
- * existing story): it starts in {@code DRAFT}. Stories generated from a discovery session set
- * {@code sessionId}; manually created ones leave it {@code null}. Acceptance criteria,
- * the duplicate-detection embedding, and the external tracker reference to arrive with their own use cases.
+ * Aggregate root of a user story. Starts in {@code DRAFT}. Stories generated from a discovery session
+ * set {@code sessionId}; manually created ones leave it {@code null}. Acceptance criteria and the
+ * external tracker reference to arrive with their own use cases.
  */
 @Entity
 @Table(name = "user_stories")
@@ -29,7 +29,6 @@ public class UserStory extends AggregateRoot {
 
     private static final int TITLE_MAX = 200;
     private static final int FIELD_MAX = 500;
-    public static final int EMBEDDING_DIMENSIONS = 768;
     /**
      * Cosine similarity threshold above which two stories are considered near-duplicates.
      * Shared by every handler that creates or generates stories (manual, AI-generated, imported).
@@ -66,10 +65,9 @@ public class UserStory extends AggregateRoot {
     private StoryStatus status;
 
     @JdbcTypeCode(SqlTypes.VECTOR)
-    @Array(length = EMBEDDING_DIMENSIONS)
+    @Array(length = EmbeddingPort.DIMENSIONS)
     @Column(name = "embedding")
     private float @Nullable [] embedding;
-
 
     protected UserStory() {
         super();
@@ -90,6 +88,12 @@ public class UserStory extends AggregateRoot {
         this.storyPoints = storyPoints;
         this.status = StoryStatus.DRAFT;
         registerEvent(UserStoryCreatedEvent.of(getId(), projectId));
+    }
+
+    /** Constructor for AI-generated stories (with originating sessionId). */
+    public UserStory(UUID sessionId, UUID projectId, String title, String role, String action, String benefit, Priority priority, @Nullable Integer storyPoints) {
+        this(projectId, title, role, action, benefit, priority, storyPoints);
+        this.sessionId = Assert.notNull(sessionId, "sessionId");
     }
 
     /**
@@ -113,11 +117,11 @@ public class UserStory extends AggregateRoot {
 
     /**
      * Attaches the duplicate-detection embedding once it has been computed by the embedding port.
-     * Vector length must match {@link #EMBEDDING_DIMENSIONS}.
+     * Vector length must match {@link EmbeddingPort#DIMENSIONS}.
      */
     public void assignEmbedding(float[] embedding) {
         Assert.notNull(embedding, "embedding");
-        Assert.isTrue(embedding.length == EMBEDDING_DIMENSIONS, "embedding", "must have " + EMBEDDING_DIMENSIONS + " dimensions");
+        Assert.isTrue(embedding.length == EmbeddingPort.DIMENSIONS, "embedding", "must have " + EmbeddingPort.DIMENSIONS + " dimensions");
         this.embedding = embedding;
     }
 }
