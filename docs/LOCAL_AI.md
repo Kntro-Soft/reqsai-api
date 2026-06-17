@@ -102,26 +102,26 @@ near-live** transcription (the WebSocket capture flow), use
 
 ---
 
-## 2. Select providers — profiles + per-capability switches
+## 2. Select providers — env vars, no extra profiles
 
 **Dependencies & where it lives.** The Gemini, Ollama and OpenAI starters are all on the classpath
 (`build.gradle.kts`) — OpenAI is the adapter that talks to the local Whisper for STT. The base config is
-in `application.yml` under `spring.ai.*` — the `model.*` switches (**default `none`** = AI off; the
-`local-ai` overlay flips chat/embedding to `ollama` and transcription to `openai`), the `ollama` block
-(`base-url`, models, `pull-model-strategy: never`), the `google.genai` block (key + models), the
-`openai.audio.transcription` block (Whisper `base-url` ending in **`/v1`**, model), and
+in `application.yml` under `spring.ai.*` — the `model.*` switches (**default `none`** = AI off), the
+`ollama` block (`base-url`, models, `pull-model-strategy: never`), the `google.genai` block (key + models),
+the `openai.audio.transcription` block (Whisper `base-url` ending in **`/v1`**, model), and
 `vectorstore.pgvector` (HNSW, cosine, **768** dims). `application-prod.yml` flips chat/embedding to
 `google-genai`. No chat/embedding autoconfig excludes are needed — the switch keeps unused providers
 dormant; the OpenAI starter's other model types (`image`, `moderation`, `audio.speech`) are pinned to
 `none` because they'd otherwise demand an API key at boot. Only `PgVectorStoreAutoConfiguration` stays
 excluded until `discovery` persists embeddings (tests run on plain `postgres:16`, no vector extension).
-Tweak by env, not by editing files per environment.
+
+**How to enable AI**: copy `.env.example` → `.env` and uncomment the section for the provider you want.
+The `SPRING_AI_MODEL_*` vars activate the Spring AI beans; `*_PROVIDER` vars tell the reqsai routers
+which adapter to call. No profile change needed — `dev` loads them automatically.
 
 ### Recipe A — everything local (`dev`, offline, free)
 
-Turn it on with the `local-ai` overlay (`SPRING_PROFILES_ACTIVE=dev,local-ai`), which sets
-`chat`/`embedding: ollama`; the `ollama` block itself lives in `application.yml`. The
-`audio.transcription` / `openai` block wires STT to your local Whisper (compose `ai` profile). Effective config (all three local):
+Uncomment the **Ollama** and **Whisper** sections in your `.env`. Effective config (all three local):
 
 ```yaml
 spring:
@@ -148,8 +148,9 @@ spring:
 
 ### Recipe B — everything cloud (`prod`, or `dev` for cloud testing)
 
-`application-prod.yml` already sets `spring.ai.model.chat`/`embedding: google-genai` (key from
-`GEMINI_API_KEY`). The STT line is the future add-on. Effective config:
+Uncomment the **Gemini** section in your `.env` (or set the vars in the environment). For `prod`,
+`application-prod.yml` already sets `chat`/`embedding: google-genai` — just supply `GEMINI_API_KEY`.
+The STT line is the future add-on. Effective config:
 
 ```yaml
 spring:
@@ -170,18 +171,20 @@ spring:
       pgvector: { dimensions: 768 }
 ```
 
-### Recipe C — mix (e.g. local LLM, cloud STT) — no new profile
+### Recipe C — mix (e.g. local LLM, cloud STT)
 
-Start with Recipe A and override just one capability via env:
+Uncomment the **Ollama** section and add the STT vars on top:
 
-```bash
-SPRING_AI_MODEL_AUDIO_TRANSCRIPTION=openai \
-SPRING_AI_OPENAI_BASE_URL=https://api.openai.com \
-SPRING_AI_OPENAI_API_KEY=sk-... \
-./gradlew bootRun
+```dotenv
+# .env — local generation/embeddings (Ollama) + cloud STT (OpenAI Whisper)
+SPRING_AI_MODEL_CHAT=ollama
+SPRING_AI_MODEL_EMBEDDING=ollama
+SPRING_AI_MODEL_AUDIO_TRANSCRIPTION=openai
+OPENAI_API_KEY=sk-...
+STT_PROVIDER=whisper
 ```
 
-That's the payoff of per-capability switches: any combination from three knobs.
+That's the payoff of per-capability switches: any combination from three knobs, no extra profiles.
 
 ---
 
@@ -220,18 +223,19 @@ cloud) and push `TranscriptSegment`s over STOMP — see [REALTIME.md](REALTIME.m
 ## 4. Run the full stack locally
 
 ```bash
+# Copy .env.example → .env and uncomment the provider sections you want, then:
 docker compose --profile core --profile ai up -d        # 1. Postgres/pgvector + Mailpit + Whisper (STT)
 ollama serve                                             # 2. LLM + embeddings (native; models pulled)
-SPRING_PROFILES_ACTIVE=dev,local-ai ./gradlew bootRun    # 3. backend (dev + AI on)
+./gradlew bootRun                                        # 3. backend (profile: dev, AI active via .env)
 cd ../reqsai-web && npm start                            # 4. frontend (http://localhost:4200)
 ```
 
-(Not doing AI work? Run plain `./gradlew bootRun` and `docker compose --profile core up -d` — AI stays off
+(Not doing AI work? Skip the `.env` AI sections and omit the `ai` compose profile — AI stays off
 and nothing breaks.)
 
-**Verify your local AI actually responds.** A throwaway dev endpoint (`@Profile("local-ai")`) pings the
-active chat + embedding models. It requires a JWT like any endpoint — mint one with the dev-only token
-minter (no `iam` yet). Replaced by `discovery`:
+**Verify your local AI actually responds.** A dev-only endpoint (`@Profile("dev")`) pings the active
+chat + embedding models and reports `ok:false` if no AI is configured. Requires a JWT — mint one with
+the dev-only token minter. Replaced by `discovery`:
 
 ```bash
 TOKEN=$(curl -s 'http://localhost:8080/api/v1/auth/dev-token' | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
@@ -245,13 +249,14 @@ curl -H "Authorization: Bearer $TOKEN" -F file=@meeting.wav http://localhost:808
 # → {"ok":true,"transcript":"..."}
 ```
 
-`ok:true` means the models are reachable through the app: `/ping` → chat (Ollama `llama3.1:8b`) +
-embeddings (`nomic-embed-text`, 768-dim); `/transcribe` → STT (Whisper). A `403` means you forgot the
-token; `ok:false` means the call failed (engine down, or a name/URL mismatch with the `OLLAMA_*` /
-`WHISPER_*` env). No `say` handy? `say -o s.aiff "hello"; afconvert s.aiff meeting.wav -f WAVE -d LEI16@16000 -c 1`.
+`ok:true` means the models are reachable through the app: `/ping` → chat + embeddings;
+`/transcribe` → STT. `ok:false` with `reason` means the provider beans are not configured (check your
+`.env`); `ok:false` with `error` means the call failed (engine down, or a name/URL mismatch). A `403`
+means you forgot the token. No `say` handy? `say -o s.aiff "hello"; afconvert s.aiff meeting.wav -f WAVE -d LEI16@16000 -c 1`.
 
-Everything is offline and free for development; flip to cloud with `--spring.profiles.active=prod` and the
-API keys. Behaviour stays consistent because the abstractions and the 768-dim vector column are shared.
+Everything is offline and free for development; flip to cloud by uncommenting the Gemini/OpenAI sections
+in `.env` (or set `SPRING_PROFILES_ACTIVE=prod` + env vars for a prod-equivalent run). Behaviour stays
+consistent because the abstractions and the 768-dim vector column are shared.
 
 ## Tips
 

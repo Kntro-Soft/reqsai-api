@@ -5,7 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.audio.transcription.AudioTranscriptionPrompt;
 import org.springframework.ai.audio.transcription.TranscriptionModel;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Profile;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -17,27 +17,33 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.Map;
 
 /**
- * Dev-only smoke check for Speech-to-Text (Whisper, via the OpenAI-compatible adapter). Kept separate
- * from {@link AiPingController} because it needs a different bean ({@link TranscriptionModel}) that only
- * exists when STT is selected ({@code spring.ai.model.audio.transcription=openai}) — so the chat/embedding
- * ping stays testable on its own. Active under the {@code local-ai} profile and only when STT is on.
- * Throwaway scaffolding; {@code discovery} replaces it. Requires a JWT (mint one via
- * {@code /api/v1/auth/dev-token}).
+ * Dev-only smoke check for Speech-to-Text. Always active under {@code dev}; reports {@code ok:false}
+ * if no STT provider is configured ({@code SPRING_AI_MODEL_AUDIO_TRANSCRIPTION} not set), so it
+ * degrades gracefully. Kept separate from {@link AiPingController} because it needs a different bean
+ * ({@link TranscriptionModel}) that only exists when STT is enabled. Requires a JWT.
  * <p>
  * {@code POST /api/ai/transcribe} (multipart {@code file}) → returns the transcript.
  */
 @RestController
 @RequestMapping("/api/ai")
-@Profile("local-ai")
-@ConditionalOnProperty(name = "spring.ai.model.audio.transcription", havingValue = "openai")
+@Profile("dev")
 @RequiredArgsConstructor
 @Slf4j
 public class SttPingController {
 
-    private final TranscriptionModel transcriptionModel;
+    private final ObjectProvider<TranscriptionModel> transcriptionModelProvider;
 
     @PostMapping(value = "/transcribe", consumes = MediaType.MULTIPART_FORM_DATA_VALUE, version = ApiVersioning.V1)
     public Map<String, Object> transcribe(@RequestParam("file") MultipartFile file) {
+        TranscriptionModel transcriptionModel = transcriptionModelProvider.getIfAvailable();
+
+        if (transcriptionModel == null) {
+            return Map.of(
+                    "ok", false,
+                    "reason", "STT not configured — set SPRING_AI_MODEL_AUDIO_TRANSCRIPTION=openai "
+                            + "and WHISPER_BASE_URL (or OPENAI_API_KEY) in your .env");
+        }
+
         try {
             String transcript = transcriptionModel
                     .call(new AudioTranscriptionPrompt(file.getResource()))
@@ -51,8 +57,8 @@ public class SttPingController {
             log.warn("STT transcribe failed", e);
             return Map.of(
                     "ok", false,
-                    "error", "Transcription failed — is Whisper reachable at the configured base-url? "
-                            + "(compose `ai` profile exposes it on :9000)",
+                    "error", "Transcription failed — is the STT provider reachable? "
+                            + "Check WHISPER_BASE_URL or OPENAI_API_KEY in your .env",
                     "detail", String.valueOf(e.getMessage()));
         }
     }

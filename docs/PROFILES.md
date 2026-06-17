@@ -18,8 +18,8 @@ spring:
 - **Local run** → `dev` (the default). Override with `SPRING_PROFILES_ACTIVE=prod ./gradlew bootRun`.
 - **Container / AWS** → set `SPRING_PROFILES_ACTIVE=prod` in the task definition.
 - **Tests** → `test`, set by `@ActiveProfiles("test")` on the IT base; you never select it by hand.
-- **Local AI** → compose the `local-ai` overlay on top of dev: `SPRING_PROFILES_ACTIVE=dev,local-ai`.
-  It flips the AI providers to Ollama and enables the dev AI ping — see [LOCAL_AI.md](LOCAL_AI.md).
+- **AI (local or cloud)** → enable via your `.env` by setting the `SPRING_AI_MODEL_*` and
+  provider key/URL vars — no extra profile needed. See [LOCAL_AI.md](LOCAL_AI.md).
 - **Secrets/overrides** → a git-ignored `.env` at the repo root (loaded via `spring.config.import`),
   or real environment variables. Never commit secrets.
 
@@ -32,13 +32,14 @@ spring:
 | **Flyway**     | `common` (+ tenant on provisioning)       | `common` only                            | `common`; **`clean` disabled**          |
 | **JWT keys**   | `src/main/resources/certs` (git-ignored)  | committed throwaway test pair (`test/…`) | env / mounted secret (`JWT_*_KEY_PATH`) |
 | **Mail**       | Mailpit `localhost:1025` (UI `:8025`)     | —                                        | real SMTP via env                       |
-| **AI**         | off by default; `dev,local-ai` → Ollama   | off (no AI beans)                        | Gemini (`GEMINI_API_KEY` from env)      |
+| **AI**         | off by default; enable via `.env` vars    | off (no AI beans)                        | Gemini (`GEMINI_API_KEY` from env)      |
 | **Logging**    | DEBUG + SQL + bound params, pretty        | DEBUG (app only)                         | structured JSON (ECS), `root=WARN`      |
 | **Swagger**    | on (`/swagger-ui.html`)                   | on                                       | **off**                                 |
 | **`show-sql`** | `true`                                    | `false`                                  | `false`                                 |
 
 > AI is **off by default** (`spring.ai.model.chat`/`embedding: none`) so devs not on `discovery` need no
-> Ollama. The `local-ai` overlay turns it on locally; `prod` selects **Gemini**. See [LOCAL_AI.md](LOCAL_AI.md).
+> Ollama. Enable locally via `.env` — copy `.env.example` and uncomment the provider section you want.
+> `prod` selects **Gemini**. See [LOCAL_AI.md](LOCAL_AI.md).
 
 ## `dev` — local development
 
@@ -52,8 +53,8 @@ docker compose --profile core up -d     # Postgres + Mailpit
 
 - Verbose logging (app DEBUG, Hibernate SQL + bound params) for fast feedback.
 - Mail goes to Mailpit — no real email leaves your machine; read it at `http://localhost:8025`.
-- **AI is off** unless you add the `local-ai` overlay (`SPRING_PROFILES_ACTIVE=dev,local-ai`), which
-  points chat + embeddings at local Ollama (`localhost:11434`) — see [LOCAL_AI.md](LOCAL_AI.md).
+- **AI is off** by default. Enable any provider by setting the relevant vars in your `.env`
+  (copy `.env.example`, uncomment the section) — see [LOCAL_AI.md](LOCAL_AI.md).
 - **No `iam` yet?** Mint a real JWT to call secured endpoints: `GET /api/v1/auth/dev-token` (dev-only,
   signs with the dev key) → use the returned `Bearer` token. Real authorization, no auth bypass.
 - pgvector `initialize-schema: true` (the dev image ships the extension).

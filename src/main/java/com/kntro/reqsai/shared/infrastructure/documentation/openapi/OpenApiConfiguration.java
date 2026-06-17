@@ -79,7 +79,7 @@ public class OpenApiConfiguration {
     }
 
     @Bean
-    @Profile({"dev", "local-ai"})
+    @Profile("dev")
     public GroupedOpenApi devToolsApi() {
         return GroupedOpenApi.builder()
                 .group("dev-tools")
