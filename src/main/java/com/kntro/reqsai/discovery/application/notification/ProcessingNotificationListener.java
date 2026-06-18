@@ -4,7 +4,7 @@ import com.kntro.reqsai.discovery.domain.event.DiscoverySessionProcessingComplet
 import com.kntro.reqsai.discovery.domain.event.DiscoverySessionProcessingFailedEvent;
 import com.kntro.reqsai.discovery.domain.event.DiscoverySessionProcessingStartedEvent;
 import com.kntro.reqsai.discovery.domain.event.DiscoverySessionTranscriptUploadedEvent;
-import com.kntro.reqsai.discovery.interfaces.notification.mappers.SessionNotificationMapper;
+import com.kntro.reqsai.discovery.interfaces.notification.mappers.DiscoverySessionNotificationMapper;
 import com.kntro.reqsai.discovery.interfaces.notification.messages.SessionRealtimeMessage;
 import com.kntro.reqsai.shared.application.notification.RealtimeNotifier;
 import lombok.RequiredArgsConstructor;
@@ -30,22 +30,22 @@ class ProcessingNotificationListener {
 
     @ApplicationModuleListener
     void onTranscriptUploaded(DiscoverySessionTranscriptUploadedEvent event) {
-        broadcast(event.sessionId(), SessionNotificationMapper.toMessage(event));
+        broadcast(event.sessionId(), DiscoverySessionNotificationMapper.toMessage(event));
     }
 
     @ApplicationModuleListener
     void onProcessingStarted(DiscoverySessionProcessingStartedEvent event) {
-        broadcast(event.sessionId(), SessionNotificationMapper.toMessage(event));
+        broadcast(event.sessionId(), DiscoverySessionNotificationMapper.toMessage(event));
     }
 
     @ApplicationModuleListener
     void onProcessingCompleted(DiscoverySessionProcessingCompletedEvent event) {
-        broadcast(event.sessionId(), SessionNotificationMapper.toMessage(event));
+        broadcast(event.sessionId(), DiscoverySessionNotificationMapper.toMessage(event));
     }
 
     @ApplicationModuleListener
     void onProcessingFailed(DiscoverySessionProcessingFailedEvent event) {
-        var message = SessionNotificationMapper.toMessage(event);
+        var message = DiscoverySessionNotificationMapper.toMessage(event);
         log.debug("Notifying {} for session {}: {}", message.type(), event.sessionId(), event.reason());
         notifier.broadcast(SessionTopics.of(event.sessionId()), message);
     }

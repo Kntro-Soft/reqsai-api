@@ -5,7 +5,7 @@ import com.kntro.reqsai.discovery.domain.event.DiscoverySessionRecordingResumedE
 import com.kntro.reqsai.discovery.domain.event.DiscoverySessionRecordingStartedEvent;
 import com.kntro.reqsai.discovery.domain.event.DiscoverySessionRecordingStoppedEvent;
 import com.kntro.reqsai.discovery.domain.event.DiscoverySessionResetEvent;
-import com.kntro.reqsai.discovery.interfaces.notification.mappers.SessionNotificationMapper;
+import com.kntro.reqsai.discovery.interfaces.notification.mappers.DiscoverySessionNotificationMapper;
 import com.kntro.reqsai.discovery.interfaces.notification.messages.SessionRealtimeMessage;
 import com.kntro.reqsai.discovery.interfaces.notification.messages.SessionStatusChangedMessage;
 import com.kntro.reqsai.shared.application.notification.RealtimeNotifier;
@@ -32,27 +32,27 @@ class RecordingNotificationListener {
 
     @ApplicationModuleListener
     void onRecordingStarted(DiscoverySessionRecordingStartedEvent event) {
-        broadcast(event.sessionId(), SessionNotificationMapper.toMessage(event));
+        broadcast(event.sessionId(), DiscoverySessionNotificationMapper.toMessage(event));
     }
 
     @ApplicationModuleListener
     void onRecordingPaused(DiscoverySessionRecordingPausedEvent event) {
-        broadcast(event.sessionId(), SessionNotificationMapper.toMessage(event));
+        broadcast(event.sessionId(), DiscoverySessionNotificationMapper.toMessage(event));
     }
 
     @ApplicationModuleListener
     void onRecordingResumed(DiscoverySessionRecordingResumedEvent event) {
-        broadcast(event.sessionId(), SessionNotificationMapper.toMessage(event));
+        broadcast(event.sessionId(), DiscoverySessionNotificationMapper.toMessage(event));
     }
 
     @ApplicationModuleListener
     void onRecordingStopped(DiscoverySessionRecordingStoppedEvent event) {
-        broadcast(event.sessionId(), SessionNotificationMapper.toMessage(event));
+        broadcast(event.sessionId(), DiscoverySessionNotificationMapper.toMessage(event));
     }
 
     @ApplicationModuleListener
     void onSessionReset(DiscoverySessionResetEvent event) {
-        broadcast(event.sessionId(), SessionNotificationMapper.toMessage(event));
+        broadcast(event.sessionId(), DiscoverySessionNotificationMapper.toMessage(event));
     }
 
     private void broadcast(UUID sessionId, SessionRealtimeMessage message) {

@@ -1,7 +1,7 @@
 package com.kntro.reqsai.discovery.application.notification;
 
 import com.kntro.reqsai.discovery.domain.event.UserStoryCreatedEvent;
-import com.kntro.reqsai.discovery.interfaces.notification.mappers.SessionNotificationMapper;
+import com.kntro.reqsai.discovery.interfaces.notification.mappers.UserStoryNotificationMapper;
 import com.kntro.reqsai.discovery.interfaces.notification.messages.SessionRealtimeMessage;
 import com.kntro.reqsai.shared.application.notification.RealtimeNotifier;
 import lombok.RequiredArgsConstructor;
@@ -28,7 +28,7 @@ class StoryNotificationListener {
     @ApplicationModuleListener
     void onStoryGenerated(UserStoryCreatedEvent event) {
         if (event.sessionId() == null) return;
-        broadcast(event.sessionId(), SessionNotificationMapper.toMessage(event));
+        broadcast(event.sessionId(), UserStoryNotificationMapper.toMessage(event));
     }
 
     private void broadcast(UUID sessionId, SessionRealtimeMessage message) {
