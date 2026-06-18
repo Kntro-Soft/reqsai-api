@@ -4,6 +4,11 @@ import com.kntro.reqsai.discovery.domain.event.DiscoverySessionCreatedEvent;
 import com.kntro.reqsai.discovery.domain.event.DiscoverySessionProcessingCompletedEvent;
 import com.kntro.reqsai.discovery.domain.event.DiscoverySessionProcessingFailedEvent;
 import com.kntro.reqsai.discovery.domain.event.DiscoverySessionProcessingStartedEvent;
+import com.kntro.reqsai.discovery.domain.event.DiscoverySessionRecordingPausedEvent;
+import com.kntro.reqsai.discovery.domain.event.DiscoverySessionRecordingResumedEvent;
+import com.kntro.reqsai.discovery.domain.event.DiscoverySessionRecordingStartedEvent;
+import com.kntro.reqsai.discovery.domain.event.DiscoverySessionRecordingStoppedEvent;
+import com.kntro.reqsai.discovery.domain.event.DiscoverySessionResetEvent;
 import com.kntro.reqsai.discovery.domain.event.DiscoverySessionTranscriptUploadedEvent;
 import com.kntro.reqsai.discovery.domain.exception.DiscoveryError;
 import com.kntro.reqsai.shared.domain.model.AggregateRoot;
@@ -75,7 +80,7 @@ public class DiscoverySession extends AggregateRoot {
         this.title = Assert.maxLength(Assert.notBlank(title, "title"), "title", TITLE_MAX);
         this.language = Assert.notNull(language, "language");
         this.status = SessionStatus.DRAFT;
-        this.startedAt = java.time.Instant.now();
+        this.startedAt = Instant.now();
         registerEvent(DiscoverySessionCreatedEvent.of(getId(), projectId));
     }
 
@@ -85,7 +90,7 @@ public class DiscoverySession extends AggregateRoot {
         this.transcript = Assert.notBlank(transcript, "transcript");
         this.audioDurationMs = audioDurationMs;
         this.status = SessionStatus.STOPPED;
-        this.endedAt = java.time.Instant.now();
+        this.endedAt = Instant.now();
         registerEvent(DiscoverySessionTranscriptUploadedEvent.of(getId(), projectId));
     }
 
@@ -110,5 +115,54 @@ public class DiscoverySession extends AggregateRoot {
         this.status = SessionStatus.FAILED;
         this.processingError = Assert.maxLength(Assert.notBlank(reason, "reason"), "reason", PROCESSING_ERROR_MAX);
         registerEvent(DiscoverySessionProcessingFailedEvent.of(getId(), projectId, reason));
+    }
+
+    /** Live recording path: {@code DRAFT → RECORDING}. Overrides {@code startedAt} to the actual recording start. */
+    public void startRecording(Instant now) {
+        Assert.isTrue(this.status == SessionStatus.DRAFT, "status", "startRecording requires DRAFT but was " + this.status, DiscoveryError.INVALID_SESSION_STATUS);
+        this.status = SessionStatus.RECORDING;
+        this.startedAt = Assert.notNull(now, "now");
+        registerEvent(DiscoverySessionRecordingStartedEvent.of(getId(), projectId));
+    }
+
+    /** Temporarily pauses recording: {@code RECORDING → PAUSED}. */
+    public void pauseRecording() {
+        Assert.isTrue(this.status == SessionStatus.RECORDING,
+                "status", "pauseRecording requires RECORDING but was " + this.status,
+                DiscoveryError.INVALID_SESSION_STATUS);
+        this.status = SessionStatus.PAUSED;
+        registerEvent(DiscoverySessionRecordingPausedEvent.of(getId(), projectId));
+    }
+
+    /** Resumes a paused recording: {@code PAUSED → RECORDING}. */
+    public void resumeRecording() {
+        Assert.isTrue(this.status == SessionStatus.PAUSED,
+                "status", "resumeRecording requires PAUSED but was " + this.status,
+                DiscoveryError.INVALID_SESSION_STATUS);
+        this.status = SessionStatus.RECORDING;
+        registerEvent(DiscoverySessionRecordingResumedEvent.of(getId(), projectId));
+    }
+
+    /** Stops the live recording: {@code RECORDING} or {@code PAUSED → STOPPED}. */
+    public void stopRecording(Instant now) {
+        Assert.isTrue(this.status == SessionStatus.RECORDING || this.status == SessionStatus.PAUSED, "status", "stopRecording requires RECORDING or PAUSED but was " + this.status, DiscoveryError.INVALID_SESSION_STATUS);
+        this.status = SessionStatus.STOPPED;
+        this.endedAt = Assert.notNull(now, "now");
+        registerEvent(DiscoverySessionRecordingStoppedEvent.of(getId(), projectId));
+    }
+
+    /** Resets back to {@code DRAFT}: {@code COMPLETED}, {@code FAILED}, or {@code STOPPED → DRAFT}. Clears all session data. */
+    public void reset() {
+        Assert.isTrue(this.status == SessionStatus.COMPLETED || this.status == SessionStatus.FAILED || this.status == SessionStatus.STOPPED,
+                "status", "reset requires COMPLETED, FAILED, or STOPPED but was " + this.status,
+                DiscoveryError.INVALID_SESSION_STATUS);
+        this.status = SessionStatus.DRAFT;
+        this.transcript = null;
+        this.startedAt = null;
+        this.endedAt = null;
+        this.processingError = null;
+        this.audioDurationMs = 0;
+        this.lastSequence = 0;
+        registerEvent(DiscoverySessionResetEvent.of(getId(), projectId));
     }
 }
