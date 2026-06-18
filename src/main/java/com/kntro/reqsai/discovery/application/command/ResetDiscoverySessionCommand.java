@@ -5,5 +5,5 @@ import java.util.UUID;
 /**
  * Command to reset a completed/failed/stopped discovery session back to DRAFT.
  */
-public record ResetSessionCommand(UUID projectId, UUID sessionId) {
+public record ResetDiscoverySessionCommand(UUID projectId, UUID sessionId) {
 }
