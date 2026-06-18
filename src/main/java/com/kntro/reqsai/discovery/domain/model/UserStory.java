@@ -77,6 +77,19 @@ public class UserStory extends AggregateRoot {
     /** Manual creation: no originating session; starts in {@code DRAFT}. */
     public UserStory(UUID projectId, String title, String role, String action, String benefit, Priority priority, @Nullable Integer storyPoints) {
         super();
+        initFields(null, projectId, title, role, action, benefit, priority, storyPoints);
+        registerEvent(UserStoryCreatedEvent.of(getId(), null, projectId));
+    }
+
+    /** Constructor for AI-generated stories (with originating sessionId). */
+    public UserStory(UUID sessionId, UUID projectId, String title, String role, String action, String benefit, Priority priority, @Nullable Integer storyPoints) {
+        super();
+        initFields(Assert.notNull(sessionId, "sessionId"), projectId, title, role, action, benefit, priority, storyPoints);
+        registerEvent(UserStoryCreatedEvent.of(getId(), sessionId, projectId));
+    }
+
+    private void initFields(@Nullable UUID sessionId, UUID projectId, String title, String role, String action, String benefit, Priority priority, @Nullable Integer storyPoints) {
+        this.sessionId = sessionId;
         this.projectId = Assert.notNull(projectId, "projectId");
         this.title = Assert.maxLength(Assert.notBlank(title, "title"), "title", TITLE_MAX);
         this.role = Assert.maxLength(Assert.notBlank(role, "role"), "role", FIELD_MAX);
@@ -88,13 +101,6 @@ public class UserStory extends AggregateRoot {
         }
         this.storyPoints = storyPoints;
         this.status = StoryStatus.DRAFT;
-        registerEvent(UserStoryCreatedEvent.of(getId(), projectId));
-    }
-
-    /** Constructor for AI-generated stories (with originating sessionId). */
-    public UserStory(UUID sessionId, UUID projectId, String title, String role, String action, String benefit, Priority priority, @Nullable Integer storyPoints) {
-        this(projectId, title, role, action, benefit, priority, storyPoints);
-        this.sessionId = Assert.notNull(sessionId, "sessionId");
     }
 
     /**
