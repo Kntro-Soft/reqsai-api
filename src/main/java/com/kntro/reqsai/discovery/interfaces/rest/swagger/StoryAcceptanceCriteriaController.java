@@ -3,6 +3,7 @@ package com.kntro.reqsai.discovery.interfaces.rest.swagger;
 import com.kntro.reqsai.discovery.interfaces.rest.dto.request.AddAcceptanceCriterionRequest;
 import com.kntro.reqsai.discovery.interfaces.rest.dto.request.UpdateAcceptanceCriterionRequest;
 import com.kntro.reqsai.discovery.interfaces.rest.dto.response.AcceptanceCriterionResponse;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import com.kntro.reqsai.shared.infrastructure.configuration.ApiVersioning;
 import com.kntro.reqsai.shared.infrastructure.documentation.openapi.OpenApiConfiguration;
@@ -73,4 +74,20 @@ public interface StoryAcceptanceCriteriaController {
             @Parameter(description = "Criterion to update", required = true)
             @PathVariable UUID criterionId,
             @Valid @RequestBody UpdateAcceptanceCriterionRequest request);
+
+    @Operation(
+            summary = "Delete an acceptance criterion",
+            description = "Permanently removes an acceptance criterion from the user story.")
+    @ApiResponse(responseCode = "204", description = "Criterion deleted")
+    @ApiResponseNotFound
+    @ApiStandardErrorResponses
+    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
+    @DeleteMapping(path = "/{criterionId}", version = ApiVersioning.V1)
+    ResponseEntity<Void> delete(
+            @Parameter(description = "Project the story belongs to", required = true)
+            @PathVariable UUID projectId,
+            @Parameter(description = "User story that owns the criterion", required = true)
+            @PathVariable UUID storyId,
+            @Parameter(description = "Criterion to delete", required = true)
+            @PathVariable UUID criterionId);
 }

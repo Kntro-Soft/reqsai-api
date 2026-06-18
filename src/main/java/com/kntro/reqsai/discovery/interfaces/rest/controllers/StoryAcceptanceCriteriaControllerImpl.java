@@ -1,8 +1,10 @@
 package com.kntro.reqsai.discovery.interfaces.rest.controllers;
 
 import com.kntro.reqsai.discovery.application.command.AddAcceptanceCriterionCommand;
+import com.kntro.reqsai.discovery.application.command.DeleteAcceptanceCriterionCommand;
 import com.kntro.reqsai.discovery.application.command.UpdateAcceptanceCriterionCommand;
 import com.kntro.reqsai.discovery.application.handler.AddAcceptanceCriterionCommandHandler;
+import com.kntro.reqsai.discovery.application.handler.DeleteAcceptanceCriterionCommandHandler;
 import com.kntro.reqsai.discovery.application.handler.UpdateAcceptanceCriterionCommandHandler;
 import com.kntro.reqsai.discovery.domain.model.AcceptanceCriterion;
 import com.kntro.reqsai.discovery.interfaces.rest.dto.request.AddAcceptanceCriterionRequest;
@@ -25,6 +27,7 @@ public class StoryAcceptanceCriteriaControllerImpl implements StoryAcceptanceCri
 
     private final AddAcceptanceCriterionCommandHandler addCriterion;
     private final UpdateAcceptanceCriterionCommandHandler updateCriterion;
+    private final DeleteAcceptanceCriterionCommandHandler deleteCriterion;
 
     @Override
     public ResponseEntity<AcceptanceCriterionResponse> add(UUID projectId, UUID storyId, AddAcceptanceCriterionRequest request) {
@@ -45,5 +48,11 @@ public class StoryAcceptanceCriteriaControllerImpl implements StoryAcceptanceCri
                         projectId, storyId, criterionId,
                         request.scenario(), request.given(), request.when(), request.then()));
         return ResponseEntity.ok(AcceptanceCriterionResponseMapper.toResponse(criterion));
+    }
+
+    @Override
+    public ResponseEntity<Void> delete(UUID projectId, UUID storyId, UUID criterionId) {
+        deleteCriterion.handle(new DeleteAcceptanceCriterionCommand(projectId, storyId, criterionId));
+        return ResponseEntity.noContent().build();
     }
 }
