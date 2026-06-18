@@ -2,6 +2,7 @@ package com.kntro.reqsai.discovery.domain.model;
 
 import com.kntro.reqsai.discovery.application.port.EmbeddingPort;
 import com.kntro.reqsai.discovery.domain.event.UserStoryCreatedEvent;
+import com.kntro.reqsai.discovery.domain.exception.DiscoveryExceptions;
 import com.kntro.reqsai.shared.domain.model.AggregateRoot;
 import com.kntro.reqsai.shared.domain.support.Assert;
 import jakarta.persistence.Column;
@@ -154,5 +155,17 @@ public class UserStory extends AggregateRoot {
         AcceptanceCriterion criterion = new AcceptanceCriterion(this, scenario, given, when, then);
         acceptanceCriteria.add(criterion);
         return criterion;
+    }
+
+    /**
+     * Updates an existing criterion identified by {@code criterionId}.
+     * Throws {@link com.kntro.reqsai.shared.domain.exception.EntityNotFoundException} if not found.
+     */
+    public void updateAcceptanceCriterion(UUID criterionId, @Nullable String scenario, String given, String when, String then) {
+        AcceptanceCriterion criterion = acceptanceCriteria.stream()
+                .filter(c -> c.getId().equals(criterionId))
+                .findFirst()
+                .orElseThrow(() -> DiscoveryExceptions.acceptanceCriterionNotFound(criterionId));
+        criterion.update(scenario, given, when, then);
     }
 }
