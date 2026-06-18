@@ -1,0 +1,47 @@
+package com.kntro.reqsai.discovery.interfaces.notification;
+
+import com.kntro.reqsai.discovery.interfaces.notification.messages.SessionRealtimeMessage;
+
+/**
+ * Typed discriminator carried in the {@code type} field of every {@link SessionRealtimeMessage}.
+ * <p>
+ * All session updates travel on a single topic; the client switches on this value to decide how to
+ * render the message. Using an enum instead of bare strings keeps producer and consumer contracts
+ * in lockstep and makes the exhaustive set of event kinds explicit and compile-time-safe.
+ */
+public enum SessionEventType {
+
+    // Recording lifecycle
+
+    /** Live recording started ({@code DRAFT → RECORDING}). */
+    RECORDING_STARTED,
+
+    /** Live recording paused ({@code RECORDING → PAUSED}). */
+    RECORDING_PAUSED,
+
+    /** Live recording resumed ({@code PAUSED → RECORDING}). */
+    RECORDING_RESUMED,
+
+    /** Live recording stopped ({@code RECORDING/PAUSED → STOPPED}). */
+    RECORDING_STOPPED,
+
+    /** Session reset to DRAFT ({@code COMPLETED/FAILED/STOPPED → DRAFT}). */
+    SESSION_RESET,
+
+    // AI processing lifecycle
+
+    /** A transcript was attached via file upload ({@code DRAFT → STOPPED}). */
+    TRANSCRIPT_UPLOADED,
+
+    /** AI extraction started ({@code STOPPED/FAILED → PROCESSING}). */
+    PROCESSING,
+
+    /** AI extraction finished successfully ({@code PROCESSING → COMPLETED}). */
+    COMPLETED,
+
+    /** AI extraction failed ({@code PROCESSING → FAILED}); carries the failure reason. */
+    FAILED,
+
+    /** A user story was generated from the session and persisted. */
+    STORY_GENERATED
+}
