@@ -43,7 +43,7 @@ class DiscoverySessionLifecycleIntegrationTest extends AbstractIntegrationTest {
                 .header("Api-Version", "1")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(Map.of("name", "Acme " + suffix))
-                .exchange((req, res) -> ResponseEntity.status(res.getStatusCode()).body(res.bodyTo(String.class)));
+                .exchange((_, res) -> ResponseEntity.status(res.getStatusCode()).body(res.bodyTo(String.class)));
         assertThat(orgRes.getStatusCode()).isEqualTo(HttpStatus.CREATED);
 
         String orgId = jdbcTemplate.queryForObject(
@@ -56,7 +56,7 @@ class DiscoverySessionLifecycleIntegrationTest extends AbstractIntegrationTest {
                 .header("Api-Version", "1")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(Map.of("title", "Lifecycle Meeting", "language", "es-PE"))
-                .exchange((req, response) -> ResponseEntity.status(response.getStatusCode())
+                .exchange((_, response) -> ResponseEntity.status(response.getStatusCode())
                         .body(response.bodyTo(String.class)));
         assertThat(createRes.getStatusCode()).isEqualTo(HttpStatus.CREATED);
 
@@ -69,7 +69,7 @@ class DiscoverySessionLifecycleIntegrationTest extends AbstractIntegrationTest {
         ResponseEntity<String> startRes = client().post().uri("/api/projects/{p}/sessions/{s}/start", projectId, sessionId)
                 .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId, "ROLE_USER"))
                 .header("Api-Version", "1")
-                .exchange((req, response) -> ResponseEntity.status(response.getStatusCode()).body(response.bodyTo(String.class)));
+                .exchange((_, response) -> ResponseEntity.status(response.getStatusCode()).body(response.bodyTo(String.class)));
         assertThat(startRes.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(startRes.getBody()).contains("\"status\":\"RECORDING\"");
 
@@ -80,7 +80,7 @@ class DiscoverySessionLifecycleIntegrationTest extends AbstractIntegrationTest {
         ResponseEntity<String> pauseRes = client().post().uri("/api/projects/{p}/sessions/{s}/pause", projectId, sessionId)
                 .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId, "ROLE_USER"))
                 .header("Api-Version", "1")
-                .exchange((req, response) -> ResponseEntity.status(response.getStatusCode()).body(response.bodyTo(String.class)));
+                .exchange((_, response) -> ResponseEntity.status(response.getStatusCode()).body(response.bodyTo(String.class)));
         assertThat(pauseRes.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(pauseRes.getBody()).contains("\"status\":\"PAUSED\"");
 
@@ -90,7 +90,7 @@ class DiscoverySessionLifecycleIntegrationTest extends AbstractIntegrationTest {
         ResponseEntity<String> resumeRes = client().post().uri("/api/projects/{p}/sessions/{s}/resume", projectId, sessionId)
                 .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId, "ROLE_USER"))
                 .header("Api-Version", "1")
-                .exchange((req, response) -> ResponseEntity.status(response.getStatusCode()).body(response.bodyTo(String.class)));
+                .exchange((_, response) -> ResponseEntity.status(response.getStatusCode()).body(response.bodyTo(String.class)));
         assertThat(resumeRes.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(resumeRes.getBody()).contains("\"status\":\"RECORDING\"");
 
@@ -100,7 +100,7 @@ class DiscoverySessionLifecycleIntegrationTest extends AbstractIntegrationTest {
         ResponseEntity<String> stopRes = client().post().uri("/api/projects/{p}/sessions/{s}/stop", projectId, sessionId)
                 .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId, "ROLE_USER"))
                 .header("Api-Version", "1")
-                .exchange((req, response) -> ResponseEntity.status(response.getStatusCode()).body(response.bodyTo(String.class)));
+                .exchange((_, response) -> ResponseEntity.status(response.getStatusCode()).body(response.bodyTo(String.class)));
         assertThat(stopRes.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(stopRes.getBody()).contains("\"status\":\"STOPPED\"");
         assertThat(stopRes.getBody()).contains("\"endedAt\":");
@@ -111,7 +111,7 @@ class DiscoverySessionLifecycleIntegrationTest extends AbstractIntegrationTest {
         ResponseEntity<String> resetRes = client().post().uri("/api/projects/{p}/sessions/{s}/reset", projectId, sessionId)
                 .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId, "ROLE_USER"))
                 .header("Api-Version", "1")
-                .exchange((req, response) -> ResponseEntity.status(response.getStatusCode()).body(response.bodyTo(String.class)));
+                .exchange((_, response) -> ResponseEntity.status(response.getStatusCode()).body(response.bodyTo(String.class)));
         assertThat(resetRes.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(resetRes.getBody()).contains("\"status\":\"DRAFT\"");
         assertThat(resetRes.getBody()).contains("\"startedAt\":null");
@@ -123,9 +123,9 @@ class DiscoverySessionLifecycleIntegrationTest extends AbstractIntegrationTest {
         ResponseEntity<String> invalidTransitionRes = client().post().uri("/api/projects/{p}/sessions/{s}/reset", projectId, sessionId)
                 .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId, "ROLE_USER"))
                 .header("Api-Version", "1")
-                .exchange((req, response) -> ResponseEntity.status(response.getStatusCode()).body(response.bodyTo(String.class)));
+                .exchange((_, response) -> ResponseEntity.status(response.getStatusCode()).body(response.bodyTo(String.class)));
         assertThat(invalidTransitionRes.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT);
-        assertThat(invalidTransitionRes.getBody()).contains("INVALID_SESSION_TRANSITION");
+        assertThat(invalidTransitionRes.getBody()).contains("INVALID_SESSION_STATUS");
     }
 
     private void assertDatabaseStatus(String schemaSlug, UUID sessionId, String expectedStatus) {

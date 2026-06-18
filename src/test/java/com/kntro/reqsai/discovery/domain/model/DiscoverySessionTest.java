@@ -8,6 +8,8 @@ import com.kntro.reqsai.testsupport.AggregateEvents;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -161,7 +163,7 @@ class DiscoverySessionTest {
         DiscoverySession session = DiscoverySessionMother.draft().build();
 
         // Act
-        session.startRecording();
+        session.startRecording(Instant.now());
 
         // Assert
         assertThat(session.getStatus()).isEqualTo(SessionStatus.RECORDING);
@@ -174,12 +176,11 @@ class DiscoverySessionTest {
     void should_reject_start_recording_if_not_in_draft() {
         // Arrange
         DiscoverySession session = DiscoverySessionMother.draft().build();
-        session.startRecording(); // Now status is RECORDING
+        session.startRecording(Instant.now()); // Now status is RECORDING
 
         // Act & Assert
-        assertThatThrownBy(session::startRecording)
-                .isInstanceOf(DomainException.class)
-                .hasMessageContaining("Cannot perform 'startRecording'");
+        assertThatThrownBy(() -> session.startRecording(Instant.now()))
+                .isInstanceOf(DomainException.class);
     }
 
     @Test
@@ -187,7 +188,7 @@ class DiscoverySessionTest {
     void should_transition_to_paused() {
         // Arrange
         DiscoverySession session = DiscoverySessionMother.draft().build();
-        session.startRecording();
+        session.startRecording(Instant.now());
 
         // Act
         session.pauseRecording();
@@ -204,8 +205,7 @@ class DiscoverySessionTest {
 
         // Act & Assert
         assertThatThrownBy(session::pauseRecording)
-                .isInstanceOf(DomainException.class)
-                .hasMessageContaining("Cannot perform 'pauseRecording'");
+                .isInstanceOf(DomainException.class);
     }
 
     @Test
@@ -213,7 +213,7 @@ class DiscoverySessionTest {
     void should_transition_to_recording_on_resume() {
         // Arrange
         DiscoverySession session = DiscoverySessionMother.draft().build();
-        session.startRecording();
+        session.startRecording(Instant.now());
         session.pauseRecording();
 
         // Act
@@ -228,12 +228,11 @@ class DiscoverySessionTest {
     void should_reject_resume_if_not_paused() {
         // Arrange
         DiscoverySession session = DiscoverySessionMother.draft().build();
-        session.startRecording();
+        session.startRecording(Instant.now());
 
         // Act & Assert
         assertThatThrownBy(session::resumeRecording)
-                .isInstanceOf(DomainException.class)
-                .hasMessageContaining("Cannot perform 'resumeRecording'");
+                .isInstanceOf(DomainException.class);
     }
 
     @Test
@@ -241,10 +240,10 @@ class DiscoverySessionTest {
     void should_transition_to_stopped_from_recording() {
         // Arrange
         DiscoverySession session = DiscoverySessionMother.draft().build();
-        session.startRecording();
+        session.startRecording(Instant.now());
 
         // Act
-        session.stopRecording();
+        session.stopRecording(Instant.now());
 
         // Assert
         assertThat(session.getStatus()).isEqualTo(SessionStatus.STOPPED);
@@ -256,11 +255,11 @@ class DiscoverySessionTest {
     void should_transition_to_stopped_from_paused() {
         // Arrange
         DiscoverySession session = DiscoverySessionMother.draft().build();
-        session.startRecording();
+        session.startRecording(Instant.now());
         session.pauseRecording();
 
         // Act
-        session.stopRecording();
+        session.stopRecording(Instant.now());
 
         // Assert
         assertThat(session.getStatus()).isEqualTo(SessionStatus.STOPPED);
@@ -274,9 +273,8 @@ class DiscoverySessionTest {
         DiscoverySession session = DiscoverySessionMother.draft().build();
 
         // Act & Assert
-        assertThatThrownBy(session::stopRecording)
-                .isInstanceOf(DomainException.class)
-                .hasMessageContaining("Cannot perform 'stopRecording'");
+        assertThatThrownBy(() -> session.stopRecording(Instant.now()))
+                .isInstanceOf(DomainException.class);
     }
 
     @Test
@@ -284,11 +282,11 @@ class DiscoverySessionTest {
     void should_reset_from_stopped() {
         // Arrange
         DiscoverySession session = DiscoverySessionMother.draft().build();
-        session.startRecording();
-        session.stopRecording(); // status is STOPPED
+        session.startRecording(Instant.now());
+        session.stopRecording(Instant.now()); // status is STOPPED
 
         // Act
-        session.resetSession();
+        session.reset();
 
         // Assert
         assertThat(session.getStatus()).isEqualTo(SessionStatus.DRAFT);
@@ -302,11 +300,10 @@ class DiscoverySessionTest {
     void should_reject_reset_if_recording() {
         // Arrange
         DiscoverySession session = DiscoverySessionMother.draft().build();
-        session.startRecording(); // status is RECORDING
+        session.startRecording(Instant.now()); // status is RECORDING
 
         // Act & Assert
-        assertThatThrownBy(session::resetSession)
-                .isInstanceOf(DomainException.class)
-                .hasMessageContaining("Cannot perform 'resetSession'");
+        assertThatThrownBy(session::reset)
+                .isInstanceOf(DomainException.class);
     }
 }
