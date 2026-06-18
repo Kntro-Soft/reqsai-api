@@ -168,4 +168,16 @@ public class UserStory extends AggregateRoot {
                 .orElseThrow(() -> DiscoveryExceptions.acceptanceCriterionNotFound(criterionId));
         criterion.update(scenario, given, when, then);
     }
+
+    /**
+     * Removes an existing criterion identified by {@code criterionId}.
+     * {@code orphanRemoval = true} on the collection ensures JPA issues the DELETE automatically.
+     * Throws {@link com.kntro.reqsai.shared.domain.exception.EntityNotFoundException} if not found.
+     */
+    public void removeAcceptanceCriterion(UUID criterionId) {
+        boolean removed = acceptanceCriteria.removeIf(c -> c.getId().equals(criterionId));
+        if (!removed) {
+            throw DiscoveryExceptions.acceptanceCriterionNotFound(criterionId);
+        }
+    }
 }
