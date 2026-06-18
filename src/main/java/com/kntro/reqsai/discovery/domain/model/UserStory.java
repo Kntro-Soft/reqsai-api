@@ -78,14 +78,14 @@ public class UserStory extends AggregateRoot {
     public UserStory(UUID projectId, String title, String role, String action, String benefit, Priority priority, @Nullable Integer storyPoints) {
         super();
         initFields(null, projectId, title, role, action, benefit, priority, storyPoints);
-        registerEvent(UserStoryCreatedEvent.of(getId(), null, projectId));
+        registerEvent(UserStoryCreatedEvent.of(getId(), null, projectId, title, role, action, benefit, priority, storyPoints));
     }
 
     /** Constructor for AI-generated stories (with originating sessionId). */
     public UserStory(UUID sessionId, UUID projectId, String title, String role, String action, String benefit, Priority priority, @Nullable Integer storyPoints) {
         super();
         initFields(Assert.notNull(sessionId, "sessionId"), projectId, title, role, action, benefit, priority, storyPoints);
-        registerEvent(UserStoryCreatedEvent.of(getId(), sessionId, projectId));
+        registerEvent(UserStoryCreatedEvent.of(getId(), sessionId, projectId, title, role, action, benefit, priority, storyPoints));
     }
 
     private void initFields(@Nullable UUID sessionId, UUID projectId, String title, String role, String action, String benefit, Priority priority, @Nullable Integer storyPoints) {
