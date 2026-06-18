@@ -1,9 +1,12 @@
 package com.kntro.reqsai.discovery.interfaces.rest.controllers;
 
 import com.kntro.reqsai.discovery.application.command.AddAcceptanceCriterionCommand;
+import com.kntro.reqsai.discovery.application.command.UpdateAcceptanceCriterionCommand;
 import com.kntro.reqsai.discovery.application.handler.AddAcceptanceCriterionCommandHandler;
+import com.kntro.reqsai.discovery.application.handler.UpdateAcceptanceCriterionCommandHandler;
 import com.kntro.reqsai.discovery.domain.model.AcceptanceCriterion;
 import com.kntro.reqsai.discovery.interfaces.rest.dto.request.AddAcceptanceCriterionRequest;
+import com.kntro.reqsai.discovery.interfaces.rest.dto.request.UpdateAcceptanceCriterionRequest;
 import com.kntro.reqsai.discovery.interfaces.rest.dto.response.AcceptanceCriterionResponse;
 import com.kntro.reqsai.discovery.interfaces.rest.mappers.response.AcceptanceCriterionResponseMapper;
 import com.kntro.reqsai.discovery.interfaces.rest.swagger.StoryAcceptanceCriteriaController;
@@ -21,6 +24,7 @@ import java.util.UUID;
 public class StoryAcceptanceCriteriaControllerImpl implements StoryAcceptanceCriteriaController {
 
     private final AddAcceptanceCriterionCommandHandler addCriterion;
+    private final UpdateAcceptanceCriterionCommandHandler updateCriterion;
 
     @Override
     public ResponseEntity<AcceptanceCriterionResponse> add(UUID projectId, UUID storyId, AddAcceptanceCriterionRequest request) {
@@ -31,5 +35,15 @@ public class StoryAcceptanceCriteriaControllerImpl implements StoryAcceptanceCri
                 .buildAndExpand(projectId, storyId)
                 .toUri();
         return ResponseEntity.created(location).body(AcceptanceCriterionResponseMapper.toResponse(criterion));
+    }
+
+    @Override
+    public ResponseEntity<AcceptanceCriterionResponse> update(
+            UUID projectId, UUID storyId, UUID criterionId, UpdateAcceptanceCriterionRequest request) {
+        AcceptanceCriterion criterion = updateCriterion.handle(
+                new UpdateAcceptanceCriterionCommand(
+                        projectId, storyId, criterionId,
+                        request.scenario(), request.given(), request.when(), request.then()));
+        return ResponseEntity.ok(AcceptanceCriterionResponseMapper.toResponse(criterion));
     }
 }

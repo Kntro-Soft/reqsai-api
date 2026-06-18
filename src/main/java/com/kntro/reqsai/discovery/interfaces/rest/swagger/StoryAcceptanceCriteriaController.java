@@ -1,7 +1,9 @@
 package com.kntro.reqsai.discovery.interfaces.rest.swagger;
 
 import com.kntro.reqsai.discovery.interfaces.rest.dto.request.AddAcceptanceCriterionRequest;
+import com.kntro.reqsai.discovery.interfaces.rest.dto.request.UpdateAcceptanceCriterionRequest;
 import com.kntro.reqsai.discovery.interfaces.rest.dto.response.AcceptanceCriterionResponse;
+import org.springframework.web.bind.annotation.PutMapping;
 import com.kntro.reqsai.shared.infrastructure.configuration.ApiVersioning;
 import com.kntro.reqsai.shared.infrastructure.documentation.openapi.OpenApiConfiguration;
 import com.kntro.reqsai.shared.infrastructure.documentation.openapi.annotations.ApiResponseBadRequest;
@@ -49,4 +51,26 @@ public interface StoryAcceptanceCriteriaController {
             @Parameter(description = "User story to add the criterion to", required = true)
             @PathVariable UUID storyId,
             @Valid @RequestBody AddAcceptanceCriterionRequest request);
+
+    @Operation(
+            summary = "Update an acceptance criterion",
+            description = "Replaces all fields (given, when, then, scenario) of an existing criterion.")
+    @ApiResponse(
+            responseCode = "200",
+            description = "Criterion updated",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    schema = @Schema(implementation = AcceptanceCriterionResponse.class)))
+    @ApiResponseBadRequest
+    @ApiResponseNotFound
+    @ApiStandardErrorResponses
+    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
+    @PutMapping(path = "/{criterionId}", version = ApiVersioning.V1)
+    ResponseEntity<AcceptanceCriterionResponse> update(
+            @Parameter(description = "Project the story belongs to", required = true)
+            @PathVariable UUID projectId,
+            @Parameter(description = "User story that owns the criterion", required = true)
+            @PathVariable UUID storyId,
+            @Parameter(description = "Criterion to update", required = true)
+            @PathVariable UUID criterionId,
+            @Valid @RequestBody UpdateAcceptanceCriterionRequest request);
 }
