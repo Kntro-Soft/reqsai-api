@@ -9,6 +9,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+
 /**
  * Handles transitioning a discovery session status to RECORDING.
  */
@@ -25,7 +27,7 @@ public class StartRecordingCommandHandler {
                 .filter(s -> s.getProjectId().equals(command.projectId()))
                 .orElseThrow(() -> DiscoveryExceptions.sessionNotFound(command.sessionId()));
 
-        session.startRecording();
+        session.startRecording(Instant.now());
         DiscoverySession saved = sessions.save(session);
 
         log.info("Discovery session {} started recording for project {}", saved.getId(), command.projectId());

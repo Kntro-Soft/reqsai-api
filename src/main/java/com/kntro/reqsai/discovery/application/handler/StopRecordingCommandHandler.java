@@ -9,6 +9,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
+
 /**
  * Handles transitioning a discovery session to STOPPED status.
  */
@@ -25,7 +27,7 @@ public class StopRecordingCommandHandler {
                 .filter(s -> s.getProjectId().equals(command.projectId()))
                 .orElseThrow(() -> DiscoveryExceptions.sessionNotFound(command.sessionId()));
 
-        session.stopRecording();
+        session.stopRecording(Instant.now());
         DiscoverySession saved = sessions.save(session);
 
         log.info("Discovery session {} stopped recording for project {}", saved.getId(), command.projectId());
