@@ -86,6 +86,59 @@ class ProjectCreationIntegrationTest extends AbstractIntegrationTest {
                 Integer.class, projectId
         );
         assertThat(glossaryCount).isEqualTo(1);
+
+        // Update Project
+        Map<String, Object> updateRequest = Map.of(
+                "name", "My Updated Project",
+                "description", "An updated project description",
+                "programmingLanguages", List.of("Kotlin"),
+                "frameworks", List.of("Micronaut"),
+                "clientPlatforms", List.of("Mobile"),
+                "databases", List.of("MongoDB"),
+                "architecture", "Microservices",
+                "domain", "Logistics"
+        );
+
+        ResponseEntity<String> updateRes = client().put().uri("/api/organizations/{orgId}/projects/{projectId}", orgId, projectId)
+                .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId.toString(), "ROLE_USER"))
+                .header("Api-Version", "1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(updateRequest)
+                .exchange((req, response) -> ResponseEntity.status(response.getStatusCode())
+                        .body(response.bodyTo(String.class)));
+
+        assertThat(updateRes.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(updateRes.getBody()).contains("\"name\":\"My Updated Project\"");
+        assertThat(updateRes.getBody()).contains("\"description\":\"An updated project description\"");
+
+        // Assert DB updated
+        Map<String, Object> updatedProjectRow = jdbcTemplate.queryForMap(
+                "SELECT name, description FROM \"" + schema + "\".projects WHERE id = ?::uuid",
+                projectId
+        );
+        assertThat(updatedProjectRow.get("name")).isEqualTo("My Updated Project");
+        assertThat(updatedProjectRow.get("description")).isEqualTo("An updated project description");
+
+        // Delete Project
+        ResponseEntity<Void> deleteRes = client().delete().uri("/api/organizations/{orgId}/projects/{projectId}", orgId, projectId)
+                .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId.toString(), "ROLE_USER"))
+                .header("Api-Version", "1")
+                .exchange((req, response) -> ResponseEntity.status(response.getStatusCode()).build());
+
+        assertThat(deleteRes.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+
+        // Assert DB rows deleted (including cascaded glossary)
+        Integer projectCountAfterDelete = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM \"" + schema + "\".projects WHERE id = ?::uuid",
+                Integer.class, projectId
+        );
+        assertThat(projectCountAfterDelete).isEqualTo(0);
+
+        Integer glossaryCountAfterDelete = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM \"" + schema + "\".glossaries WHERE project_id = ?::uuid",
+                Integer.class, projectId
+        );
+        assertThat(glossaryCountAfterDelete).isEqualTo(0);
     }
 
     @Test
