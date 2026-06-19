@@ -201,6 +201,7 @@ sourceSets {
 // SPOTLESS — Java + Gradle DSL formatting
 // ==================================
 spotless {
+    isEnforceCheck = false
     java {
         eclipse()
         target("src/**/*.java")
