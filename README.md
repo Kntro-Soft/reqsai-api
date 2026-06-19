@@ -52,6 +52,26 @@ Verificación:
 ./gradlew verifyModularity # solo la verificación de arquitectura Spring Modulith
 ```
 
+## Code Quality
+
+| Command                                        | What it does                                                      |
+|------------------------------------------------|-------------------------------------------------------------------|
+| `./gradlew spotlessCheck`                      | Verify all Java/Kotlin files match the formatter (CI-enforced)    |
+| `./gradlew spotlessApply`                      | Auto-format all Java/Kotlin files locally                         |
+| `./gradlew jacocoTestReport`                   | Generate coverage report → `build/reports/jacoco/test/index.html` |
+| `./gradlew jacocoTestCoverageVerification`     | Fail if coverage < 50% (also runs as part of `check`)             |
+| `./gradlew dependencyCheckAnalyze`             | Scan dependencies for CVEs (slow — downloads NVD on first run)    |
+| `./gradlew test --tests "*.ArchitectureTests"` | Run ArchUnit architecture fitness functions only                  |
+
+> **Formatter:** Eclipse formatter (chosen for JDK 25 compatibility — Palantir/Google Java Format
+> use javac internals removed in JDK 23). Run `spotlessApply` before your first commit on this branch.
+>
+> **Coverage:** Codecov badge and report are updated automatically on every push to `develop`/`main`.
+> Threshold starts at 50% and will be raised as feature modules are implemented.
+>
+> **OWASP:** Runs weekly via `owasp.yml` — not part of the PR pipeline. Check the
+> [Actions tab](../../actions/workflows/owasp.yml) for the latest report.
+
 ---
 
 ## Estructura (bounded contexts)
