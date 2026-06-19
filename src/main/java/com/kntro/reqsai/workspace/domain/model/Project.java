@@ -53,4 +53,18 @@ public class Project extends AggregateRoot {
 
         registerEvent(ProjectCreatedEvent.of(getId(), organizationId, createdBy));
     }
+
+    public void updateDetails(String name, @Nullable String description, TechnicalProfile technicalProfile) {
+        this.name = Assert.maxLength(Assert.notBlank(name, "name"), "name", NAME_MAX);
+        this.description = description == null ? null : Assert.maxLength(description.strip(), "description", DESC_MAX);
+        this.technicalProfile = Assert.notNull(technicalProfile, "technicalProfile");
+    }
+
+    public void archive() {
+        this.status = ProjectStatus.ARCHIVED;
+    }
+
+    public void activate() {
+        this.status = ProjectStatus.ACTIVE;
+    }
 }
