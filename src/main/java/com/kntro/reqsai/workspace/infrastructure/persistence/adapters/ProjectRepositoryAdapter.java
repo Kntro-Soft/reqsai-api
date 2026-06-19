@@ -30,7 +30,17 @@ public class ProjectRepositoryAdapter implements ProjectRepository {
     }
 
     @Override
+    public boolean existsByNameAndIdNot(String name, UUID id) {
+        return jpa.existsByNameAndIdNot(name, id);
+    }
+
+    @Override
     public int countActive() {
         return jpa.countActive();
+    }
+
+    @Override
+    public void delete(Project project) {
+        jpa.delete(project);
     }
 }

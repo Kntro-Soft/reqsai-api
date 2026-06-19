@@ -7,6 +7,7 @@ import java.util.UUID;
 
 public interface ProjectJpaRepository extends JpaRepository<Project, UUID> {
     boolean existsByName(String name);
+    boolean existsByNameAndIdNot(String name, UUID id);
 
     @Query("SELECT COUNT(p) FROM Project p WHERE p.status = 'ACTIVE'")
     int countActive();
