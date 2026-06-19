@@ -6,6 +6,7 @@ import com.kntro.reqsai.shared.infrastructure.security.VerifiedToken;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
 import org.springframework.web.socket.WebSocketHandler;
@@ -14,12 +15,28 @@ import org.springframework.web.socket.server.HandshakeInterceptor;
 import java.util.Map;
 
 /**
- * Authenticates a WebSocket handshake via the JWT passed as {@code ?token=<jwt>} query param
- * (used for raw binary sockets where the STOMP channel interceptor does not apply).
+ * Authenticates binary WebSocket handshakes via a JWT passed as the {@code ?token=<jwt>} query
+ * parameter, and pre-resolves the tenant schema so handlers avoid a DB lookup per callback.
  *
- * <p>On success, stores the user id, tenant (org) id, and resolved PostgreSQL schema in the WS
- * session attributes so handlers can set the tenant context for off-request callbacks without
- * hitting the DB per event. Attribute keys are defined in {@link TenantAwareBinaryWebSocketHandler}.
+ * <h2>Why query param instead of Authorization header?</h2>
+ * The browser {@code WebSocket} API does not support custom headers during the HTTP upgrade
+ * request. Passing the JWT as a query parameter is the standard workaround for raw WebSocket
+ * connections. The STOMP channel uses its own {@code StompAuthChannelInterceptor} and is not
+ * covered by this interceptor.
+ *
+ * <h2>What it stores</h2>
+ * On a successful handshake, three attributes are written to the WS session so the handler can
+ * read them later without hitting the database again:
+ * <ul>
+ *   <li>{@link TenantAwareBinaryWebSocketHandler#ATTR_USER} — authenticated user id</li>
+ *   <li>{@link TenantAwareBinaryWebSocketHandler#ATTR_ORG} — tenant (organisation) id</li>
+ *   <li>{@link TenantAwareBinaryWebSocketHandler#ATTR_SCHEMA} — resolved PostgreSQL schema</li>
+ * </ul>
+ * A missing or invalid token causes the handshake to be rejected (returns {@code false}), which
+ * Spring translates to an HTTP 403 response before the WebSocket upgrade completes.
+ *
+ * @see TenantAwareBinaryWebSocketHandler
+ * @see AbstractWebSocketBinaryConfig
  */
 @RequiredArgsConstructor
 @Slf4j
@@ -28,6 +45,11 @@ public class WebSocketJwtHandshakeInterceptor implements HandshakeInterceptor {
     private final TokenVerifier tokenVerifier;
     private final TenantSchemaResolver schemaResolver;
 
+    /**
+     * Verifies the JWT from {@code ?token=} and populates WS session attributes on success.
+     *
+     * @return {@code true} to allow the upgrade; {@code false} to reject it with HTTP 403
+     */
     @Override
     public boolean beforeHandshake(ServerHttpRequest request, @NonNull ServerHttpResponse response,
                                    @NonNull WebSocketHandler wsHandler, @NonNull Map<String, Object> attributes) {
@@ -52,12 +74,19 @@ public class WebSocketJwtHandshakeInterceptor implements HandshakeInterceptor {
         }
     }
 
+    /** No post-handshake action required. */
     @Override
     public void afterHandshake(@NonNull ServerHttpRequest request, @NonNull ServerHttpResponse response,
                                @NonNull WebSocketHandler wsHandler, Exception exception) {
     }
 
-    private String extractToken(String query) {
+    /**
+     * Extracts the raw JWT value from the {@code token=} query parameter.
+     *
+     * @param query the raw query string (maybe {@code null})
+     * @return the token value, or {@code null} if the param is absent
+     */
+    private @Nullable String extractToken(@Nullable String query) {
         if (query == null) return null;
         for (String param : query.split("&")) {
             if (param.startsWith("token=")) {

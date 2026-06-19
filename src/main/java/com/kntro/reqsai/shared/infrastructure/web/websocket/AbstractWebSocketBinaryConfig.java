@@ -13,22 +13,38 @@ import java.util.List;
 /**
  * Base configuration for authenticated binary WebSocket endpoints.
  *
- * <p>Wires {@link WebSocketJwtHandshakeInterceptor} (JWT {@code ?token=} auth + tenant resolution)
- * and the shared {@code reqsai.websocket.allowed-origins} property. Subclasses provide the
- * endpoint path and the concrete handler:
+ * <p>Centralises the wiring that every raw (non-STOMP) binary WebSocket endpoint in the system
+ * needs:
+ * <ul>
+ *   <li>{@link WebSocketJwtHandshakeInterceptor} — authenticates the JWT from {@code ?token=}
+ *       and pre-resolves the tenant schema into the WS session attributes.</li>
+ *   <li>{@code reqsai.websocket.allowed-origins} — shared CORS origin list (defaults to
+ *       {@code http://localhost:4200} for local development).</li>
+ * </ul>
+ *
+ * <p>Subclasses implement {@link #path()} and {@link #handler()} to register their specific
+ * endpoint without repeating auth or CORS boilerplate. Because this class implements
+ * {@link WebSocketConfigurer}, subclasses only need {@code @Configuration @EnableWebSocket}:
  *
  * <pre>{@code
  * @Configuration
  * @EnableWebSocket
- * @RequiredArgsConstructor
  * class MyWebSocketConfig extends AbstractWebSocketBinaryConfig {
  *
  *     private final MyWebSocketHandler handler;
  *
- *     @Override protected String path()    { return "/ws/my-endpoint"; }
+ *     MyWebSocketConfig(TokenVerifier tv, TenantSchemaResolver sr, MyWebSocketHandler h) {
+ *         super(tv, sr);
+ *         this.handler = h;
+ *     }
+ *
+ *     @Override protected String path()                { return "/ws/my-endpoint"; }
  *     @Override protected BinaryWebSocketHandler handler() { return handler; }
  * }
  * }</pre>
+ *
+ * @see WebSocketJwtHandshakeInterceptor
+ * @see TenantAwareBinaryWebSocketHandler
  */
 public abstract class AbstractWebSocketBinaryConfig implements WebSocketConfigurer {
 
@@ -43,10 +59,16 @@ public abstract class AbstractWebSocketBinaryConfig implements WebSocketConfigur
         this.schemaResolver = schemaResolver;
     }
 
-    /** WebSocket endpoint path, e.g. {@code /ws/stt}. */
+    /**
+     * The WebSocket endpoint path at which the handler is registered, e.g. {@code /ws/stt}.
+     * Clients connect to {@code ws://<host><path>?token=<jwt>&...}.
+     */
     protected abstract String path();
 
-    /** The concrete handler for this endpoint. */
+    /**
+     * The concrete {@link BinaryWebSocketHandler} that processes audio frames and lifecycle
+     * events for this endpoint.
+     */
     protected abstract BinaryWebSocketHandler handler();
 
     @Override
