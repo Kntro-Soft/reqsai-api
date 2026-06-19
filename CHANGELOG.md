@@ -11,6 +11,23 @@ follows [Semantic Versioning](https://semver.org/).
 
 _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in progress._
 
+### Added (Quality Gates — `feature/tooling-quality-gates`)
+
+- **Spotless** (`com.diffplug.spotless:8.6.0`): Java code formatter using Eclipse formatter.
+  `./gradlew spotlessCheck` enforced in CI before `compileJava`; `./gradlew spotlessApply` for
+  local auto-format. Kotlin Gradle DSL files formatted with `ktfmt`. See [ADR-0016](docs/adr/0016-spotless-eclipse-java-formatting.md).
+- **JaCoCo 0.8.13**: Code coverage reports (XML + HTML). `./gradlew jacocoTestReport` generates
+  `build/reports/jacoco/`; minimum 50% coverage enforced via `jacocoTestCoverageVerification`.
+  Codecov upload added to CI (`codecov/codecov-action@v5`). See [ADR-0017](docs/adr/0017-jacoco-codecov-coverage.md).
+- **OWASP Dependency-Check**: CVE scanning via `org.owasp.dependencycheck:12.2.2`. Runs in a
+  separate weekly workflow (`owasp.yml`) to avoid blocking PRs; fails only on CVSS ≥ 9.
+  `owasp-suppressions.xml` for known false positives. See [ADR-0018](docs/adr/0018-owasp-dependency-check.md).
+- **ArchUnit 1.4.2**: Architecture fitness functions (`ArchitectureTests.java`) enforcing domain
+  purity, hexagonal layer isolation, and bounded context boundaries. Tagged `@Tag("architecture")`.
+  See [ADR-0019](docs/adr/0019-archunit-architecture-fitness-functions.md).
+- **Lefthook** pre-commit hook: runs `./gradlew spotlessApply` on staged `*.java` files before
+  every commit.
+
 ### Added
 
 - **Discovery — Upload Transcript + Process Transcript use cases** (full STT → LLM pipeline):
