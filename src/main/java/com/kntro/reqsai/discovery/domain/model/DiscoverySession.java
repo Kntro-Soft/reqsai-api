@@ -153,7 +153,7 @@ public class DiscoverySession extends AggregateRoot {
         if (isFinal) {
             this.lastSequence += 1;
         }
-        registerEvent(TranscriptSegmentAppendedEvent.of(getId(), projectId, this.lastSequence, speakerLabel, clean, startMs, endMs, isFinal));
+        registerEvent(TranscriptSegmentAppendedEvent.of(getId(), this.lastSequence, speakerLabel, clean, startMs, endMs, isFinal));
         return this.lastSequence;
     }
 
