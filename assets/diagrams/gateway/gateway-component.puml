@@ -1,0 +1,61 @@
+@startuml gateway-component
+!include ../c4/C4_Container.puml
+!include ../c4/C4_Component.puml
+!include ../styles/reqsai-c4-component-style.puml
+
+AddSystemTag("externalJira", $bgColor="#0052CC", $fontColor="#FFFFFF", $borderColor="#003893", $legendText="Jira Cloud (Atlassian)")
+
+title Component Diagram -- Gateway Bounded Context (C4 Level 3)
+
+' ── External actors ──────────────────────────────────────────────────
+Person(user,       "Usuario",          "Conecta Jira y sincroniza\nuser stories aprobadas.")
+System_Ext(discBC, "Req Discovery BC", "Publica UserStoryApprovedEvent\npara disparar sincronizacion.", $tags="externalBC")
+System_Ext(wsBC,   "Workspace BC",     "Verifica membresia del workspace\nvía Module API.", $tags="externalBC")
+System_Ext(jira,   "Jira Cloud",       "Atlassian Jira Cloud API v3:\ncreacion de issues via OAuth 2.0.", $tags="externalJira")
+ContainerDb(postgres,"PostgreSQL",     "Database", "jira_integrations · jira_sync_records", $tags="database")
+
+' ── Gateway Module boundary ──────────────────────────────────────────
+Container_Boundary(gw, "Gateway  [Spring Modulith Module]") {
+
+  Component(integCtrl, "IntegrationController", "REST Controller", "POST /integrations/jira/connect\nGET  /integrations/jira/status\nDELETE /integrations/jira\nGET  /integrations/jira/callback", $tags="interface")
+  Component(syncCtrl,  "SyncController",         "REST Controller", "POST /sync/stories/{id}\nGET  /sync/records\nPOST /sync/records/{id}/retry", $tags="interface")
+
+  Component(integCmdHandlers, "Integration Command Handlers", "ConnectJiraCommandHandler\nDisconnectJiraCommandHandler\nRefreshJiraCredentialsCommandHandler", "Gestiona el ciclo de conexion\ncon Jira Cloud via OAuth 2.0.", $tags="application")
+  Component(syncCmdHandlers,  "Sync Command Handlers",        "SyncUserStoryCommandHandler\nRetrySyncCommandHandler", "Sincroniza user stories aprobadas\ncomo issues en Jira.", $tags="application")
+  Component(queryHandlers,    "Query Handlers",               "GetIntegrationStatusQueryHandler\nListSyncRecordsQueryHandler", "Consultas de estado de integracion\ny registros de sincronizacion.", $tags="application")
+  Component(storyListener,    "UserStoryApprovedEventListener", "@ApplicationModuleListener", "Reacciona a stories aprobadas\ny dispara la sincronizacion con Jira.", $tags="application")
+
+  Component(domain, "Domain Model", "JiraIntegration · JiraSyncRecord\nJiraCredentials\nIntegrationStatus · SyncStatus", "Logica de negocio pura: invariantes\ny reglas de integracion.", $tags="domain")
+
+  Component(repos,    "JPA Repositories",  "JiraIntegrationRepository\nJiraSyncRecordRepository", "Implementan los repository ports.", $tags="infrastructure")
+  Component(adapters, "Jira Cloud Adapter","JiraCloudApiAdapter", "Implementa el Jira gateway port.\nOAuth 2.0 + Jira REST API v3.\nCreacion y consulta de issues.", $tags="infrastructure")
+}
+
+' ── External relations ───────────────────────────────────────────────
+Rel(user,    integCtrl, "HTTP REST",      "JSON / HTTPS")
+Rel(user,    syncCtrl,  "HTTP REST",      "JSON / HTTPS")
+Rel(repos,   postgres,  "Reads / Writes", "JDBC / Hibernate ORM")
+Rel(adapters,jira,      "Jira API",       "HTTPS / OAuth 2.0")
+
+' ── Internal relations ───────────────────────────────────────────────
+Rel(integCtrl, integCmdHandlers, "Delegates to")
+Rel(integCtrl, queryHandlers,    "Delegates to")
+Rel(syncCtrl,  syncCmdHandlers,  "Delegates to")
+Rel(syncCtrl,  queryHandlers,    "Delegates to")
+
+Rel(integCmdHandlers, domain,   "Creates / mutates")
+Rel(syncCmdHandlers,  domain,   "Creates / mutates")
+Rel(queryHandlers,    domain,   "Reads")
+
+Rel(integCmdHandlers, repos,    "Persists via port")
+Rel(integCmdHandlers, adapters, "OAuth exchange via port")
+Rel(syncCmdHandlers,  repos,    "Persists via port")
+Rel(syncCmdHandlers,  adapters, "Creates Jira issue via port")
+Rel(queryHandlers,    repos,    "Reads via port")
+
+Rel(discBC,       storyListener, "Publishes event", "Spring ApplicationEvent")
+Rel(storyListener,syncCmdHandlers,"Triggers sync")
+Rel(wsBC,         queryHandlers,  "In-process",     "Spring Bean call")
+
+SHOW_LEGEND()
+@enduml

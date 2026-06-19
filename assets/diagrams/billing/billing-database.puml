@@ -1,0 +1,66 @@
+@startuml billing-database
+!include ../styles/reqsai-database-style.puml
+
+title Billing BC -- Database Design Diagram
+
+legend top left
+  |= Clave |= Significado |
+  |<$REQSAI_BLUE_800><color:#FFFFFF><b> T </b></color>| Tabla core (entidad) |
+  |<<PK>>| Primary Key |
+  |<<FK>>| Foreign Key |
+  |<<NN>>| NOT NULL |
+  |<<UQ>>| UNIQUE |
+  |<<IDX>>| INDEX |
+endlegend
+
+note as auditNote
+  <b>Columnas de auditoria</b> (todas las tablas)
+  - created_at   TIMESTAMP   <<NN>>
+  - updated_at   TIMESTAMP   <<NN>>
+  - created_by   VARCHAR(36)
+  - updated_by   VARCHAR(36)
+end note
+
+' ── Table: subscriptions ─────────────────────────────────────────────
+CORE(subscriptions) {
+  id                    : VARCHAR(36)    <<PK>>
+  --
+  organization_id       : VARCHAR(36)    <<NN, UQ, IDX>>
+  plan_type             : VARCHAR(20)    <<NN, IDX>>
+  status                : VARCHAR(20)    <<NN, IDX>>
+  current_period_start  : TIMESTAMP
+  current_period_end    : TIMESTAMP
+  token_quota_used      : BIGINT         <<NN>>
+  cancelled_at          : TIMESTAMP
+  --
+  payment_provider      : VARCHAR(30)
+  payment_external_id   : VARCHAR(255)
+  --
+}
+
+note right of subscriptions
+  <b>organization_id</b>
+  - UQ: 1 org = 1 suscripcion
+  - Ref logica al Workspace BC
+  - Sin FK fisica (BCs aislados)
+
+  <b>plan_type</b>
+  - FREE | PRO | ENTERPRISE
+
+  <b>status</b>
+  - ACTIVE | CANCELLED
+  - PAST_DUE | TRIALING
+
+  <b>payment_provider / payment_external_id</b>
+  - Embedding del VO <b>PaymentProviderRef</b>
+  - NULL para plan FREE
+  - STRIPE | CULQI
+
+  <b>token_quota_used</b>
+  - Tokens consumidos en el periodo actual
+  - Se reinicia al inicio de cada periodo
+end note
+
+auditNote .. subscriptions
+
+@enduml

@@ -1,0 +1,63 @@
+@startuml iam-component
+!include ../c4/C4_Container.puml
+!include ../c4/C4_Component.puml
+
+!include ../styles/reqsai-c4-component-style.puml
+
+title Component Diagram — IAM Bounded Context (C4 Level 3)
+
+' ── External actors ────────────────────────────────────────────────
+Person(user,         "Usuario",      "Registra cuenta, inicia sesión\ny gestiona su perfil.")
+System_Ext(wsBC,     "Workspace BC", "Consulta identidad del usuario\nautenticado vía Module API.", $tags="externalBC")
+System_Ext(smtp,     "SMTP Service", "Envía correos de verificación\ny notificaciones de cuenta.", $tags="externalMail")
+ContainerDb(postgres, "PostgreSQL",  "Database", "accounts · users · refresh_tokens",              $tags="database")
+
+' ── IAM Module boundary ─────────────────────────────────────────────
+Container_Boundary(iam, "IAM  [Spring Modulith Module]") {
+
+  Component(authCtrl,       "AuthenticationController",         "REST Controller",                                                                         "POST /authentication/sign-up\nPOST /authentication/sign-in\nPOST /authentication/verify\nPOST /authentication/refresh\nPOST /authentication/sign-out",  $tags="interface")
+  Component(userCtrl,       "UserController",                   "REST Controller",                                                                         "GET  /users/me\nPATCH /users/me/profile\nPATCH /users/me/preferences",                                                                               $tags="interface")
+
+  Component(authHandlers,   "Auth Command Handlers",            "SignUpCommandHandler · SignInCommandHandler\nVerifyEmailCommandHandler · ResendVerificationCodeCommandHandler", "Gestiona registro, autenticación\ny verificación de correo.",                                                                  $tags="application")
+  Component(sessionHandlers,"Session Command Handlers",         "RefreshSessionCommandHandler\nRevokeRefreshTokenCommandHandler",                           "Rota y revoca refresh tokens\npara gestión segura de sesión.",                                                                                        $tags="application")
+  Component(userHandlers,   "User Command Handlers",            "UpdateUserProfileCommandHandler\nUpdateUserPreferencesCommandHandler",                     "Actualiza perfil y preferencias\ndel usuario autenticado.",                                                                                           $tags="application")
+  Component(queryHandlers,  "Query Handlers",                   "GetAuthenticatedUserQueryHandler\nGetUserByIdQueryHandler",                               "Consultas de lectura del perfil.\n@Transactional(readOnly = true)",                                                                                  $tags="application")
+  Component(eventListener,  "EmailVerificationRequestedEventListener", "@ApplicationModuleListener",                                                       "Reacciona al evento de verificación\ny delega el envío de correo al adapter.",                                                                       $tags="application")
+
+  Component(domain,         "Domain Model",                     "Account · User · RefreshToken\nEmail · UserPreferences\nAccountStatus · TokenStatus",     "Lógica de negocio pura: invariantes,\nreglas de dominio y eventos de dominio.",                                                                      $tags="domain")
+
+  Component(repos,          "JPA Repositories",                 "AccountRepository · UserRepository\nRefreshTokenRepository",                              "Implementan los repository ports.\nAcceso directo JPA sobre aggregates.",                                                                             $tags="infrastructure")
+  Component(adapters,       "Service Adapters",                 "JwtTokenServiceAdapter · BCryptHashingServiceAdapter\nOtpVerificationServiceAdapter · SmtpEmailNotificationAdapter", "Implementan los service ports.\nJJWT · BCrypt · SecureRandom · Spring Mail",                                           $tags="infrastructure")
+  Component(security,       "Security Configuration",           "WebSecurityConfiguration\nBearerAuthorizationRequestFilter",                              "Spring Security stateless con JWT.\nFiltra y autentica cada request entrante.",                                                                        $tags="security")
+  Component(moduleApi,      "IamModuleApiImpl",                 "Module API Facade",                                                                       "Única interfaz expuesta a otros BCs.\nProvee identidad del usuario autenticado.",                                                                     $tags="moduleApi")
+}
+
+' ── External relations ──────────────────────────────────────────────
+Rel(user,     authCtrl,  "HTTP REST",     "JSON / HTTPS")
+Rel(user,     userCtrl,  "HTTP REST",     "JSON / HTTPS")
+Rel(wsBC,     moduleApi, "In-process",    "Spring Bean call")
+Rel(repos,    postgres,  "Reads / Writes","JDBC / Hibernate ORM")
+Rel(adapters, smtp,      "Sends emails",  "SMTP / TLS")
+
+' ── Internal relations ──────────────────────────────────────────────
+Rel(authCtrl,        authHandlers,    "Delegates to")
+Rel(authCtrl,        sessionHandlers, "Delegates to")
+Rel(userCtrl,        userHandlers,    "Delegates to")
+Rel(userCtrl,        queryHandlers,   "Delegates to")
+
+Rel(authHandlers,    domain,          "Creates / mutates")
+Rel(sessionHandlers, domain,          "Mutates state")
+Rel(userHandlers,    domain,          "Mutates state")
+Rel(queryHandlers,   domain,          "Reads")
+
+Rel(authHandlers,    repos,           "Persists via port")
+Rel(authHandlers,    adapters,        "Hashes / generates OTP via port")
+Rel(sessionHandlers, repos,           "Persists via port")
+Rel(userHandlers,    repos,           "Persists via port")
+Rel(queryHandlers,   repos,           "Reads via port")
+
+Rel(domain,          eventListener,   "Publishes event", "Spring ApplicationEvent")
+Rel(eventListener,   adapters,        "Sends email via port")
+
+SHOW_LEGEND()
+@enduml

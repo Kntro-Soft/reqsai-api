@@ -1,0 +1,62 @@
+@startuml discovery-component
+!include ../c4/C4_Container.puml
+!include ../c4/C4_Component.puml
+!include ../styles/reqsai-c4-component-style.puml
+
+AddSystemTag("externalAI", $bgColor="#1B5E20", $fontColor="#FFFFFF", $borderColor="#0A3D10", $legendText="External AI / LLM Service")
+
+title Component Diagram -- Req Discovery Bounded Context (C4 Level 3)
+
+' ── External actors ──────────────────────────────────────────────────
+Person(user,      "Usuario",         "Inicia sesiones de discovery\ny revisa user stories generadas.")
+System_Ext(wsBC,  "Workspace BC",    "Verifica membresia y limites\ndel workspace vía Module API.", $tags="externalBC")
+System_Ext(bilBC, "Billing BC",      "Verifica limites de sesiones\ny tokens del plan.", $tags="externalBC")
+System_Ext(aiSvc, "AI / LLM Service","OpenAI o similar: procesa\ntranscripciones y genera stories.", $tags="externalAI")
+ContainerDb(postgres,"PostgreSQL",   "Database", "discovery_sessions · user_stories", $tags="database")
+
+' ── Discovery Module boundary ────────────────────────────────────────
+Container_Boundary(disc, "Req Discovery  [Spring Modulith Module]") {
+
+  Component(sessionCtrl, "DiscoverySessionController", "REST Controller", "POST /sessions\nGET  /sessions/{id}\nPATCH /sessions/{id}/start\nPATCH /sessions/{id}/complete\nDELETE /sessions/{id}", $tags="interface")
+  Component(storyCtrl,   "UserStoryController",         "REST Controller", "GET  /projects/{id}/stories\nGET  /stories/{id}\nPATCH /stories/{id}\nPATCH /stories/{id}/approve\nPATCH /stories/{id}/reject\nGET  /stories/{id}/gherkin", $tags="interface")
+
+  Component(sessionCmdHandlers, "Session Command Handlers", "CreateSessionCommandHandler\nStartSessionCommandHandler\nCompleteSessionCommandHandler\nCancelSessionCommandHandler", "Gestiona el ciclo de vida de\nlas sesiones de discovery.", $tags="application")
+  Component(storyCmdHandlers,   "Story Command Handlers",   "ApproveUserStoryCommandHandler\nRejectUserStoryCommandHandler\nUpdateUserStoryCommandHandler\nChangePriorityCommandHandler", "Gestiona el ciclo de revision\nde user stories.", $tags="application")
+  Component(queryHandlers,      "Query Handlers",            "GetSessionQueryHandler\nListSessionsQueryHandler\nGetUserStoryQueryHandler\nListStoriesByProjectQueryHandler\nGetGherkinQueryHandler", "Consultas de lectura.\n@Transactional(readOnly = true)", $tags="application")
+  Component(aiListener,         "SessionCompletedEventListener", "@ApplicationModuleListener", "Llama al AI service para procesar\nla transcripcion y generar stories.", $tags="application")
+
+  Component(domain, "Domain Model", "DiscoverySession · UserStory\nTranscriptContent · StoryContent\nSessionStatus · StoryStatus · Priority", "Logica de negocio pura: invariantes\ny reglas del discovery.", $tags="domain")
+
+  Component(repos,    "JPA Repositories",  "DiscoverySessionRepository\nUserStoryRepository", "Implementan los repository ports.", $tags="infrastructure")
+  Component(adapters, "AI Adapter",        "LlmTranscriptProcessingAdapter\nGherkinGenerationAdapter", "Implementan los AI service ports.\nIntegra con OpenAI API.", $tags="infrastructure")
+  Component(moduleApi,"DiscoveryModuleApiImpl", "Module API Facade", "Expone getSessionById()\ngetApprovedStoriesByProject()\na otros BCs (Gateway BC).", $tags="moduleApi")
+}
+
+' ── External relations ───────────────────────────────────────────────
+Rel(user,     sessionCtrl, "HTTP REST",      "JSON / HTTPS")
+Rel(user,     storyCtrl,   "HTTP REST",      "JSON / HTTPS")
+Rel(wsBC,     moduleApi,   "In-process",     "Spring Bean call")
+Rel(repos,    postgres,    "Reads / Writes", "JDBC / Hibernate ORM")
+Rel(adapters, aiSvc,       "AI Processing",  "HTTPS / REST")
+
+' ── Internal relations ───────────────────────────────────────────────
+Rel(sessionCtrl, sessionCmdHandlers, "Delegates to")
+Rel(sessionCtrl, queryHandlers,      "Delegates to")
+Rel(storyCtrl,   storyCmdHandlers,   "Delegates to")
+Rel(storyCtrl,   queryHandlers,      "Delegates to")
+
+Rel(sessionCmdHandlers, domain,   "Creates / mutates")
+Rel(storyCmdHandlers,   domain,   "Mutates state")
+Rel(queryHandlers,      domain,   "Reads")
+
+Rel(sessionCmdHandlers, repos,    "Persists via port")
+Rel(storyCmdHandlers,   repos,    "Persists via port")
+Rel(queryHandlers,      repos,    "Reads via port")
+Rel(moduleApi,          repos,    "Reads via port")
+
+Rel(domain,     aiListener, "Publishes event", "Spring ApplicationEvent")
+Rel(aiListener, adapters,   "Processes transcript via port")
+Rel(aiListener, repos,      "Persists generated stories")
+
+SHOW_LEGEND()
+@enduml

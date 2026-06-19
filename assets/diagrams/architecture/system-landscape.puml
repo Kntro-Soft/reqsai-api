@@ -1,0 +1,65 @@
+@startuml system-landscape
+!include ../c4/C4_Context.puml
+!include ../styles/reqsai-palette.puml
+
+HIDE_PERSON_SPRITE()
+
+skinparam defaultFontName "Segoe UI"
+skinparam shadowing false
+
+UpdateElementStyle(person,     $bgColor=$REQSAI_NAVY_800,  $fontColor="#FFFFFF", $borderColor="#1A3A5C")
+UpdateElementStyle(system,     $bgColor=$REQSAI_BLUE_800,  $fontColor="#FFFFFF", $borderColor=$REQSAI_BLUE_900)
+UpdateElementStyle(system_ext, $bgColor="#455A64",          $fontColor="#FFFFFF", $borderColor="#263238")
+
+AddSystemTag("videoconf", $bgColor="#1B5E20", $fontColor="#FFFFFF", $borderColor="#0A3A0F", $legendText="Herramienta de videconferencia del cliente")
+
+title System Landscape Diagram -- ReqsAI (C4 Level 0)
+
+Enterprise_Boundary(kntrosoft, "Kntro-Soft Enterprise") {
+  Person(techLead, "Technical Lead", "Ingeniero senior con responsabilidades\nde liderazgo tecnico. Inicia grabaciones,\naprueba historias de usuario\ny gestiona el backlog del equipo.")
+  Person(analyst,  "Enterprise Analyst", "Analiza datos y procesos de la\norganizacion. Administra el workspace\ncorporativo, carga glosarios tecnicos\ny gestiona el plan de suscripcion B2B.")
+  System(reqsai, "ReqsAI System", "Plataforma que ingiere audio de reuniones\nen tiempo real, aplica IA con contexto RAG\ny genera historias de usuario estructuradas,\nexportandolas a herramientas agiles.")
+}
+
+' ── Herramientas del ecosistema del cliente ──────────────────────────
+System_Ext(videoconf, "Video Conferencing Tool", "Plataforma de videoconferencia corporativa\n(Google Meet, Zoom, MS Teams). Los usuarios\nrealizan sus reuniones de levantamiento\nde requisitos en esta herramienta y exportan\nlas grabaciones para subirlas a ReqsAI.", $tags="videoconf")
+
+System_Ext(jira,    "Project Management Tool", "Herramienta de gestion de proyectos\n(Jira, Trello, Linear). Recibe las historias\nde usuario aprobadas como issues\ndel backlog del equipo.")
+System_Ext(email,   "Email Service Provider",  "Servicio cloud de correo electronico.\nEnvia verificaciones de cuenta\ne invitaciones a la organizacion.")
+System_Ext(sup,"Customer Support Channel", "Canal para el servicio de atención al cliente\n via correo por los usuarios.")
+
+
+' ── Servicios tecnologicos de soporte ────────────────────────────────
+System_Ext(payment, "Payment Gateway",  "Pasarela de pagos B2B corporativa\n(Stripe, Culqi). Procesa suscripciones.")
+System_Ext(stt,      "STT API",          "Speech-to-Text API. Convierte el audio\nde las reuniones en texto en tiempo real.")
+System_Ext(embedApi, "Embedding API",   "Convierte texto en vectores numericos\npara el motor RAG. Usado por Workspace\n(docs + glosario) y Discovery\n(user stories generadas).")
+System_Ext(llm,      "LLM API",         "Large Language Model generativo. Procesa\ncontenido de documentos en Workspace y\ngenera historias Gherkin en Discovery.")
+
+' ── Landscape effect: usuarios -> herramientas propias ───────────────
+Rel(techLead, videoconf, "Realiza reuniones de\nlevantamiento de requisitos")
+Rel(analyst,  videoconf, "Participa en reuniones\nde elicitacion")
+Rel(techLead, jira,      "Gestiona sprints y rastrea\nhistorias exportadas directamente")
+Rel(analyst,  email,     "Recibe invitaciones de\norganizacion y verificaciones")
+
+' ── Usuarios -> ReqsAI ───────────────────────────────────────────────
+Rel(techLead, reqsai, "Sube grabaciones y\naprueba historias", "HTTPS")
+Rel(analyst,  reqsai, "Administra workspace\ny suscripcion", "HTTPS")
+
+' ── Landscape effect: videoconf -> ReqsAI ────────────────────────────
+Rel(videoconf, reqsai, "Provee grabaciones de audio\n(subida manual por el usuario)")
+
+' ── Soporte al Cliente ───────────────────────────────────────────────
+Rel(techLead, sup, "Envía consultas y reporta problemas técnicos\nvía correo de soporte")
+Rel(analyst,  sup, "Envía consultas y reporta problemas de facturación\nvía correo de soporte")
+
+' ── ReqsAI -> sistemas externos ──────────────────────────────────────
+Rel(reqsai, jira,    "Exporta historias\naprobadas automaticamente")
+Rel(reqsai, email,   "Envia correos transaccionales\nvia REST API")
+Rel(reqsai, payment, "Procesa pagos de\nsuscripcion")
+Rel(reqsai, stt,      "Envia audio para\ntranscripcion en tiempo real")
+Rel(reqsai, embedApi, "Vectoriza documentos,\nglosario y user stories")
+Rel(reqsai, llm,      "Procesa documentos\ne infiere historias Gherkin")
+
+SHOW_LEGEND()
+
+@enduml

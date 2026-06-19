@@ -1,0 +1,38 @@
+'' ReqsAI standard styling for C4 Component (Level 3) diagrams.
+'' Must be included AFTER C4_Container.puml and C4_Component.puml.
+
+!include reqsai-palette.puml
+
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam Padding 4
+skinparam wrapWidth 220
+skinparam nodesep 40
+skinparam ranksep 60
+
+'' Fixes "missing glyph" squares in some environments by avoiding special legend glyphs.
+'' (C4 legend marker is patched to ASCII in our local C4.puml, but keep this as a safe default.)
+skinparam LegendFontName Segoe UI
+
+'' Standard: no icons/sprites anywhere (including Person)
+HIDE_PERSON_SPRITE()
+
+'' Component layer tags
+AddComponentTag("interface",      $bgColor=$REQSAI_BLUE_800,      $fontColor="#FFFFFF", $borderColor=$REQSAI_BLUE_900,      $legendText="Interface Layer (REST Controllers)")
+
+AddComponentTag("application",    $bgColor=$REQSAI_BLUE_700,      $fontColor="#FFFFFF", $borderColor=$REQSAI_BLUE_800,      $legendText="Application Layer (CQRS Handlers)")
+
+AddComponentTag("domain",         $bgColor=$REQSAI_BLUE_900,      $fontColor="#FFFFFF", $borderColor="#082A6B",          $legendText="Domain Layer (DDD Aggregates + VOs)")
+
+AddComponentTag("infrastructure", $bgColor=$REQSAI_LIGHTBLUE_700, $fontColor="#FFFFFF", $borderColor=$REQSAI_LIGHTBLUE_800, $legendText="Infrastructure Layer (JPA + Adapters)")
+
+AddComponentTag("security",       $bgColor=$REQSAI_ORANGE_900,    $fontColor="#FFFFFF", $borderColor=$REQSAI_ORANGE_950,    $legendText="Security (Spring Security + JWT Filter)")
+
+AddComponentTag("moduleApi",      $bgColor=$REQSAI_PURPLE_700,    $fontColor="#FFFFFF", $borderColor=$REQSAI_PURPLE_900,    $legendText="Module API Facade (inter-BC contract)")
+
+'' External / infrastructure tags
+AddSystemTag("externalBC",   $bgColor="#455A64", $fontColor="#FFFFFF", $borderColor="#263238", $legendText="Other Bounded Context")
+
+AddSystemTag("externalMail", $bgColor="#546E7A", $fontColor="#FFFFFF", $borderColor="#37474F", $legendText="External SMTP Service")
+
+AddContainerTag("database",  $bgColor=$REQSAI_TEAL_800, $fontColor="#FFFFFF", $borderColor=$REQSAI_TEAL_900, $legendText="Relational Database (PostgreSQL)")

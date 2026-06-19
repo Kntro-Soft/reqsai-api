@@ -1,0 +1,43 @@
+'' ReqsAI standard styling for database design diagrams.
+
+!include reqsai-palette.puml
+
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 11
+skinparam linetype ortho
+skinparam roundcorner 4
+
+hide circle
+hide empty methods
+
+skinparam entity {
+  BackgroundColor $REQSAI_NEUTRAL_50
+  BorderColor     $REQSAI_NEUTRAL_600
+  FontColor       $REQSAI_NEUTRAL_800
+  FontSize        11
+}
+
+'' Table categories
+skinparam entity<<T>> {
+  HeaderBackgroundColor $REQSAI_BLUE_800
+  HeaderFontColor       #FFFFFF
+  BorderColor           $REQSAI_BLUE_800
+}
+
+skinparam entity<<S>> {
+  HeaderBackgroundColor $REQSAI_TEAL_800
+  HeaderFontColor       #FFFFFF
+  BorderColor           #007A68
+  BackgroundColor       #F0FDFA
+}
+
+skinparam note {
+  BackgroundColor $REQSAI_NOTE_BG
+  BorderColor     $REQSAI_NOTE_BORDER
+  FontSize        10
+}
+
+'' Table macros
+!define CORE(x)    entity x << (T,$REQSAI_BLUE_800) >>
+!define SESSION(x) entity x << (S,$REQSAI_TEAL_800) >>
