@@ -1,6 +1,6 @@
 plugins {
     java
-    id("org.springframework.boot") version "4.0.6"
+    id("org.springframework.boot") version "4.1.0"
     id("io.spring.dependency-management") version "1.1.7"
 }
 
@@ -13,6 +13,8 @@ java {
         languageVersion = JavaLanguageVersion.of(25)
     }
 }
+
+val mockitoAgent by configurations.creating
 
 configurations {
     compileOnly {
@@ -130,6 +132,7 @@ dependencies {
     testImplementation("net.datafaker:datafaker:2.5.4")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     testCompileOnly("org.projectlombok:lombok")
+    mockitoAgent("org.mockito:mockito-core") { isTransitive = false }
 }
 
 dependencyManagement {
@@ -142,6 +145,7 @@ dependencyManagement {
 tasks.withType<Test> {
     useJUnitPlatform()
     maxParallelForks = (Runtime.getRuntime().availableProcessors() / 2).coerceAtLeast(1)
+    jvmArgs("-javaagent:${mockitoAgent.asPath}")
 }
 
 // ==================================
