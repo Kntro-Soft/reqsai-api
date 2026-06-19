@@ -1,0 +1,42 @@
+@startuml system-context
+!include ../c4/C4_Context.puml
+!include ../styles/reqsai-palette.puml
+
+HIDE_PERSON_SPRITE()
+
+skinparam defaultFontName "Segoe UI"
+skinparam shadowing false
+
+UpdateElementStyle(person,     $bgColor=$REQSAI_NAVY_800, $fontColor="#FFFFFF", $borderColor="#1A3A5C")
+UpdateElementStyle(system,     $bgColor=$REQSAI_BLUE_800, $fontColor="#FFFFFF", $borderColor=$REQSAI_BLUE_900)
+UpdateElementStyle(system_ext, $bgColor="#455A64",         $fontColor="#FFFFFF", $borderColor="#263238")
+
+title System Context Diagram -- ReqsAI (C4 Level 1)
+
+Person(techLead, "Technical Lead", "Inicia grabaciones de reuniones en\ntiempo real, aprueba las historias de\nusuario generadas por IA y gestiona\nel backlog del proyecto.")
+Person(analyst,  "Enterprise Analyst", "Administra la organizacion corporativa,\ncarga glosarios tecnicos, gestiona el\nplan de suscripcion B2B y revisa\nlos reportes de consumo.")
+
+System(reqsai, "ReqsAI System", "Plataforma que ingiere audio de reuniones en tiempo real,\naplicando IA con contexto RAG (glosario + documentos del\ncliente) para generar historias de usuario estructuradas\nen formato Gherkin, exportandolas a herramientas agiles.")
+
+System_Ext(email,   "Email Service Provider", "Servicio cloud de correo electronico.\nEnvia correos transaccionales: verificacion\nde cuenta, recuperacion de contrasena\ne invitaciones a la organizacion.")
+System_Ext(payment, "Payment Gateway",        "Procesamiento de transacciones de\nsuscripciones B2B corporativas.\nEj: Stripe, Culqi, Mercado Pago.")
+System_Ext(stt,      "STT API",               "Speech-to-Text API. Convierte el\nstreaming de audio de las reuniones\nen texto con latencia < 2 seg.")
+System_Ext(embedApi, "Embedding API",         "Convierte texto en vectores numericos\npara el indice RAG. Usado por Workspace\n(documentos + glosario) y Discovery\n(user stories generadas).")
+System_Ext(llm,      "LLM API",               "Large Language Model generativo.\nUsado por Workspace (procesa contenido\nde documentos) y Discovery\n(genera historias en formato Gherkin).")
+System_Ext(pmtool,   "Project Management API", "Crea issues en el backlog del\nequipo de forma automatica a partir\nde las historias aprobadas. Ej: Jira,\nTrello, Linear.")
+
+' ── Inbound ─────────────────────────────────────────────────────────
+Rel(techLead, reqsai, "Usa", "HTTPS / WebSocket")
+Rel(analyst,  reqsai, "Usa", "HTTPS")
+
+' ── Outbound ────────────────────────────────────────────────────────
+Rel(reqsai, email,   "Envia correos via",              "REST API")
+Rel(reqsai, payment, "Procesa pagos de suscripcion via","REST API")
+Rel(reqsai, stt,      "Envia audio para transcripcion via",   "REST / Streaming")
+Rel(reqsai, embedApi, "Vectoriza texto para indice RAG via", "REST API")
+Rel(reqsai, llm,      "Procesa docs e infiere Gherkin via",  "REST API")
+Rel(reqsai, pmtool,   "Exporta historias aprobadas via",     "REST API")
+
+SHOW_LEGEND()
+
+@enduml

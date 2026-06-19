@@ -1,0 +1,90 @@
+@startuml container-diagram
+!include ../c4/C4_Container.puml
+!include ../c4/C4_Component.puml
+!include ../styles/reqsai-palette.puml
+
+HIDE_PERSON_SPRITE()
+
+skinparam defaultFontName "Segoe UI"
+skinparam shadowing false
+
+UpdateElementStyle(person,      $bgColor=$REQSAI_NAVY_800,  $fontColor="#FFFFFF", $borderColor="#1A3A5C")
+UpdateElementStyle(system_ext,  $bgColor="#455A64",          $fontColor="#FFFFFF", $borderColor="#263238")
+UpdateElementStyle(container,   $bgColor=$REQSAI_BLUE_700,   $fontColor="#FFFFFF", $borderColor=$REQSAI_BLUE_800)
+UpdateElementStyle(containerDb, $bgColor=$REQSAI_TEAL_800,   $fontColor="#FFFFFF", $borderColor=$REQSAI_TEAL_900)
+UpdateElementStyle(component,   $bgColor=$REQSAI_BLUE_600,   $fontColor="#FFFFFF", $borderColor=$REQSAI_BLUE_700)
+
+AddContainerTag("edge",     $bgColor="#37474F",        $fontColor="#FFFFFF", $borderColor="#263238", $legendText="Edge / Routing Layer (AWS)")
+AddContainerTag("frontend", $bgColor=$REQSAI_NAVY_800, $fontColor="#FFFFFF", $borderColor="#1A3A5C", $legendText="Frontend Application")
+
+title Container Diagram -- ReqsAI (C4 Level 2)
+
+' ── Actors ──────────────────────────────────────────────────────────
+Person(techLead, "Technical Lead", "Inicia grabaciones y\naprueba historias de usuario.")
+Person(analyst,  "Enterprise Analyst", "Administra la organizacion\ny el plan de suscripcion.")
+
+' ── Edge layer ──────────────────────────────────────────────────────
+Container(cdn,   "CDN & Reverse Proxy", "Amazon CloudFront", "Sirve los activos estaticos del SPA Angular\ndesde ubicaciones globales (Edge Locations),\ncachea respuestas, mitiga DDoS y enruta\nel trafico de API hacia el API Gateway.", $tags="edge")
+Container(apiGw, "API Gateway",         "AWS API Gateway",   "Punto de entrada unificado para peticiones\nREST y WebSocket desde web y mobile.\nGestiona throttling, metricas y SSL.", $tags="edge")
+
+' ── Frontends ────────────────────────────────────────────────────────
+Container(web,    "Web Application", "Angular",  "SPA web principal. Revision de historias,\nconfiguracion de proyectos y administracion\nde la organizacion. Servida por CloudFront.", $tags="frontend")
+Container(mobile, "Mobile App",      "Flutter",  "App movil multiplataforma (iOS/Android).\nGrabacion de reuniones y revision\nde requerimientos. Llama al API Gateway\ndirectamente (no pasa por CDN).", $tags="frontend")
+
+' ── Backend: Monolito Modular ─────────────────────────────────────────
+Container_Boundary(backend, "ReqsAI Backend Service  [Java 25 + Spring Boot 4 -- Monolito Modular / Spring Modulith]") {
+
+  Component(iam,       "IAM",                    "Spring Modulith Module", "Autenticacion JWT, registro de cuentas,\nverificacion de email, sesiones y\ngestion de perfil de usuario.")
+
+  Component(billing,   "Billing & Subscriptions", "Spring Modulith Module", "Ciclo de vida de suscripciones, control de\ncuotas de tokens e integracion con\nla pasarela de pagos externa.")
+
+  Component(workspace, "Workspace Management",    "Spring Modulith Module", "Organizaciones, proyectos, miembros, roles,\ndocumentos, glosarios y aplicacion de\nlimites de plan (Row Level Security).")
+
+  Component(discovery, "Requirement Discovery",   "Spring Modulith Module", "Captura de audio, transcripcion STT,\nmotor RAG con embeddings y generacion\nde historias Gherkin via LLM.")
+
+  Component(gateway,   "Integration Gateway",     "Spring Modulith Module", "Exportacion de historias de usuario\naprobadas a herramientas externas\nde gestion de proyectos.")
+}
+
+' ── Database ─────────────────────────────────────────────────────────
+ContainerDb(db, "Database", "PostgreSQL + pgvector\n[AWS RDS]", "Base de datos relacional administrada.\nLa extension pgvector habilita almacenamiento\nde embeddings vectoriales para el motor RAG.")
+
+' ── External Systems ─────────────────────────────────────────────────
+System_Ext(email,   "Email Service Provider", "Correos transaccionales:\nverificacion, recuperacion, invitaciones.")
+System_Ext(payment, "Payment Gateway",        "Procesamiento de pagos B2B.\nEj: Stripe, Culqi, Mercado Pago.")
+System_Ext(stt,      "STT API",               "Speech-to-Text: convierte audio\nen texto en tiempo real (< 2 seg).")
+System_Ext(embedApi, "Embedding API",         "Convierte texto en vectores para\nel indice RAG (pgvector). Ej: OpenAI\ntext-embedding-3-small, Cohere Embed.")
+System_Ext(llm,      "LLM API",               "Large Language Model generativo.\nEj: GPT-4o, Claude, Gemini.")
+System_Ext(pmtool,   "Project Management API", "Crea issues automaticamente\nen el backlog. Ej: Jira, Trello, Linear.")
+
+' ── Relations ────────────────────────────────────────────────────────
+' Web: pasa por CDN
+Rel(techLead, cdn,    "Accede via navegador", "HTTPS")
+Rel(analyst,  cdn,    "Accede via navegador", "HTTPS")
+Rel(cdn, web,         "Sirve SPA estatico",   "HTTPS")
+Rel(cdn, apiGw,       "Enruta llamadas API",  "HTTPS")
+Rel(web, apiGw,       "Llamadas API",         "HTTPS / REST")
+
+' Mobile: directo al API Gateway (app instalada desde App Store, no desde CDN)
+Rel(techLead, mobile, "Usa app movil",        "App Store / Play Store")
+Rel(mobile,   apiGw,  "Llamadas API directas","HTTPS / REST + WebSocket")
+
+Rel(apiGw, backend, "Enruta peticiones al monolito", "HTTPS / REST")
+
+Rel(iam,       db, "Lee y escribe", "JDBC / JPA")
+Rel(billing,   db, "Lee y escribe", "JDBC / JPA")
+Rel(workspace, db, "Lee y escribe", "JDBC / JPA")
+Rel(discovery, db, "Lee y escribe", "JDBC / JPA")
+Rel(gateway,   db, "Lee y escribe", "JDBC / JPA")
+
+Rel(iam,       email,    "Envia correos transaccionales via",       "REST API")
+Rel(billing,   payment,  "Procesa pagos de suscripcion via",        "REST API")
+Rel(workspace, embedApi, "Vectoriza docs + glosario para RAG via",  "REST API")
+Rel(workspace, llm,      "Procesa contenido de documentos via",     "REST API")
+Rel(discovery, stt,      "Envia audio para transcripcion via",      "REST / Streaming")
+Rel(discovery, embedApi, "Vectoriza user stories generadas via",    "REST API")
+Rel(discovery, llm,      "Infiere historias en Gherkin via",        "REST API")
+Rel(gateway,   pmtool,   "Exporta historias aprobadas via",         "REST API")
+
+SHOW_LEGEND()
+
+@enduml

@@ -1,0 +1,83 @@
+@startuml workspace-component
+!include ../c4/C4_Container.puml
+!include ../c4/C4_Component.puml
+!include ../styles/reqsai-c4-component-style.puml
+
+AddSystemTag("externalStorage", $bgColor="#37474F", $fontColor="#FFFFFF", $borderColor="#1C2B33", $legendText="External File Storage (S3)")
+
+title Component Diagram -- Workspace Bounded Context (C4 Level 3)
+
+' ── External actors ──────────────────────────────────────────────────
+Person(user,       "Usuario",       "Gestiona workspaces, proyectos\ny miembros del equipo.")
+System_Ext(iamBC,  "IAM BC",        "Provee identidad del usuario\nautenticado vía Module API.", $tags="externalBC")
+System_Ext(bilBC,  "Billing BC",    "Verifica limites del plan activo\nvía Module API.", $tags="externalBC")
+System_Ext(storage,"File Storage",  "S3 / cloud storage para\ndocumentos de proyectos.", $tags="externalStorage")
+ContainerDb(postgres,"PostgreSQL",  "Database", "workspaces · members · projects\nproject_documents · glossary_terms", $tags="database")
+
+' ── Workspace Module boundary ────────────────────────────────────────
+Container_Boundary(ws, "Workspace  [Spring Modulith Module]") {
+
+  Component(wsCtrl,   "WorkspaceController",  "REST Controller", "POST /workspaces\nGET  /workspaces/{id}\nPATCH /workspaces/{id}\nDELETE /workspaces/{id}", $tags="interface")
+  Component(projCtrl, "ProjectController",    "REST Controller", "POST /workspaces/{id}/projects\nGET  /workspaces/{id}/projects\nPATCH /projects/{id}\nDELETE /projects/{id}", $tags="interface")
+  Component(membCtrl, "MemberController",     "REST Controller", "POST /workspaces/{id}/members\nGET  /workspaces/{id}/members\nPATCH /members/{id}/role\nDELETE /members/{id}", $tags="interface")
+  Component(docCtrl,  "DocumentController",   "REST Controller", "POST /projects/{id}/documents\nGET  /projects/{id}/documents\nDELETE /documents/{id}", $tags="interface")
+  Component(glossCtrl,"GlossaryController",   "REST Controller", "POST /workspaces/{id}/glossary\nGET  /workspaces/{id}/glossary\nPATCH /glossary/{id}\nDELETE /glossary/{id}", $tags="interface")
+
+  Component(wsCmdHandlers,  "Workspace Command Handlers", "CreateWorkspaceCommandHandler\nArchiveWorkspaceCommandHandler\nTransferOwnershipCommandHandler\nUpdateWorkspaceCommandHandler", "Gestiona ciclo de vida del workspace.", $tags="application")
+  Component(projCmdHandlers,"Project Command Handlers",   "CreateProjectCommandHandler\nArchiveProjectCommandHandler\nUpdateProjectCommandHandler", "Gestiona proyectos del workspace.", $tags="application")
+  Component(membCmdHandlers,"Member Command Handlers",    "InviteMemberCommandHandler\nAcceptInvitationCommandHandler\nRemoveMemberCommandHandler\nChangeMemberRoleCommandHandler", "Gestiona invitaciones y roles.", $tags="application")
+  Component(docCmdHandlers, "Document Command Handlers",  "UploadDocumentCommandHandler\nRemoveDocumentCommandHandler", "Gestiona documentos de proyecto.", $tags="application")
+  Component(glossCmdHandlers,"Glossary Command Handlers", "AddGlossaryTermCommandHandler\nUpdateGlossaryTermCommandHandler\nRemoveGlossaryTermCommandHandler", "Gestiona terminos del glosario.", $tags="application")
+  Component(queryHandlers,  "Query Handlers",             "GetWorkspaceQueryHandler\nListWorkspacesQueryHandler\nListProjectsQueryHandler\nListMembersQueryHandler\nGetGlossaryQueryHandler\nListDocumentsQueryHandler", "Consultas de lectura.\n@Transactional(readOnly = true)", $tags="application")
+  Component(eventListener,  "SubscriptionActivatedEventListener", "@ApplicationModuleListener", "Activa funcionalidades del workspace\nal confirmar suscripcion activa.", $tags="application")
+
+  Component(domain, "Domain Model", "Workspace · Member · Project\nProjectDocument · GlossaryTerm\nRole · WorkspaceStatus · MemberStatus\nProjectStatus · DocumentType · Permission", "Logica de negocio pura: invariantes\ny reglas del dominio.", $tags="domain")
+
+  Component(repos,    "JPA Repositories",   "WorkspaceRepository · MemberRepository\nProjectRepository · ProjectDocumentRepository\nGlossaryTermRepository", "Implementan los repository ports.", $tags="infrastructure")
+  Component(adapters, "Storage Adapter",    "S3FileStorageAdapter", "Implementa el file storage port.\nSube y elimina documentos en S3.", $tags="infrastructure")
+  Component(moduleApi,"WorkspaceModuleApiImpl", "Module API Facade", "Expone getWorkspaceById()\ngetMemberRole() · isUserMemberOf()\na otros BCs.", $tags="moduleApi")
+}
+
+' ── External relations ───────────────────────────────────────────────
+Rel(user,    wsCtrl,   "HTTP REST", "JSON / HTTPS")
+Rel(user,    projCtrl, "HTTP REST", "JSON / HTTPS")
+Rel(user,    membCtrl, "HTTP REST", "JSON / HTTPS")
+Rel(user,    docCtrl,  "HTTP REST", "JSON / HTTPS")
+Rel(user,    glossCtrl,"HTTP REST", "JSON / HTTPS")
+Rel(iamBC,   moduleApi,"In-process","Spring Bean call")
+Rel(bilBC,   moduleApi,"In-process","Spring Bean call")
+Rel(repos,   postgres, "Reads / Writes", "JDBC / Hibernate ORM")
+Rel(adapters,storage,  "Stores files","HTTPS / SDK")
+
+' ── Internal relations ───────────────────────────────────────────────
+Rel(wsCtrl,   wsCmdHandlers,   "Delegates to")
+Rel(wsCtrl,   queryHandlers,   "Delegates to")
+Rel(projCtrl, projCmdHandlers, "Delegates to")
+Rel(projCtrl, queryHandlers,   "Delegates to")
+Rel(membCtrl, membCmdHandlers, "Delegates to")
+Rel(membCtrl, queryHandlers,   "Delegates to")
+Rel(docCtrl,  docCmdHandlers,  "Delegates to")
+Rel(docCtrl,  queryHandlers,   "Delegates to")
+Rel(glossCtrl,glossCmdHandlers,"Delegates to")
+Rel(glossCtrl,queryHandlers,   "Delegates to")
+
+Rel(wsCmdHandlers,   domain, "Creates / mutates")
+Rel(projCmdHandlers, domain, "Creates / mutates")
+Rel(membCmdHandlers, domain, "Creates / mutates")
+Rel(docCmdHandlers,  domain, "Creates / mutates")
+Rel(glossCmdHandlers,domain, "Creates / mutates")
+Rel(queryHandlers,   domain, "Reads")
+
+Rel(wsCmdHandlers,   repos,    "Persists via port")
+Rel(projCmdHandlers, repos,    "Persists via port")
+Rel(membCmdHandlers, repos,    "Persists via port")
+Rel(docCmdHandlers,  repos,    "Persists via port")
+Rel(docCmdHandlers,  adapters, "Stores file via port")
+Rel(glossCmdHandlers,repos,    "Persists via port")
+Rel(queryHandlers,   repos,    "Reads via port")
+Rel(moduleApi,       repos,    "Reads via port")
+Rel(bilBC,           eventListener, "Publishes event", "Spring ApplicationEvent")
+Rel(eventListener,   domain,   "Reads / activates")
+
+SHOW_LEGEND()
+@enduml

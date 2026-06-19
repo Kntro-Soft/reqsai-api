@@ -1,0 +1,130 @@
+@startuml gateway-database
+!include ../styles/reqsai-database-style.puml
+
+title Gateway BC -- Database Design Diagram
+
+legend top left
+  |= Clave |= Significado |
+  |<$REQSAI_BLUE_800><color:#FFFFFF><b> T </b></color>| Tabla core (entidad) |
+  |<<PK>>| Primary Key |
+  |<<FK>>| Foreign Key |
+  |<<NN>>| NOT NULL |
+  |<<UQ>>| UNIQUE |
+  |<<IDX>>| INDEX |
+  |1:1| Relacion 1 a 1 |
+  |1:N| Relacion 1 a N (0..*) |
+endlegend
+
+note as auditNote
+  <b>Columnas de auditoria</b> (todas las tablas)
+  - created_at   TIMESTAMP   <<NN>>
+  - updated_at   TIMESTAMP   <<NN>>
+  - created_by   VARCHAR(36)
+  - updated_by   VARCHAR(36)
+end note
+
+' ── Table: oauth_states ──────────────────────────────────────────────
+CORE(oauth_states) {
+  id              : VARCHAR(36)  <<PK>>
+  --
+  state           : VARCHAR(255) <<NN, UQ, IDX>>
+  project_id      : VARCHAR(36)  <<NN, IDX>>
+  organization_id : VARCHAR(36)  <<NN, IDX>>
+  expires_at      : TIMESTAMP    <<NN>>
+  --
+}
+
+note right of oauth_states
+  <b>state</b>
+  - Valor aleatorio CSRF para flujo OAuth2
+  - Usado para validar el callback de Jira
+
+  <b>project_id / organization_id</b>
+  - Ref logicas a Workspace BC
+  - Sin FK fisica (BCs aislados)
+
+  <b>expires_at</b>
+  - Registro se invalida tras timeout
+  - Limpiado por job periodico
+end note
+
+' ── Table: integrations ──────────────────────────────────────────────
+CORE(integrations) {
+  id                : VARCHAR(36)  <<PK>>
+  --
+  project_id        : VARCHAR(36)  <<NN, IDX>>
+  provider          : VARCHAR(20)  <<NN, IDX>>
+  status            : VARCHAR(20)  <<NN>>
+  --
+  base_url          : VARCHAR(500) <<NN>>
+  project_key       : VARCHAR(100) <<NN>>
+  issue_type_mapping : TEXT        <<NN>>
+  --
+  encrypted_token   : TEXT         <<NN>>
+  --
+}
+
+note right of integrations
+  <b>project_id</b>
+  - Ref logica al Workspace BC
+  - Sin FK fisica (BCs aislados)
+
+  <b>provider</b>
+  - JIRA | TRELLO | LINEAR
+
+  <b>status</b>
+  - ACTIVE | INACTIVE | ERROR
+
+  <b>Columnas base_url / project_key
+  / issue_type_mapping</b>
+  - Embedding del VO <b>IntegrationConfig</b>
+  - issue_type_mapping: JSON object (TEXT)
+
+  <b>encrypted_token</b>
+  - Token cifrado en reposo (AES-256)
+  - Credencial de acceso al proveedor externo
+end note
+
+' ── Table: export_records ────────────────────────────────────────────
+CORE(export_records) {
+  id               : VARCHAR(36)  <<PK>>
+  --
+  integration_id   : VARCHAR(36)  <<FK, NN, IDX>>
+  story_id         : VARCHAR(36)  <<NN, IDX>>
+  status           : VARCHAR(20)  <<NN, IDX>>
+  --
+  external_issue_id : VARCHAR(100)
+  external_url      : VARCHAR(500)
+  failure_reason    : TEXT
+  --
+}
+
+note right of export_records
+  <b>integration_id</b>
+  - FK a integrations
+
+  <b>story_id</b>
+  - Ref logica al Discovery BC
+  - Sin FK fisica (BCs aislados)
+
+  <b>status</b>
+  - PENDING | EXPORTED
+  - SYNCED | FAILED
+
+  <b>external_issue_id</b>
+  - Ej. Jira: PROJ-123
+  - Ej. Linear: ENG-456
+  - NULL si aun no exportado
+
+  <b>failure_reason</b>
+  - NULL si no hay error
+end note
+
+' ── Relationships ────────────────────────────────────────────────────
+integrations ||--o{ export_records : "1 integracion -> 0..* exportaciones"
+
+auditNote .. oauth_states
+auditNote .. integrations
+auditNote .. export_records
+
+@enduml

@@ -1,0 +1,212 @@
+@startuml workspace-database
+!include ../styles/reqsai-database-style.puml
+
+title Workspace BC -- Database Design Diagram
+
+legend top left
+  |= Clave |= Significado |
+  |<$REQSAI_BLUE_800><color:#FFFFFF><b> T </b></color>| Tabla core (entidad) |
+  |<<PK>>| Primary Key |
+  |<<FK>>| Foreign Key |
+  |<<NN>>| NOT NULL |
+  |<<UQ>>| UNIQUE |
+  |<<IDX>>| INDEX |
+  |1:1| Relacion 1 a 1 |
+  |1:N| Relacion 1 a N (0..*) |
+endlegend
+
+note as auditNote
+  <b>Columnas de auditoria</b> (todas las tablas)
+  - created_at   TIMESTAMP   <<NN>>
+  - updated_at   TIMESTAMP   <<NN>>
+  - created_by   VARCHAR(36)
+  - updated_by   VARCHAR(36)
+end note
+
+' ── Table: organizations ─────────────────────────────────────────────
+CORE(organizations) {
+  id                          : VARCHAR(36)  <<PK>>
+  --
+  name                        : VARCHAR(150) <<NN>>
+  slug                        : VARCHAR(100) <<NN, UQ, IDX>>
+  owner_id                    : VARCHAR(36)  <<NN, IDX>>
+  status                      : VARCHAR(20)  <<NN>>
+  --
+  max_members                 : INT          <<NN>>
+  max_projects                : INT          <<NN>>
+  max_documents_per_project   : INT          <<NN>>
+  max_tokens_per_month        : BIGINT       <<NN>>
+  max_glossary_terms_per_project : INT       <<NN>>
+  --
+}
+
+note right of organizations
+  <b>owner_id</b>
+  - Ref logica a IAM BC (users)
+
+  <b>Columnas max_*</b>
+  - Embedding del VO <b>PlanLimits</b>
+  - Actualizado via SubscriptionAssignedEvent
+    / SubscriptionUpgradedEvent de Billing BC
+
+  <b>status</b>: ACTIVE | INACTIVE | DELETED
+end note
+
+' ── Table: members ───────────────────────────────────────────────────
+CORE(members) {
+  id              : VARCHAR(36) <<PK>>
+  --
+  organization_id : VARCHAR(36) <<FK, NN, IDX>>
+  user_id         : VARCHAR(36) <<NN, IDX>>
+  role            : VARCHAR(20) <<NN>>
+  status          : VARCHAR(20) <<NN>>
+  invited_by      : VARCHAR(36)
+  invited_at      : TIMESTAMP
+  --
+}
+
+note right of members
+  <b>invited_by / invited_at</b>
+  - NULL para miembros fundadores
+  - Distintos de los campos de auditoria
+
+  <b>role</b>: OWNER | ADMIN | MEMBER
+  <b>status</b>: ACTIVE | PENDING | INACTIVE
+end note
+
+' ── Table: projects ──────────────────────────────────────────────────
+CORE(projects) {
+  id                   : VARCHAR(36)   <<PK>>
+  --
+  organization_id      : VARCHAR(36)   <<FK, NN, IDX>>
+  name                 : VARCHAR(150)  <<NN>>
+  description          : TEXT
+  status               : VARCHAR(20)   <<NN>>
+  --
+  programming_languages : TEXT
+  frameworks            : TEXT
+  architecture          : VARCHAR(200)
+  domain                : VARCHAR(200)
+  description_embedding : TEXT
+  --
+}
+
+note right of projects
+  <b>Columnas programming_languages /
+  frameworks / architecture / domain</b>
+  - Embedding del VO <b>TechnicalProfile</b>
+  - JSON arrays serializados como TEXT
+
+  <b>description_embedding</b>
+  - Vector embedding para busqueda semantica
+  - JSON array de floats
+
+  <b>status</b>: ACTIVE | ARCHIVED
+end note
+
+' ── Table: project_constraints ───────────────────────────────────────
+CORE(project_constraints) {
+  id          : VARCHAR(36) <<PK>>
+  --
+  project_id  : VARCHAR(36) <<FK, NN, IDX>>
+  description : TEXT        <<NN>>
+  embedding   : TEXT
+  --
+}
+
+' ── Table: project_roles ─────────────────────────────────────────────
+CORE(project_roles) {
+  id          : VARCHAR(36)  <<PK>>
+  --
+  project_id  : VARCHAR(36)  <<FK, NN, IDX>>
+  name        : VARCHAR(100) <<NN>>
+  permissions : TEXT         <<NN>>
+  --
+}
+
+note right of project_roles
+  <b>permissions</b>
+  - JSON array de valores Permission
+  - READ_PROJECT | WRITE_PROJECT | etc.
+end note
+
+' ── Table: project_members ───────────────────────────────────────────
+CORE(project_members) {
+  id          : VARCHAR(36) <<PK>>
+  --
+  project_id  : VARCHAR(36) <<FK, NN, IDX>>
+  member_id   : VARCHAR(36) <<FK, NN, IDX>>
+  role_id     : VARCHAR(36) <<FK, NN>>
+  assigned_by : VARCHAR(36) <<NN>>
+  assigned_at : TIMESTAMP   <<NN>>
+  --
+}
+
+' ── Table: project_documents ─────────────────────────────────────────
+CORE(project_documents) {
+  id          : VARCHAR(36)  <<PK>>
+  --
+  project_id  : VARCHAR(36)  <<FK, NN, IDX>>
+  name        : VARCHAR(255) <<NN>>
+  url         : VARCHAR(500) <<NN>>
+  mime_type   : VARCHAR(100) <<NN>>
+  status      : VARCHAR(20)  <<NN>>
+  --
+}
+
+' ── Table: glossaries ────────────────────────────────────────────────
+CORE(glossaries) {
+  id         : VARCHAR(36) <<PK>>
+  --
+  project_id : VARCHAR(36) <<FK, NN, UQ>>
+  --
+}
+
+note right of glossaries
+  Creado automaticamente al crear
+  el proyecto (relacion 1:1).
+end note
+
+' ── Table: glossary_terms ────────────────────────────────────────────
+CORE(glossary_terms) {
+  id          : VARCHAR(36)  <<PK>>
+  --
+  glossary_id : VARCHAR(36)  <<FK, NN, IDX>>
+  term        : VARCHAR(200) <<NN>>
+  definition  : TEXT         <<NN>>
+  synonyms    : TEXT
+  added_by    : VARCHAR(36)  <<NN>>
+  added_at    : TIMESTAMP    <<NN>>
+  embedding   : TEXT
+  --
+}
+
+note right of glossary_terms
+  <b>synonyms / embedding</b>
+  - JSON arrays serializados como TEXT
+  - embedding para busqueda semantica
+end note
+
+' ── Relationships ────────────────────────────────────────────────────
+organizations ||--o{ members           : "1 org -> 0..* miembros"
+organizations ||--o{ projects          : "1 org -> 0..* proyectos"
+projects      ||--o{ project_constraints : "1 proyecto -> 0..* restricciones"
+projects      ||--o{ project_roles     : "1 proyecto -> 0..* roles"
+projects      ||--o{ project_members   : "1 proyecto -> 0..* asignaciones"
+projects      ||--o{ project_documents : "1 proyecto -> 0..* documentos"
+projects      ||--||  glossaries       : "1 proyecto -> 1 glosario"
+glossaries    ||--o{ glossary_terms    : "1 glosario -> 0..* terminos"
+project_roles ||--o{ project_members  : "1 rol -> 0..* asignaciones"
+members       ||--o{ project_members  : "1 miembro -> 0..* asignaciones"
+
+auditNote .. organizations
+auditNote .. members
+auditNote .. projects
+auditNote .. project_roles
+auditNote .. project_members
+auditNote .. project_documents
+auditNote .. glossaries
+auditNote .. glossary_terms
+auditNote .. project_constraints
+
+@enduml

@@ -1,0 +1,373 @@
+@startuml workspace-class
+!include ../styles/reqsai-class-style.puml
+
+top to bottom direction
+
+title Workspace BC -- Tactical Class Diagram
+
+legend top right
+  |= Elemento                                                  |= Significado                  |
+  |<$REQSAI_NAVY_800><color:#FFFFFF><b> <<Aggregate Root>> </b></color>| Raiz de aggregate             |
+  |<$REQSAI_GREEN_900><color:#FFFFFF><b> <<Value Object>> </b></color> | Record inmutable y validado   |
+  |<$REQSAI_VIOLET_900><color:#FFFFFF><b> <<Enum>> </b></color>        | Enumeracion de dominio        |
+  |<$REQSAI_BROWN_900><color:#FFFFFF><b> <<Domain Event>> </b></color> | Evento de dominio (inmutable) |
+  |<$REQSAI_GRAY_700><color:#FFFFFF><b> <<Abstract>> </b></color>      | Clase abstracta Shared Kernel |
+  |<back:$REQSAI_NEUTRAL_200><b>Relacion</b>|<back:$REQSAI_NEUTRAL_200><b>Significado</b>|
+  | --\\|>            | extends (herencia)                     |
+  | ..>              | uses / depends on                      |
+  | o--              | referencia por ID (cross-aggregate)    |
+  | ..> <<publishes>>| evento publicado por el aggregate      |
+endlegend
+
+package "Shared Kernel" as SharedKernel {
+  abstract class AbstractAggregateRoot<T> <<Abstract>>
+  abstract class EntityNotFoundException <<Abstract>>
+  abstract class BusinessRuleViolationException <<Abstract>>
+}
+
+package "Workspace" {
+
+  package "Domain" {
+    package "Model" {
+      package "Aggregates" as WsAggregates {
+
+        class Organization <<Aggregate Root>> {
+          - id : OrganizationId
+          - name : String
+          - slug : String
+          - ownerId : UserId
+          - status : OrgStatus
+          - planLimits : PlanLimits
+          --
+          # Organization()
+          + Organization(name : String, slug : String, ownerId : UserId)
+          ..Business Methods..
+          + rename(name : String) : void
+          + updateLimits(limits : PlanLimits) : void
+          + updateSettings(timezone : String, language : String) : void
+          + transferOwnership(newOwnerId : UserId) : void
+          + deactivate() : void
+          + reactivate() : void
+          + delete() : void
+        }
+
+        class Member <<Aggregate Root>> {
+          - id : MemberId
+          - organizationId : OrganizationId
+          - userId : UserId
+          - role : OrgRole
+          - status : MemberStatus
+          - invitedBy : UserId
+          - invitedAt : Instant
+          --
+          # Member()
+          + Member(organizationId : OrganizationId, userId : UserId, role : OrgRole)
+          ..Business Methods..
+          + changeRole(role : OrgRole) : void
+          + accept() : void
+          + deactivate() : void
+          + reactivate() : void
+        }
+
+        class Project <<Aggregate Root>> {
+          - id : ProjectId
+          - organizationId : OrganizationId
+          - name : String
+          - description : String
+          - technicalProfile : TechnicalProfile
+          - status : ProjectStatus
+          - descriptionEmbedding : List<Float>
+          - constraints : List<ProjectConstraint>
+          --
+          # Project()
+          + Project(organizationId : OrganizationId, name : String, description : String, technicalProfile : TechnicalProfile)
+          ..Business Methods..
+          + updateDetails(name : String, description : String, technicalProfile : TechnicalProfile) : void
+          + updateEmbedding(embedding : List<Float>) : void
+          + addConstraint(description : String) : void
+          + removeConstraint(constraintId : ProjectConstraintId) : void
+          + archive() : void
+          + restore() : void
+        }
+
+        class ProjectRole <<Aggregate Root>> {
+          - id : ProjectRoleId
+          - projectId : ProjectId
+          - name : String
+          - permissions : Set<Permission>
+          --
+          # ProjectRole()
+          + ProjectRole(projectId : ProjectId, name : String, permissions : Set<Permission>)
+          ..Business Methods..
+          + rename(name : String) : void
+          + updatePermissions(permissions : Set<Permission>) : void
+        }
+
+        class ProjectMember <<Aggregate Root>> {
+          - id : ProjectMemberId
+          - projectId : ProjectId
+          - memberId : MemberId
+          - roleId : ProjectRoleId
+          - assignedBy : UserId
+          - assignedAt : Instant
+          --
+          # ProjectMember()
+          + ProjectMember(projectId : ProjectId, memberId : MemberId, roleId : ProjectRoleId, assignedBy : UserId, assignedAt : Instant)
+          ..Business Methods..
+          + changeRole(roleId : ProjectRoleId) : void
+        }
+
+        class ProjectDocument <<Aggregate Root>> {
+          - id : ProjectDocumentId
+          - projectId : ProjectId
+          - name : String
+          - url : String
+          - mimeType : String
+          - status : DocumentStatus
+          --
+          # ProjectDocument()
+          + ProjectDocument(projectId : ProjectId, name : String, url : String, mimeType : String)
+          ..Business Methods..
+          + archive() : void
+          + restore() : void
+        }
+
+        class Glossary <<Aggregate Root>> {
+          - id : GlossaryId
+          - projectId : ProjectId
+          - terms : List<GlossaryTerm>
+          --
+          # Glossary()
+          + Glossary(projectId : ProjectId)
+          ..Business Methods..
+          + addTerm(term : String, definition : String, synonyms : List<String>, addedBy : UserId) : void
+          + removeTerm(termId : GlossaryTermId) : void
+          + updateTerm(termId : GlossaryTermId, definition : String, synonyms : List<String>) : void
+        }
+      }
+    }
+  }
+
+  package "Domain" {
+    package "Model" {
+      package "Value Objects" as WsValueObjects {
+        class OrganizationId <<Value Object>>
+        class MemberId <<Value Object>>
+        class ProjectId <<Value Object>>
+        class ProjectRoleId <<Value Object>>
+        class ProjectMemberId <<Value Object>>
+        class ProjectDocumentId <<Value Object>>
+        class GlossaryId <<Value Object>>
+        class GlossaryTermId <<Value Object>>
+        class ProjectConstraintId <<Value Object>>
+        class UserId <<Value Object>>
+
+        class PlanLimits <<Value Object>> {
+          - maxMembers : int
+          - maxProjects : int
+          - maxDocumentsPerProject : int
+          - maxTokensPerMonth : long
+          - maxGlossaryTermsPerProject : int
+          --
+          + PlanLimits(maxMembers : int, maxProjects : int, maxDocumentsPerProject : int, maxTokensPerMonth : long, maxGlossaryTermsPerProject : int)
+        }
+
+        class TechnicalProfile <<Value Object>> {
+          - programmingLanguages : List<String>
+          - frameworks : List<String>
+          - architecture : String
+          - domain : String
+          --
+          + TechnicalProfile(programmingLanguages : List<String>, frameworks : List<String>, architecture : String, domain : String)
+        }
+
+        enum OrgStatus <<Enum>> {
+          ACTIVE
+          INACTIVE
+          DELETED
+        }
+
+        enum OrgRole <<Enum>> {
+          OWNER
+          ADMIN
+          MEMBER
+        }
+
+        enum MemberStatus <<Enum>> {
+          ACTIVE
+          PENDING
+          INACTIVE
+        }
+
+        enum ProjectStatus <<Enum>> {
+          ACTIVE
+          ARCHIVED
+        }
+
+        enum DocumentStatus <<Enum>> {
+          ACTIVE
+          ARCHIVED
+        }
+
+        enum Permission <<Enum>> {
+          READ_PROJECT
+          WRITE_PROJECT
+          DELETE_PROJECT
+          MANAGE_MEMBERS
+          MANAGE_ROLES
+          UPLOAD_DOCUMENTS
+          MANAGE_GLOSSARY
+          RUN_DISCOVERY
+          MANAGE_INTEGRATIONS
+        }
+      }
+
+      package "Exceptions" as WsExceptions {
+        class OrganizationNotFoundException <<Abstract>>
+        class OrganizationSlugAlreadyExistsException <<Abstract>>
+        class MemberNotFoundException <<Abstract>>
+        class MemberAlreadyExistsException <<Abstract>>
+        class MemberPlanLimitExceededException <<Abstract>>
+        class InsufficientPermissionsException <<Abstract>>
+        class ProjectNotFoundException <<Abstract>>
+        class ProjectNameAlreadyExistsException <<Abstract>>
+        class ProjectPlanLimitExceededException <<Abstract>>
+        class ProjectRoleNotFoundException <<Abstract>>
+        class ProjectRoleNameAlreadyExistsException <<Abstract>>
+        class ProjectMemberNotFoundException <<Abstract>>
+        class ProjectMemberAlreadyExistsException <<Abstract>>
+        class ProjectDocumentNotFoundException <<Abstract>>
+        class DocumentPlanLimitExceededException <<Abstract>>
+        class GlossaryNotFoundException <<Abstract>>
+        class GlossaryTermNotFoundException <<Abstract>>
+        class GlossaryTermPlanLimitExceededException <<Abstract>>
+      }
+    }
+  }
+
+  package "Api" as WsApi {
+    class OrganizationCreatedEvent <<Domain Event>> {
+      + organizationId : String
+      + ownerId : String
+      + planLimits : String
+      + occurredAt : Instant
+      --
+      + {static} of(organizationId : String, ownerId : String) : OrganizationCreatedEvent
+    }
+    class ProjectCreatedEvent <<Domain Event>> {
+      + projectId : String
+      + organizationId : String
+      + createdBy : String
+      + occurredAt : Instant
+      --
+      + {static} of(projectId : String, organizationId : String, createdBy : String) : ProjectCreatedEvent
+    }
+  }
+
+  package "Domain" {
+    package "Model" {
+      package "Events" as WsDomainEvents {
+        class MemberInvitedEvent <<Domain Event>> {
+          + memberId : String
+          + organizationId : String
+          + email : String
+          + role : String
+          + occurredAt : Instant
+          --
+          + {static} of(memberId : String, organizationId : String, email : String, role : String) : MemberInvitedEvent
+        }
+        class PlanLimitsUpdatedEvent <<Domain Event>> {
+          + organizationId : String
+          + newLimits : String
+          + occurredAt : Instant
+          --
+          + {static} of(organizationId : String, newLimits : String) : PlanLimitsUpdatedEvent
+        }
+        class InvitationAcceptedEvent <<Domain Event>> {
+          + memberId : String
+          + organizationId : String
+          + userId : String
+          + occurredAt : Instant
+          --
+          + {static} of(memberId : String, organizationId : String, userId : String) : InvitationAcceptedEvent
+        }
+        class MemberDeactivatedEvent <<Domain Event>> {
+          + memberId : String
+          + organizationId : String
+          + occurredAt : Instant
+          --
+          + {static} of(memberId : String, organizationId : String) : MemberDeactivatedEvent
+        }
+        class ProjectArchivedEvent <<Domain Event>> {
+          + projectId : String
+          + organizationId : String
+          + occurredAt : Instant
+          --
+          + {static} of(projectId : String, organizationId : String) : ProjectArchivedEvent
+        }
+      }
+    }
+  }
+}
+
+' ── Inheritance ──────────────────────────────────────────────────────
+Organization    --|> AbstractAggregateRoot : extends
+Member          --|> AbstractAggregateRoot : extends
+Project         --|> AbstractAggregateRoot : extends
+ProjectRole     --|> AbstractAggregateRoot : extends
+ProjectMember   --|> AbstractAggregateRoot : extends
+ProjectDocument --|> AbstractAggregateRoot : extends
+Glossary        --|> AbstractAggregateRoot : extends
+
+OrganizationNotFoundException          --|> EntityNotFoundException
+MemberNotFoundException                --|> EntityNotFoundException
+ProjectNotFoundException               --|> EntityNotFoundException
+ProjectRoleNotFoundException           --|> EntityNotFoundException
+ProjectMemberNotFoundException         --|> EntityNotFoundException
+ProjectDocumentNotFoundException       --|> EntityNotFoundException
+GlossaryNotFoundException              --|> EntityNotFoundException
+GlossaryTermNotFoundException          --|> EntityNotFoundException
+
+OrganizationSlugAlreadyExistsException --|> BusinessRuleViolationException
+MemberAlreadyExistsException           --|> BusinessRuleViolationException
+MemberPlanLimitExceededException       --|> BusinessRuleViolationException
+InsufficientPermissionsException       --|> BusinessRuleViolationException
+ProjectNameAlreadyExistsException      --|> BusinessRuleViolationException
+ProjectPlanLimitExceededException      --|> BusinessRuleViolationException
+ProjectRoleNameAlreadyExistsException  --|> BusinessRuleViolationException
+ProjectMemberAlreadyExistsException    --|> BusinessRuleViolationException
+DocumentPlanLimitExceededException     --|> BusinessRuleViolationException
+GlossaryTermPlanLimitExceededException --|> BusinessRuleViolationException
+
+' ── Dependencies ─────────────────────────────────────────────────────
+Organization ..> OrgStatus       : uses
+Organization ..> PlanLimits      : uses
+Member       ..> OrgRole         : uses
+Member       ..> MemberStatus    : uses
+Project      ..> ProjectStatus   : uses
+Project      ..> TechnicalProfile: uses
+ProjectRole  ..> Permission      : uses
+ProjectDocument ..> DocumentStatus : uses
+
+' ── Cross-aggregate ID references ────────────────────────────────────
+Organization    "1" o-- "1" UserId      : ownerId (reference)
+Member          "1" o-- "1" OrganizationId : organizationId (reference)
+Member          "1" o-- "1" UserId         : userId (reference)
+Project         "1" o-- "1" OrganizationId : organizationId (reference)
+ProjectRole     "1" o-- "1" ProjectId      : projectId (reference)
+ProjectMember   "1" o-- "1" ProjectId      : projectId (reference)
+ProjectMember   "1" o-- "1" MemberId       : memberId (reference)
+ProjectMember   "1" o-- "1" ProjectRoleId  : roleId (reference)
+ProjectDocument "1" o-- "1" ProjectId      : projectId (reference)
+Glossary        "1" o-- "1" ProjectId      : projectId (reference)
+
+' ── Domain Events published ───────────────────────────────────────────
+Organization ..> OrganizationCreatedEvent : <<publishes>>
+Organization ..> PlanLimitsUpdatedEvent   : <<publishes>>
+Member       ..> MemberInvitedEvent       : <<publishes>>
+Member       ..> InvitationAcceptedEvent  : <<publishes>>
+Member       ..> MemberDeactivatedEvent   : <<publishes>>
+Project      ..> ProjectCreatedEvent      : <<publishes>>
+Project      ..> ProjectArchivedEvent     : <<publishes>>
+
+@enduml

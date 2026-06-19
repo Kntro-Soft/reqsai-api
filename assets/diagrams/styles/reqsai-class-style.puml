@@ -1,0 +1,108 @@
+'' ReqsAI standard styling for UML class diagrams.
+
+!include reqsai-palette.puml
+
+skinparam shadowing false
+skinparam defaultFontName Segoe UI
+skinparam defaultFontSize 11
+skinparam classAttributeIconSize 0
+skinparam roundcorner 6
+skinparam ArrowColor $REQSAI_ARROW
+skinparam ArrowThickness 1.3
+
+skinparam class {
+  BackgroundColor      $REQSAI_NEUTRAL_50
+  BorderColor          $REQSAI_NEUTRAL_600
+  FontColor            $REQSAI_NEUTRAL_800
+  FontSize             11
+  AttributeFontSize    10
+}
+
+'' DDD stereotypes
+skinparam class<<Aggregate Root>> {
+  ' Keep it consistent with the rest: light fill, colored header.
+  HeaderBackgroundColor $REQSAI_NAVY_800
+  HeaderFontColor       #FFFFFF
+  BorderColor           $REQSAI_NAVY_800
+  BackgroundColor       #F8FAFC
+}
+
+skinparam class<<Value Object>> {
+  HeaderBackgroundColor $REQSAI_GREEN_900
+  HeaderFontColor       #FFFFFF
+  BorderColor           $REQSAI_GREEN_900
+  BackgroundColor       #F0FDF4
+}
+
+skinparam class<<Enum>> {
+  HeaderBackgroundColor $REQSAI_VIOLET_900
+  HeaderFontColor       #FFFFFF
+  BorderColor           $REQSAI_VIOLET_900
+  BackgroundColor       #FAF5FF
+}
+
+skinparam class<<Domain Event>> {
+  HeaderBackgroundColor $REQSAI_BROWN_900
+  HeaderFontColor       #FFFFFF
+  BorderColor           $REQSAI_BROWN_900
+  BackgroundColor       #FFF7F4
+}
+
+skinparam class<<Abstract>> {
+  HeaderBackgroundColor $REQSAI_GRAY_700
+  HeaderFontColor       #FFFFFF
+  BorderColor           $REQSAI_GRAY_700
+  BackgroundColor       #F9FAFB
+}
+
+'' Architectural stereotypes (hexagonal + layered)
+skinparam class<<Handler>> {
+  HeaderBackgroundColor $REQSAI_BLUE_800
+  HeaderFontColor       #FFFFFF
+  BorderColor           $REQSAI_BLUE_800
+  BackgroundColor       #EFF6FF
+}
+
+skinparam class<<Port>> {
+  HeaderBackgroundColor $REQSAI_TEAL_900
+  HeaderFontColor       #FFFFFF
+  BorderColor           $REQSAI_TEAL_900
+  BackgroundColor       #ECFDF5
+}
+
+skinparam class<<Adapter>> {
+  HeaderBackgroundColor $REQSAI_ORANGE_900
+  HeaderFontColor       #FFFFFF
+  BorderColor           $REQSAI_ORANGE_900
+  BackgroundColor       #FFF7ED
+}
+
+skinparam class<<Controller>> {
+  HeaderBackgroundColor $REQSAI_PURPLE_700
+  HeaderFontColor       #FFFFFF
+  BorderColor           $REQSAI_PURPLE_700
+  BackgroundColor       #FAF5FF
+}
+
+skinparam class<<DTO>> {
+  HeaderBackgroundColor $REQSAI_LIGHTBLUE_800
+  HeaderFontColor       #FFFFFF
+  BorderColor           $REQSAI_LIGHTBLUE_800
+  BackgroundColor       #F0F9FF
+}
+
+skinparam class<<Mapper>> {
+  HeaderBackgroundColor $REQSAI_GRAY_700
+  HeaderFontColor       #FFFFFF
+  BorderColor           $REQSAI_GRAY_700
+  BackgroundColor       #F8FAFC
+}
+
+skinparam class<<Security>> {
+  HeaderBackgroundColor $REQSAI_NEUTRAL_900
+  HeaderFontColor       #FFFFFF
+  BorderColor           $REQSAI_NEUTRAL_900
+  BackgroundColor       #F1F5F9
+}
+
+hide empty members

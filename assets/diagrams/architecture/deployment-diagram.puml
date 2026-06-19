@@ -1,0 +1,128 @@
+@startuml deployment-diagram
+!include ../styles/reqsai-palette.puml
+
+skinparam defaultFontName "Segoe UI"
+skinparam shadowing false
+skinparam backgroundColor #FFFFFF
+skinparam ArrowColor $REQSAI_ARROW
+skinparam ArrowFontColor $REQSAI_NEUTRAL_800
+skinparam ArrowFontSize 11
+
+skinparam node {
+  BackgroundColor $REQSAI_NEUTRAL_100
+  BorderColor     $REQSAI_NEUTRAL_600
+  FontColor       $REQSAI_NEUTRAL_800
+  FontSize        12
+  FontStyle       bold
+}
+
+skinparam artifact {
+  BackgroundColor $REQSAI_BLUE_700
+  BorderColor     $REQSAI_BLUE_900
+  FontColor       #FFFFFF
+  FontSize        11
+}
+
+skinparam database {
+  BackgroundColor $REQSAI_TEAL_800
+  BorderColor     $REQSAI_TEAL_900
+  FontColor       #FFFFFF
+  FontSize        11
+}
+
+skinparam component {
+  BackgroundColor $REQSAI_NAVY_800
+  BorderColor     "#1A3A5C"
+  FontColor       #FFFFFF
+  FontSize        11
+}
+
+
+title Deployment Diagram -- ReqsAI (C4 Level 4)
+
+' ────────────────────────────────────────────────────────────────────
+' CLIENT SIDE
+' ────────────────────────────────────────────────────────────────────
+node "Mobile Devices  [iOS / Android]" as mobileDevices {
+  node "User Smartphone" as smartphone {
+    artifact "Mobile App\n[Flutter Engine]" as mobileApp
+  }
+}
+
+node "User Workstations  [Windows / macOS / Linux]" as workstations {
+  node "Web Browser  [Browser Runtime]" as browser {
+    artifact "Web Application\n[Angular SPA]" as webApp
+  }
+}
+
+' ────────────────────────────────────────────────────────────────────
+' AWS EDGE LOCATION
+' ────────────────────────────────────────────────────────────────────
+node "AWS Edge Location  [Amazon CloudFront]" as edgeLayer {
+  artifact "CDN & Reverse Proxy\n[Amazon CloudFront]\nSirve SPA estatico + enruta API" as cdn
+}
+
+' ────────────────────────────────────────────────────────────────────
+' AWS NORTH AMERICA  (us-east-1 — Virginia)
+' ────────────────────────────────────────────────────────────────────
+node "AWS North America  [AWS Region us-east-1 (Virginia)]" as awsNorthAmerica {
+
+  node "API Gateway  [AWS API Gateway]" as apiGatewayNode {
+    artifact "API Gateway\n[AWS API Gateway]\nRouting REST + WebSocket" as apiGw
+  }
+
+  node "ECS Cluster  [AWS ECS + Fargate]" as ecsCluster {
+    component "ReqsAI Backend Service\n[Java 25 + Spring Boot 4 / Docker Container]\n\nModulos: IAM · Billing · Workspace\nRequirement Discovery · Integration Gateway" as backend
+    artifact "Grafana Alloy\n[Sidecar Container]\nColecta metricas, logs y trazas\ndel backend y los envia al\nservidor de observabilidad" as alloy
+  }
+
+  node "Observability Server  [AWS EC2 + Docker Compose]" as obsServer {
+    component "Prometheus\n[Metricas]" as prometheus
+    component "Loki\n[Logs]" as loki
+    component "Tempo\n[Trazas distribuidas]" as tempo
+    component "Grafana\n[Dashboards]" as grafana
+  }
+}
+
+' ────────────────────────────────────────────────────────────────────
+' AWS RDS
+' ────────────────────────────────────────────────────────────────────
+node "AWS RDS  [Managed Relational Database]" as dbNode {
+  database "PostgreSQL + pgvector\n[ReqsAI Main Database]" as db
+}
+
+' ────────────────────────────────────────────────────────────────────
+' RELATIONS
+' ────────────────────────────────────────────────────────────────────
+' Web: pasa por CloudFront
+webApp  --> cdn    : "HTTPS"
+cdn     --> webApp : "Sirve SPA estatico\n(Edge Locations)"
+cdn     --> apiGw  : "Enruta trafico API\nHTTPS"
+
+' Mobile: directo al API Gateway (app instalada, no servida por CDN)
+mobileApp --> apiGw : "Llamadas API directas\nHTTPS / REST + WebSocket"
+
+apiGw --> backend : "Route all requests\nHTTPS / REST"
+
+' Observabilidad: Alloy como sidecar recolecta del backend
+backend --> alloy      : "Metricas /actuator/prometheus\nLogs stdout · Trazas OTLP"
+alloy   --> prometheus : "Push metricas\nRemote Write"
+alloy   --> loki       : "Push logs"
+alloy   --> tempo      : "Push trazas\nOTLP"
+grafana --> prometheus : "Query metricas\nPromQL"
+grafana --> loki       : "Query logs\nLogQL"
+grafana --> tempo      : "Query trazas\nTraceQL"
+
+' Persistencia
+backend --> db : "Reads and writes\nJDBC / JPA"
+
+legend bottom right
+  |= Elemento                                                              |= Descripcion                              |
+  |<back:$REQSAI_NEUTRAL_100><color:$REQSAI_NEUTRAL_800><b> Nodo </b></color></back>        | Infraestructura / entorno de despliegue   |
+  |<back:$REQSAI_BLUE_700><color:#FFFFFF><b> Artefacto </b></color></back>                  | Aplicacion o servicio desplegado          |
+  |<back:$REQSAI_NAVY_800><color:#FFFFFF><b> Componente </b></color></back>                 | Modulo de aplicacion (Spring Modulith)    |
+  |<back:$REQSAI_TEAL_800><color:#FFFFFF><b> Base de datos </b></color></back>              | Almacenamiento relacional (PostgreSQL)    |
+  | ->                                                                     | Comunicacion entre nodos                  |
+endlegend
+
+@enduml

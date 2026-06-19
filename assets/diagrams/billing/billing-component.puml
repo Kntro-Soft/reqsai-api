@@ -1,0 +1,63 @@
+@startuml billing-component
+!include ../c4/C4_Container.puml
+!include ../c4/C4_Component.puml
+!include ../styles/reqsai-c4-component-style.puml
+
+' ── Billing-specific external tag ──────────────────────────────────
+AddSystemTag("externalPayment", $bgColor="#37474F", $fontColor="#FFFFFF", $borderColor="#1C2B33", $legendText="External Payment Gateway")
+
+title Component Diagram -- Billing Bounded Context (C4 Level 3)
+
+' ── External actors ──────────────────────────────────────────────────
+Person(admin,       "Administrador",  "Gestiona planes y suscripciones\ndel workspace.")
+System_Ext(wsBC,    "Workspace BC",   "Verifica limites del plan activo\nvía Module API.", $tags="externalBC")
+System_Ext(gateway, "Payment Gateway","Stripe / Culqi: procesa pagos\ny gestiona suscripciones externas.", $tags="externalPayment")
+ContainerDb(postgres,"PostgreSQL",    "Database", "plans · subscriptions", $tags="database")
+
+' ── Billing Module boundary ──────────────────────────────────────────
+Container_Boundary(billing, "Billing  [Spring Modulith Module]") {
+
+  ' -- Interface Layer --
+  Component(planCtrl,         "PlanController",         "REST Controller", "GET /plans\nGET /plans/{id}", $tags="interface")
+  Component(subscriptionCtrl, "SubscriptionController", "REST Controller", "GET  /subscriptions/current\nPOST /subscriptions\nPATCH /subscriptions/current/plan\nDELETE /subscriptions/current", $tags="interface")
+
+  ' -- Application Layer: Command Handlers --
+  Component(subCmdHandlers, "Subscription Command Handlers", "CreateSubscriptionCommandHandler\nCancelSubscriptionCommandHandler\nChangePlanCommandHandler\nRenewSubscriptionCommandHandler", "Gestiona ciclo de vida de la\nsuscripcion del workspace.", $tags="application")
+
+  ' -- Application Layer: Query Handlers --
+  Component(queryHandlers, "Query Handlers", "GetCurrentSubscriptionQueryHandler\nGetAllPlansQueryHandler\nGetPlanByIdQueryHandler", "Consultas de lectura de planes\ny suscripcion activa.\n@Transactional(readOnly = true)", $tags="application")
+
+  ' -- Domain Layer --
+  Component(domain, "Domain Model", "Plan · Subscription\nPlanLimits · PaymentProviderRef · Money\nPlanType · SubscriptionStatus · BillingCycle · PaymentProvider", "Logica de negocio pura: invariantes\ny reglas del dominio de facturacion.", $tags="domain")
+
+  ' -- Infrastructure Layer --
+  Component(repos,    "JPA Repositories",    "PlanRepository\nSubscriptionRepository", "Implementan los repository ports.\nAcceso directo JPA sobre aggregates.", $tags="infrastructure")
+  Component(adapters, "Payment Adapter",     "StripePaymentGatewayAdapter\nCulqiPaymentGatewayAdapter", "Implementan el payment gateway port.\nCrea y cancela suscripciones externas.", $tags="infrastructure")
+
+  ' -- Module API --
+  Component(moduleApi, "BillingModuleApiImpl", "Module API Facade", "Expone checkPlanLimits(workspaceId)\ny getCurrentPlan(workspaceId)\na otros BCs.", $tags="moduleApi")
+}
+
+' ── External relations ───────────────────────────────────────────────
+Rel(admin,    planCtrl,         "HTTP REST",      "JSON / HTTPS")
+Rel(admin,    subscriptionCtrl, "HTTP REST",      "JSON / HTTPS")
+Rel(wsBC,     moduleApi,        "In-process",     "Spring Bean call")
+Rel(repos,    postgres,         "Reads / Writes", "JDBC / Hibernate ORM")
+Rel(adapters, gateway,          "Payment API",    "HTTPS / REST")
+
+' ── Internal relations ───────────────────────────────────────────────
+Rel(planCtrl,         queryHandlers,    "Delegates to")
+Rel(subscriptionCtrl, subCmdHandlers,   "Delegates to")
+Rel(subscriptionCtrl, queryHandlers,    "Delegates to")
+
+Rel(subCmdHandlers, domain,   "Creates / mutates")
+Rel(queryHandlers,  domain,   "Reads")
+
+Rel(subCmdHandlers, repos,    "Persists via port")
+Rel(subCmdHandlers, adapters, "Processes payment via port")
+Rel(queryHandlers,  repos,    "Reads via port")
+
+Rel(moduleApi, repos, "Reads via port")
+
+SHOW_LEGEND()
+@enduml
