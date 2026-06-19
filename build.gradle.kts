@@ -2,6 +2,9 @@ plugins {
     java
     id("org.springframework.boot") version "4.1.0"
     id("io.spring.dependency-management") version "1.1.7"
+    id("com.diffplug.spotless") version "8.6.0"
+    id("org.owasp.dependencycheck") version "12.2.2"
+    jacoco
 }
 
 group = "com.kntro"
@@ -133,6 +136,7 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     testCompileOnly("org.projectlombok:lombok")
     mockitoAgent("org.mockito:mockito-core") { isTransitive = false }
+    testImplementation("com.tngtech.archunit:archunit-junit5:1.4.2")
 }
 
 dependencyManagement {
@@ -191,4 +195,67 @@ sourceSets {
             srcDirs("src/test/java")
         }
     }
+}
+
+// ==================================
+// SPOTLESS — Java + Gradle DSL formatting
+// ==================================
+spotless {
+    isEnforceCheck = false
+    java {
+        eclipse()
+        target("src/**/*.java")
+    }
+    kotlinGradle {
+        ktfmt()
+        target("*.gradle.kts")
+    }
+}
+
+// ==================================
+// JACOCO — code-coverage reporting
+// ==================================
+jacoco { toolVersion = "0.8.15" }
+
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
+    reports {
+        xml.required = true
+        html.required = true
+        csv.required = false
+    }
+    classDirectories.setFrom(
+        files(
+            classDirectories.files.map {
+                fileTree(it) {
+                    exclude(
+                        "**/BackendReqsaiApplication.class",
+                        "**/Q*.class", // JPA static metamodel
+                    )
+                }
+            }))
+}
+
+tasks.jacocoTestCoverageVerification {
+    violationRules {
+        rule {
+            limit {
+                minimum = "0.50".toBigDecimal()
+            }
+        }
+    }
+}
+
+tasks.named("check") { dependsOn("jacocoTestReport") }
+
+// ==================================
+// OWASP DEPENDENCY-CHECK
+// ==================================
+dependencyCheck {
+    failBuildOnCVSS = 9.0f
+    suppressionFile = "owasp-suppressions.xml"
+    nvd {
+        apiKey = System.getenv("NVD_API_KEY") ?: "" // (optional for higher speed)
+    }
+    scanConfigurations = listOf("runtimeClasspath")
 }

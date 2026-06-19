@@ -29,7 +29,15 @@ jobs:
 
       - name: Build, test and verify module boundaries
         run: ./gradlew build --no-daemon
-        # `build` -> `check` -> `test` + `verifyModularity`
+        # `build` -> `check` -> `test` + `verifyModularity` + `jacocoTestReport`
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v7
+        with:
+          files: build/reports/jacoco/test/jacocoTestReport.xml
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Upload test reports
         if: always()
@@ -38,5 +46,6 @@ jobs:
           name: test-reports
           path: |
             build/reports/tests/
+            build/reports/jacoco/
             build/spring-modulith-docs/
           retention-days: 7
