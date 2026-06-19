@@ -54,14 +54,14 @@ Verificación:
 
 ## Code Quality
 
-| Command                                        | What it does                                                      |
-|------------------------------------------------|-------------------------------------------------------------------|
-| `./gradlew spotlessCheck`                      | Verify all Java/Kotlin files match the formatter (CI-enforced)    |
-| `./gradlew spotlessApply`                      | Auto-format all Java/Kotlin files locally                         |
-| `./gradlew jacocoTestReport`                   | Generate coverage report → `build/reports/jacoco/test/index.html` |
-| `./gradlew jacocoTestCoverageVerification`     | Fail if coverage < 50% (also runs as part of `check`)             |
-| `./gradlew dependencyCheckAnalyze`             | Scan dependencies for CVEs (slow — downloads NVD on first run)    |
-| `./gradlew test --tests "*.ArchitectureTests"` | Run ArchUnit architecture fitness functions only                  |
+| Command                                                        | What it does                                                                                          |
+|----------------------------------------------------------------|-------------------------------------------------------------------------------------------------------|
+| `./gradlew spotlessCheck`                                      | Verify all Java/Kotlin files match the formatter (CI-enforced)                                        |
+| `./gradlew spotlessApply`                                      | Auto-format all Java/Kotlin files locally                                                             |
+| `./gradlew jacocoTestReport`                                   | Generate coverage report → `build/reports/jacoco/test/index.html`                                     |
+| `./gradlew jacocoTestCoverageVerification`                     | Fail if coverage < 50% (also runs as part of `check`)                                                 |
+| `export NVD_API_KEY=your_key ./gradlew dependencyCheckAnalyze` | Scan dependencies for CVEs (slow — downloads NVD on first run). The key is optional for higher speed. |
+| `./gradlew test --tests "*.ArchitectureTests"`                 | Run ArchUnit architecture fitness functions only                                                      |
 
 > **Formatter:** Eclipse formatter (chosen for JDK 25 compatibility — Palantir/Google Java Format
 > use javac internals removed in JDK 23). Run `spotlessApply` before your first commit on this branch.
