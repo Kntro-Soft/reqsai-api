@@ -1,15 +1,15 @@
-package com.kntro.reqsai.discovery.infrastructure.ai.transcription;
+package com.kntro.reqsai.discovery.infrastructure.ai.transcription.batch;
 
 import com.kntro.reqsai.discovery.application.port.TranscriptionPort;
 import com.kntro.reqsai.discovery.application.port.TranscriptionResult;
-import com.kntro.reqsai.discovery.infrastructure.ai.transcription.strategy.AssemblyAiAdapter;
-import com.kntro.reqsai.discovery.infrastructure.ai.transcription.strategy.DeepgramAdapter;
-import com.kntro.reqsai.discovery.infrastructure.ai.transcription.strategy.WhisperAdapter;
+import com.kntro.reqsai.discovery.infrastructure.ai.transcription.batch.strategy.AssemblyAiAdapter;
+import com.kntro.reqsai.discovery.infrastructure.ai.transcription.batch.strategy.DeepgramAdapter;
+import com.kntro.reqsai.discovery.infrastructure.ai.transcription.batch.strategy.WhisperAdapter;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * The single {@link TranscriptionPort} registered in the application context. Selects the STT
- * provider at runtime based on {@code reqsai.ai.stt.provider} (default: {@code whisper}).
+ * The single {@link TranscriptionPort} registered in the application context. Selects the batch STT
+ * provider at runtime based on {@code reqsai.ai.stt.batch.provider} (default: {@code whisper}).
  *
  * <ul>
  *   <li>{@code whisper}    — self-hosted or OpenAI Whisper; no diarization

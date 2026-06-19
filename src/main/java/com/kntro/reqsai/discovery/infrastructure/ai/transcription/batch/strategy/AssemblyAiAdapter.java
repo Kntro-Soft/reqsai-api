@@ -1,4 +1,4 @@
-package com.kntro.reqsai.discovery.infrastructure.ai.transcription.strategy;
+package com.kntro.reqsai.discovery.infrastructure.ai.transcription.batch.strategy;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;

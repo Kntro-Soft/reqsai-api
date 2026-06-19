@@ -1,4 +1,4 @@
-package com.kntro.reqsai.discovery.infrastructure.ai.transcription.strategy;
+package com.kntro.reqsai.discovery.infrastructure.ai.transcription.batch.strategy;
 
 import com.deepgram.DeepgramClient;
 import com.deepgram.resources.listen.v1.media.requests.MediaTranscribeRequestOctetStream;
