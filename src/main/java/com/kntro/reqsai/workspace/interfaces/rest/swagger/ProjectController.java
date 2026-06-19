@@ -18,10 +18,13 @@ import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import com.kntro.reqsai.workspace.interfaces.rest.dto.request.UpdateProjectRequest;
 import java.util.UUID;
 
 @RequestMapping(path = ApiVersioning.BASE + "/organizations/{orgId}/projects", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -39,6 +42,33 @@ public interface ProjectController {
     ResponseEntity<ProjectResponse> create(
             @Parameter(description = "Organization context UUID") @PathVariable UUID orgId,
             @Valid @RequestBody CreateProjectRequest request,
+            Authentication authentication
+    );
+
+    @Operation(summary = "Update a project manually", description = "Updates the project details and stack. Verifies organization context and checks name uniqueness.")
+    @ApiResponse(responseCode = "200", description = "Project updated successfully",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ProjectResponse.class)))
+    @ApiResponseBadRequest
+    @ApiResponseNotFound
+    @ApiStandardErrorResponses
+    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
+    @PutMapping(value = "/{projectId}", version = ApiVersioning.V1)
+    ResponseEntity<ProjectResponse> update(
+            @Parameter(description = "Organization context UUID") @PathVariable UUID orgId,
+            @Parameter(description = "Project UUID") @PathVariable UUID projectId,
+            @Valid @RequestBody UpdateProjectRequest request,
+            Authentication authentication
+    );
+
+    @Operation(summary = "Delete a project manually", description = "Permanently deletes the project and all cascaded data (glossary, etc.) under the organization.")
+    @ApiResponse(responseCode = "204", description = "Project deleted successfully")
+    @ApiResponseNotFound
+    @ApiStandardErrorResponses
+    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
+    @DeleteMapping(value = "/{projectId}", version = ApiVersioning.V1)
+    ResponseEntity<Void> delete(
+            @Parameter(description = "Organization context UUID") @PathVariable UUID orgId,
+            @Parameter(description = "Project UUID") @PathVariable UUID projectId,
             Authentication authentication
     );
 }
