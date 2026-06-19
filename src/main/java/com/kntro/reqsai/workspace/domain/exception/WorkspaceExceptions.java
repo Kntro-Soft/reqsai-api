@@ -25,4 +25,19 @@ public final class WorkspaceExceptions {
         return new DomainException(WorkspaceError.ORGANIZATION_SLUG_ALREADY_EXISTS,
                 "Slug already in use: " + slug);
     }
+
+    public static EntityNotFoundException projectNotFound(UUID id) {
+        return new EntityNotFoundException(WorkspaceError.PROJECT_NOT_FOUND,
+                "Project not found: " + id);
+    }
+
+    public static DomainException projectNameAlreadyExists(String name) {
+        return new DomainException(WorkspaceError.PROJECT_NAME_ALREADY_EXISTS,
+                "Project name already exists in this organization: " + name);
+    }
+
+    public static DomainException projectPlanLimitExceeded(int maxProjects) {
+        return new DomainException(WorkspaceError.PROJECT_PLAN_LIMIT_EXCEEDED,
+                "Project limit reached for this plan: " + maxProjects);
+    }
 }
