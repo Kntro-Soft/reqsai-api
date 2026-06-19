@@ -84,7 +84,7 @@ The EventStorming artifacts reinforce that the platform is not only analyst-faci
 * **System policies:** generate derived actions such as demonstration project creation, duplicate alerts, processing status updates, and cleanup of temporary stories after aborted sessions.
 * **External systems:** `Email Service`, `Speech-to-Text Service`, `LLM Service`, `Payment Gateway`, and `Project Management Service`.
 
-From the command images, the most stable business commands appear to be:
+The most stable business commands are:
 
 * `Create Pending Account`, `Send Verification Email`, `Validate Account`, `Log In`
 * `Create Organization`, `Assign Free Plan`, `Start Payment`, `Terminate Subscription`, `Degrade Plan`
@@ -92,18 +92,27 @@ From the command images, the most stable business commands appear to be:
 * `Create Role`, `Assign Role Permissions`, `Send Invitation Email`, `Assign Role`, `Save Client Approval`
 * `Start Session`, `Pause Session`, `Resume Session`, `Close Session`, `Save Session`, `Abort Session`, `Terminate Session`
 * `Upload Audio File`, `Validate Audio File`, `Divide Audio`, `Process Audio Chunks`
-* `Generate User Story`, `Update Session Backlog`, `Hide User Story`, `Display Duplication Alert`, `Solve Duplication Alert`, `Approve User Story`, `Register User Story Rating`
+* `Generate User Story`, `Update Session Backlog`, `Hide User Story`, `Update User Story`, `Approve User Story`, `Register User Story Rating`
+* `Generate Session Questions`, `Generate Suggestions`, `Display Duplication Alert`, `Solve Duplication Alert`, `Delete Temporary User Stories`
 * `Link Project`, `Link Board and Project`, `Export Approved User Stories`
 
+Several command payloads and decision inputs are also explicit:
+
+* **IAM inputs:** `Email`, `Password`, and implicit `Account status = pending` during sign-up bootstrap.
+* **Billing inputs:** target organization plan state such as `Organization plan = Pro`, `Organization plan = Team`, and fallback `Organization plan = Free`.
+* **Workspace inputs:** `Organization name`, `Leader`, `Tools`, `Frameworks`, invitation `Email direction`, and invitation `Expiration date`.
+* **Requirement Discovery inputs:** story `Description`, `Acceptance criteria`, `MoSCoW prioritization`, `Rating feedback`, and duplicate-resolution `Solution option / Justification`.
+* **Integration inputs:** `Project name` and `Jira board name` when linking the external project.
+
 ### 3.3. Event Inventory and Lifecycle Signals
-The EventStorming boards also make explicit a broader set of domain events than the later message-flow section. These are useful as candidate event names or state transitions for internal modules:
+The EventStorming flow also makes explicit a broader set of domain events than the later message-flow section. These are useful as candidate event names or state transitions for internal modules:
 
 * **Identity events:** `Pending Account Created`, `Verification Email Sent`, `Account Validated`, `Logged In`, `Password Reset`.
 * **Workspace events:** `Organization Created`, `Organization Data Updated`, `Current Organization Changed`, `Free Plan Assigned`.
 * **Billing events:** `Payment Started`, `Payment Confirmed`, `Payment Failed`, `Upgraded to Pro Plan`, `Upgraded to Team Plan`, `Upgrade Rejected`, `Subscription Terminated`, `Plan Degraded`.
-* **Project and collaboration events:** `Project Created`, `Technological Stack Registered`, `Project Data File Uploaded`, `Project Data Updated`, `Role Created`, `Role Permissions Assigned`, `Email Invitation Sent`, `Role Assigned`, `Member Removed`, `Client Approval Saved`.
-* **Session events:** `Session Started`, `Audio Recording Started`, `Audio Segmented`, `Speech Segment Identified`, `Session Paused`, `Session Resumed`, `Session Closed`, `Session Saved`, `Session Aborted`, `Session Terminated`, `Final Session Metrics Displayed`.
-* **Story-generation events:** `User Story Generated`, `Session Backlog Updated`, `User Story Hidden`, `Session Questions Generated`, `Suggestions Generated`, `Duplication Alert Displayed`, `Duplication Alert Solved`, `User Story Updated`, `User Story Approved`, `User Story Rating Registered`.
+* **Project and collaboration events:** `Project Created`, `Technological Stack Registered`, `Project Data File Uploaded`, `Project Data Updated`, `Role Created`, `Role Permissions Assigned`, `Role Permissions Updated`, `Email Invitation Sent`, `Role Assigned`, `Organization Data Updated`, `Current Organization Changed`, `Member Removed`, `Client Approval Saved`.
+* **Session events:** `Session Started`, `Audio Recording Started`, `Audio Segmented`, `Speech Segment Identified`, `Transcript Sent`, `Session Paused`, `Session Resumed`, `Session Closed`, `Session Saved`, `Session Aborted`, `Session Terminated`, `Final Session Metrics Displayed`.
+* **Story-generation events:** `User Story Generated`, `Session Backlog Updated`, `User Story Hidden`, `Session Questions Generated`, `Suggestions Generated`, `Duplication Alert Displayed`, `Duplication Alert Solved`, `User Story Updated`, `User Story Approved`, `User Story Rating Registered`, `Temporary User Stories Deleted`.
 * **File-processing and export events:** `Audio File Uploaded`, `Audio File Validated`, `Audio Chunks Processed`, `Processing Status Displayed`, `Project Linked`, `Board and Project Linked`, `Approved User Stories Exported`.
 
 Not all names above need to become persisted events immediately, but they are strong candidates for:
@@ -132,7 +141,7 @@ The aggregate board complements the bounded contexts by exposing the likely **co
 |:----------------|:---------------------|:------|
 | **Requirement Discovery** | `Session`, `UserStory` | The `Session` aggregate governs recording and lifecycle transitions. `UserStory` governs generation, review, approval, rating, duplication handling, and backlog state. |
 | **Workspace Management** | `Organization`, `Project`, `Glossary`, `ProjectMember`, `MemberRole`, `ProjectDocument` | Workspace concerns are split between tenant/org setup, project metadata, glossary/document ingestion, and collaboration/membership rules. |
-| **IAM** | `User`, `Account`, `RefreshToken` | The event boards distinguish user profile concerns from account verification and token/session renewal. |
+| **IAM** | `User`, `Account`, `RefreshToken` | The model distinguishes user profile concerns from account verification and token/session renewal. |
 | **Billing & Subscription** | `Subscription` | The subscription aggregate appears to own plan tier transitions, payment outcomes, and quota-related entitlement state. |
 | **Integration Gateway** | `ExternalConnection`, `ExportJob` | One aggregate handles connection/linking, while another likely models export execution and retries/failures. |
 
@@ -143,14 +152,17 @@ The EventStorming `Read Models` layer is especially useful for backend/API desig
 
 * account status and email/password verification cues,
 * organization plan summary,
+* organization identity data such as organization name and leader,
 * tools/frameworks metadata for a project,
 * invitation expiration date,
 * project and session status indicators,
 * processing-time usage and processing-progress views,
+* final session metrics such as total stories, hidden stories, and pending stories,
 * duplicate-resolution guidance,
-* story description plus prioritization metadata,
+* story description, acceptance criteria, and prioritization metadata,
 * rating feedback,
-* linked board/project names.
+* linked board/project names,
+* ROI dashboard and usage progress indicators.
 
 These should influence query-model design. In practice that means the system likely needs dedicated projection endpoints for:
 
@@ -161,13 +173,14 @@ These should influence query-model design. In practice that means the system lik
 * integration linkage state and export history.
 
 ### 3.6. Pain Points and Product Risks Surfaced by EventStorming
-Even with limited image sharpness, several pain points and risk markers are visible in the EventStorming boards:
+Several pain points and risk markers are visible in the EventStorming flow:
 
 * **Latency in email reception** during account validation.
 * **Ambiguity around accepted project-data formats**, especially around compatibility versus AI extraction quality.
 * **Session interruption risk**, particularly whether a paused session can safely resume and whether partial recordings are preserved.
 * **Audio-processing quality risk**, especially around long recordings, chunking accuracy, and transcript continuity.
 * **Upgrade outcome ambiguity**, including how the platform reacts when the payment gateway rejects an upgrade.
+* **Approval governance risk**, because edited stories appear to require re-verification by a permitted user before they can be considered final again.
 
 Those risks support a few engineering priorities:
 
@@ -181,10 +194,18 @@ Those risks support a few engineering priorities:
 The EventStorming `Policies` layer shows that the domain relies on automated reactions, not only direct commands. The following policy patterns appear repeatedly and should be preserved in architecture decisions:
 
 * when an account is created, verification mail is dispatched automatically;
+* when a user logs in for the first time, an account is created and initialized in a pending state;
 * when an organization is created, a free plan is assigned and a demo project may be provisioned;
+* when a role is created, its permissions are initialized automatically;
 * when payment succeeds or fails, plan state is transitioned without manual intervention;
-* when a session or audio upload advances, downstream processing steps such as chunking, transcription, suggestion generation, and progress updates are triggered;
-* when a story is generated or updated, duplication checks and review-state changes are triggered;
+* when a session becomes active, recording starts automatically;
+* when recording starts, the platform begins capturing audio and dividing it into chunks;
+* when audio chunks or transcript segments advance, downstream STT/LLM processing continues automatically;
+* when a transcript is sent, user-story generation starts automatically;
+* when a story is generated, the session backlog is updated automatically;
+* when a story is updated, it requires verification by a user with permissions;
+* when a story is approved, the platform starts the rating flow for that story;
+* when session questions are generated, context-aware suggestions are generated next;
 * when a session is aborted, temporary user stories are deleted automatically.
 
 This strongly favors an implementation style with:
@@ -204,6 +225,15 @@ This strongly favors an implementation style with:
   * Sessions shorter than a minimum threshold should not trigger story generation.
   * Generated stories must comply with **Gherkin syntax**.
   * If a generated story reaches a **similarity score > 80%**, the user should be warned to avoid duplicates.
+  * When a session becomes active, audio recording should start automatically.
+  * When a session is closed, all session data should be saved.
+  * When a session is aborted without saving, temporary stories generated during the session should be deleted.
+  * Uploaded audio must be validated before chunking and STT processing continue.
+  * Final session metrics should expose at least total stories, hidden stories, and pending stories.
+  * Story editing includes business fields such as description, acceptance criteria, and MoSCoW prioritization.
+  * Updating a story should move it back through a verification step before final acceptance.
+  * Approving a story should trigger the user rating flow.
+  * Generating session questions should feed a later suggestion-generation step based on context.
 
 #### Workspace Management
 * Owns tenant/workspace isolation, organizational hierarchy, project membership, and glossary/document context.
@@ -212,6 +242,12 @@ This strongly favors an implementation style with:
 * Business rules captured in the canvas:
   * A project belongs to exactly one organization.
   * Glossary uploads are constrained to text-extractable formats such as **PDF** or **TXT**.
+  * When an organization is created, it should start on the free plan.
+  * When an organization is created, a demonstration project may be provisioned automatically.
+  * When a project is created, its technological stack should be initialized immediately.
+  * When a project data file is uploaded, the project context should be refreshed from that file.
+  * Invitations should carry direction/recipient information and an expiration date.
+  * Role creation should initialize a permission set that can later be updated.
 
 #### IAM
 * Owns authentication and user identity lifecycle.
@@ -219,6 +255,9 @@ This strongly favors an implementation style with:
 * Business rules captured in the canvas:
   * Passwords must be stored with strong hashing.
   * Auth tokens expire after **24 hours**.
+  * The first login attempt should bootstrap a pending account if the user does not exist yet.
+  * Account creation in pending state should trigger a verification email.
+  * Account validation should redirect or hand the user back into the login flow.
 
 #### Billing & Subscription
 * Owns recurring subscription state and quota enforcement.
@@ -227,6 +266,10 @@ This strongly favors an implementation style with:
 * Business rules captured in the canvas:
   * Access to AI features is blocked when quota is exhausted for the current plan.
   * Payment execution is delegated to an external PCI-compliant provider.
+  * Positive payment-gateway responses should upgrade the organization to the paid plan that was purchased.
+  * Negative payment-gateway responses should explicitly reject the upgrade.
+  * Subscription termination should return the organization to the free plan baseline.
+  * Billing also owns read models such as ROI dashboard visibility and usage progress visibility.
 
 #### Integration Gateway
 * Owns outbound agile-tool integration concerns and protects the core domain from third-party API drift.
@@ -235,6 +278,8 @@ This strongly favors an implementation style with:
 * Business rules captured in the canvas:
   * Failures in third-party tools must not break the core ReqsAI workflow.
   * External schemas are translated into a generic internal agile ticket model before export.
+  * Linking a project to an external account should be followed by selecting and linking a target board.
+  * Export is explicitly modeled as "approved user stories exported", not just generic synchronization.
 
 ### 3.9. Ubiquitous Language
 Use these terms consistently in code, docs, APIs, and events:
@@ -626,7 +671,16 @@ This reveals several new architectural concepts that were not explicit before:
 * transcript segments are modeled explicitly, not just flattened into one transcript blob,
 * public or semi-public sharing is planned through `ShareLink`,
 * discovery publishes token-consumption information outward,
-* speaker relabeling is a domain-level concern.
+* speaker relabeling is a domain-level concern,
+* the module is tactically split into a **session submodel** and a **story submodel**.
+
+The tactical model can also be interpreted more precisely as follows:
+
+* `DiscoverySession` is not just a persistence shell; it is the aggregate that governs transitions such as started, paused, resumed, closed, saved, aborted, failed, and completed-for-processing.
+* `UserStory` is the aggregate that owns analyst-facing refinement behaviors such as hiding, updating content, approval, rating, duplication-resolution, and temporary cleanup after aborted sessions.
+* `AcceptanceCriterion` aligns well with the observed story-editing inputs: acceptance criteria and structured review content are part of the story aggregate, not a detached export-only artifact.
+* `Priority` should be read as compatible with the observed MoSCoW-style prioritization needs, even if a direct one-to-one mapping may still need to be finalized in implementation.
+* `StoryStatus` currently captures `DRAFT`, `APPROVED`, and `REJECTED`, but the EventStorming flow suggests the runtime review lifecycle also includes hidden, temporarily discarded, and "edited then awaiting verification" situations. Those may remain projection/view states or may justify richer domain states later.
 
 #### 4.8.2. Workspace Management Tactical Model
 The workspace class diagram adds richer aggregates and value objects:
@@ -642,6 +696,14 @@ This matters because it shows:
 * role assignment exists at both organization and project scope,
 * project technical metadata is a first-class value object, not just unstructured text,
 * glossary terms and project constraints are part of the contextual RAG model.
+
+This interpretation can be refined further:
+
+* `Organization` also carries commercial/bootstrap semantics such as free-plan initialization and optional demo-project provisioning.
+* `Project` is the tactical home for initial technology-stack registration and later project-data refresh after document upload.
+* `ProjectRole` is not static metadata; it is born with initialized permissions and later supports permission updates.
+* `Member` and `ProjectMember` together match the invitation/acceptance flow more accurately: one concept represents workspace membership, while the other represents project-scoped assignment.
+* invitation handling includes explicit expiry semantics, so expiration should be treated as a first-class rule either inside membership workflows or through a supporting invitation model if later extracted.
 
 #### 4.8.3. IAM Tactical Model
 The IAM tactical model confirms three main aggregate roots:
@@ -663,6 +725,15 @@ Newly explicit concerns include:
 * last visited organization/project preferences,
 * refresh-token hashing and revocation as modeled domain behavior.
 
+The intended business flow around these aggregates is also clearer:
+
+* first-time login acts as the bootstrap trigger for account creation when the user does not yet exist,
+* `AccountStatus.PENDING_VERIFICATION` is not incidental; it is a core onboarding state,
+* verification email dispatch is a direct consequence of pending account creation,
+* account validation is expected to feed the normal login flow immediately after successful verification.
+
+That means the `Account` aggregate is carrying both authentication state and onboarding progress, not just credential storage.
+
 #### 4.8.4. Billing Tactical Model
 The billing tactical class view confirms:
 
@@ -672,6 +743,13 @@ The billing tactical class view confirms:
 * events such as `SubscriptionAssignedEvent`, `SubscriptionUpgradedEvent`, `SubscriptionCancelledEvent`, `TokenQuotaExceededEvent`, `SubscriptionReactivatedEvent`, and `QuotaResetEvent`
 
 This formalizes quota usage as a real business concept rather than a loose metric.
+
+Two useful refinements are worth keeping explicit:
+
+* the subscription lifecycle is explicitly tied to positive/negative payment-gateway outcomes, so upgrade acceptance and upgrade rejection are first-class business transitions, not just infrastructure responses;
+* termination semantics are business-significant because cancellation returns the organization to a free baseline.
+
+One nuance worth keeping explicit: the EventStorming board shows `Pro` and `Team` plan outcomes, while the tactical class model currently expresses `FREE`, `PRO`, and `ENTERPRISE`. This suggests the commercial naming model may still be converging, and the implementation should settle a single canonical plan vocabulary before hardening contracts.
 
 #### 4.8.5. Gateway Tactical Model
 The gateway tactical class view introduces:
@@ -687,6 +765,16 @@ This clarifies that the gateway does not only store credentials. It also models:
 * per-project integration configuration,
 * export lifecycle history,
 * retryable synchronization records.
+
+An important operational nuance is:
+
+* external linkage is a staged process: first the project is linked to the external account, then a board/project selection is associated with it.
+
+That nuance fits well with the current tactical model:
+
+* `OAuthState` governs the secure establishment of the external connection,
+* `Integration` owns the persistent provider configuration for a specific project,
+* `ExportRecord` owns the lifecycle of each approved-story export attempt.
 
 ### 4.9. Persistence Views by Bounded Context
 The new `*-database.puml` diagrams add concrete persistence details that sharpen the current data architecture.
