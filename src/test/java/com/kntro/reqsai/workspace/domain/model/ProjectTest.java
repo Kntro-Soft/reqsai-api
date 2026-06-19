@@ -67,4 +67,53 @@ class ProjectTest {
                     .isInstanceOf(DomainException.class);
         }
     }
+
+    @Nested
+    @DisplayName("Updates")
+    class Updates {
+
+        @Test
+        @DisplayName("should update details successfully")
+        void should_update_details_successfully() {
+            // Arrange
+            Project project = ProjectMother.standard().build();
+            com.kntro.reqsai.workspace.domain.valueobjects.TechnicalProfile newProfile = 
+                    new com.kntro.reqsai.workspace.domain.valueobjects.TechnicalProfile(
+                            java.util.List.of("Kotlin"),
+                            java.util.List.of("Micronaut"),
+                            java.util.List.of("Mobile"),
+                            java.util.List.of("MongoDB"),
+                            "Microservices",
+                            "Logistics"
+                    );
+
+            // Act
+            project.updateDetails("New Project Name", "New Description", newProfile);
+
+            // Assert
+            assertThat(project.getName()).isEqualTo("New Project Name");
+            assertThat(project.getDescription()).isEqualTo("New Description");
+            assertThat(project.getTechnicalProfile()).isEqualTo(newProfile);
+        }
+    }
+
+    @Nested
+    @DisplayName("Lifecycle")
+    class Lifecycle {
+
+        @Test
+        @DisplayName("should archive and reactivate project status")
+        void should_archive_and_reactivate() {
+            // Arrange
+            Project project = ProjectMother.standard().build();
+            assertThat(project.getStatus()).isEqualTo(ProjectStatus.ACTIVE);
+
+            // Act & Assert
+            project.archive();
+            assertThat(project.getStatus()).isEqualTo(ProjectStatus.ARCHIVED);
+
+            project.activate();
+            assertThat(project.getStatus()).isEqualTo(ProjectStatus.ACTIVE);
+        }
+    }
 }

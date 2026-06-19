@@ -8,5 +8,7 @@ public interface ProjectRepository {
     Project save(Project project);
     Optional<Project> findById(UUID id);
     boolean existsByName(String name);
+    boolean existsByNameAndIdNot(String name, UUID id);
     int countActive();
+    void delete(Project project);
 }
