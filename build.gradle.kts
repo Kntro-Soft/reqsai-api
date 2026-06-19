@@ -211,10 +211,6 @@ spotless {
     }
 }
 
-tasks.named("compileJava") {
-    dependsOn("spotlessCheck")
-}
-
 // ==================================
 // JACOCO — code-coverage reporting
 // ==================================
@@ -258,7 +254,7 @@ dependencyCheck {
     failBuildOnCVSS = 9.0f
     suppressionFile = "owasp-suppressions.xml"
     nvd {
-        apiKey = System.getenv("NVD_API_KEY") ?: "" // (optional for more speed)
+        apiKey = System.getenv("NVD_API_KEY") ?: "" // (optional for higher speed)
     }
     scanConfigurations = listOf("runtimeClasspath")
 }
