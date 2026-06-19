@@ -47,4 +47,19 @@ public final class TenantContext {
         CURRENT_TENANT.remove();
         CURRENT_SCHEMA.remove();
     }
+
+    /**
+     * Runs {@code action} under the given tenant context, clearing the thread-local in a
+     * {@code finally} block. Useful when the caller runs on a thread that has no filter-managed
+     * context (e.g. STT streaming callbacks, async event consumers).
+     */
+    public static void runWith(String tenant, String schema, Runnable action) {
+        setCurrentTenant(tenant);
+        setCurrentSchema(schema);
+        try {
+            action.run();
+        } finally {
+            clear();
+        }
+    }
 }
