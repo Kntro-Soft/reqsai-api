@@ -11,6 +11,12 @@
 
 # ─── Shared Kernel & cross-cutting infrastructure ───────────────────────────
 /src/main/java/com/kntro/reqsai/shared/            @jhosepmyr
+/src/test/java/com/kntro/reqsai/shared/            @jhosepmyr
+/src/test/java/com/kntro/reqsai/testsupport/       @jhosepmyr
+/src/test/java/com/kntro/reqsai/architecture/      @jhosepmyr
+/src/test/java/com/kntro/reqsai/ModularityTests.java @jhosepmyr
+/src/test/java/com/kntro/reqsai/ApplicationContextTest.java @jhosepmyr
+/src/test/java/com/kntro/reqsai/SmokeTest.java     @jhosepmyr
 
 # ─── Bounded contexts ───────────────────────────────────────────────────────
 /src/main/java/com/kntro/reqsai/iam/               @Kyrubi
@@ -18,14 +24,41 @@
 /src/main/java/com/kntro/reqsai/workspace/         @salimramirez
 /src/main/java/com/kntro/reqsai/discovery/         @jhosepmyr @Eric396
 /src/main/java/com/kntro/reqsai/gateway/           @VarBus
+/src/test/java/com/kntro/reqsai/iam/               @Kyrubi
+/src/test/java/com/kntro/reqsai/billing/           @VarBus
+/src/test/java/com/kntro/reqsai/workspace/         @salimramirez
+/src/test/java/com/kntro/reqsai/discovery/         @jhosepmyr @Eric396
+/src/test/java/com/kntro/reqsai/gateway/           @VarBus
 
 # ─── Database migrations ────────────────────────────────────────────────────
 /src/main/resources/db/migration/common/           @jhosepmyr
-/src/main/resources/db/migration/tenant/           @jhosepmyr
+/src/main/resources/db/migration/tenant/           @jhosepmyr @salimramirez @Eric396 @Kyrubi @VarBus
+/src/test/resources/                               @jhosepmyr
 
 # ─── Build, CI/CD, governance ───────────────────────────────────────────────
 /build.gradle.kts                                  @jhosepmyr
 /settings.gradle.kts                               @jhosepmyr
 /Dockerfile                                        @jhosepmyr
+/compose.yaml                                      @jhosepmyr
+/gradle/                                           @jhosepmyr
+/scripts/                                          @jhosepmyr
 /.github/                                          @jhosepmyr
-/docs/                                             @jhosepmyr
+/docs/adr/                                         @jhosepmyr
+/docs/ARCHITECTURE.md                              @jhosepmyr
+/docs/LOCAL_AI.md                                  @jhosepmyr
+/docs/REALTIME.md                                  @jhosepmyr
+/docs/PROJECT_CONTEXT.md                           @jhosepmyr
+/docs/USE_CASE_PLAYBOOK.md                         @jhosepmyr
+/docs/PROFILES.md                                  @jhosepmyr
+/docs/DEPLOYMENT.md                                @jhosepmyr
+/docs/DESING.md                                    @jhosepmyr
+/assets/diagrams/architecture/                     @jhosepmyr
+/assets/diagrams/styles/                           @jhosepmyr
+/assets/diagrams/discovery/                        @jhosepmyr @Eric396
+/assets/diagrams/workspace/                        @salimramirez
+/assets/diagrams/iam/                              @Kyrubi
+/assets/diagrams/billing/                          @VarBus
+/assets/diagrams/gateway/                          @VarBus
+/README.md                                         @jhosepmyr
+/AGENTS.md                                         @jhosepmyr
+/AUTHORS.md                                        @jhosepmyr
