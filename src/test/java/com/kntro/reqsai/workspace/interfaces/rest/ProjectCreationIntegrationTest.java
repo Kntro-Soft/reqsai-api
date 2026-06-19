@@ -46,19 +46,15 @@ class ProjectCreationIntegrationTest extends AbstractIntegrationTest {
                 "SELECT id FROM public.organizations WHERE slug = ?", String.class, expectedSlug);
         UUID orgId = UUID.fromString(orgIdStr);
 
-        Map<String, Object> technicalProfile = Map.of(
+        Map<String, Object> request = Map.of(
+                "name", "My First Project",
+                "description", "A cool project",
                 "programmingLanguages", List.of("Java", "TypeScript"),
                 "frameworks", List.of("Spring Boot", "Next.js"),
                 "clientPlatforms", List.of("Web", "Mobile"),
                 "databases", List.of("PostgreSQL", "Redis"),
                 "architecture", "Clean Architecture",
                 "domain", "Fintech"
-        );
-
-        Map<String, Object> request = Map.of(
-                "name", "My First Project",
-                "description", "A cool project",
-                "technicalProfile", technicalProfile
         );
 
         // Act - create project

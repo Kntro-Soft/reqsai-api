@@ -15,12 +15,12 @@ public final class ProjectRequestMapper {
                 orgId,
                 request.name(),
                 request.description(),
-                request.technicalProfile().programmingLanguages(),
-                request.technicalProfile().frameworks(),
-                request.technicalProfile().clientPlatforms(),
-                request.technicalProfile().databases(),
-                request.technicalProfile().architecture(),
-                request.technicalProfile().domain(),
+                request.programmingLanguages(),
+                request.frameworks(),
+                request.clientPlatforms(),
+                request.databases(),
+                request.architecture(),
+                request.domain(),
                 requestedBy
         );
     }
