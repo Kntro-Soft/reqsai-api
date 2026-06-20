@@ -116,6 +116,11 @@ reqsai:
       provider: ${GENERATION_PROVIDER:gemini}
     embedding:
       provider: ${EMBEDDING_PROVIDER:auto}
+  iam:
+    token:
+      token-bytes: ${IAM_TOKEN_BYTES:32}
+      password-reset-expiration: ${IAM_PASSWORD_RESET_EXPIRATION:1h}
+      email-verification-expiration: ${IAM_EMAIL_VERIFICATION_EXPIRATION:24h}
   jwt:
     private-key-path: ${JWT_PRIVATE_KEY_PATH:classpath:certs/private_key.pem}
     public-key-path: ${JWT_PUBLIC_KEY_PATH:classpath:certs/public_key.pem}
