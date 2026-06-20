@@ -1,6 +1,8 @@
 package com.kntro.reqsai.iam.domain.model;
 
 import com.kntro.reqsai.iam.domain.event.AccountCreatedEvent;
+import com.kntro.reqsai.iam.domain.event.AccountVerifiedEvent;
+import com.kntro.reqsai.iam.domain.event.TermsAcceptedEvent;
 import com.kntro.reqsai.iam.domain.exception.IamExceptions;
 import com.kntro.reqsai.iam.infrastructure.persistence.converters.EmailConverter;
 import com.kntro.reqsai.shared.domain.model.AggregateRoot;
@@ -91,9 +93,10 @@ public class Account extends AggregateRoot {
 
     // ── Business methods ──────────────────────────────────────────────────────
 
-    /** Activates the account after successful email verification. */
+    /** Activates the account after successful email verification and raises {@link AccountVerifiedEvent}. */
     public void activate() {
         this.status = AccountStatus.ACTIVE;
+        registerEvent(AccountVerifiedEvent.of(getId()));
     }
 
     /** Suspends the account. Suspended accounts cannot authenticate. */
@@ -137,10 +140,11 @@ public class Account extends AggregateRoot {
         this.passwordResetTokenExpiresAt  = null;
     }
 
-    /** Records that the user has accepted a specific version of the terms of service. */
+    /** Records that the user has accepted a specific T&C version and raises {@link TermsAcceptedEvent}. */
     public void acceptTerms(String version, Instant now) {
         this.termsVersion    = Assert.maxLength(Assert.notBlank(version, "version"), "version", TERMS_VERSION_MAX);
         this.termsAcceptedAt = Assert.notNull(now, "now");
+        registerEvent(TermsAcceptedEvent.of(getId(), this.termsVersion));
     }
 
     // ── Query methods ─────────────────────────────────────────────────────────
