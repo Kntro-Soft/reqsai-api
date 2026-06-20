@@ -15,8 +15,12 @@ public class StubEmailConfig {
     @Bean
     @Primary
     public EmailNotificationPort stubEmailNotificationPort() {
-        return (toEmail, firstName, rawToken) -> {
-            // no-op — email sending is intentionally skipped in tests
+        return new EmailNotificationPort() {
+            @Override
+            public void sendVerificationEmail(String toEmail, String firstName, String rawToken) {}
+
+            @Override
+            public void sendPasswordResetEmail(String toEmail, String firstName, String rawToken) {}
         };
     }
 }
