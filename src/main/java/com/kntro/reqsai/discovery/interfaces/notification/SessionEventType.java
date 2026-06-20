@@ -28,6 +28,11 @@ public enum SessionEventType {
     /** Session reset to DRAFT ({@code COMPLETED/FAILED/STOPPED → DRAFT}). */
     SESSION_RESET,
 
+    // Live streaming capture
+
+    /** A finalized transcript segment was appended during {@code RECORDING} (transcript-out). */
+    TRANSCRIPT_SEGMENT,
+
     // AI processing lifecycle
 
     /** A transcript was attached via file upload ({@code DRAFT → STOPPED}). */
