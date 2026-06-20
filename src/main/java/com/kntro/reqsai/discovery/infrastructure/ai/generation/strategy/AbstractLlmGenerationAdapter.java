@@ -198,6 +198,10 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
 
     protected GenerationResult parseJsonResponse(String json) {
         try {
+            if (json.startsWith("[")) {
+                log.debug("{} returned array instead of object — treating as no stories", modelName());
+                return new GenerationResult(List.of());
+            }
             LlmResponse parsed = objectMapper.readValue(json, LlmResponse.class);
             if (parsed.stories() == null) return new GenerationResult(List.of());
             List<GenerationResult.GeneratedStory> stories = parsed.stories().stream()
