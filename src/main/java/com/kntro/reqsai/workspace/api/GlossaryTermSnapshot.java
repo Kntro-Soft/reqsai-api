@@ -1,7 +1,7 @@
 package com.kntro.reqsai.workspace.api;
 
 /**
- * Read-only view of a glossary term exposed to other bounded contexts.
- * Only the text fields are included — embeddings stay inside the workspace BC.
+ * Read-only projection of a {@code GlossaryTerm} exposed by the Workspace module.
+ * Contains only the text fields needed for LLM context enrichment — embeddings stay inside the workspace BC.
  */
 public record GlossaryTermSnapshot(String term, String definition) {}

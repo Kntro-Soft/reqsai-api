@@ -6,9 +6,11 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Read-only projection of a project exposed to other bounded contexts via {@link WorkspaceModuleApi}.
- * Contains only the text fields that the LLM prompt context needs — no internal JPA entities,
- * no embeddings, no IDs for child objects.
+ * Read-only projection of a {@code Project} and its related {@code Glossary} exposed by the
+ * Workspace module via {@link WorkspaceModuleApi}. Carries only the text fields needed for
+ * LLM context enrichment in Discovery.
+ *
+ * <p>No JPA entities, no embedding vectors, no child IDs — purely for cross-BC text consumption.
  */
 public record ProjectSnapshot(
         UUID projectId,
