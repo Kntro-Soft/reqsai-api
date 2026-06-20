@@ -2,6 +2,7 @@ package com.kntro.reqsai.workspace.infrastructure.persistence.adapters;
 
 import com.kntro.reqsai.workspace.application.port.ProjectRepository;
 import com.kntro.reqsai.workspace.domain.model.Project;
+import com.kntro.reqsai.workspace.domain.model.ProjectStatus;
 import com.kntro.reqsai.workspace.infrastructure.persistence.repositories.ProjectJpaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -28,18 +29,28 @@ public class ProjectRepositoryAdapter implements ProjectRepository {
     }
 
     @Override
-    public Page<Project> findAllByOrganizationId(UUID organizationId, Pageable pageable) {
-        return jpa.findAllByOrganizationId(organizationId, pageable);
+    public Optional<Project> findByIdAndOrganizationId(UUID id, UUID organizationId) {
+        return jpa.findByIdAndOrganizationId(id, organizationId);
     }
 
     @Override
-    public boolean existsByOrganizationIdAndName(UUID organizationId, String name) {
-        return jpa.existsByOrganizationIdAndName(organizationId, name);
+    public Optional<Project> findByIdAndOrganizationIdAndStatus(UUID id, UUID organizationId, ProjectStatus status) {
+        return jpa.findByIdAndOrganizationIdAndStatus(id, organizationId, status);
     }
 
     @Override
-    public boolean existsByOrganizationIdAndNameAndIdNot(UUID organizationId, String name, UUID id) {
-        return jpa.existsByOrganizationIdAndNameAndIdNot(organizationId, name, id);
+    public Page<Project> findAllByOrganizationIdAndStatus(UUID organizationId, ProjectStatus status, Pageable pageable) {
+        return jpa.findAllByOrganizationIdAndStatus(organizationId, status, pageable);
+    }
+
+    @Override
+    public boolean existsByOrganizationIdAndNameAndStatus(UUID organizationId, String name, ProjectStatus status) {
+        return jpa.existsByOrganizationIdAndNameAndStatus(organizationId, name, status);
+    }
+
+    @Override
+    public boolean existsByOrganizationIdAndNameAndIdNotAndStatus(UUID organizationId, String name, UUID id, ProjectStatus status) {
+        return jpa.existsByOrganizationIdAndNameAndIdNotAndStatus(organizationId, name, id, status);
     }
 
     @Override

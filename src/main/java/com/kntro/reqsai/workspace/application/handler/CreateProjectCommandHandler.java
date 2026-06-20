@@ -6,6 +6,7 @@ import com.kntro.reqsai.workspace.application.port.ProjectRepository;
 import com.kntro.reqsai.workspace.domain.exception.WorkspaceExceptions;
 import com.kntro.reqsai.workspace.domain.model.Organization;
 import com.kntro.reqsai.workspace.domain.model.Project;
+import com.kntro.reqsai.workspace.domain.model.ProjectStatus;
 import com.kntro.reqsai.workspace.domain.valueobjects.TechnicalProfile;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -23,7 +24,8 @@ public class CreateProjectCommandHandler {
         Organization organization = organizations.findById(command.organizationId())
                 .orElseThrow(() -> WorkspaceExceptions.organizationNotFound(command.organizationId()));
 
-        if (projects.existsByOrganizationIdAndName(command.organizationId(), command.name())) {
+        if (projects.existsByOrganizationIdAndNameAndStatus(
+                command.organizationId(), command.name(), ProjectStatus.ACTIVE)) {
             throw WorkspaceExceptions.projectNameAlreadyExists(command.name());
         }
 

@@ -7,6 +7,7 @@ import com.kntro.reqsai.workspace.application.port.ProjectRepository;
 import com.kntro.reqsai.workspace.application.query.ListProjectsQuery;
 import com.kntro.reqsai.workspace.domain.exception.WorkspaceExceptions;
 import com.kntro.reqsai.workspace.domain.model.Project;
+import com.kntro.reqsai.workspace.domain.model.ProjectStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Sort;
@@ -28,8 +29,9 @@ public class ListProjectsQueryHandler {
         organizations.findById(query.organizationId())
                 .orElseThrow(() -> WorkspaceExceptions.organizationNotFound(query.organizationId()));
 
-        return projects.findAllByOrganizationId(
+        return projects.findAllByOrganizationIdAndStatus(
                 query.organizationId(),
+                ProjectStatus.ACTIVE,
                 pageRequestFactory.toPageable(query.criteria(), SORT));
     }
 }

@@ -9,6 +9,7 @@ import com.kntro.reqsai.workspace.application.port.ProjectRepository;
 import com.kntro.reqsai.workspace.application.query.ListProjectsQuery;
 import com.kntro.reqsai.workspace.domain.model.Organization;
 import com.kntro.reqsai.workspace.domain.model.Project;
+import com.kntro.reqsai.workspace.domain.model.ProjectStatus;
 import com.kntro.reqsai.workspace.mothers.OrganizationMother;
 import com.kntro.reqsai.workspace.mothers.ProjectMother;
 import org.junit.jupiter.api.DisplayName;
@@ -58,7 +59,7 @@ class ListProjectsQueryHandlerTest {
         Page<Project> projectPage = new PageImpl<>(List.of(project), PageRequest.of(0, 20), 1);
 
         when(organizations.findById(orgId)).thenReturn(Optional.of(org));
-        when(projects.findAllByOrganizationId(eq(orgId), any())).thenReturn(projectPage);
+        when(projects.findAllByOrganizationIdAndStatus(eq(orgId), eq(ProjectStatus.ACTIVE), any())).thenReturn(projectPage);
 
         Page<Project> result = handler.handle(new ListProjectsQuery(orgId, PageCriteria.of(0, 20, "createdAt", "DESC")));
 

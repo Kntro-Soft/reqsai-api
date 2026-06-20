@@ -6,6 +6,7 @@ import com.kntro.reqsai.workspace.application.port.ProjectRepository;
 import com.kntro.reqsai.workspace.application.query.GetProjectQuery;
 import com.kntro.reqsai.workspace.domain.model.Organization;
 import com.kntro.reqsai.workspace.domain.model.Project;
+import com.kntro.reqsai.workspace.domain.model.ProjectStatus;
 import com.kntro.reqsai.workspace.mothers.OrganizationMother;
 import com.kntro.reqsai.workspace.mothers.ProjectMother;
 import org.junit.jupiter.api.DisplayName;
@@ -41,7 +42,8 @@ class GetProjectQueryHandlerTest {
         Project project = ProjectMother.standard().withOrganizationId(orgId).build();
 
         when(organizations.findById(orgId)).thenReturn(Optional.of(org));
-        when(projects.findById(project.getId())).thenReturn(Optional.of(project));
+        when(projects.findByIdAndOrganizationIdAndStatus(project.getId(), orgId, ProjectStatus.ACTIVE))
+                .thenReturn(Optional.of(project));
 
         Project result = handler.handle(new GetProjectQuery(orgId, project.getId()));
 
@@ -61,14 +63,15 @@ class GetProjectQueryHandlerTest {
     }
 
     @Test
-    @DisplayName("should fail when project belongs to another organization")
-    void should_fail_when_project_belongs_to_another_organization() {
+    @DisplayName("should fail when project is not active within the organization")
+    void should_fail_when_project_is_not_active_within_the_organization() {
         Organization org = OrganizationMother.active().build();
         UUID orgId = org.getId();
         Project project = ProjectMother.standard().withOrganizationId(UUID.randomUUID()).build();
 
         when(organizations.findById(orgId)).thenReturn(Optional.of(org));
-        when(projects.findById(project.getId())).thenReturn(Optional.of(project));
+        when(projects.findByIdAndOrganizationIdAndStatus(project.getId(), orgId, ProjectStatus.ACTIVE))
+                .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> handler.handle(new GetProjectQuery(orgId, project.getId())))
                 .isInstanceOf(DomainException.class);

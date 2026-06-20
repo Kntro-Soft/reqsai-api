@@ -89,8 +89,20 @@ public interface ProjectController {
             @Parameter(description = "Sort direction: ASC | DESC", example = "DESC") @RequestParam(required = false) String sortDirection
     );
 
-    @Operation(summary = "Delete a project manually", description = "Permanently deletes the project and all cascaded data (glossary, etc.) under the organization.")
-    @ApiResponse(responseCode = "204", description = "Project deleted successfully")
+    @Operation(summary = "Archive a project manually", description = "Archives the project under the organization. Archived projects are hidden from the default workspace queries.")
+    @ApiResponse(responseCode = "204", description = "Project archived successfully")
+    @ApiResponseNotFound
+    @ApiStandardErrorResponses
+    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
+    @PostMapping(value = "/{projectId}/archive", version = ApiVersioning.V1)
+    ResponseEntity<Void> archive(
+            @Parameter(description = "Organization context UUID") @PathVariable UUID orgId,
+            @Parameter(description = "Project UUID") @PathVariable UUID projectId,
+            Authentication authentication
+    );
+
+    @Operation(summary = "Delete a project permanently", description = "Permanently deletes the project and its tenant-scoped dependent data under the organization.")
+    @ApiResponse(responseCode = "204", description = "Project deleted permanently")
     @ApiResponseNotFound
     @ApiStandardErrorResponses
     @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)

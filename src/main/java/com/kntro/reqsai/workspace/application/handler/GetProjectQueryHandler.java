@@ -5,6 +5,7 @@ import com.kntro.reqsai.workspace.application.port.ProjectRepository;
 import com.kntro.reqsai.workspace.application.query.GetProjectQuery;
 import com.kntro.reqsai.workspace.domain.exception.WorkspaceExceptions;
 import com.kntro.reqsai.workspace.domain.model.Project;
+import com.kntro.reqsai.workspace.domain.model.ProjectStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,11 +22,9 @@ public class GetProjectQueryHandler {
         organizations.findById(query.organizationId())
                 .orElseThrow(() -> WorkspaceExceptions.organizationNotFound(query.organizationId()));
 
-        Project project = projects.findById(query.projectId())
+        Project project = projects.findByIdAndOrganizationIdAndStatus(
+                        query.projectId(), query.organizationId(), ProjectStatus.ACTIVE)
                 .orElseThrow(() -> WorkspaceExceptions.projectNotFound(query.projectId()));
-        if (!project.getOrganizationId().equals(query.organizationId())) {
-            throw WorkspaceExceptions.projectNotFound(query.projectId());
-        }
         return project;
     }
 }

@@ -6,6 +6,7 @@ import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
 import com.kntro.reqsai.workspace.application.port.ProjectRepository;
 import com.kntro.reqsai.workspace.domain.model.Organization;
 import com.kntro.reqsai.workspace.domain.model.Project;
+import com.kntro.reqsai.workspace.domain.model.ProjectStatus;
 import com.kntro.reqsai.workspace.mothers.OrganizationMother;
 import com.kntro.reqsai.workspace.mothers.ProjectMother;
 import org.junit.jupiter.api.DisplayName;
@@ -62,8 +63,8 @@ class UpdateProjectCommandHandlerTest {
             );
 
             when(organizations.findById(orgId)).thenReturn(Optional.of(org));
-            when(projects.findById(projectId)).thenReturn(Optional.of(project));
-            when(projects.existsByOrganizationIdAndNameAndIdNot(orgId, command.name(), projectId)).thenReturn(false);
+            when(projects.findByIdAndOrganizationIdAndStatus(projectId, orgId, ProjectStatus.ACTIVE)).thenReturn(Optional.of(project));
+            when(projects.existsByOrganizationIdAndNameAndIdNotAndStatus(orgId, command.name(), projectId, ProjectStatus.ACTIVE)).thenReturn(false);
             when(projects.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
 
             // Act
@@ -112,28 +113,7 @@ class UpdateProjectCommandHandlerTest {
                     List.of("Web"), List.of("PostgreSQL"), "Clean", "Fintech", UUID.randomUUID());
 
             when(organizations.findById(orgId)).thenReturn(Optional.of(org));
-            when(projects.findById(projectId)).thenReturn(Optional.empty());
-
-            // Act & Assert
-            assertThatThrownBy(() -> handler.handle(command))
-                    .isInstanceOf(DomainException.class);
-            verify(projects, never()).save(any());
-        }
-
-        @Test
-        @DisplayName("should fail if project does not belong to organization")
-        void should_fail_if_project_belongs_to_other_org() {
-            // Arrange
-            Organization org = OrganizationMother.active().build();
-            UUID orgId = org.getId();
-            Project project = ProjectMother.standard().withOrganizationId(UUID.randomUUID()).build(); // belongs to other org
-            UUID projectId = project.getId();
-            UpdateProjectCommand command = new UpdateProjectCommand(
-                    orgId, projectId, "Name", "Desc", List.of("Java"), List.of("Spring"),
-                    List.of("Web"), List.of("PostgreSQL"), "Clean", "Fintech", UUID.randomUUID());
-
-            when(organizations.findById(orgId)).thenReturn(Optional.of(org));
-            when(projects.findById(projectId)).thenReturn(Optional.of(project));
+            when(projects.findByIdAndOrganizationIdAndStatus(projectId, orgId, ProjectStatus.ACTIVE)).thenReturn(Optional.empty());
 
             // Act & Assert
             assertThatThrownBy(() -> handler.handle(command))
@@ -154,8 +134,8 @@ class UpdateProjectCommandHandlerTest {
                     List.of("Web"), List.of("PostgreSQL"), "Clean", "Fintech", UUID.randomUUID());
 
             when(organizations.findById(orgId)).thenReturn(Optional.of(org));
-            when(projects.findById(projectId)).thenReturn(Optional.of(project));
-            when(projects.existsByOrganizationIdAndNameAndIdNot(orgId, "Duplicate Name", projectId)).thenReturn(true);
+            when(projects.findByIdAndOrganizationIdAndStatus(projectId, orgId, ProjectStatus.ACTIVE)).thenReturn(Optional.of(project));
+            when(projects.existsByOrganizationIdAndNameAndIdNotAndStatus(orgId, "Duplicate Name", projectId, ProjectStatus.ACTIVE)).thenReturn(true);
 
             // Act & Assert
             assertThatThrownBy(() -> handler.handle(command))
@@ -176,8 +156,8 @@ class UpdateProjectCommandHandlerTest {
                     List.of("Web"), List.of("PostgreSQL"), "Clean", "Fintech", UUID.randomUUID());
 
             when(organizations.findById(orgId)).thenReturn(Optional.of(org));
-            when(projects.findById(projectId)).thenReturn(Optional.of(project));
-            when(projects.existsByOrganizationIdAndNameAndIdNot(orgId, "Shared Name", projectId)).thenReturn(false);
+            when(projects.findByIdAndOrganizationIdAndStatus(projectId, orgId, ProjectStatus.ACTIVE)).thenReturn(Optional.of(project));
+            when(projects.existsByOrganizationIdAndNameAndIdNotAndStatus(orgId, "Shared Name", projectId, ProjectStatus.ACTIVE)).thenReturn(false);
             when(projects.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
 
             // Act
@@ -185,7 +165,7 @@ class UpdateProjectCommandHandlerTest {
 
             // Assert
             assertThat(updated.getName()).isEqualTo("Shared Name");
-            verify(projects).existsByOrganizationIdAndNameAndIdNot(orgId, "Shared Name", projectId);
+            verify(projects).existsByOrganizationIdAndNameAndIdNotAndStatus(orgId, "Shared Name", projectId, ProjectStatus.ACTIVE);
             verify(projects).save(project);
         }
     }

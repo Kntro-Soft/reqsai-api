@@ -1,23 +1,26 @@
 package com.kntro.reqsai.workspace.application.handler;
 
-import com.kntro.reqsai.workspace.application.command.DeleteProjectCommand;
+import com.kntro.reqsai.workspace.application.command.ArchiveProjectCommand;
 import com.kntro.reqsai.workspace.application.port.ProjectRepository;
 import com.kntro.reqsai.workspace.domain.exception.WorkspaceExceptions;
 import com.kntro.reqsai.workspace.domain.model.Project;
+import com.kntro.reqsai.workspace.domain.model.ProjectStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 @Component
 @RequiredArgsConstructor
-public class DeleteProjectCommandHandler {
+public class ArchiveProjectCommandHandler {
 
     private final ProjectRepository projects;
 
     @Transactional
-    public void handle(DeleteProjectCommand command) {
-        Project project = projects.findByIdAndOrganizationId(command.projectId(), command.organizationId())
+    public void handle(ArchiveProjectCommand command) {
+        Project project = projects.findByIdAndOrganizationIdAndStatus(
+                        command.projectId(), command.organizationId(), ProjectStatus.ACTIVE)
                 .orElseThrow(() -> WorkspaceExceptions.projectNotFound(command.projectId()));
-        projects.delete(project);
+        project.archive();
+        projects.save(project);
     }
 }

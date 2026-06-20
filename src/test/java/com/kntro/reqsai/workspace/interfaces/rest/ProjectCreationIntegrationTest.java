@@ -119,7 +119,28 @@ class ProjectCreationIntegrationTest extends AbstractIntegrationTest {
         assertThat(updatedProjectRow.get("name")).isEqualTo("My Updated Project");
         assertThat(updatedProjectRow.get("description")).isEqualTo("An updated project description");
 
-        // Delete Project
+        // Archive Project
+        ResponseEntity<Void> archiveRes = client().post().uri("/api/organizations/{orgId}/projects/{projectId}/archive", orgId, projectId)
+                .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId.toString(), "ROLE_USER"))
+                .header("Api-Version", "1")
+                .exchange((req, response) -> ResponseEntity.status(response.getStatusCode()).build());
+
+        assertThat(archiveRes.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+
+        // Assert project archived and glossary preserved
+        String statusAfterArchive = jdbcTemplate.queryForObject(
+                "SELECT status FROM \"" + schema + "\".projects WHERE id = ?::uuid",
+                String.class, projectId
+        );
+        assertThat(statusAfterArchive).isEqualTo("ARCHIVED");
+
+        Integer glossaryCountAfterArchive = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM \"" + schema + "\".glossaries WHERE project_id = ?::uuid",
+                Integer.class, projectId
+        );
+        assertThat(glossaryCountAfterArchive).isEqualTo(1);
+
+        // Delete Project physically
         ResponseEntity<Void> deleteRes = client().delete().uri("/api/organizations/{orgId}/projects/{projectId}", orgId, projectId)
                 .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId.toString(), "ROLE_USER"))
                 .header("Api-Version", "1")
@@ -127,7 +148,6 @@ class ProjectCreationIntegrationTest extends AbstractIntegrationTest {
 
         assertThat(deleteRes.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
 
-        // Assert DB rows deleted (including cascaded glossary)
         Integer projectCountAfterDelete = jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM \"" + schema + "\".projects WHERE id = ?::uuid",
                 Integer.class, projectId

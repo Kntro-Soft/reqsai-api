@@ -5,6 +5,7 @@ import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
 import com.kntro.reqsai.workspace.application.port.ProjectRepository;
 import com.kntro.reqsai.workspace.domain.exception.WorkspaceExceptions;
 import com.kntro.reqsai.workspace.domain.model.Project;
+import com.kntro.reqsai.workspace.domain.model.ProjectStatus;
 import com.kntro.reqsai.workspace.domain.valueobjects.TechnicalProfile;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -22,14 +23,12 @@ public class UpdateProjectCommandHandler {
         organizations.findById(command.organizationId())
                 .orElseThrow(() -> WorkspaceExceptions.organizationNotFound(command.organizationId()));
 
-        Project project = projects.findById(command.projectId())
+        Project project = projects.findByIdAndOrganizationIdAndStatus(
+                        command.projectId(), command.organizationId(), ProjectStatus.ACTIVE)
                 .orElseThrow(() -> WorkspaceExceptions.projectNotFound(command.projectId()));
 
-        if (!project.getOrganizationId().equals(command.organizationId())) {
-            throw WorkspaceExceptions.projectNotFound(command.projectId());
-        }
-
-        if (projects.existsByOrganizationIdAndNameAndIdNot(command.organizationId(), command.name(), command.projectId())) {
+        if (projects.existsByOrganizationIdAndNameAndIdNotAndStatus(
+                command.organizationId(), command.name(), command.projectId(), ProjectStatus.ACTIVE)) {
             throw WorkspaceExceptions.projectNameAlreadyExists(command.name());
         }
 

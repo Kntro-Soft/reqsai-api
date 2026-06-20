@@ -48,7 +48,7 @@ class CreateProjectCommandHandlerTest {
             CreateProjectCommand command = CreateProjectCommandMother.withOrganizationId(orgId);
 
             when(organizations.findById(orgId)).thenReturn(Optional.of(org));
-            when(projects.existsByOrganizationIdAndName(orgId, command.name())).thenReturn(false);
+            when(projects.existsByOrganizationIdAndNameAndStatus(orgId, command.name(), ProjectStatus.ACTIVE)).thenReturn(false);
             when(projects.countActiveByOrganizationId(orgId)).thenReturn(0);
             when(projects.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -91,7 +91,7 @@ class CreateProjectCommandHandlerTest {
             CreateProjectCommand command = CreateProjectCommandMother.withOrganizationId(orgId);
 
             when(organizations.findById(orgId)).thenReturn(Optional.of(org));
-            when(projects.existsByOrganizationIdAndName(orgId, command.name())).thenReturn(true);
+            when(projects.existsByOrganizationIdAndNameAndStatus(orgId, command.name(), ProjectStatus.ACTIVE)).thenReturn(true);
 
             // Act & Assert
             assertThatThrownBy(() -> handler.handle(command))
@@ -108,7 +108,7 @@ class CreateProjectCommandHandlerTest {
             CreateProjectCommand command = CreateProjectCommandMother.withOrganizationId(orgId);
 
             when(organizations.findById(orgId)).thenReturn(Optional.of(org));
-            when(projects.existsByOrganizationIdAndName(orgId, command.name())).thenReturn(false);
+            when(projects.existsByOrganizationIdAndNameAndStatus(orgId, command.name(), ProjectStatus.ACTIVE)).thenReturn(false);
             when(projects.countActiveByOrganizationId(orgId)).thenReturn(0);
             when(projects.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -117,7 +117,7 @@ class CreateProjectCommandHandlerTest {
 
             // Assert
             assertThat(project.getName()).isEqualTo(command.name());
-            verify(projects).existsByOrganizationIdAndName(orgId, command.name());
+            verify(projects).existsByOrganizationIdAndNameAndStatus(orgId, command.name(), ProjectStatus.ACTIVE);
             verify(projects).save(any(Project.class));
         }
 
@@ -131,7 +131,7 @@ class CreateProjectCommandHandlerTest {
             CreateProjectCommand command = CreateProjectCommandMother.withOrganizationId(orgId);
 
             when(organizations.findById(orgId)).thenReturn(Optional.of(org));
-            when(projects.existsByOrganizationIdAndName(orgId, command.name())).thenReturn(false);
+            when(projects.existsByOrganizationIdAndNameAndStatus(orgId, command.name(), ProjectStatus.ACTIVE)).thenReturn(false);
             // already 1 active project
             when(projects.countActiveByOrganizationId(orgId)).thenReturn(1);
 
@@ -150,7 +150,7 @@ class CreateProjectCommandHandlerTest {
             CreateProjectCommand command = CreateProjectCommandMother.withOrganizationId(orgId);
 
             when(organizations.findById(orgId)).thenReturn(Optional.of(org));
-            when(projects.existsByOrganizationIdAndName(orgId, command.name())).thenReturn(false);
+            when(projects.existsByOrganizationIdAndNameAndStatus(orgId, command.name(), ProjectStatus.ACTIVE)).thenReturn(false);
             when(projects.countActiveByOrganizationId(orgId)).thenReturn(0);
             when(projects.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
 
