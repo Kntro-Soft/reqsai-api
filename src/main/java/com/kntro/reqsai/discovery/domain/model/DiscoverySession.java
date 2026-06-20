@@ -1,15 +1,6 @@
 package com.kntro.reqsai.discovery.domain.model;
 
-import com.kntro.reqsai.discovery.domain.event.DiscoverySessionCreatedEvent;
-import com.kntro.reqsai.discovery.domain.event.DiscoverySessionProcessingCompletedEvent;
-import com.kntro.reqsai.discovery.domain.event.DiscoverySessionProcessingFailedEvent;
-import com.kntro.reqsai.discovery.domain.event.DiscoverySessionProcessingStartedEvent;
-import com.kntro.reqsai.discovery.domain.event.DiscoverySessionRecordingPausedEvent;
-import com.kntro.reqsai.discovery.domain.event.DiscoverySessionRecordingResumedEvent;
-import com.kntro.reqsai.discovery.domain.event.DiscoverySessionRecordingStartedEvent;
-import com.kntro.reqsai.discovery.domain.event.DiscoverySessionRecordingStoppedEvent;
-import com.kntro.reqsai.discovery.domain.event.DiscoverySessionResetEvent;
-import com.kntro.reqsai.discovery.domain.event.DiscoverySessionTranscriptUploadedEvent;
+import com.kntro.reqsai.discovery.domain.event.*;
 import com.kntro.reqsai.discovery.domain.exception.DiscoveryError;
 import com.kntro.reqsai.shared.domain.model.AggregateRoot;
 import com.kntro.reqsai.shared.domain.support.Assert;
@@ -22,6 +13,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import lombok.Getter;
+import org.jspecify.annotations.Nullable;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -141,6 +133,28 @@ public class DiscoverySession extends AggregateRoot {
                 DiscoveryError.INVALID_SESSION_STATUS);
         this.status = SessionStatus.RECORDING;
         registerEvent(DiscoverySessionRecordingResumedEvent.of(getId(), projectId));
+    }
+
+    /**
+     * Records a transcript segment during live capture: requires {@code RECORDING}, advances
+     * {@code lastSequence} (only for finals — partials reuse the current value), and raises
+     * {@link TranscriptSegmentAppendedEvent} carrying the
+     * full segment payload for the realtime transcript-out push.
+     *
+     * @param isFinal {@code true} for a committed segment (increment sequence); {@code false} for a
+     *                live hypothesis (re-uses the current {@code lastSequence} so the client updates in place)
+     * @return the sequence assigned to this segment
+     */
+    public int recordSegment(String text, @Nullable String speakerLabel, long startMs, long endMs, boolean isFinal) {
+        Assert.isTrue(this.status == SessionStatus.RECORDING, "status", "recordSegment requires RECORDING but was " + this.status, DiscoveryError.INVALID_SESSION_STATUS);
+        String clean = Assert.notBlank(text, "text");
+        Assert.isTrue(startMs >= 0, "startMs", "startMs must be >= 0");
+        Assert.isTrue(endMs >= startMs, "endMs", "endMs must be >= startMs");
+        if (isFinal) {
+            this.lastSequence += 1;
+        }
+        registerEvent(TranscriptSegmentAppendedEvent.of(getId(), this.lastSequence, speakerLabel, clean, startMs, endMs, isFinal));
+        return this.lastSequence;
     }
 
     /** Stops the live recording: {@code RECORDING} or {@code PAUSED → STOPPED}. */

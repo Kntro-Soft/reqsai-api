@@ -104,7 +104,10 @@ reqsai:
   url: ${APP_URL:http://localhost:8080}
   ai:
     stt:
-      provider: ${STT_PROVIDER:whisper}
+      batch:
+        provider: ${STT_PROVIDER:whisper}
+      streaming:
+        provider: ${STT_STREAMING_PROVIDER:whisperlive}
     generation:
       provider: ${GENERATION_PROVIDER:gemini}
     embedding:

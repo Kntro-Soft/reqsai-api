@@ -1,4 +1,4 @@
-package com.kntro.reqsai.discovery.infrastructure.ai.transcription.strategy;
+package com.kntro.reqsai.discovery.infrastructure.ai.transcription.batch.strategy;
 
 import com.kntro.reqsai.discovery.application.port.TranscriptionResult;
 import com.kntro.reqsai.discovery.infrastructure.exception.DiscoveryInfrastructureExceptions;

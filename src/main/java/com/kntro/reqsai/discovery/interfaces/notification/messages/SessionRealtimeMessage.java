@@ -12,7 +12,7 @@ import java.util.UUID;
  * correct UI component. The {@code sealed} hierarchy makes the full set of messages explicit and
  * lets serializers/consumers reason about it exhaustively at compile time.
  */
-public sealed interface SessionRealtimeMessage permits SessionStatusChangedMessage, SessionProcessingFailedMessage, SessionStoryGeneratedMessage {
+public sealed interface SessionRealtimeMessage permits SessionStatusChangedMessage, SessionProcessingFailedMessage, SessionStoryGeneratedMessage, SessionTranscriptSegmentMessage {
 
     /** Session this update belongs to (matches the subscribed topic). */
     UUID sessionId();
