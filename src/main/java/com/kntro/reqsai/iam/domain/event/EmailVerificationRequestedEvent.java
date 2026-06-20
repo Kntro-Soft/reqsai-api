@@ -10,10 +10,10 @@ import java.util.UUID;
  * Downstream listeners can use this to trigger the verification email without coupling the domain
  * to the email infrastructure.
  */
-public record EmailVerificationRequestedEvent(UUID accountId, Instant occurredAt) implements DomainEvent {
+public record EmailVerificationRequestedEvent(UUID accountId, String rawToken, Instant occurredAt) implements DomainEvent {
 
-    public static EmailVerificationRequestedEvent of(UUID accountId) {
-        return new EmailVerificationRequestedEvent(accountId, Instant.now());
+    public static EmailVerificationRequestedEvent of(UUID accountId, String rawToken) {
+        return new EmailVerificationRequestedEvent(accountId, rawToken, Instant.now());
     }
 
     @Override
