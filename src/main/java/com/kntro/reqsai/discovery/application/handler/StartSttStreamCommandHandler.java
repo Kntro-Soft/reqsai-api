@@ -41,6 +41,7 @@ public class StartSttStreamCommandHandler {
             throw new DomainException(DiscoveryError.INVALID_SESSION_STATUS, "Session %s must be in RECORDING status to open an STT stream (current: %s)".formatted(command.sessionId(), session.getStatus()));
         }
 
-        return streaming.open(new StreamingTranscriptionPort.Context(command.sessionId(), null), listener);
+        String language = session.getLanguage() != null ? session.getLanguage().value() : null;
+        return streaming.open(new StreamingTranscriptionPort.Context(command.sessionId(), language), listener);
     }
 }

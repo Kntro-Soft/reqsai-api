@@ -20,8 +20,10 @@ import org.springframework.transaction.annotation.Transactional;
  * listener then pushes the segment to the client live.
  *
  * <p>The session must be {@code RECORDING}; the domain method enforces that invariant and assigns the
- * monotonic sequence number. Currently only {@code isFinal=true} segments are dispatched by the WS
- * handler, so {@code sequence} is always assigned by the session rather than supplied by the client.
+ * monotonic sequence number. Both interim ({@code isFinal=false}) and final segments are accepted:
+ * interims fire the domain event (STOMP live preview) but are not persisted to the DB — only finals
+ * produce a committed row. This avoids duplicate-key conflicts on the {@code (session_id, sequence)}
+ * unique constraint that would otherwise occur as Deepgram emits multiple interim results per utterance.
  */
 @Component
 @RequiredArgsConstructor
@@ -36,9 +38,10 @@ public class AppendTranscriptSegmentCommandHandler {
         DiscoverySession session = sessions.findById(command.sessionId())
                 .orElseThrow(() -> DiscoveryExceptions.sessionNotFound(command.sessionId()));
         int sequence = session.recordSegment(command.text(), command.speakerLabel(), command.startMs(), command.endMs(), command.isFinal());
-        TranscriptSegment transcriptSegment = new TranscriptSegment(command.sessionId(), sequence, command.speakerLabel(), command.text(), command.startMs(), command.endMs(), command.isFinal());
-        segments.save(transcriptSegment);
-        sessions.save(session);
+        if (command.isFinal()) {
+            segments.save(new TranscriptSegment(command.sessionId(), sequence, command.speakerLabel(), command.text(), command.startMs(), command.endMs(), true));
+            sessions.save(session);
+        }
         log.debug("Appended segment #{} ({}) to session {} ({} chars)", sequence, command.isFinal() ? "final" : "partial", command.sessionId(), command.text().length());
     }
 }
