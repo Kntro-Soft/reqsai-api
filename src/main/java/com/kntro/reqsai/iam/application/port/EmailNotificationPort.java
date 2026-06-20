@@ -6,4 +6,6 @@ package com.kntro.reqsai.iam.application.port;
  */
 public interface EmailNotificationPort {
     void sendVerificationEmail(String toEmail, String firstName, String rawToken);
+
+    void sendPasswordResetEmail(String toEmail, String firstName, String rawToken);
 }

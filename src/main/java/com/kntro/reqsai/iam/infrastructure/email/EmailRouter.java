@@ -34,11 +34,21 @@ public class EmailRouter implements EmailNotificationPort {
 
     @Override
     public void sendVerificationEmail(String toEmail, String firstName, String rawToken) {
-        log.debug("Routing email to provider '{}' for {}", provider, toEmail);
-        switch (provider) {
-            case "mailtrap" -> mailtrap.sendVerificationEmail(toEmail, firstName, rawToken);
-            case "gmail"    -> gmail.sendVerificationEmail(toEmail, firstName, rawToken);
-            default         -> mailpit.sendVerificationEmail(toEmail, firstName, rawToken);
-        }
+        log.debug("Routing verification email to provider '{}' for {}", provider, toEmail);
+        resolve().sendVerificationEmail(toEmail, firstName, rawToken);
+    }
+
+    @Override
+    public void sendPasswordResetEmail(String toEmail, String firstName, String rawToken) {
+        log.debug("Routing password reset email to provider '{}' for {}", provider, toEmail);
+        resolve().sendPasswordResetEmail(toEmail, firstName, rawToken);
+    }
+
+    private SmtpEmailAdapter resolve() {
+        return switch (provider) {
+            case "mailtrap" -> mailtrap;
+            case "gmail"    -> gmail;
+            default         -> mailpit;
+        };
     }
 }
