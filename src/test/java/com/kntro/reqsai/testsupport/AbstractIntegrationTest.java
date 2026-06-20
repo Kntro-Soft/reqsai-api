@@ -1,8 +1,6 @@
 package com.kntro.reqsai.testsupport;
 
-import com.kntro.reqsai.workspace.api.WorkspaceModuleApi;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.web.client.RestClient;
@@ -16,15 +14,8 @@ import org.testcontainers.utility.DockerImageName;
  * Singleton container pattern: one {@code pgvector/pgvector:pg16} container is started once per JVM
  * fork (static initializer) and reused by every subclass. {@code @DynamicPropertySource} wires the
  * datasource so each Spring context connects to the same running instance.
- * <p>
- * {@code workspaceApi} is mocked because the Workspace module's API implementation lives in a
- * parallel branch and is merged later — unit-test coverage for the discovery→workspace interaction
- * belongs in {@code RealtimeSuggestionServiceTest}.
  */
 public abstract class AbstractIntegrationTest {
-
-    @MockitoBean
-    protected WorkspaceModuleApi workspaceApi;
 
     @Value("${local.server.port:0}")
     private int port;
