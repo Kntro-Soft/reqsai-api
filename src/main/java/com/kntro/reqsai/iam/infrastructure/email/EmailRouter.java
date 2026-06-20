@@ -1,9 +1,7 @@
 package com.kntro.reqsai.iam.infrastructure.email;
 
 import com.kntro.reqsai.iam.application.port.EmailNotificationPort;
-import com.kntro.reqsai.iam.infrastructure.email.strategy.GmailEmailAdapter;
-import com.kntro.reqsai.iam.infrastructure.email.strategy.MailpitEmailAdapter;
-import com.kntro.reqsai.iam.infrastructure.email.strategy.MailtrapEmailAdapter;
+import com.kntro.reqsai.iam.infrastructure.email.strategy.SmtpEmailAdapter;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -12,7 +10,7 @@ import lombok.extern.slf4j.Slf4j;
  *
  * <ul>
  *   <li>{@code mailpit}  — local SMTP catch-all (Docker, port 1025)
- *   <li>{@code mailtrap} — Mailtrap SMTP sandbox (staging, no real sending)
+ *   <li>{@code mailtrap} — mailtrap SMTP sandbox (staging, no real sending)
  *   <li>{@code gmail}    — Gmail SMTP with App Password (set MAIL_USERNAME + MAIL_PASSWORD)
  * </ul>
  *
@@ -23,15 +21,15 @@ import lombok.extern.slf4j.Slf4j;
 public class EmailRouter implements EmailNotificationPort {
 
     private final String provider;
-    private final MailpitEmailAdapter mailpit;
-    private final MailtrapEmailAdapter mailtrap;
-    private final GmailEmailAdapter gmail;
+    private final SmtpEmailAdapter mailpit;
+    private final SmtpEmailAdapter mailtrap;
+    private final SmtpEmailAdapter gmail;
 
-    public EmailRouter(String provider, MailpitEmailAdapter mailpit, MailtrapEmailAdapter mailtrap, GmailEmailAdapter gmail) {
+    public EmailRouter(String provider, SmtpEmailAdapter mailpit, SmtpEmailAdapter mailtrap, SmtpEmailAdapter gmail) {
         this.provider = provider;
-        this.mailpit = mailpit;
+        this.mailpit  = mailpit;
         this.mailtrap = mailtrap;
-        this.gmail = gmail;
+        this.gmail    = gmail;
     }
 
     @Override

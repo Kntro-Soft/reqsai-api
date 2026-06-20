@@ -6,12 +6,23 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 
+/**
+ * SMTP-based implementation of {@link EmailNotificationPort} using Spring's {@link JavaMailSender}.
+ * A single instance of this class is wired per active email provider (Mailpit, Mailtrap, Gmail)
+ * via {@code EmailConfiguration}; the {@code providerName} field identifies the provider in
+ * exception messages.
+ * <p>
+ * All three supported SMTP providers share the same JavaMail protocol. HTTP-based providers
+ * (e.g. Resend, SendGrid) require a separate adapter that uses {@code RestClient} with an API key
+ * instead of {@link JavaMailSender}.
+ */
 @RequiredArgsConstructor
-public class MailtrapEmailAdapter implements EmailNotificationPort {
+public class SmtpEmailAdapter implements EmailNotificationPort {
 
     private final JavaMailSender mailSender;
     private final String appUrl;
     private final String fromEmail;
+    private final String providerName;
 
     @Override
     public void sendVerificationEmail(String toEmail, String firstName, String rawToken) {
@@ -25,7 +36,7 @@ public class MailtrapEmailAdapter implements EmailNotificationPort {
             helper.setText("<p>Hola " + firstName + ",</p><p><a href=\"" + link + "\">Verificar correo</a></p>", true);
             mailSender.send(message);
         } catch (Exception e) {
-            throw new IllegalStateException("Failed to send verification email via Mailtrap", e);
+            throw new IllegalStateException("Failed to send verification email via " + providerName, e);
         }
     }
 }
