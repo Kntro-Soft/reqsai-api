@@ -40,4 +40,19 @@ public final class WorkspaceExceptions {
         return new DomainException(WorkspaceError.PROJECT_PLAN_LIMIT_EXCEEDED,
                 "Project limit reached for this plan: " + maxProjects);
     }
+
+    public static EntityNotFoundException glossaryTermNotFound(UUID id) {
+        return new EntityNotFoundException(WorkspaceError.GLOSSARY_TERM_NOT_FOUND,
+                "Glossary term not found: " + id);
+    }
+
+    public static EntityNotFoundException projectConstraintNotFound(UUID id) {
+        return new EntityNotFoundException(WorkspaceError.PROJECT_CONSTRAINT_NOT_FOUND,
+                "Project constraint not found: " + id);
+    }
+
+    public static DomainException glossaryTermAlreadyExists(String term) {
+        return new DomainException(WorkspaceError.GLOSSARY_TERM_ALREADY_EXISTS,
+                "Term already exists in this glossary: " + term);
+    }
 }
