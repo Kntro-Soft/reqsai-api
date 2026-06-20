@@ -3,25 +3,25 @@ package com.kntro.reqsai.iam.application.handler;
 import com.kntro.reqsai.iam.application.command.AuthenticateCommand;
 import com.kntro.reqsai.iam.application.port.AccountRepository;
 import com.kntro.reqsai.iam.application.port.IssuedToken;
+import com.kntro.reqsai.iam.application.port.OrganizationLookupPort;
 import com.kntro.reqsai.iam.application.port.PasswordHasher;
+import com.kntro.reqsai.iam.application.port.RefreshTokenRepository;
 import com.kntro.reqsai.iam.application.port.TokenIssuer;
 import com.kntro.reqsai.iam.application.port.UserRepository;
 import com.kntro.reqsai.iam.application.result.AuthenticatedSession;
 import com.kntro.reqsai.iam.domain.exception.IamExceptions;
 import com.kntro.reqsai.iam.domain.model.Account;
-import com.kntro.reqsai.iam.domain.model.User;
 import com.kntro.reqsai.iam.domain.model.RefreshToken;
-import com.kntro.reqsai.iam.application.port.RefreshTokenRepository;
-import com.kntro.reqsai.iam.application.port.OrganizationLookupPort;
+import com.kntro.reqsai.iam.domain.model.User;
+import com.kntro.reqsai.iam.infrastructure.security.IamJwtProperties;
+import com.kntro.reqsai.shared.domain.support.TokenGenerator;
 import com.kntro.reqsai.shared.domain.valueobjects.Email;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.security.SecureRandom;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
 /**
@@ -42,7 +42,6 @@ public class AuthenticateCommandHandler {
 
     private static final String DEFAULT_ROLE = "ROLE_USER";
     private static final int REFRESH_TOKEN_BYTES = 32;
-    private static final long REFRESH_TOKEN_DAYS = 30L;
 
     private final AccountRepository accounts;
     private final UserRepository users;
@@ -50,6 +49,7 @@ public class AuthenticateCommandHandler {
     private final TokenIssuer tokenIssuer;
     private final RefreshTokenRepository refreshTokens;
     private final OrganizationLookupPort organizations;
+    private final IamJwtProperties jwtProperties;
 
     @Transactional
     public AuthenticatedSession handle(AuthenticateCommand command) {
@@ -73,8 +73,8 @@ public class AuthenticateCommandHandler {
 
         IssuedToken token = tokenIssuer.issue(user.getId(), orgId, DEFAULT_ROLE, account.getTermsVersion());
 
-        String rawRefreshToken = generateRawToken();
-        Instant expiresAt = Instant.now().plus(REFRESH_TOKEN_DAYS, ChronoUnit.DAYS);
+        String rawRefreshToken = TokenGenerator.generate(REFRESH_TOKEN_BYTES);
+        Instant expiresAt = Instant.now().plus(jwtProperties.refreshTokenExpiration());
         RefreshToken refreshToken = RefreshToken.issue(user.getId(), rawRefreshToken, expiresAt);
         refreshTokens.save(refreshToken);
 
@@ -90,13 +90,4 @@ public class AuthenticateCommandHandler {
         return organizations.findOrganizationIdByOwnerId(user.getId()).orElse(null);
     }
 
-    private String generateRawToken() {
-        byte[] bytes = new byte[REFRESH_TOKEN_BYTES];
-        new SecureRandom().nextBytes(bytes);
-        StringBuilder hex = new StringBuilder(REFRESH_TOKEN_BYTES * 2);
-        for (byte b : bytes) {
-            hex.append(String.format("%02x", b));
-        }
-        return hex.toString();
-    }
 }
