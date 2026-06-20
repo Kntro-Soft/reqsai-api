@@ -16,13 +16,8 @@ public class DeleteProjectCommandHandler {
 
     @Transactional
     public void handle(DeleteProjectCommand command) {
-        Project project = projects.findById(command.projectId())
+        Project project = projects.findByIdAndOrganizationId(command.projectId(), command.organizationId())
                 .orElseThrow(() -> WorkspaceExceptions.projectNotFound(command.projectId()));
-
-        if (!project.getOrganizationId().equals(command.organizationId())) {
-            throw WorkspaceExceptions.projectNotFound(command.projectId());
-        }
-
         projects.delete(project);
     }
 }

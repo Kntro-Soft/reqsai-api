@@ -15,6 +15,9 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import org.jspecify.annotations.Nullable;
 
+import java.time.Instant;
+import java.util.UUID;
+
 /**
  * A domain-specific term with its definition, owned by a {@link Glossary}.
  * The {@code embedding} is populated asynchronously after creation and is used
@@ -26,8 +29,8 @@ import org.jspecify.annotations.Nullable;
 @Getter
 public class GlossaryTerm extends AuditableEntity {
 
-    static final int TERM_MAX = 150;
-    static final int DEFINITION_MAX = 2000;
+    private static final int TERM_MAX = 200;
+    private static final int DEFINITION_MAX = 4000;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "glossary_id", nullable = false, updatable = false)
@@ -36,8 +39,14 @@ public class GlossaryTerm extends AuditableEntity {
     @Column(name = "term", nullable = false, length = TERM_MAX)
     private String term;
 
-    @Column(name = "definition", nullable = false, columnDefinition = "text")
+    @Column(name = "definition", nullable = false, length = DEFINITION_MAX, columnDefinition = "text")
     private String definition;
+
+    @Column(name = "added_by", columnDefinition = "uuid", nullable = false, updatable = false)
+    private UUID addedBy;
+
+    @Column(name = "added_at", nullable = false, updatable = false)
+    private Instant addedAt;
 
     @JdbcTypeCode(SqlTypes.VECTOR)
     @Array(length = EmbeddingPort.DIMENSIONS)
@@ -48,15 +57,17 @@ public class GlossaryTerm extends AuditableEntity {
         super();
     }
 
-    GlossaryTerm(Glossary glossary, String term, String definition) {
+    GlossaryTerm(Glossary glossary, String term, String definition, UUID addedBy) {
         super();
-        this.glossary   = Assert.notNull(glossary, "glossary");
-        this.term       = Assert.maxLength(Assert.notBlank(term, "term"), "term", TERM_MAX);
+        this.glossary = Assert.notNull(glossary, "glossary");
+        this.term = Assert.maxLength(Assert.notBlank(term, "term"), "term", TERM_MAX);
         this.definition = Assert.maxLength(Assert.notBlank(definition, "definition"), "definition", DEFINITION_MAX);
+        this.addedBy = Assert.notNull(addedBy, "addedBy");
+        this.addedAt = Instant.now();
     }
 
     void update(String term, String definition) {
-        this.term       = Assert.maxLength(Assert.notBlank(term, "term"), "term", TERM_MAX);
+        this.term = Assert.maxLength(Assert.notBlank(term, "term"), "term", TERM_MAX);
         this.definition = Assert.maxLength(Assert.notBlank(definition, "definition"), "definition", DEFINITION_MAX);
         this.embedding  = null;
     }

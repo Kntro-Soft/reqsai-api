@@ -2,10 +2,9 @@ package com.kntro.reqsai.workspace.domain.model;
 
 import com.kntro.reqsai.shared.domain.model.AggregateRoot;
 import com.kntro.reqsai.shared.domain.support.Assert;
-import com.kntro.reqsai.workspace.domain.event.GlossaryTermSavedEvent;
 import com.kntro.reqsai.workspace.domain.exception.WorkspaceExceptions;
-import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.OneToMany;
@@ -41,41 +40,48 @@ public class Glossary extends AggregateRoot {
         return Collections.unmodifiableList(terms);
     }
 
-    public GlossaryTerm addTerm(String term, String definition) {
-        boolean termExists = terms.stream()
-                .anyMatch(t -> t.getTerm().equalsIgnoreCase(term.trim()));
-        if (termExists) {
-            throw WorkspaceExceptions.glossaryTermAlreadyExists(term);
+    public GlossaryTerm addTerm(String term, String definition, UUID addedBy) {
+        String normalizedTerm = Assert.notBlank(term, "term");
+        boolean exists = terms.stream()
+                .anyMatch(existing -> existing.getTerm().trim().equalsIgnoreCase(normalizedTerm));
+        if (exists) {
+            throw WorkspaceExceptions.glossaryTermAlreadyExists(normalizedTerm);
         }
-        var gt = new GlossaryTerm(this, term, definition);
-        terms.add(gt);
-        registerEvent(GlossaryTermSavedEvent.of(projectId, gt.getId(), term, definition));
-        return gt;
+
+        GlossaryTerm glossaryTerm = new GlossaryTerm(this, normalizedTerm, definition, addedBy);
+        terms.add(glossaryTerm);
+        return glossaryTerm;
     }
 
-    public void updateTerm(UUID termId, String term, String definition) {
-        boolean termExists = terms.stream()
-                .filter(t -> !t.getId().equals(termId))
-                .anyMatch(t -> t.getTerm().equalsIgnoreCase(term.trim()));
-        if (termExists) {
-            throw WorkspaceExceptions.glossaryTermAlreadyExists(term);
+    public GlossaryTerm updateTerm(UUID termId, String term, String definition) {
+        GlossaryTerm glossaryTerm = terms.stream()
+                .filter(existing -> existing.getId().equals(termId))
+                .findFirst()
+                .orElseThrow(() -> WorkspaceExceptions.glossaryTermNotFound(termId));
+
+        String normalizedTerm = Assert.notBlank(term, "term");
+        boolean exists = terms.stream()
+                .filter(existing -> !existing.getId().equals(termId))
+                .anyMatch(existing -> existing.getTerm().trim().equalsIgnoreCase(normalizedTerm));
+        if (exists) {
+            throw WorkspaceExceptions.glossaryTermAlreadyExists(normalizedTerm);
         }
-        findTerm(termId).update(term, definition);
-        registerEvent(GlossaryTermSavedEvent.of(projectId, termId, term, definition));
+
+        glossaryTerm.update(normalizedTerm, definition);
+        return glossaryTerm;
     }
 
     public void removeTerm(UUID termId) {
-        terms.removeIf(t -> t.getId().equals(termId));
+        boolean removed = terms.removeIf(existing -> existing.getId().equals(termId));
+        if (!removed) {
+            throw WorkspaceExceptions.glossaryTermNotFound(termId);
+        }
     }
 
     public void applyTermEmbedding(UUID termId, float[] embedding) {
-        findTerm(termId).applyEmbedding(embedding);
-    }
-
-    private GlossaryTerm findTerm(UUID termId) {
-        return terms.stream()
+        terms.stream()
                 .filter(t -> t.getId().equals(termId))
                 .findFirst()
-                .orElseThrow(() -> WorkspaceExceptions.glossaryTermNotFound(termId));
+                .ifPresent(t -> t.applyEmbedding(embedding));
     }
 }

@@ -1,14 +1,21 @@
 package com.kntro.reqsai.workspace.application.port;
 
 import com.kntro.reqsai.workspace.domain.model.Project;
+import com.kntro.reqsai.workspace.domain.model.ProjectStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+
 import java.util.Optional;
 import java.util.UUID;
 
 public interface ProjectRepository {
     Project save(Project project);
     Optional<Project> findById(UUID id);
-    boolean existsByName(String name);
-    boolean existsByNameAndIdNot(String name, UUID id);
-    int countActive();
+    Optional<Project> findByIdAndOrganizationId(UUID id, UUID organizationId);
+    Optional<Project> findByIdAndOrganizationIdAndStatus(UUID id, UUID organizationId, ProjectStatus status);
+    Page<Project> findAllByOrganizationIdAndStatus(UUID organizationId, ProjectStatus status, Pageable pageable);
+    boolean existsByOrganizationIdAndNameAndStatus(UUID organizationId, String name, ProjectStatus status);
+    boolean existsByOrganizationIdAndNameAndIdNotAndStatus(UUID organizationId, String name, UUID id, ProjectStatus status);
+    int countActiveByOrganizationId(UUID organizationId);
     void delete(Project project);
 }

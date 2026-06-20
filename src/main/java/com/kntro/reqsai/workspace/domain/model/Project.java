@@ -2,7 +2,6 @@ package com.kntro.reqsai.workspace.domain.model;
 
 import com.kntro.reqsai.shared.domain.model.AggregateRoot;
 import com.kntro.reqsai.shared.domain.support.Assert;
-import com.kntro.reqsai.workspace.domain.event.ProjectConstraintSavedEvent;
 import com.kntro.reqsai.workspace.domain.event.ProjectCreatedEvent;
 import com.kntro.reqsai.workspace.domain.exception.WorkspaceExceptions;
 import com.kntro.reqsai.workspace.domain.valueobjects.TechnicalProfile;
@@ -47,7 +46,7 @@ public class Project extends AggregateRoot {
     @Column(name = "status", nullable = false, length = 16)
     private ProjectStatus status;
 
-    @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+    @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<ProjectConstraint> constraints = new ArrayList<>();
 
     protected Project() {
@@ -65,34 +64,63 @@ public class Project extends AggregateRoot {
         registerEvent(ProjectCreatedEvent.of(getId(), organizationId, createdBy));
     }
 
-    public List<ProjectConstraint> getConstraints() {
-        return Collections.unmodifiableList(constraints);
-    }
-
     public void updateDetails(String name, @Nullable String description, TechnicalProfile technicalProfile) {
         this.name = Assert.maxLength(Assert.notBlank(name, "name"), "name", NAME_MAX);
         this.description = description == null ? null : Assert.maxLength(description.strip(), "description", DESC_MAX);
         this.technicalProfile = Assert.notNull(technicalProfile, "technicalProfile");
     }
 
-    public ProjectConstraint addConstraint(String description) {
-        var c = new ProjectConstraint(this, description);
-        constraints.add(c);
-        registerEvent(ProjectConstraintSavedEvent.of(getId(), c.getId(), description));
-        return c;
+    public List<ProjectConstraint> getConstraints() {
+        return Collections.unmodifiableList(constraints);
     }
 
-    public void updateConstraint(UUID constraintId, String description) {
-        findConstraint(constraintId).update(description);
-        registerEvent(ProjectConstraintSavedEvent.of(getId(), constraintId, description));
+    public ProjectConstraint addConstraint(String description) {
+        String normalizedDescription = ProjectConstraint.normalizeDescription(description);
+        boolean exists = constraints.stream()
+                .anyMatch(existing -> existing.sameDescription(normalizedDescription));
+        if (exists) {
+            throw WorkspaceExceptions.projectConstraintAlreadyExists(normalizedDescription);
+        }
+
+        ProjectConstraint constraint = new ProjectConstraint(this, normalizedDescription);
+        constraints.add(constraint);
+        return constraint;
+    }
+
+    public ProjectConstraint getConstraint(UUID constraintId) {
+        return constraints.stream()
+                .filter(existing -> existing.getId().equals(Assert.notNull(constraintId, "constraintId")))
+                .findFirst()
+                .orElseThrow(() -> WorkspaceExceptions.projectConstraintNotFound(constraintId));
+    }
+
+    public ProjectConstraint updateConstraint(UUID constraintId, String description) {
+        ProjectConstraint constraint = getConstraint(constraintId);
+        String normalizedDescription = ProjectConstraint.normalizeDescription(description);
+        boolean exists = constraints.stream()
+                .filter(existing -> !existing.getId().equals(constraintId))
+                .anyMatch(existing -> existing.sameDescription(normalizedDescription));
+        if (exists) {
+            throw WorkspaceExceptions.projectConstraintAlreadyExists(normalizedDescription);
+        }
+
+        constraint.update(normalizedDescription);
+        return constraint;
     }
 
     public void removeConstraint(UUID constraintId) {
-        constraints.removeIf(c -> c.getId().equals(constraintId));
+        UUID normalizedId = Assert.notNull(constraintId, "constraintId");
+        boolean removed = constraints.removeIf(existing -> existing.getId().equals(normalizedId));
+        if (!removed) {
+            throw WorkspaceExceptions.projectConstraintNotFound(normalizedId);
+        }
     }
 
     public void applyConstraintEmbedding(UUID constraintId, float[] embedding) {
-        findConstraint(constraintId).applyEmbedding(embedding);
+        constraints.stream()
+                .filter(c -> c.getId().equals(constraintId))
+                .findFirst()
+                .ifPresent(c -> c.applyEmbedding(embedding));
     }
 
     public void archive() {
@@ -101,12 +129,5 @@ public class Project extends AggregateRoot {
 
     public void activate() {
         this.status = ProjectStatus.ACTIVE;
-    }
-
-    private ProjectConstraint findConstraint(UUID constraintId) {
-        return constraints.stream()
-                .filter(c -> c.getId().equals(constraintId))
-                .findFirst()
-                .orElseThrow(() -> WorkspaceExceptions.projectConstraintNotFound(constraintId));
     }
 }
