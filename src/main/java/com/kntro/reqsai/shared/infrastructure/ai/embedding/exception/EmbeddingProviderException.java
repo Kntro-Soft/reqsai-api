@@ -1,5 +1,6 @@
-package com.kntro.reqsai.discovery.infrastructure.exception;
+package com.kntro.reqsai.shared.infrastructure.ai.embedding.exception;
 
+import com.kntro.reqsai.discovery.infrastructure.exception.DiscoveryInfrastructureError;
 import com.kntro.reqsai.shared.domain.exception.InfrastructureException;
 
 /**

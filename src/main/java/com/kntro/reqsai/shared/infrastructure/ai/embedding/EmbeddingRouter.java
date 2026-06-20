@@ -1,9 +1,9 @@
-package com.kntro.reqsai.discovery.infrastructure.ai.embedding;
+package com.kntro.reqsai.shared.infrastructure.ai.embedding;
 
-import com.kntro.reqsai.discovery.application.port.EmbeddingPort;
-import com.kntro.reqsai.discovery.infrastructure.ai.embedding.strategy.GeminiEmbeddingAdapter;
-import com.kntro.reqsai.discovery.infrastructure.ai.embedding.strategy.GenericEmbeddingAdapter;
-import com.kntro.reqsai.discovery.infrastructure.ai.embedding.strategy.OpenAiEmbeddingAdapter;
+import com.kntro.reqsai.shared.application.port.EmbeddingPort;
+import com.kntro.reqsai.shared.infrastructure.ai.embedding.strategy.GeminiEmbeddingAdapter;
+import com.kntro.reqsai.shared.infrastructure.ai.embedding.strategy.GenericEmbeddingAdapter;
+import com.kntro.reqsai.shared.infrastructure.ai.embedding.strategy.OpenAiEmbeddingAdapter;
 import lombok.extern.slf4j.Slf4j;
 
 /**
