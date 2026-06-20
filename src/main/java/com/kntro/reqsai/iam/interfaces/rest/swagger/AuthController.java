@@ -1,14 +1,14 @@
 package com.kntro.reqsai.iam.interfaces.rest.swagger;
 
-import com.kntro.reqsai.iam.interfaces.rest.dto.request.AcceptTermsRequest;
+import com.kntro.reqsai.iam.interfaces.rest.dto.request.ForgotPasswordRequest;
 import com.kntro.reqsai.iam.interfaces.rest.dto.request.LoginRequest;
 import com.kntro.reqsai.iam.interfaces.rest.dto.request.RegisterRequest;
-import com.kntro.reqsai.iam.interfaces.rest.dto.request.UpdatePreferencesRequest;
+import com.kntro.reqsai.iam.interfaces.rest.dto.request.ResendVerificationRequest;
+import com.kntro.reqsai.iam.interfaces.rest.dto.request.ResetPasswordRequest;
 import com.kntro.reqsai.iam.interfaces.rest.dto.request.VerifyEmailRequest;
 import com.kntro.reqsai.iam.interfaces.rest.dto.response.AuthResponse;
 import com.kntro.reqsai.iam.interfaces.rest.dto.response.UserResponse;
 import com.kntro.reqsai.shared.infrastructure.configuration.ApiVersioning;
-import com.kntro.reqsai.shared.infrastructure.documentation.openapi.OpenApiConfiguration;
 import com.kntro.reqsai.shared.infrastructure.documentation.openapi.annotations.ApiResponseBadRequest;
 import com.kntro.reqsai.shared.infrastructure.documentation.openapi.annotations.ApiResponseConflict;
 import com.kntro.reqsai.shared.infrastructure.documentation.openapi.annotations.ApiResponseUnauthorized;
@@ -17,16 +17,12 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.CookieValue;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -35,6 +31,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
  * API contract (OpenAPI documentation) for authentication endpoints. The implementation lives in
  * {@code controllers.AuthControllerImpl}; keeping the annotations here leaves the controller free of
  * documentation noise.
+ * <p>
+ * User profile management endpoints (GET/PATCH/PUT /users/me) live in {@link UserController}.
  */
 @RequestMapping(path = ApiVersioning.BASE + "/auth", produces = MediaType.APPLICATION_JSON_VALUE)
 @Tag(name = "Authentication", description = "Account registration, login, token refresh and logout")
@@ -109,53 +107,36 @@ public interface AuthController {
     ResponseEntity<Void> verifyEmail(@Valid @RequestBody VerifyEmailRequest request);
 
     @Operation(
-            summary = "Get the current user",
-            description = "Returns the profile of the authenticated user (the JWT subject).")
-    @ApiResponse(
-            responseCode = "200",
-            description = "Current user profile",
-            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
-                    schema = @Schema(implementation = UserResponse.class)))
-    @ApiResponseUnauthorized
+            summary = "Forgot password",
+            description = """
+                    Sends a password-reset link to the given email address if an active account exists.
+                    Always returns 204 regardless of whether the email is registered, to prevent account
+                    enumeration.""")
+    @ApiResponse(responseCode = "204", description = "Reset link sent (or silently ignored)")
+    @ApiResponseBadRequest
     @ApiStandardErrorResponses
-    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
-    @GetMapping(path = "/me", version = ApiVersioning.V1)
-    ResponseEntity<UserResponse> me(Authentication authentication);
+    @PostMapping(path = "/forgot-password", version = ApiVersioning.V1)
+    ResponseEntity<Void> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request);
 
     @Operation(
-            summary = "Accept Terms and Conditions",
-            description = """
-                    Records the user's acceptance of the specified T&C version. After this call, request a
-                    token refresh ({@code POST /api/auth/refresh}) — the new JWT will carry the
-                    {@code termsVersion} claim, which the frontend uses to unlock the onboarding flow.""")
-    @ApiResponse(responseCode = "204", description = "Terms accepted")
+            summary = "Reset password",
+            description = "Applies a new password using the one-time token delivered by the forgot-password flow.")
+    @ApiResponse(responseCode = "204", description = "Password reset")
     @ApiResponseBadRequest
     @ApiResponseUnauthorized
     @ApiStandardErrorResponses
-    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
-    @PostMapping(path = "/accept-terms", version = ApiVersioning.V1)
-    ResponseEntity<Void> acceptTerms(
-            @Valid @RequestBody AcceptTermsRequest request,
-            Authentication authentication);
+    @PostMapping(path = "/reset-password", version = ApiVersioning.V1)
+    ResponseEntity<Void> resetPassword(@Valid @RequestBody ResetPasswordRequest request);
 
     @Operation(
-            summary = "Update navigation preferences",
+            summary = "Resend verification email",
             description = """
-                    Persists the active organization context for the authenticated user. After this call,
-                    the next `POST /api/auth/refresh` will embed the selected {@code orgId} in the new JWT,
-                    effectively switching the active organization. Send {@code lastVisitedOrgId: null} to clear
-                    the preference and fall back to the most-recently created organization.""")
-    @ApiResponse(
-            responseCode = "200",
-            description = "Preferences updated — updated user profile returned",
-            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
-                    schema = @Schema(implementation = UserResponse.class)))
+                    Resends the email-verification link for an account still in {@code PENDING_VERIFICATION}.
+                    Always returns 204 regardless of whether the email is registered, to prevent account
+                    enumeration.""")
+    @ApiResponse(responseCode = "204", description = "Verification email resent (or silently ignored)")
     @ApiResponseBadRequest
-    @ApiResponseUnauthorized
     @ApiStandardErrorResponses
-    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
-    @PatchMapping(path = "/me/preferences", version = ApiVersioning.V1)
-    ResponseEntity<UserResponse> updatePreferences(
-            @Valid @RequestBody UpdatePreferencesRequest request,
-            Authentication authentication);
+    @PostMapping(path = "/resend-verification", version = ApiVersioning.V1)
+    ResponseEntity<Void> resendVerification(@Valid @RequestBody ResendVerificationRequest request);
 }

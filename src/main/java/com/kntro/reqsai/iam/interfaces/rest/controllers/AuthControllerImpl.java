@@ -1,24 +1,25 @@
 package com.kntro.reqsai.iam.interfaces.rest.controllers;
 
-import com.kntro.reqsai.iam.application.command.AcceptTermsCommand;
-import com.kntro.reqsai.iam.application.command.UpdateUserPreferencesCommand;
+import com.kntro.reqsai.iam.application.command.ForgotPasswordCommand;
+import com.kntro.reqsai.iam.application.command.ResendVerificationCommand;
+import com.kntro.reqsai.iam.application.command.ResetPasswordCommand;
 import com.kntro.reqsai.iam.application.command.VerifyEmailCommand;
-import com.kntro.reqsai.iam.application.handler.AcceptTermsCommandHandler;
 import com.kntro.reqsai.iam.application.handler.AuthenticateCommandHandler;
-import com.kntro.reqsai.iam.application.handler.GetAuthenticatedUserQueryHandler;
+import com.kntro.reqsai.iam.application.handler.ForgotPasswordCommandHandler;
 import com.kntro.reqsai.iam.application.handler.RefreshSessionCommandHandler;
 import com.kntro.reqsai.iam.application.handler.RegisterAccountCommandHandler;
+import com.kntro.reqsai.iam.application.handler.ResendVerificationCommandHandler;
+import com.kntro.reqsai.iam.application.handler.ResetPasswordCommandHandler;
 import com.kntro.reqsai.iam.application.handler.RevokeRefreshTokenCommandHandler;
-import com.kntro.reqsai.iam.application.handler.UpdateUserPreferencesCommandHandler;
 import com.kntro.reqsai.iam.application.handler.VerifyEmailCommandHandler;
-import com.kntro.reqsai.iam.application.query.GetAuthenticatedUserQuery;
 import com.kntro.reqsai.iam.application.result.AuthenticatedSession;
 import com.kntro.reqsai.iam.application.result.RefreshedSession;
 import com.kntro.reqsai.iam.domain.model.User;
-import com.kntro.reqsai.iam.interfaces.rest.dto.request.AcceptTermsRequest;
+import com.kntro.reqsai.iam.interfaces.rest.dto.request.ForgotPasswordRequest;
 import com.kntro.reqsai.iam.interfaces.rest.dto.request.LoginRequest;
 import com.kntro.reqsai.iam.interfaces.rest.dto.request.RegisterRequest;
-import com.kntro.reqsai.iam.interfaces.rest.dto.request.UpdatePreferencesRequest;
+import com.kntro.reqsai.iam.interfaces.rest.dto.request.ResendVerificationRequest;
+import com.kntro.reqsai.iam.interfaces.rest.dto.request.ResetPasswordRequest;
 import com.kntro.reqsai.iam.interfaces.rest.dto.request.VerifyEmailRequest;
 import com.kntro.reqsai.iam.interfaces.rest.dto.response.AuthResponse;
 import com.kntro.reqsai.iam.interfaces.rest.dto.response.UserResponse;
@@ -32,12 +33,9 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Duration;
-import java.util.UUID;
 
 /** Implementation of the {@link AuthController} API contract. */
 @RestController
@@ -52,10 +50,10 @@ public class AuthControllerImpl implements AuthController {
     private final AuthenticateCommandHandler authenticate;
     private final RefreshSessionCommandHandler refreshSession;
     private final RevokeRefreshTokenCommandHandler revokeRefreshToken;
-    private final GetAuthenticatedUserQueryHandler getAuthenticatedUser;
     private final VerifyEmailCommandHandler verifyEmail;
-    private final AcceptTermsCommandHandler acceptTermsHandler;
-    private final UpdateUserPreferencesCommandHandler updateUserPreferences;
+    private final ForgotPasswordCommandHandler forgotPassword;
+    private final ResetPasswordCommandHandler resetPassword;
+    private final ResendVerificationCommandHandler resendVerification;
 
     @Override
     public ResponseEntity<UserResponse> signUp(RegisterRequest request) {
@@ -94,34 +92,22 @@ public class AuthControllerImpl implements AuthController {
     }
 
     @Override
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<UserResponse> me(Authentication authentication) {
-        UUID userId = UUID.fromString(authentication.getName());
-        User user = getAuthenticatedUser.handle(new GetAuthenticatedUserQuery(userId));
-        return ResponseEntity.ok(UserResponseMapper.toResponse(user));
-    }
-
-    @Override
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<Void> acceptTerms(AcceptTermsRequest request, Authentication authentication) {
-        UUID userId = UUID.fromString(authentication.getName());
-        acceptTermsHandler.handle(new AcceptTermsCommand(userId, request.termsVersion()));
+    public ResponseEntity<Void> forgotPassword(ForgotPasswordRequest request) {
+        forgotPassword.handle(new ForgotPasswordCommand(request.email()));
         return ResponseEntity.noContent().build();
     }
 
     @Override
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<UserResponse> updatePreferences(UpdatePreferencesRequest request,
-                                                          Authentication authentication) {
-        UUID userId = UUID.fromString(authentication.getName());
-        User user = updateUserPreferences.handle(
-                new UpdateUserPreferencesCommand(userId, request.lastVisitedOrgId()));
-        return ResponseEntity.ok(UserResponseMapper.toResponse(user));
+    public ResponseEntity<Void> resetPassword(ResetPasswordRequest request) {
+        resetPassword.handle(new ResetPasswordCommand(request.token(), request.newPassword()));
+        return ResponseEntity.noContent().build();
     }
 
-    // -------------------------------------------------------------------------
-    // Cookie helpers
-    // -------------------------------------------------------------------------
+    @Override
+    public ResponseEntity<Void> resendVerification(ResendVerificationRequest request) {
+        resendVerification.handle(new ResendVerificationCommand(request.email()));
+        return ResponseEntity.noContent().build();
+    }
 
     private void setRefreshCookie(HttpServletResponse response, String rawToken) {
         ResponseCookie cookie = ResponseCookie.from(REFRESH_COOKIE_NAME, rawToken)
