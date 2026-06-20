@@ -6,6 +6,9 @@ import com.kntro.reqsai.workspace.infrastructure.persistence.repositories.Glossa
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.Optional;
+import java.util.UUID;
+
 @Component
 @RequiredArgsConstructor
 public class GlossaryRepositoryAdapter implements GlossaryRepository {
@@ -15,5 +18,10 @@ public class GlossaryRepositoryAdapter implements GlossaryRepository {
     @Override
     public Glossary save(Glossary glossary) {
         return jpa.save(glossary);
+    }
+
+    @Override
+    public Optional<Glossary> findByProjectId(UUID projectId) {
+        return jpa.findByProjectId(projectId);
     }
 }
