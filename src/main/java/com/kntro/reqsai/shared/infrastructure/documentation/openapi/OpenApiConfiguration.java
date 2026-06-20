@@ -79,6 +79,14 @@ public class OpenApiConfiguration {
     }
 
     @Bean
+    public GroupedOpenApi iamApi() {
+        return GroupedOpenApi.builder()
+                .group("iam")
+                .packagesToScan("com.kntro.reqsai.iam.interfaces")
+                .build();
+    }
+
+    @Bean
     @Profile("dev")
     public GroupedOpenApi devToolsApi() {
         return GroupedOpenApi.builder()
