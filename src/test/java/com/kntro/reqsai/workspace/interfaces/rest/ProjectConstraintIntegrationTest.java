@@ -49,6 +49,49 @@ class ProjectConstraintIntegrationTest extends AbstractIntegrationTest {
                 "SELECT id::text as id, description FROM \"" + schema + "\".project_constraints WHERE project_id = ?::uuid",
                 projectId);
         assertThat(row.get("description")).isEqualTo("Must integrate with SAP");
+
+        String constraintId = (String) row.get("id");
+
+        ResponseEntity<String> getOne = client().get().uri("/api/organizations/{orgId}/projects/{projectId}/constraints/{constraintId}",
+                        orgId, projectId, UUID.fromString(constraintId))
+                .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId.toString(), "ROLE_USER"))
+                .header("Api-Version", "1")
+                .exchange((req, responseSpec) -> ResponseEntity.status(responseSpec.getStatusCode())
+                        .body(responseSpec.bodyTo(String.class)));
+        assertThat(getOne.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(getOne.getBody()).contains("\"id\":\"" + constraintId + "\"");
+        assertThat(getOne.getBody()).contains("\"description\":\"Must integrate with SAP\"");
+
+        ResponseEntity<String> list = client().get().uri("/api/organizations/{orgId}/projects/{projectId}/constraints", orgId, projectId)
+                .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId.toString(), "ROLE_USER"))
+                .header("Api-Version", "1")
+                .exchange((req, responseSpec) -> ResponseEntity.status(responseSpec.getStatusCode())
+                        .body(responseSpec.bodyTo(String.class)));
+        assertThat(list.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(list.getBody()).contains("\"description\":\"Must integrate with SAP\"");
+
+        ResponseEntity<String> update = client().put().uri("/api/organizations/{orgId}/projects/{projectId}/constraints/{constraintId}",
+                        orgId, projectId, UUID.fromString(constraintId))
+                .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId.toString(), "ROLE_USER"))
+                .header("Api-Version", "1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("description", "Must integrate with SAP ECC"))
+                .exchange((req, responseSpec) -> ResponseEntity.status(responseSpec.getStatusCode())
+                        .body(responseSpec.bodyTo(String.class)));
+        assertThat(update.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(update.getBody()).contains("\"description\":\"Must integrate with SAP ECC\"");
+
+        ResponseEntity<Void> delete = client().delete().uri("/api/organizations/{orgId}/projects/{projectId}/constraints/{constraintId}",
+                        orgId, projectId, UUID.fromString(constraintId))
+                .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId.toString(), "ROLE_USER"))
+                .header("Api-Version", "1")
+                .exchange((req, responseSpec) -> ResponseEntity.status(responseSpec.getStatusCode()).build());
+        assertThat(delete.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+
+        Integer countAfterDelete = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM \"" + schema + "\".project_constraints WHERE id = ?::uuid",
+                Integer.class, UUID.fromString(constraintId));
+        assertThat(countAfterDelete).isEqualTo(0);
     }
 
     @Test

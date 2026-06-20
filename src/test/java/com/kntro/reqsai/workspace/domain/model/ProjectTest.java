@@ -127,6 +127,28 @@ class ProjectTest {
             assertThatThrownBy(() -> project.addConstraint("  must integrate with sap  "))
                     .isInstanceOf(DomainException.class);
         }
+
+        @Test
+        @DisplayName("should update project constraint successfully")
+        void should_update_project_constraint_successfully() {
+            Project project = ProjectMother.standard().build();
+            ProjectConstraint constraint = project.addConstraint("Must integrate with SAP");
+
+            ProjectConstraint updated = project.updateConstraint(constraint.getId(), "Must integrate with SAP ECC");
+
+            assertThat(updated.getDescription()).isEqualTo("Must integrate with SAP ECC");
+        }
+
+        @Test
+        @DisplayName("should remove project constraint successfully")
+        void should_remove_project_constraint_successfully() {
+            Project project = ProjectMother.standard().build();
+            ProjectConstraint constraint = project.addConstraint("Must integrate with SAP");
+
+            project.removeConstraint(constraint.getId());
+
+            assertThat(project.getConstraints()).isEmpty();
+        }
     }
 
     @Nested
