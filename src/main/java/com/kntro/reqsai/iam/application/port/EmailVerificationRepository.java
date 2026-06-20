@@ -27,4 +27,7 @@ public interface EmailVerificationRepository {
      * Called before issuing a new token on resend so stale tokens cannot be used.
      */
     void deleteByAccountId(UUID accountId);
+
+    /** Deletes all tokens whose expiry is before {@code cutoff}. Used by the scheduled purge job. */
+    void deleteExpiredBefore(java.time.Instant cutoff);
 }

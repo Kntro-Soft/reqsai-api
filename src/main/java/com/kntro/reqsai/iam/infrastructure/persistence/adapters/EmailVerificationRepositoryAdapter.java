@@ -6,6 +6,7 @@ import com.kntro.reqsai.iam.infrastructure.persistence.repositories.EmailVerific
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -29,5 +30,10 @@ public class EmailVerificationRepositoryAdapter implements EmailVerificationRepo
     @Override
     public void deleteByAccountId(UUID accountId) {
         jpa.deleteByAccountId(accountId);
+    }
+
+    @Override
+    public void deleteExpiredBefore(Instant cutoff) {
+        jpa.deleteExpiredBefore(cutoff);
     }
 }
