@@ -306,4 +306,63 @@ class DiscoverySessionTest {
         assertThatThrownBy(session::reset)
                 .isInstanceOf(DomainException.class);
     }
+
+    @Test
+    @DisplayName("should append a transcript segment while RECORDING, advancing lastSequence")
+    void should_record_segment_while_recording() {
+        // Arrange
+        DiscoverySession session = DiscoverySessionMother.draft().build();
+        session.startRecording(Instant.now());
+
+        // Act
+        int first = session.recordSegment("Hola, necesito un login.", "0", 0, 1500, true);
+        int second = session.recordSegment("Con Google también.", "1", 1500, 3000, true);
+
+        // Assert
+        assertThat(first).isEqualTo(1);
+        assertThat(second).isEqualTo(2);
+        assertThat(session.getLastSequence()).isEqualTo(2);
+        assertThat(session.getStatus()).isEqualTo(SessionStatus.RECORDING);
+    }
+
+    @Test
+    @DisplayName("should reject recordSegment when not RECORDING")
+    void should_reject_record_segment_when_not_recording() {
+        // Arrange
+        DiscoverySession session = DiscoverySessionMother.draft().build();
+
+        // Act & Assert
+        assertThatThrownBy(() -> session.recordSegment("texto", null, 0, 100, true))
+                .isInstanceOf(DomainException.class)
+                .satisfies(e -> assertThat(((DomainException) e).error())
+                        .isEqualTo(DiscoveryError.INVALID_SESSION_STATUS));
+    }
+
+    @Test
+    @DisplayName("should reject a blank segment text")
+    void should_reject_blank_segment_text() {
+        // Arrange
+        DiscoverySession session = DiscoverySessionMother.draft().build();
+        session.startRecording(Instant.now());
+
+        // Act & Assert
+        assertThatThrownBy(() -> session.recordSegment("   ", null, 0, 100, true))
+                .isInstanceOf(DomainException.class);
+    }
+
+    @Test
+    @DisplayName("should reset lastSequence to zero on reset")
+    void should_clear_last_sequence_on_reset() {
+        // Arrange
+        DiscoverySession session = DiscoverySessionMother.draft().build();
+        session.startRecording(Instant.now());
+        session.recordSegment("uno", null, 0, 100, true);
+        session.stopRecording(Instant.now());
+
+        // Act
+        session.reset();
+
+        // Assert
+        assertThat(session.getLastSequence()).isZero();
+    }
 }
