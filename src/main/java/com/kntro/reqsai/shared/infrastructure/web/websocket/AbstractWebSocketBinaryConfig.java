@@ -7,6 +7,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.socket.config.annotation.WebSocketConfigurer;
 import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry;
 import org.springframework.web.socket.handler.BinaryWebSocketHandler;
+import org.springframework.web.socket.server.standard.ServletServerContainerFactoryBean;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Profile;
 
 import java.util.List;
 
@@ -76,5 +80,23 @@ public abstract class AbstractWebSocketBinaryConfig implements WebSocketConfigur
         registry.addHandler(handler(), path())
                 .addInterceptors(new WebSocketJwtHandshakeInterceptor(tokenVerifier, schemaResolver))
                 .setAllowedOriginPatterns(allowedOrigins.toArray(String[]::new));
+    }
+
+    /**
+     * Increases the binary message buffer to 512 KB so that audio frames larger than Spring's
+     * default 8 KB can be received without a 1009 close. Real-time PCM chunks from a browser
+     * microphone are typically 4–64 KB depending on the capture interval.
+     *
+     * <p>Excluded from the {@code test} profile because {@link ServletServerContainerFactoryBean}
+     * requires a real JSR-356 server container ({@code jakarta.websocket.server.ServerContainer})
+     * which is not present in Spring's mock servlet context.
+     */
+    @Bean
+    @Profile("!test")
+    public ServletServerContainerFactoryBean createWebSocketContainer() {
+        ServletServerContainerFactoryBean container = new ServletServerContainerFactoryBean();
+        container.setMaxBinaryMessageBufferSize(512 * 1024);
+        container.setMaxTextMessageBufferSize(64 * 1024);
+        return container;
     }
 }
