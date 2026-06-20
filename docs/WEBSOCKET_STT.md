@@ -145,71 +145,55 @@ The scripts are bash scripts and run on **macOS**, **Linux**, and **Windows via 
 |-----------------|-------------------------|--------------------------|---------------------------------------------------------------------------------|
 | `websocat`      | `brew install websocat` | `cargo install websocat` | [GitHub releases](https://github.com/vi/websocat/releases) `.exe` — add to PATH |
 | `curl` / `jq`   | pre-installed / `brew`  | `apt install curl jq`    | included in Git Bash                                                            |
-| `ffmpeg`        | `brew install ffmpeg`   | `apt install ffmpeg`     | [ffmpeg.org](https://ffmpeg.org/download.html) — add to PATH                    |
 | `pv` (optional) | `brew install pv`       | `apt install pv`         | not needed — Python 3 fallback used instead                                     |
 | `python3`       | pre-installed           | pre-installed            | [python.org](https://www.python.org/downloads/) — used as rate-limit fallback   |
 
-> **Windows note**: TTS audio generation uses `say`/`afconvert` on macOS. On Windows/Linux,
-> `ffmpeg` is used instead to generate a test tone. If you provide your own `--audio` file,
-> neither is needed.
+### Interactive controller — `ws-stt-test.sh`
 
-### Manage session lifecycle — `ws-stt-session.sh`
+Full lifecycle in one interactive terminal UI. Press keys without Enter.
 
 ```bash
 export REQSAI_TOKEN="eyJhbG..."
 export REQSAI_PROJECT_ID="019ee12b-..."
 
-# Create a session (prints SESSION_ID)
-./scripts/ws-stt-session.sh create
-
-# Start recording
-./scripts/ws-stt-session.sh start <SESSION_ID>
-
-# Pause (WS closes automatically on the server side)
-./scripts/ws-stt-session.sh pause <SESSION_ID>
-
-# Resume (client must open a new WS after this)
-./scripts/ws-stt-session.sh resume <SESSION_ID>
-
-# Stop (WS closes automatically)
-./scripts/ws-stt-session.sh stop <SESSION_ID>
-```
-
-### Stream audio — `ws-stt-stream.sh`
-
-```bash
-export REQSAI_TOKEN="eyJhbG..."
-
-# Interactive mode: open WS, keep alive (Ctrl+C to close)
-./scripts/ws-stt-stream.sh <SESSION_ID>
-
-# File mode: stream a raw PCM file at real-time rate
-./scripts/ws-stt-stream.sh <SESSION_ID> /tmp/audio.raw
-```
-
-### Full end-to-end test — `ws-stt-test.sh`
-
-```bash
-export REQSAI_TOKEN="eyJhbG..."
-export REQSAI_PROJECT_ID="019ee12b-..."
-
-# Minimal: create session, start, stop, verify DB (no audio)
+# Without audio (lifecycle-only test)
 ./scripts/ws-stt-test.sh
 
-# With audio file
-./scripts/ws-stt-test.sh --audio /tmp/meeting.raw
+# With an audio file
+./scripts/ws-stt-test.sh --audio /tmp/audio_5min_en.raw --lang en
 
-# Include pause/resume cycle
-./scripts/ws-stt-test.sh --audio /tmp/meeting.raw --pause
+# With real-time pause: audio position advances while paused (simulates real recording gap)
+./scripts/ws-stt-test.sh --audio /tmp/audio_5min_en.raw --realtime-pause
 
-# Skip specific steps
-./scripts/ws-stt-test.sh --skip audio,verify
-
-# Use an existing session (skip create + start)
-./scripts/ws-stt-test.sh --session <SESSION_ID> --audio /tmp/audio.raw --skip stop
+# Attach to an existing session (skips create + start)
+./scripts/ws-stt-test.sh --session <SESSION_ID> --audio /tmp/audio.raw
 ```
 
-Available steps: `create`, `start`, `audio`, `pause`, `resume`, `stop`, `verify`.
+| Key | Action                                              |
+|-----|-----------------------------------------------------|
+| `s` | Create session + start recording + begin streaming  |
+| `p` | Pause — stops streaming, server closes WS           |
+| `r` | Resume — reopens WS, continues from paused position |
+| `x` | Stop — session permanently closed                   |
+| `v` | Verify — show saved transcript segments from DB     |
+| `q` | Quit — stops session if active                      |
+
+### Lifecycle scripting — `ws-stt-session.sh`
+
+For CI or automated scripts that need to drive the lifecycle without interaction.
+
+```bash
+export REQSAI_TOKEN="eyJhbG..."
+export REQSAI_PROJECT_ID="019ee12b-..."
+
+SESSION=$(./scripts/ws-stt-session.sh create)
+./scripts/ws-stt-session.sh start  "$SESSION"
+./scripts/ws-stt-session.sh pause  "$SESSION"
+./scripts/ws-stt-session.sh resume "$SESSION"
+./scripts/ws-stt-session.sh stop   "$SESSION"
+```
+
+Each command prints the action taken and the confirmed new state from the server.
 
 ---
 

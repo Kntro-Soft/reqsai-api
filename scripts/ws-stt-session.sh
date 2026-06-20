@@ -40,37 +40,53 @@ PROJECT_ID="${REQSAI_PROJECT_ID:-}"
 LANG="${REQSAI_LANG:-en}"
 TITLE="${REQSAI_TITLE:-ws-stt-test-$(date +%s)}"
 
-API=(-s -f
+API=(-s
+  --max-time 10
   -H "Authorization: Bearer ${TOKEN}"
   -H "Content-Type: application/json"
   -H "Api-Version: 1"
 )
 
+TRANSITIONS=(
+  ["start"]="DRAFT → RECORDING"
+  ["pause"]="RECORDING → PAUSED  (WS closed by server)"
+  ["resume"]="PAUSED → RECORDING  (open a new WS now)"
+  ["stop"]="RECORDING|PAUSED → STOPPED  (WS closed by server)"
+)
+
 case "${ACTION}" in
   create)
     [[ -n "${PROJECT_ID}" ]] || { echo "ERROR: set REQSAI_PROJECT_ID for 'create'" >&2; exit 1; }
-    RESP=$(curl "${API[@]}" -X POST \
+    HTTP=$(curl "${API[@]}" -o /tmp/.stt-session-resp -w "%{http_code}" -X POST \
       "${BASE_URL}/api/projects/${PROJECT_ID}/sessions" \
       -d "{\"title\":\"${TITLE}\",\"language\":\"${LANG}\"}")
+    RESP=$(cat /tmp/.stt-session-resp)
+    if [[ "${HTTP}" != 2* ]]; then
+      echo "ERROR: HTTP ${HTTP} — ${RESP}" >&2; exit 1
+    fi
     ID=$(echo "${RESP}" | jq -r '.id // empty')
     [[ -n "${ID}" ]] || { echo "ERROR: could not parse session id — ${RESP}" >&2; exit 1; }
+    STATUS=$(echo "${RESP}" | jq -r '.status // "DRAFT"')
+    echo "Created : ${ID}"
+    echo "Status  : ${STATUS}"
     echo "${ID}"
     ;;
 
   start|pause|resume|stop)
     [[ -n "${SESSION_ID}" ]] || { echo "ERROR: $0 ${ACTION} requires SESSION_ID" >&2; exit 1; }
     [[ -n "${PROJECT_ID}" ]] || { echo "ERROR: set REQSAI_PROJECT_ID" >&2; exit 1; }
-    # Map action → endpoint name
-    case "${ACTION}" in
-      start)  ENDPOINT="start"  ;;
-      pause)  ENDPOINT="pause"  ;;
-      resume) ENDPOINT="resume" ;;
-      stop)   ENDPOINT="stop"   ;;
-    esac
-    curl "${API[@]}" -X POST \
-      "${BASE_URL}/api/projects/${PROJECT_ID}/sessions/${SESSION_ID}/${ENDPOINT}" \
-      -d '{}' > /dev/null
-    echo "${ACTION}: ${SESSION_ID}"
+    HTTP=$(curl "${API[@]}" -o /tmp/.stt-session-resp -w "%{http_code}" -X POST \
+      "${BASE_URL}/api/projects/${PROJECT_ID}/sessions/${SESSION_ID}/${ACTION}" \
+      -d '{}')
+    RESP=$(cat /tmp/.stt-session-resp)
+    if [[ "${HTTP}" != 2* ]]; then
+      echo "ERROR: HTTP ${HTTP} — ${RESP}" >&2; exit 1
+    fi
+    STATUS=$(echo "${RESP}" | jq -r '.status // empty')
+    echo "Action  : ${ACTION}"
+    echo "Session : ${SESSION_ID}"
+    echo "State   : ${TRANSITIONS[$ACTION]:-}"
+    [[ -n "${STATUS}" ]] && echo "Confirmed: ${STATUS}"
     ;;
 
   *)
