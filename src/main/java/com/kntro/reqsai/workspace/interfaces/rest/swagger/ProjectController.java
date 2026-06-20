@@ -101,6 +101,18 @@ public interface ProjectController {
             Authentication authentication
     );
 
+    @Operation(summary = "Restore an archived project", description = "Restores an archived project back to the active workspace list.")
+    @ApiResponse(responseCode = "204", description = "Project restored successfully")
+    @ApiResponseNotFound
+    @ApiStandardErrorResponses
+    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
+    @PostMapping(value = "/{projectId}/restore", version = ApiVersioning.V1)
+    ResponseEntity<Void> restore(
+            @Parameter(description = "Organization context UUID") @PathVariable UUID orgId,
+            @Parameter(description = "Project UUID") @PathVariable UUID projectId,
+            Authentication authentication
+    );
+
     @Operation(summary = "Delete a project permanently", description = "Permanently deletes the project and its tenant-scoped dependent data under the organization.")
     @ApiResponse(responseCode = "204", description = "Project deleted permanently")
     @ApiResponseNotFound

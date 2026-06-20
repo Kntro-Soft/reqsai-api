@@ -140,6 +140,20 @@ class ProjectCreationIntegrationTest extends AbstractIntegrationTest {
         );
         assertThat(glossaryCountAfterArchive).isEqualTo(1);
 
+        // Restore Project
+        ResponseEntity<Void> restoreRes = client().post().uri("/api/organizations/{orgId}/projects/{projectId}/restore", orgId, projectId)
+                .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId.toString(), "ROLE_USER"))
+                .header("Api-Version", "1")
+                .exchange((req, response) -> ResponseEntity.status(response.getStatusCode()).build());
+
+        assertThat(restoreRes.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+
+        String statusAfterRestore = jdbcTemplate.queryForObject(
+                "SELECT status FROM \"" + schema + "\".projects WHERE id = ?::uuid",
+                String.class, projectId
+        );
+        assertThat(statusAfterRestore).isEqualTo("ACTIVE");
+
         // Delete Project physically
         ResponseEntity<Void> deleteRes = client().delete().uri("/api/organizations/{orgId}/projects/{projectId}", orgId, projectId)
                 .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId.toString(), "ROLE_USER"))
