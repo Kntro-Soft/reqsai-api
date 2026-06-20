@@ -3,10 +3,13 @@ package com.kntro.reqsai.workspace.interfaces.rest.swagger;
 import com.kntro.reqsai.shared.infrastructure.configuration.ApiVersioning;
 import com.kntro.reqsai.shared.infrastructure.documentation.openapi.OpenApiConfiguration;
 import com.kntro.reqsai.shared.infrastructure.documentation.openapi.annotations.ApiResponseBadRequest;
+import com.kntro.reqsai.shared.infrastructure.documentation.openapi.annotations.ApiResponseNotFound;
 import com.kntro.reqsai.shared.infrastructure.documentation.openapi.annotations.ApiStandardErrorResponses;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.request.CreateOrganizationRequest;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.response.OrganizationResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -17,9 +20,14 @@ import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+
+import java.util.List;
+import java.util.UUID;
 
 /**
  * API contract (OpenAPI documentation) for organization endpoints. The implementation lives in
@@ -62,4 +70,35 @@ public interface OrganizationController {
     @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
     @PostMapping(version = ApiVersioning.V1)
     ResponseEntity<OrganizationResponse> create(@Valid @RequestBody CreateOrganizationRequest request, Authentication authentication);
+
+    @Operation(
+            summary = "List my organizations",
+            description = "Returns every organization owned by the authenticated user, newest first. Powers the organization switcher.")
+    @ApiResponse(
+            responseCode = "200",
+            description = "Organizations owned by the authenticated user",
+            content = @Content(
+                    mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    array = @ArraySchema(schema = @Schema(implementation = OrganizationResponse.class))))
+    @ApiStandardErrorResponses
+    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
+    @GetMapping(version = ApiVersioning.V1)
+    ResponseEntity<List<OrganizationResponse>> list(Authentication authentication);
+
+    @Operation(
+            summary = "Get an organization",
+            description = "Returns a single organization owned by the authenticated user.")
+    @ApiResponse(
+            responseCode = "200",
+            description = "Organization found",
+            content = @Content(
+                    mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    schema = @Schema(implementation = OrganizationResponse.class)))
+    @ApiResponseNotFound
+    @ApiStandardErrorResponses
+    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
+    @GetMapping(value = "/{orgId}", version = ApiVersioning.V1)
+    ResponseEntity<OrganizationResponse> get(
+            @Parameter(description = "Organization UUID") @PathVariable UUID orgId,
+            Authentication authentication);
 }

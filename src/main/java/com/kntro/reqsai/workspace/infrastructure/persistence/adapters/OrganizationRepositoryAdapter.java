@@ -7,6 +7,7 @@ import com.kntro.reqsai.workspace.infrastructure.persistence.repositories.Organi
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -35,5 +36,10 @@ public class OrganizationRepositoryAdapter implements OrganizationRepository {
     @Override
     public Optional<Organization> findByOwnerId(UUID ownerId) {
         return jpa.findFirstByOwnerIdOrderByCreatedAtDesc(ownerId);
+    }
+
+    @Override
+    public List<Organization> findAllByOwnerId(UUID ownerId) {
+        return jpa.findByOwnerIdOrderByCreatedAtDesc(ownerId);
     }
 }

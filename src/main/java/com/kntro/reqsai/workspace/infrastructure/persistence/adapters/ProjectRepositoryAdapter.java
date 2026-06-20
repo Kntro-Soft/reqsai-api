@@ -5,6 +5,7 @@ import com.kntro.reqsai.workspace.domain.model.Project;
 import com.kntro.reqsai.workspace.infrastructure.persistence.repositories.ProjectJpaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -22,6 +23,11 @@ public class ProjectRepositoryAdapter implements ProjectRepository {
     @Override
     public Optional<Project> findById(UUID id) {
         return jpa.findById(id);
+    }
+
+    @Override
+    public List<Project> findAllByOrganizationId(UUID organizationId) {
+        return jpa.findByOrganizationIdOrderByCreatedAtDesc(organizationId);
     }
 
     @Override

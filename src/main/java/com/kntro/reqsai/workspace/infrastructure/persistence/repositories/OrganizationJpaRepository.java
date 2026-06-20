@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -23,4 +24,6 @@ public interface OrganizationJpaRepository extends JpaRepository<Organization, U
     Optional<Organization> findFirstByOwnerIdOrderByCreatedAtDesc(@Param("ownerId") UUID ownerId);
 
     boolean existsByIdAndOwnerId(UUID id, UUID ownerId);
+
+    List<Organization> findByOwnerIdOrderByCreatedAtDesc(UUID ownerId);
 }

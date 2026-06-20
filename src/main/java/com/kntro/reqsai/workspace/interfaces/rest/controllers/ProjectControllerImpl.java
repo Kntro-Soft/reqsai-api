@@ -3,6 +3,8 @@ package com.kntro.reqsai.workspace.interfaces.rest.controllers;
 import com.kntro.reqsai.workspace.application.command.DeleteProjectCommand;
 import com.kntro.reqsai.workspace.application.handler.CreateProjectCommandHandler;
 import com.kntro.reqsai.workspace.application.handler.DeleteProjectCommandHandler;
+import com.kntro.reqsai.workspace.application.handler.GetProjectQueryHandler;
+import com.kntro.reqsai.workspace.application.handler.ListProjectsQueryHandler;
 import com.kntro.reqsai.workspace.application.handler.UpdateProjectCommandHandler;
 import com.kntro.reqsai.workspace.domain.model.Project;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.request.CreateProjectRequest;
@@ -17,6 +19,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import java.net.URI;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -26,6 +29,8 @@ public class ProjectControllerImpl implements ProjectController {
     private final CreateProjectCommandHandler createProject;
     private final UpdateProjectCommandHandler updateProject;
     private final DeleteProjectCommandHandler deleteProject;
+    private final ListProjectsQueryHandler listProjects;
+    private final GetProjectQueryHandler getProject;
 
     @Override
     public ResponseEntity<ProjectResponse> create(UUID orgId, CreateProjectRequest request, Authentication authentication) {
@@ -40,6 +45,20 @@ public class ProjectControllerImpl implements ProjectController {
         return ResponseEntity
             .created(location)
             .body(ProjectResponseMapper.toResponse(project));
+    }
+
+    @Override
+    public ResponseEntity<List<ProjectResponse>> list(UUID orgId, Authentication authentication) {
+        List<ProjectResponse> body = listProjects.handle(orgId).stream()
+                .map(ProjectResponseMapper::toResponse)
+                .toList();
+        return ResponseEntity.ok(body);
+    }
+
+    @Override
+    public ResponseEntity<ProjectResponse> get(UUID orgId, UUID projectId, Authentication authentication) {
+        Project project = getProject.handle(orgId, projectId);
+        return ResponseEntity.ok(ProjectResponseMapper.toResponse(project));
     }
 
     @Override

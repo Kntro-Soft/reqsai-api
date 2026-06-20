@@ -3,6 +3,7 @@ package com.kntro.reqsai.workspace.application.port;
 import com.kntro.reqsai.workspace.domain.model.Organization;
 import com.kntro.reqsai.workspace.domain.valueobjects.Slug;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -19,4 +20,6 @@ public interface OrganizationRepository {
     Optional<Organization> findById(UUID id);
 
     Optional<Organization> findByOwnerId(UUID ownerId);
+
+    List<Organization> findAllByOwnerId(UUID ownerId);
 }
