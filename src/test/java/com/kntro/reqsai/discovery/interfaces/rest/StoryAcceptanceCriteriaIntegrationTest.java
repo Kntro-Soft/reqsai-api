@@ -106,6 +106,21 @@ class StoryAcceptanceCriteriaIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("should return 404 when deleting a non-existent criterion")
+    void should_return_404_when_deleting_nonexistent_criterion() throws Exception {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        String orgId = createOrg(suffix, "acme-" + suffix);
+        UUID projectId = UUID.randomUUID();
+
+        ResponseEntity<String> storyRes = postStory(orgId, projectId, STORY_BODY);
+        Map<?, ?> storyMap = objectMapper.readValue(storyRes.getBody(), Map.class);
+        String storyId = (String) storyMap.get("id");
+
+        ResponseEntity<Void> deleteRes = deleteCriterion(orgId, projectId, storyId, UUID.randomUUID().toString());
+        assertThat(deleteRes.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
     @DisplayName("should reject creating a criterion with invalid input")
     void should_reject_invalid_creation() throws Exception {
         String suffix = UUID.randomUUID().toString().substring(0, 8);

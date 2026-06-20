@@ -23,13 +23,8 @@ public class UpdateAcceptanceCriterionCommandHandler {
     public AcceptanceCriterion handle(UpdateAcceptanceCriterionCommand command) {
         UserStory story = stories.findByIdAndProjectId(command.storyId(), command.projectId())
                 .orElseThrow(() -> DiscoveryExceptions.userStoryNotFound(command.storyId()));
-        story.updateAcceptanceCriterion(
-                command.criterionId(), command.scenario(), command.given(), command.when(), command.then());
+        AcceptanceCriterion updated = story.updateAcceptanceCriterion(command.criterionId(), command.scenario(), command.given(), command.when(), command.then());
         stories.save(story);
-        // Return the updated criterion from memory (JPA has already flushed the update)
-        return story.getAcceptanceCriteria().stream()
-                .filter(c -> c.getId().equals(command.criterionId()))
-                .findFirst()
-                .orElseThrow();
+        return updated;
     }
 }

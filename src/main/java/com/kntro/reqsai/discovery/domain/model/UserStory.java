@@ -158,15 +158,16 @@ public class UserStory extends AggregateRoot {
     }
 
     /**
-     * Updates an existing criterion identified by {@code criterionId}.
+     * Updates an existing criterion identified by {@code criterionId} and returns it.
      * Throws {@link com.kntro.reqsai.shared.domain.exception.EntityNotFoundException} if not found.
      */
-    public void updateAcceptanceCriterion(UUID criterionId, @Nullable String scenario, String given, String when, String then) {
+    public AcceptanceCriterion updateAcceptanceCriterion(UUID criterionId, @Nullable String scenario, String given, String when, String then) {
         AcceptanceCriterion criterion = acceptanceCriteria.stream()
                 .filter(c -> c.getId().equals(criterionId))
                 .findFirst()
                 .orElseThrow(() -> DiscoveryExceptions.acceptanceCriterionNotFound(criterionId));
         criterion.update(scenario, given, when, then);
+        return criterion;
     }
 
     /**
