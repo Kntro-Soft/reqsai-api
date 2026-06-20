@@ -13,15 +13,17 @@ import java.time.Duration;
  * subset). Issuance needs the RSA <strong>private</strong> signing key, the {@code iss} claim and the
  * access-token lifetime.
  *
- * @param privateKeyPath          location of the RSA private key (PKCS#8 PEM) — classpath or filesystem
- * @param issuer                  value placed in the {@code iss} claim (must match what the verifier requires)
- * @param accessTokenExpiration   access-token lifetime (e.g. {@code 15m})
+ * @param privateKeyPath           location of the RSA private key (PKCS#8 PEM) — classpath or filesystem
+ * @param issuer                   value placed in the {@code iss} claim (must match what the verifier requires)
+ * @param accessTokenExpiration    access-token lifetime (e.g. {@code 15m})
+ * @param refreshTokenExpiration   refresh-token lifetime (e.g. {@code 7d})
  */
 @Validated
 @ConfigurationProperties(prefix = "reqsai.jwt")
 public record IamJwtProperties(
         @NotBlank String privateKeyPath,
         @NotBlank String issuer,
-        @NotNull Duration accessTokenExpiration
+        @NotNull Duration accessTokenExpiration,
+        @NotNull Duration refreshTokenExpiration
 ) {
 }
