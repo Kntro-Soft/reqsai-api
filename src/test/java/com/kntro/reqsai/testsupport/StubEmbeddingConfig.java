@@ -1,6 +1,6 @@
 package com.kntro.reqsai.testsupport;
 
-import com.kntro.reqsai.discovery.application.port.EmbeddingPort;
+import com.kntro.reqsai.shared.application.port.EmbeddingPort;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;

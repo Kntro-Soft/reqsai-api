@@ -1,10 +1,10 @@
-package com.kntro.reqsai.discovery.infrastructure.ai.embedding.config;
+package com.kntro.reqsai.shared.infrastructure.ai.embedding.config;
 
-import com.kntro.reqsai.discovery.application.port.EmbeddingPort;
-import com.kntro.reqsai.discovery.infrastructure.ai.embedding.EmbeddingRouter;
-import com.kntro.reqsai.discovery.infrastructure.ai.embedding.strategy.GeminiEmbeddingAdapter;
-import com.kntro.reqsai.discovery.infrastructure.ai.embedding.strategy.GenericEmbeddingAdapter;
-import com.kntro.reqsai.discovery.infrastructure.ai.embedding.strategy.OpenAiEmbeddingAdapter;
+import com.kntro.reqsai.shared.application.port.EmbeddingPort;
+import com.kntro.reqsai.shared.infrastructure.ai.embedding.EmbeddingRouter;
+import com.kntro.reqsai.shared.infrastructure.ai.embedding.strategy.GeminiEmbeddingAdapter;
+import com.kntro.reqsai.shared.infrastructure.ai.embedding.strategy.GenericEmbeddingAdapter;
+import com.kntro.reqsai.shared.infrastructure.ai.embedding.strategy.OpenAiEmbeddingAdapter;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.openai.OpenAiEmbeddingModel;
 import org.springframework.beans.factory.ObjectProvider;

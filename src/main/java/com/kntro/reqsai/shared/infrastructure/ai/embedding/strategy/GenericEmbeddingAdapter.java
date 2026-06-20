@@ -1,6 +1,6 @@
-package com.kntro.reqsai.discovery.infrastructure.ai.embedding.strategy;
+package com.kntro.reqsai.shared.infrastructure.ai.embedding.strategy;
 
-import com.kntro.reqsai.discovery.application.port.EmbeddingPort;
+import com.kntro.reqsai.shared.application.port.EmbeddingPort;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.beans.factory.ObjectProvider;
 

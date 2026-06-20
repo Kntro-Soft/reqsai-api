@@ -1,9 +1,9 @@
-package com.kntro.reqsai.discovery.infrastructure.ai.embedding.strategy;
+package com.kntro.reqsai.shared.infrastructure.ai.embedding.strategy;
 
 import com.google.genai.Client;
 import com.google.genai.types.EmbedContentConfig;
-import com.kntro.reqsai.discovery.application.port.EmbeddingPort;
-import com.kntro.reqsai.discovery.infrastructure.exception.EmbeddingProviderException;
+import com.kntro.reqsai.shared.application.port.EmbeddingPort;
+import com.kntro.reqsai.shared.infrastructure.ai.embedding.exception.EmbeddingProviderException;
 
 import java.util.List;
 
