@@ -181,10 +181,13 @@ SPRING_AI_MODEL_CHAT=ollama
 SPRING_AI_MODEL_EMBEDDING=ollama
 SPRING_AI_MODEL_AUDIO_TRANSCRIPTION=openai
 OPENAI_API_KEY=sk-...
-STT_PROVIDER=whisper
+STT_PROVIDER=whisper# batch STT (file upload)  → reqsai.ai.stt.batch.provider
+STT_STREAMING_PROVIDER=whisperlive# live STT (/ws/stt)  → reqsai.ai.stt.streaming.provider
 ```
 
-That's the payoff of per-capability switches: any combination from three knobs, no extra profiles.
+That's the payoff of per-capability switches: any combination from these knobs, no extra profiles.
+Batch and streaming STT are selected independently — `whisper` (whisper-1) is batch-only; live capture
+uses `whisperlive` (self-hosted), `deepgram`, or `assemblyai`.
 
 ---
 

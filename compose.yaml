@@ -88,8 +88,26 @@ services:
       - reqsai_whisper_data:/var/lib/whisper
     logging: *default-logging
 
+  whisperlive:
+    profiles: [ai]
+    container_name: reqsai-whisperlive
+    build:
+      context: ./docker/whisperlive
+      dockerfile: Dockerfile
+    image: reqsai-whisperlive:local
+    restart: unless-stopped
+    environment:
+      WHISPER_MODEL: ${WHISPERLIVE_MODEL:-small}
+    ports:
+      - "${WHISPERLIVE_PORT:-9090}:9090"
+    volumes:
+      - reqsai_whisperlive_data:/root/.cache/huggingface
+    logging: *default-logging
+
 volumes:
   reqsai_db_data:
     name: reqsai-db-data
   reqsai_whisper_data:
     name: reqsai-whisper-data
+  reqsai_whisperlive_data:
+    name: reqsai-whisperlive-data
