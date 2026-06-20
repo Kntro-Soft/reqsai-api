@@ -52,4 +52,29 @@ public class Glossary extends AggregateRoot {
         terms.add(glossaryTerm);
         return glossaryTerm;
     }
+
+    public GlossaryTerm updateTerm(UUID termId, String term, String definition) {
+        GlossaryTerm glossaryTerm = terms.stream()
+                .filter(existing -> existing.getId().equals(termId))
+                .findFirst()
+                .orElseThrow(() -> WorkspaceExceptions.glossaryTermNotFound(termId));
+
+        String normalizedTerm = Assert.notBlank(term, "term");
+        boolean exists = terms.stream()
+                .filter(existing -> !existing.getId().equals(termId))
+                .anyMatch(existing -> existing.getTerm().trim().equalsIgnoreCase(normalizedTerm));
+        if (exists) {
+            throw WorkspaceExceptions.glossaryTermAlreadyExists(normalizedTerm);
+        }
+
+        glossaryTerm.update(normalizedTerm, definition);
+        return glossaryTerm;
+    }
+
+    public void removeTerm(UUID termId) {
+        boolean removed = terms.removeIf(existing -> existing.getId().equals(termId));
+        if (!removed) {
+            throw WorkspaceExceptions.glossaryTermNotFound(termId);
+        }
+    }
 }

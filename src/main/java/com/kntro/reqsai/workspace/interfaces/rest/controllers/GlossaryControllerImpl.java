@@ -1,12 +1,15 @@
 package com.kntro.reqsai.workspace.interfaces.rest.controllers;
 
 import com.kntro.reqsai.workspace.application.handler.AddGlossaryTermCommandHandler;
+import com.kntro.reqsai.workspace.application.handler.DeleteGlossaryTermCommandHandler;
 import com.kntro.reqsai.workspace.application.handler.GetGlossaryTermQueryHandler;
 import com.kntro.reqsai.workspace.application.handler.ListGlossaryTermsQueryHandler;
+import com.kntro.reqsai.workspace.application.handler.UpdateGlossaryTermCommandHandler;
 import com.kntro.reqsai.workspace.application.query.GetGlossaryTermQuery;
 import com.kntro.reqsai.workspace.application.query.ListGlossaryTermsQuery;
 import com.kntro.reqsai.workspace.domain.model.GlossaryTerm;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.request.AddGlossaryTermRequest;
+import com.kntro.reqsai.workspace.interfaces.rest.dto.request.UpdateGlossaryTermRequest;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.response.GlossaryTermResponse;
 import com.kntro.reqsai.workspace.interfaces.rest.mappers.request.GlossaryRequestMapper;
 import com.kntro.reqsai.workspace.interfaces.rest.mappers.response.GlossaryResponseMapper;
@@ -28,6 +31,8 @@ public class GlossaryControllerImpl implements GlossaryController {
     private final ListGlossaryTermsQueryHandler listGlossaryTerms;
     private final AddGlossaryTermCommandHandler addGlossaryTerm;
     private final GetGlossaryTermQueryHandler getGlossaryTerm;
+    private final UpdateGlossaryTermCommandHandler updateGlossaryTerm;
+    private final DeleteGlossaryTermCommandHandler deleteGlossaryTerm;
 
     @Override
     public ResponseEntity<List<GlossaryTermResponse>> listTerms(UUID orgId, UUID projectId, Authentication authentication) {
@@ -60,5 +65,20 @@ public class GlossaryControllerImpl implements GlossaryController {
         UUID requestedBy = UUID.fromString(authentication.getName());
         GlossaryTerm term = getGlossaryTerm.handle(new GetGlossaryTermQuery(orgId, projectId, termId, requestedBy));
         return ResponseEntity.ok(GlossaryResponseMapper.toResponse(term));
+    }
+
+    @Override
+    public ResponseEntity<GlossaryTermResponse> updateTerm(UUID orgId, UUID projectId, UUID termId, UpdateGlossaryTermRequest request, Authentication authentication) {
+        UUID requestedBy = UUID.fromString(authentication.getName());
+        GlossaryTerm term = updateGlossaryTerm.handle(
+                GlossaryRequestMapper.toCommand(orgId, projectId, termId, request, requestedBy));
+        return ResponseEntity.ok(GlossaryResponseMapper.toResponse(term));
+    }
+
+    @Override
+    public ResponseEntity<Void> deleteTerm(UUID orgId, UUID projectId, UUID termId, Authentication authentication) {
+        UUID requestedBy = UUID.fromString(authentication.getName());
+        deleteGlossaryTerm.handle(GlossaryRequestMapper.toDeleteCommand(orgId, projectId, termId, requestedBy));
+        return ResponseEntity.noContent().build();
     }
 }

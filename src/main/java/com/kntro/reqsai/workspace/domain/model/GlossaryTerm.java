@@ -49,4 +49,9 @@ public class GlossaryTerm extends AuditableEntity {
         this.addedBy = Assert.notNull(addedBy, "addedBy");
         this.addedAt = Instant.now();
     }
+
+    void update(String term, String definition) {
+        this.term = Assert.maxLength(Assert.notBlank(term, "term"), "term", TERM_MAX);
+        this.definition = Assert.maxLength(Assert.notBlank(definition, "definition"), "definition", DEFINITION_MAX);
+    }
 }

@@ -72,6 +72,30 @@ class GlossaryTermIntegrationTest extends AbstractIntegrationTest {
                         .body(responseSpec.bodyTo(String.class)));
         assertThat(list.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(list.getBody()).contains("\"term\":\"Lead\"");
+
+        ResponseEntity<String> update = client().put().uri("/api/organizations/{orgId}/projects/{projectId}/glossary/{termId}",
+                        orgId, projectId, UUID.fromString(termId))
+                .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId.toString(), "ROLE_USER"))
+                .header("Api-Version", "1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("term", "Opportunity", "definition", "Qualified lead"))
+                .exchange((req, responseSpec) -> ResponseEntity.status(responseSpec.getStatusCode())
+                        .body(responseSpec.bodyTo(String.class)));
+        assertThat(update.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(update.getBody()).contains("\"term\":\"Opportunity\"");
+        assertThat(update.getBody()).contains("\"definition\":\"Qualified lead\"");
+
+        ResponseEntity<Void> delete = client().delete().uri("/api/organizations/{orgId}/projects/{projectId}/glossary/{termId}",
+                        orgId, projectId, UUID.fromString(termId))
+                .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId.toString(), "ROLE_USER"))
+                .header("Api-Version", "1")
+                .exchange((req, responseSpec) -> ResponseEntity.status(responseSpec.getStatusCode()).build());
+        assertThat(delete.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+
+        Integer countAfterDelete = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM \"" + schema + "\".glossary_terms WHERE id = ?::uuid",
+                Integer.class, UUID.fromString(termId));
+        assertThat(countAfterDelete).isEqualTo(0);
     }
 
     @Test

@@ -6,6 +6,7 @@ import com.kntro.reqsai.shared.infrastructure.documentation.openapi.annotations.
 import com.kntro.reqsai.shared.infrastructure.documentation.openapi.annotations.ApiResponseNotFound;
 import com.kntro.reqsai.shared.infrastructure.documentation.openapi.annotations.ApiStandardErrorResponses;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.request.AddGlossaryTermRequest;
+import com.kntro.reqsai.workspace.interfaces.rest.dto.request.UpdateGlossaryTermRequest;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.response.GlossaryTermResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -18,9 +19,11 @@ import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 
@@ -67,6 +70,35 @@ public interface GlossaryController {
     @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
     @GetMapping(value = "/{termId}", version = ApiVersioning.V1)
     ResponseEntity<GlossaryTermResponse> getTerm(
+            @Parameter(description = "Organization context UUID") @PathVariable UUID orgId,
+            @Parameter(description = "Project UUID") @PathVariable UUID projectId,
+            @Parameter(description = "Glossary term UUID") @PathVariable UUID termId,
+            Authentication authentication
+    );
+
+    @Operation(summary = "Replace a glossary term", description = "Fully replaces the term and definition of one glossary term.")
+    @ApiResponse(responseCode = "200", description = "Glossary term updated successfully",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = GlossaryTermResponse.class)))
+    @ApiResponseBadRequest
+    @ApiResponseNotFound
+    @ApiStandardErrorResponses
+    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
+    @PutMapping(value = "/{termId}", version = ApiVersioning.V1)
+    ResponseEntity<GlossaryTermResponse> updateTerm(
+            @Parameter(description = "Organization context UUID") @PathVariable UUID orgId,
+            @Parameter(description = "Project UUID") @PathVariable UUID projectId,
+            @Parameter(description = "Glossary term UUID") @PathVariable UUID termId,
+            @Valid @RequestBody UpdateGlossaryTermRequest request,
+            Authentication authentication
+    );
+
+    @Operation(summary = "Delete a glossary term", description = "Removes one glossary term from the project's glossary.")
+    @ApiResponse(responseCode = "204", description = "Glossary term deleted successfully")
+    @ApiResponseNotFound
+    @ApiStandardErrorResponses
+    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
+    @DeleteMapping(value = "/{termId}", version = ApiVersioning.V1)
+    ResponseEntity<Void> deleteTerm(
             @Parameter(description = "Organization context UUID") @PathVariable UUID orgId,
             @Parameter(description = "Project UUID") @PathVariable UUID projectId,
             @Parameter(description = "Glossary term UUID") @PathVariable UUID termId,
