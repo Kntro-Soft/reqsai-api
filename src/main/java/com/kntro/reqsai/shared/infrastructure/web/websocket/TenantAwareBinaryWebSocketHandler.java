@@ -6,6 +6,8 @@ import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.BinaryWebSocketHandler;
 
+import java.util.function.Supplier;
+
 /**
  * Base class for binary WebSocket handlers that operate in a multi-tenant environment.
  *
@@ -72,6 +74,27 @@ public abstract class TenantAwareBinaryWebSocketHandler extends BinaryWebSocketH
         String orgId = (String) ws.getAttributes().get(ATTR_ORG);
         String schema = (String) ws.getAttributes().getOrDefault(ATTR_SCHEMA, TenantContext.DEFAULT_SCHEMA);
         TenantContext.runWith(orgId, schema, action);
+    }
+
+    /**
+     * Runs {@code supplier} under the tenant context stored in {@code ws} attributes and returns
+     * its result. Use this when a DB-touching block must return a value (e.g. a status check on
+     * a connection establishment).
+     *
+     * @param ws       the active WebSocket session whose attributes carry the tenant identity
+     * @param supplier the block to run under the tenant context
+     * @param <T>      return type
+     */
+    protected <T> T runWithTenantAndReturn(WebSocketSession ws, Supplier<T> supplier) {
+        String orgId = (String) ws.getAttributes().get(ATTR_ORG);
+        String schema = (String) ws.getAttributes().getOrDefault(ATTR_SCHEMA, TenantContext.DEFAULT_SCHEMA);
+        TenantContext.setCurrentTenant(orgId);
+        TenantContext.setCurrentSchema(schema);
+        try {
+            return supplier.get();
+        } finally {
+            TenantContext.clear();
+        }
     }
 
     /**
