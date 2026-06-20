@@ -60,4 +60,13 @@ public final class IamExceptions {
         return new AuthenticationException(IamError.INVALID_PASSWORD_RESET_TOKEN,
                 "Password reset token is invalid or has expired");
     }
+
+    public static AuthenticationException invalidCurrentPassword() {
+        return new AuthenticationException(IamError.INVALID_CURRENT_PASSWORD, "Current password is incorrect");
+    }
+
+    public static DomainException accountNotPendingVerification() {
+        return new DomainException(IamError.ACCOUNT_NOT_PENDING_VERIFICATION,
+                "Account is not pending verification — email may already be verified");
+    }
 }
