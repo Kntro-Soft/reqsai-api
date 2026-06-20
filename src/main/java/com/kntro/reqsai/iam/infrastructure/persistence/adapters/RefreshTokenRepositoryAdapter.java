@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -31,5 +32,11 @@ public class RefreshTokenRepositoryAdapter implements RefreshTokenRepository {
     @Transactional
     public void deleteByUserId(UUID userId) {
         jpa.deleteByUserId(userId);
+    }
+
+    @Override
+    @Transactional
+    public void deleteExpiredOrRevokedBefore(Instant cutoff) {
+        jpa.deleteExpiredOrRevokedBefore(cutoff);
     }
 }

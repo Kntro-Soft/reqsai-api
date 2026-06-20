@@ -2,6 +2,7 @@ package com.kntro.reqsai.iam.application.port;
 
 import com.kntro.reqsai.iam.domain.model.RefreshToken;
 
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -28,4 +29,12 @@ public interface RefreshTokenRepository {
      * @param userId the user whose tokens should be purged
      */
     void deleteByUserId(UUID userId);
+
+    /**
+     * Deletes tokens that are either expired (expiresAt before {@code cutoff}) or already revoked.
+     * Keeping revoked tokens for a short window allows detection of token reuse (possible theft signal).
+     *
+     * @param cutoff tokens expired before this instant are eligible for deletion
+     */
+    void deleteExpiredOrRevokedBefore(Instant cutoff);
 }
