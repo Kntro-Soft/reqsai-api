@@ -43,6 +43,8 @@ public class ResendVerificationCommandHandler {
         }
 
         Account account = maybeAccount.get();
+        emailVerifications.deleteByAccountId(account.getId());
+
         String rawToken = TokenGenerator.generate(tokenProperties.tokenBytes());
         Instant expiresAt = Instant.now().plus(tokenProperties.emailVerificationExpiration());
 
