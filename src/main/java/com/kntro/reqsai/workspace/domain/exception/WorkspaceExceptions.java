@@ -75,4 +75,19 @@ public final class WorkspaceExceptions {
         return new EntityNotFoundException(WorkspaceError.PROJECT_CONSTRAINT_NOT_FOUND,
                 "Project constraint not found: " + constraintId);
     }
+
+    public static EntityNotFoundException projectDocumentNotFound(UUID documentId) {
+        return new EntityNotFoundException(WorkspaceError.PROJECT_DOCUMENT_NOT_FOUND,
+                "Project document not found: " + documentId);
+    }
+
+    public static DomainException projectDocumentAlreadyExists(String name) {
+        return new DomainException(WorkspaceError.PROJECT_DOCUMENT_ALREADY_EXISTS,
+                "Project document already exists in this project: " + name);
+    }
+
+    public static DomainException projectDocumentPlanLimitExceeded(int maxDocuments) {
+        return new DomainException(WorkspaceError.PROJECT_DOCUMENT_PLAN_LIMIT_EXCEEDED,
+                "Project document limit reached for this plan: " + maxDocuments);
+    }
 }
