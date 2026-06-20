@@ -31,6 +31,11 @@ public final class WorkspaceExceptions {
                 "User %s cannot edit organization %s".formatted(userId, organizationId));
     }
 
+    public static DomainException insufficientPermissions(String action, UUID userId) {
+        return new DomainException(WorkspaceError.INSUFFICIENT_PERMISSIONS,
+                "User %s does not have permissions to %s".formatted(userId, action));
+    }
+
     public static EntityNotFoundException glossaryNotFound(UUID projectId) {
         return new EntityNotFoundException(WorkspaceError.GLOSSARY_NOT_FOUND,
                 "Glossary not found for project: " + projectId);
@@ -89,5 +94,40 @@ public final class WorkspaceExceptions {
     public static DomainException projectDocumentPlanLimitExceeded(int maxDocuments) {
         return new DomainException(WorkspaceError.PROJECT_DOCUMENT_PLAN_LIMIT_EXCEEDED,
                 "Project document limit reached for this plan: " + maxDocuments);
+    }
+
+    public static EntityNotFoundException memberNotFound(UUID memberId) {
+        return new EntityNotFoundException(WorkspaceError.MEMBER_NOT_FOUND,
+                "Member not found: " + memberId);
+    }
+
+    public static DomainException memberAlreadyExists(String identity) {
+        return new DomainException(WorkspaceError.MEMBER_ALREADY_EXISTS,
+                "Member already exists in this organization: " + identity);
+    }
+
+    public static DomainException memberPlanLimitExceeded(int maxMembers) {
+        return new DomainException(WorkspaceError.MEMBER_PLAN_LIMIT_EXCEEDED,
+                "Member limit reached for this plan: " + maxMembers);
+    }
+
+    public static EntityNotFoundException projectRoleNotFound(UUID roleId) {
+        return new EntityNotFoundException(WorkspaceError.PROJECT_ROLE_NOT_FOUND,
+                "Project role not found: " + roleId);
+    }
+
+    public static DomainException projectRoleNameAlreadyExists(String name) {
+        return new DomainException(WorkspaceError.PROJECT_ROLE_NAME_ALREADY_EXISTS,
+                "Project role name already exists in this project: " + name);
+    }
+
+    public static EntityNotFoundException projectMemberNotFound(UUID assignmentId) {
+        return new EntityNotFoundException(WorkspaceError.PROJECT_MEMBER_NOT_FOUND,
+                "Project member assignment not found: " + assignmentId);
+    }
+
+    public static DomainException projectMemberAlreadyExists(UUID memberId) {
+        return new DomainException(WorkspaceError.PROJECT_MEMBER_ALREADY_EXISTS,
+                "Member is already assigned to this project: " + memberId);
     }
 }
