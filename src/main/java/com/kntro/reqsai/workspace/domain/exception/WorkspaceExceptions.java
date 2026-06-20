@@ -65,4 +65,14 @@ public final class WorkspaceExceptions {
         return new DomainException(WorkspaceError.PROJECT_PLAN_LIMIT_EXCEEDED,
                 "Project limit reached for this plan: " + maxProjects);
     }
+
+    public static DomainException projectConstraintAlreadyExists(String description) {
+        return new DomainException(WorkspaceError.PROJECT_CONSTRAINT_ALREADY_EXISTS,
+                "Project constraint already exists in this project: " + description);
+    }
+
+    public static EntityNotFoundException projectConstraintNotFound(UUID constraintId) {
+        return new EntityNotFoundException(WorkspaceError.PROJECT_CONSTRAINT_NOT_FOUND,
+                "Project constraint not found: " + constraintId);
+    }
 }

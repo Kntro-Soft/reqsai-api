@@ -8,7 +8,9 @@ import com.kntro.reqsai.workspace.mothers.ProjectMother;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+
 import java.util.UUID;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -94,6 +96,36 @@ class ProjectTest {
             assertThat(project.getName()).isEqualTo("New Project Name");
             assertThat(project.getDescription()).isEqualTo("New Description");
             assertThat(project.getTechnicalProfile()).isEqualTo(newProfile);
+        }
+
+        @Test
+        @DisplayName("should add project constraint successfully")
+        void should_add_project_constraint_successfully() {
+            Project project = ProjectMother.standard().build();
+
+            ProjectConstraint constraint = project.addConstraint("Must integrate with SAP");
+
+            assertThat(project.getConstraints()).hasSize(1);
+            assertThat(constraint.getDescription()).isEqualTo("Must integrate with SAP");
+        }
+
+        @Test
+        @DisplayName("should reject blank constraint description")
+        void should_reject_blank_constraint_description() {
+            Project project = ProjectMother.standard().build();
+
+            assertThatThrownBy(() -> project.addConstraint("   "))
+                    .isInstanceOf(DomainException.class);
+        }
+
+        @Test
+        @DisplayName("should reject duplicate constraint ignoring case and trim")
+        void should_reject_duplicate_constraint_ignoring_case_and_trim() {
+            Project project = ProjectMother.standard().build();
+            project.addConstraint("Must integrate with SAP");
+
+            assertThatThrownBy(() -> project.addConstraint("  must integrate with sap  "))
+                    .isInstanceOf(DomainException.class);
         }
     }
 
