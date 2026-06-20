@@ -4,6 +4,7 @@ import com.kntro.reqsai.iam.application.command.ResendVerificationCommand;
 import com.kntro.reqsai.iam.application.config.IamTokenProperties;
 import com.kntro.reqsai.iam.application.port.AccountRepository;
 import com.kntro.reqsai.iam.application.port.EmailVerificationRepository;
+import com.kntro.reqsai.iam.domain.exception.IamExceptions;
 import com.kntro.reqsai.iam.domain.model.Account;
 import com.kntro.reqsai.iam.domain.model.EmailVerification;
 import com.kntro.reqsai.shared.domain.support.TokenGenerator;
@@ -19,8 +20,9 @@ import java.util.Optional;
 /**
  * Resends the email-verification link for an account still in {@code PENDING_VERIFICATION}.
  * <p>
- * Flow: look up an account by email → if not found or not pending, return silently (no enumeration) →
- * issue a new {@link EmailVerification} token (TTL 24 h) → persist → load user's first name →
+ * Flow: look up an account by email → if not found, return silently (anti-enumeration) →
+ * if found but already active, throw {@code ACCOUNT_NOT_PENDING_VERIFICATION} (409) →
+ * otherwise issue a new {@link EmailVerification} token (TTL 24 h) → persist →
  * send the verification email with the raw token.
  * The old token is not explicitly invalidated; it stays in the table and will simply fail
  * {@link EmailVerification#isValid} once it expires or after this new one is used first.
@@ -37,12 +39,15 @@ public class ResendVerificationCommandHandler {
     @Transactional
     public void handle(ResendVerificationCommand command) {
         Optional<Account> maybeAccount = accounts.findByEmail(Email.of(command.email()));
-        if (maybeAccount.isEmpty() || !maybeAccount.get().isPendingVerification()) {
-            log.debug("Resend-verification requested for unknown or already-verified email — silently ignored");
+        if (maybeAccount.isEmpty()) {
+            log.debug("Resend-verification requested for unknown email — silently ignored");
             return;
         }
 
         Account account = maybeAccount.get();
+        if (!account.isPendingVerification()) {
+            throw IamExceptions.accountNotPendingVerification();
+        }
         emailVerifications.deleteByAccountId(account.getId());
 
         String rawToken = TokenGenerator.generate(tokenProperties.tokenBytes());

@@ -16,7 +16,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.Duration;
 import java.util.Optional;
 
+import com.kntro.reqsai.shared.domain.exception.DomainException;
+
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -70,16 +73,16 @@ class ResendVerificationCommandHandlerTest {
     }
 
     @Test
-    @DisplayName("should silently ignore when account is already active (no enumeration)")
-    void handle_silentlyIgnoresAlreadyActiveAccount() {
+    @DisplayName("should throw DomainException when account is already active")
+    void handle_throwsWhenAccountAlreadyActive() {
         // Arrange — account is ACTIVE (already verified)
         Account active = Account.register(Email.of(EMAIL), "$2a$10$hash");
         active.activate();
         when(accounts.findByEmail(Email.of(EMAIL))).thenReturn(Optional.of(active));
 
         // Act & Assert
-        assertThatCode(() -> handler.handle(new ResendVerificationCommand(EMAIL)))
-                .doesNotThrowAnyException();
+        assertThatThrownBy(() -> handler.handle(new ResendVerificationCommand(EMAIL)))
+                .isInstanceOf(DomainException.class);
         verify(emailVerifications, never()).save(any());
     }
 }
