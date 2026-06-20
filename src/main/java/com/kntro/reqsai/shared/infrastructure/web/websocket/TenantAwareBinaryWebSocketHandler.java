@@ -71,9 +71,13 @@ public abstract class TenantAwareBinaryWebSocketHandler extends BinaryWebSocketH
      * @param action the database-touching block to run under the tenant context
      */
     protected void runWithTenant(WebSocketSession ws, Runnable action) {
-        String orgId = (String) ws.getAttributes().get(ATTR_ORG);
+        TenantContext.runWith(tenantSnapshot(ws), action);
+    }
+
+    protected TenantContext.TenantSnapshot tenantSnapshot(WebSocketSession ws) {
+        String orgId = (String) ws.getAttributes().getOrDefault(ATTR_ORG, TenantContext.DEFAULT_SCHEMA);
         String schema = (String) ws.getAttributes().getOrDefault(ATTR_SCHEMA, TenantContext.DEFAULT_SCHEMA);
-        TenantContext.runWith(orgId, schema, action);
+        return new TenantContext.TenantSnapshot(orgId, schema);
     }
 
     /**
@@ -86,10 +90,9 @@ public abstract class TenantAwareBinaryWebSocketHandler extends BinaryWebSocketH
      * @param <T>      return type
      */
     protected <T> T runWithTenantAndReturn(WebSocketSession ws, Supplier<T> supplier) {
-        String orgId = (String) ws.getAttributes().get(ATTR_ORG);
-        String schema = (String) ws.getAttributes().getOrDefault(ATTR_SCHEMA, TenantContext.DEFAULT_SCHEMA);
-        TenantContext.setCurrentTenant(orgId);
-        TenantContext.setCurrentSchema(schema);
+        TenantContext.TenantSnapshot t = tenantSnapshot(ws);
+        TenantContext.setCurrentTenant(t.tenantId());
+        TenantContext.setCurrentSchema(t.tenantSchema());
         try {
             return supplier.get();
         } finally {
