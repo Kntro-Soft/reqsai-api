@@ -19,4 +19,6 @@ public interface AccountRepository {
     Optional<Account> findByEmail(Email email);
 
     Optional<Account> findById(UUID id);
+
+    Optional<Account> findByPasswordResetToken(String tokenHash);
 }

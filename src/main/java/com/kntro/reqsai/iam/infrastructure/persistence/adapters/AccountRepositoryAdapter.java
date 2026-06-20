@@ -36,4 +36,9 @@ public class AccountRepositoryAdapter implements AccountRepository {
     public Optional<Account> findById(UUID id) {
         return jpa.findById(id);
     }
+
+    @Override
+    public Optional<Account> findByPasswordResetToken(String tokenHash) {
+        return jpa.findByPasswordResetToken(tokenHash);
+    }
 }

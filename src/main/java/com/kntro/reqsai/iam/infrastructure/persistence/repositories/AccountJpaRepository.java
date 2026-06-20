@@ -16,4 +16,6 @@ public interface AccountJpaRepository extends JpaRepository<Account, UUID> {
     boolean existsByEmail(Email email);
 
     Optional<Account> findByEmail(Email email);
+
+    Optional<Account> findByPasswordResetToken(String passwordResetToken);
 }
