@@ -42,10 +42,13 @@ class ArchitectureTests {
 	@ArchTest
 	static final ArchRule interfaces_must_not_access_infrastructure = noClasses().that()
 			.resideInAPackage("..interfaces..").and()
-			.resideOutsideOfPackage("..interfaces.rest.swagger..")
+			.resideOutsideOfPackage("..interfaces.rest.swagger..").and()
+			.resideOutsideOfPackage("..interfaces.websocket..")
 			.should().dependOnClassesThat().resideInAPackage("..infrastructure..")
 			.because("interfaces layer must not bypass the application layer; "
-					+ "interfaces.rest.swagger may use shared OpenAPI annotations (compile-time metadata only)");
+					+ "interfaces.rest.swagger may use shared OpenAPI annotations (compile-time metadata only); "
+					+ "interfaces.websocket handlers extend TenantAwareBinaryWebSocketHandler and WebSocketQueryParams "
+					+ "from shared.infrastructure.web.websocket (Spring WS base classes for multi-tenant adapters)");
 
 	@ArchTest
 	static final ArchRule bounded_contexts_must_not_directly_import_each_other = noClasses().that()
