@@ -63,7 +63,7 @@ class UpdateProjectCommandHandlerTest {
 
             when(organizations.findById(orgId)).thenReturn(Optional.of(org));
             when(projects.findById(projectId)).thenReturn(Optional.of(project));
-            when(projects.existsByNameAndIdNot(command.name(), projectId)).thenReturn(false);
+            when(projects.existsByOrganizationIdAndNameAndIdNot(orgId, command.name(), projectId)).thenReturn(false);
             when(projects.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
 
             // Act
@@ -155,12 +155,38 @@ class UpdateProjectCommandHandlerTest {
 
             when(organizations.findById(orgId)).thenReturn(Optional.of(org));
             when(projects.findById(projectId)).thenReturn(Optional.of(project));
-            when(projects.existsByNameAndIdNot("Duplicate Name", projectId)).thenReturn(true);
+            when(projects.existsByOrganizationIdAndNameAndIdNot(orgId, "Duplicate Name", projectId)).thenReturn(true);
 
             // Act & Assert
             assertThatThrownBy(() -> handler.handle(command))
                     .isInstanceOf(DomainException.class);
             verify(projects, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("should allow duplicate name when collision exists only in another organization")
+        void should_allow_duplicate_name_in_other_organization() {
+            // Arrange
+            Organization org = OrganizationMother.active().build();
+            UUID orgId = org.getId();
+            Project project = ProjectMother.standard().withOrganizationId(orgId).build();
+            UUID projectId = project.getId();
+            UpdateProjectCommand command = new UpdateProjectCommand(
+                    orgId, projectId, "Shared Name", "Desc", List.of("Java"), List.of("Spring"),
+                    List.of("Web"), List.of("PostgreSQL"), "Clean", "Fintech", UUID.randomUUID());
+
+            when(organizations.findById(orgId)).thenReturn(Optional.of(org));
+            when(projects.findById(projectId)).thenReturn(Optional.of(project));
+            when(projects.existsByOrganizationIdAndNameAndIdNot(orgId, "Shared Name", projectId)).thenReturn(false);
+            when(projects.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            // Act
+            Project updated = handler.handle(command);
+
+            // Assert
+            assertThat(updated.getName()).isEqualTo("Shared Name");
+            verify(projects).existsByOrganizationIdAndNameAndIdNot(orgId, "Shared Name", projectId);
+            verify(projects).save(project);
         }
     }
 }

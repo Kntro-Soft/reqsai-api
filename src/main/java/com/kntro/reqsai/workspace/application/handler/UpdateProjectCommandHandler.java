@@ -29,7 +29,7 @@ public class UpdateProjectCommandHandler {
             throw WorkspaceExceptions.projectNotFound(command.projectId());
         }
 
-        if (projects.existsByNameAndIdNot(command.name(), command.projectId())) {
+        if (projects.existsByOrganizationIdAndNameAndIdNot(command.organizationId(), command.name(), command.projectId())) {
             throw WorkspaceExceptions.projectNameAlreadyExists(command.name());
         }
 

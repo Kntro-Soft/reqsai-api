@@ -4,7 +4,10 @@ import com.kntro.reqsai.workspace.application.port.ProjectRepository;
 import com.kntro.reqsai.workspace.domain.model.Project;
 import com.kntro.reqsai.workspace.infrastructure.persistence.repositories.ProjectJpaRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
+
 import java.util.Optional;
 import java.util.UUID;
 
@@ -25,18 +28,23 @@ public class ProjectRepositoryAdapter implements ProjectRepository {
     }
 
     @Override
-    public boolean existsByName(String name) {
-        return jpa.existsByName(name);
+    public Page<Project> findAllByOrganizationId(UUID organizationId, Pageable pageable) {
+        return jpa.findAllByOrganizationId(organizationId, pageable);
     }
 
     @Override
-    public boolean existsByNameAndIdNot(String name, UUID id) {
-        return jpa.existsByNameAndIdNot(name, id);
+    public boolean existsByOrganizationIdAndName(UUID organizationId, String name) {
+        return jpa.existsByOrganizationIdAndName(organizationId, name);
     }
 
     @Override
-    public int countActive() {
-        return jpa.countActive();
+    public boolean existsByOrganizationIdAndNameAndIdNot(UUID organizationId, String name, UUID id) {
+        return jpa.existsByOrganizationIdAndNameAndIdNot(organizationId, name, id);
+    }
+
+    @Override
+    public int countActiveByOrganizationId(UUID organizationId) {
+        return jpa.countActiveByOrganizationId(organizationId);
     }
 
     @Override

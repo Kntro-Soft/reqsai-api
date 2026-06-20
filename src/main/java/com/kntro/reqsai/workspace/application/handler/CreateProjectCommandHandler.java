@@ -23,11 +23,11 @@ public class CreateProjectCommandHandler {
         Organization organization = organizations.findById(command.organizationId())
                 .orElseThrow(() -> WorkspaceExceptions.organizationNotFound(command.organizationId()));
 
-        if (projects.existsByName(command.name())) {
+        if (projects.existsByOrganizationIdAndName(command.organizationId(), command.name())) {
             throw WorkspaceExceptions.projectNameAlreadyExists(command.name());
         }
 
-        int currentCount = projects.countActive();
+        int currentCount = projects.countActiveByOrganizationId(command.organizationId());
         int maxProjects = organization.getPlanLimits().maxProjects();
         if (maxProjects != -1 && currentCount >= maxProjects) {
             throw WorkspaceExceptions.projectPlanLimitExceeded(maxProjects);

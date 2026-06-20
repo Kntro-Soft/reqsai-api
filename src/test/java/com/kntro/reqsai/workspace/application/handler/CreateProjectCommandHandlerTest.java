@@ -48,8 +48,8 @@ class CreateProjectCommandHandlerTest {
             CreateProjectCommand command = CreateProjectCommandMother.withOrganizationId(orgId);
 
             when(organizations.findById(orgId)).thenReturn(Optional.of(org));
-            when(projects.existsByName(command.name())).thenReturn(false);
-            when(projects.countActive()).thenReturn(0);
+            when(projects.existsByOrganizationIdAndName(orgId, command.name())).thenReturn(false);
+            when(projects.countActiveByOrganizationId(orgId)).thenReturn(0);
             when(projects.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
 
             // Act
@@ -91,12 +91,34 @@ class CreateProjectCommandHandlerTest {
             CreateProjectCommand command = CreateProjectCommandMother.withOrganizationId(orgId);
 
             when(organizations.findById(orgId)).thenReturn(Optional.of(org));
-            when(projects.existsByName(command.name())).thenReturn(true);
+            when(projects.existsByOrganizationIdAndName(orgId, command.name())).thenReturn(true);
 
             // Act & Assert
             assertThatThrownBy(() -> handler.handle(command))
                     .isInstanceOf(DomainException.class);
             verify(projects, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("should allow the same project name in another organization")
+        void should_allow_same_name_in_other_organization() {
+            // Arrange
+            Organization org = OrganizationMother.active().build();
+            UUID orgId = org.getId();
+            CreateProjectCommand command = CreateProjectCommandMother.withOrganizationId(orgId);
+
+            when(organizations.findById(orgId)).thenReturn(Optional.of(org));
+            when(projects.existsByOrganizationIdAndName(orgId, command.name())).thenReturn(false);
+            when(projects.countActiveByOrganizationId(orgId)).thenReturn(0);
+            when(projects.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            // Act
+            Project project = handler.handle(command);
+
+            // Assert
+            assertThat(project.getName()).isEqualTo(command.name());
+            verify(projects).existsByOrganizationIdAndName(orgId, command.name());
+            verify(projects).save(any(Project.class));
         }
 
         @Test
@@ -109,14 +131,36 @@ class CreateProjectCommandHandlerTest {
             CreateProjectCommand command = CreateProjectCommandMother.withOrganizationId(orgId);
 
             when(organizations.findById(orgId)).thenReturn(Optional.of(org));
-            when(projects.existsByName(command.name())).thenReturn(false);
+            when(projects.existsByOrganizationIdAndName(orgId, command.name())).thenReturn(false);
             // already 1 active project
-            when(projects.countActive()).thenReturn(1);
+            when(projects.countActiveByOrganizationId(orgId)).thenReturn(1);
 
             // Act & Assert
             assertThatThrownBy(() -> handler.handle(command))
                     .isInstanceOf(DomainException.class);
             verify(projects, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("should ignore active projects from other organizations when enforcing plan limit")
+        void should_ignore_other_organizations_when_enforcing_plan_limit() {
+            // Arrange
+            Organization org = OrganizationMother.active().build();
+            UUID orgId = org.getId();
+            CreateProjectCommand command = CreateProjectCommandMother.withOrganizationId(orgId);
+
+            when(organizations.findById(orgId)).thenReturn(Optional.of(org));
+            when(projects.existsByOrganizationIdAndName(orgId, command.name())).thenReturn(false);
+            when(projects.countActiveByOrganizationId(orgId)).thenReturn(0);
+            when(projects.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            // Act
+            Project project = handler.handle(command);
+
+            // Assert
+            assertThat(project).isNotNull();
+            verify(projects).countActiveByOrganizationId(orgId);
+            verify(projects).save(any(Project.class));
         }
     }
 }

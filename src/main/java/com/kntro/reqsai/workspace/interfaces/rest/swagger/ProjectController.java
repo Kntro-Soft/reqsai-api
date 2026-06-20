@@ -1,5 +1,6 @@
 package com.kntro.reqsai.workspace.interfaces.rest.swagger;
 
+import com.kntro.reqsai.shared.interfaces.pagination.PageResponse;
 import com.kntro.reqsai.shared.infrastructure.configuration.ApiVersioning;
 import com.kntro.reqsai.shared.infrastructure.documentation.openapi.OpenApiConfiguration;
 import com.kntro.reqsai.shared.infrastructure.documentation.openapi.annotations.ApiResponseBadRequest;
@@ -18,12 +19,14 @@ import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.request.UpdateProjectRequest;
 import java.util.UUID;
 
@@ -58,6 +61,32 @@ public interface ProjectController {
             @Parameter(description = "Project UUID") @PathVariable UUID projectId,
             @Valid @RequestBody UpdateProjectRequest request,
             Authentication authentication
+    );
+
+    @Operation(summary = "Get a project by id", description = "Returns a single project belonging to the given organization and authenticated tenant.")
+    @ApiResponse(responseCode = "200", description = "Project found",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ProjectResponse.class)))
+    @ApiResponseNotFound
+    @ApiStandardErrorResponses
+    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
+    @GetMapping(value = "/{projectId}", version = ApiVersioning.V1)
+    ResponseEntity<ProjectResponse> getById(
+            @Parameter(description = "Organization context UUID") @PathVariable UUID orgId,
+            @Parameter(description = "Project UUID") @PathVariable UUID projectId
+    );
+
+    @Operation(summary = "List projects for an organization", description = "Returns a paginated list of projects for the given organization, scoped to the authenticated tenant.")
+    @ApiResponse(responseCode = "200", description = "Paginated project list",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE))
+    @ApiStandardErrorResponses
+    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
+    @GetMapping(version = ApiVersioning.V1)
+    ResponseEntity<PageResponse<ProjectResponse>> list(
+            @Parameter(description = "Organization context UUID") @PathVariable UUID orgId,
+            @Parameter(description = "Zero-based page index", example = "0") @RequestParam(required = false) Integer page,
+            @Parameter(description = "Page size (max 100)", example = "20") @RequestParam(required = false) Integer size,
+            @Parameter(description = "Sort field: createdAt | updatedAt | name | status", example = "createdAt") @RequestParam(required = false) String sortBy,
+            @Parameter(description = "Sort direction: ASC | DESC", example = "DESC") @RequestParam(required = false) String sortDirection
     );
 
     @Operation(summary = "Delete a project manually", description = "Permanently deletes the project and all cascaded data (glossary, etc.) under the organization.")
