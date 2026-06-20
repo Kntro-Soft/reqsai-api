@@ -77,6 +77,15 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
   → "A server error occurred" ERROR with stacktrace; `ResponseStatusException` → reason exposed WARN),
   and package layout per bounded context.
 
+### Fixed
+
+- **Timestamp timezone offset (`bugfix/timestamp-timezone`)**: audit timestamps (`created_at`,
+  `updated_at`) were stored with a UTC-5 offset because the Dockerfile set `TZ=America/Lima`,
+  causing Hibernate to use the JVM's local timezone when writing to PostgreSQL. Fixed by changing
+  `ENV TZ=UTC` in the Dockerfile and adding `hibernate.jdbc.time_zone: UTC` under
+  `spring.jpa.properties.hibernate.jdbc` in `application.yml`. All migrations already used
+  `TIMESTAMPTZ` columns, so no schema change was required.
+
 ### Changed
 
 - **AI provider configuration — `local-ai` profile eliminated**: the `application-local-ai.yml`
