@@ -6,6 +6,7 @@ import com.kntro.reqsai.workspace.application.port.ProjectRepository;
 import com.kntro.reqsai.workspace.domain.exception.WorkspaceExceptions;
 import com.kntro.reqsai.workspace.domain.model.Organization;
 import com.kntro.reqsai.workspace.domain.model.Project;
+import com.kntro.reqsai.workspace.domain.model.ProjectStatus;
 import com.kntro.reqsai.workspace.domain.valueobjects.TechnicalProfile;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -23,11 +24,12 @@ public class CreateProjectCommandHandler {
         Organization organization = organizations.findById(command.organizationId())
                 .orElseThrow(() -> WorkspaceExceptions.organizationNotFound(command.organizationId()));
 
-        if (projects.existsByName(command.name())) {
+        if (projects.existsByOrganizationIdAndNameAndStatus(
+                command.organizationId(), command.name(), ProjectStatus.ACTIVE)) {
             throw WorkspaceExceptions.projectNameAlreadyExists(command.name());
         }
 
-        int currentCount = projects.countActive();
+        int currentCount = projects.countActiveByOrganizationId(command.organizationId());
         int maxProjects = organization.getPlanLimits().maxProjects();
         if (maxProjects != -1 && currentCount >= maxProjects) {
             throw WorkspaceExceptions.projectPlanLimitExceeded(maxProjects);

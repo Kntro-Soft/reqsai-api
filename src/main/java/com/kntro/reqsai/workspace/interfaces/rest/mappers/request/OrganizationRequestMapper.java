@@ -1,7 +1,9 @@
 package com.kntro.reqsai.workspace.interfaces.rest.mappers.request;
 
 import com.kntro.reqsai.workspace.application.command.CreateOrganizationCommand;
+import com.kntro.reqsai.workspace.application.command.UpdateOrganizationCommand;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.request.CreateOrganizationRequest;
+import com.kntro.reqsai.workspace.interfaces.rest.dto.request.UpdateOrganizationRequest;
 
 import java.util.UUID;
 
@@ -17,6 +19,15 @@ public final class OrganizationRequestMapper {
                 request.name(),
                 request.slug(),
                 request.meetingLanguage(),
+                requestedBy);
+    }
+
+    public static UpdateOrganizationCommand toCommand(UUID organizationId, UpdateOrganizationRequest request, UUID requestedBy) {
+        return new UpdateOrganizationCommand(
+                organizationId,
+                request.name(),
+                request.meetingLanguage(),
+                request.audioRetentionDays(),
                 requestedBy);
     }
 }

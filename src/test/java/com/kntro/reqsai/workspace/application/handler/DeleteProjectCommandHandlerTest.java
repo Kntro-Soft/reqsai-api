@@ -32,20 +32,16 @@ class DeleteProjectCommandHandlerTest {
     class SuccessfulDeletion {
 
         @Test
-        @DisplayName("should delete project successfully from repository")
-        void should_delete_project_successfully() {
-            // Arrange
+        @DisplayName("should delete project physically")
+        void should_delete_project_physically() {
             UUID orgId = UUID.randomUUID();
             Project project = ProjectMother.standard().withOrganizationId(orgId).build();
             UUID projectId = project.getId();
             DeleteProjectCommand command = new DeleteProjectCommand(orgId, projectId, UUID.randomUUID());
 
-            when(projects.findById(projectId)).thenReturn(Optional.of(project));
-
-            // Act
+            when(projects.findByIdAndOrganizationId(projectId, orgId)).thenReturn(Optional.of(project));
             handler.handle(command);
 
-            // Assert
             verify(projects).delete(project);
         }
     }
@@ -57,31 +53,12 @@ class DeleteProjectCommandHandlerTest {
         @Test
         @DisplayName("should fail if project does not exist")
         void should_fail_if_project_not_found() {
-            // Arrange
             UUID orgId = UUID.randomUUID();
             UUID projectId = UUID.randomUUID();
             DeleteProjectCommand command = new DeleteProjectCommand(orgId, projectId, UUID.randomUUID());
 
-            when(projects.findById(projectId)).thenReturn(Optional.empty());
+            when(projects.findByIdAndOrganizationId(projectId, orgId)).thenReturn(Optional.empty());
 
-            // Act & Assert
-            assertThatThrownBy(() -> handler.handle(command))
-                    .isInstanceOf(DomainException.class);
-            verify(projects, never()).delete(any());
-        }
-
-        @Test
-        @DisplayName("should fail if project does not belong to organization")
-        void should_fail_if_project_belongs_to_other_org() {
-            // Arrange
-            UUID orgId = UUID.randomUUID();
-            Project project = ProjectMother.standard().withOrganizationId(UUID.randomUUID()).build(); // other org
-            UUID projectId = project.getId();
-            DeleteProjectCommand command = new DeleteProjectCommand(orgId, projectId, UUID.randomUUID());
-
-            when(projects.findById(projectId)).thenReturn(Optional.of(project));
-
-            // Act & Assert
             assertThatThrownBy(() -> handler.handle(command))
                     .isInstanceOf(DomainException.class);
             verify(projects, never()).delete(any());
