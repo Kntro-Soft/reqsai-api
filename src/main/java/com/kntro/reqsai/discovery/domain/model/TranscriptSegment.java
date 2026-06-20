@@ -58,7 +58,7 @@ public class TranscriptSegment extends AuditableEntity {
     public TranscriptSegment(UUID sessionId, int sequence, @Nullable String speakerLabel, String text, long startMs, long endMs, boolean isFinal) {
         super();
         this.sessionId = Assert.notNull(sessionId, "sessionId");
-        Assert.isTrue(sequence > 0, "sequence", "sequence must be positive");
+        Assert.isTrue(isFinal ? sequence > 0 : sequence >= 0, "sequence", "sequence must be positive for final segments, non-negative for partials");
         this.sequence = sequence;
         this.speakerLabel = speakerLabel != null ? Assert.maxLength(speakerLabel, "speakerLabel", SPEAKER_LABEL_MAX) : null;
         this.text = Assert.notBlank(text, "text");
