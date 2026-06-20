@@ -23,7 +23,7 @@ FROM eclipse-temurin:25-jre AS runtime
 WORKDIR /app
 
 # OS + JVM timezone.
-ENV TZ=America/Lima
+ENV TZ=UTC
 
 # Run as a non-root user.
 RUN groupadd --system spring && useradd --system --gid spring spring
