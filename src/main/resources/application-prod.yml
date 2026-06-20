@@ -25,7 +25,10 @@ spring:
 reqsai:
   ai:
     stt:
-      provider: ${STT_PROVIDER:assemblyai}
+      batch:
+        provider: ${STT_PROVIDER:assemblyai}
+      streaming:
+        provider: ${STT_STREAMING_PROVIDER:assemblyai}
     generation:
       provider: ${GENERATION_PROVIDER:gemini}
     embedding:
