@@ -19,6 +19,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -35,6 +36,25 @@ import java.util.UUID;
 @RequestMapping(path = ApiVersioning.BASE + "/organizations", produces = MediaType.APPLICATION_JSON_VALUE)
 @Tag(name = "Organizations", description = "Organization registry and tenant schema provisioning")
 public interface OrganizationController {
+
+    @Operation(
+            summary = "Get an organization",
+            description = """
+                    Returns the organization's current editable configuration and metadata.
+
+                    - Readable fields include `name`, `slug`, `status`, `meetingLanguage`, and `audioRetentionDays`
+                    - Only the organization owner may read this resource in the current slice.""")
+    @ApiResponse(
+            responseCode = "200",
+            description = "Organization found",
+            content = @Content(
+                    mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    schema = @Schema(implementation = OrganizationResponse.class)))
+    @ApiResponseNotFound
+    @ApiStandardErrorResponses
+    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
+    @GetMapping(value = "/{orgId}", version = ApiVersioning.V1)
+    ResponseEntity<OrganizationResponse> getById(@PathVariable UUID orgId, Authentication authentication);
 
     @Operation(
             summary = "Create an organization",

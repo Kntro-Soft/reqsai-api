@@ -1,7 +1,9 @@
 package com.kntro.reqsai.workspace.interfaces.rest.controllers;
 
 import com.kntro.reqsai.workspace.application.handler.CreateOrganizationCommandHandler;
+import com.kntro.reqsai.workspace.application.handler.GetOrganizationQueryHandler;
 import com.kntro.reqsai.workspace.application.handler.UpdateOrganizationCommandHandler;
+import com.kntro.reqsai.workspace.application.query.GetOrganizationQuery;
 import com.kntro.reqsai.workspace.domain.model.Organization;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.request.CreateOrganizationRequest;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.request.UpdateOrganizationRequest;
@@ -23,8 +25,16 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class OrganizationControllerImpl implements OrganizationController {
 
+    private final GetOrganizationQueryHandler getOrganization;
     private final CreateOrganizationCommandHandler createOrganization;
     private final UpdateOrganizationCommandHandler updateOrganization;
+
+    @Override
+    public ResponseEntity<OrganizationResponse> getById(UUID orgId, Authentication authentication) {
+        UUID requestedBy = UUID.fromString(authentication.getName());
+        Organization organization = getOrganization.handle(new GetOrganizationQuery(orgId, requestedBy));
+        return ResponseEntity.ok(OrganizationResponseMapper.toResponse(organization));
+    }
 
     @Override
     public ResponseEntity<OrganizationResponse> create(CreateOrganizationRequest request, Authentication authentication) {
