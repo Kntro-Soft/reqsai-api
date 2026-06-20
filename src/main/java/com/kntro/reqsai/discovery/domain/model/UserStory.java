@@ -1,6 +1,6 @@
 package com.kntro.reqsai.discovery.domain.model;
 
-import com.kntro.reqsai.discovery.application.port.EmbeddingPort;
+import com.kntro.reqsai.shared.application.port.EmbeddingPort;
 import com.kntro.reqsai.discovery.domain.event.UserStoryCreatedEvent;
 import com.kntro.reqsai.discovery.domain.exception.DiscoveryExceptions;
 import com.kntro.reqsai.shared.domain.model.AggregateRoot;

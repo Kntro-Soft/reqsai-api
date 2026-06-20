@@ -1,6 +1,6 @@
 package com.kntro.reqsai.discovery.application.service;
 
-import com.kntro.reqsai.discovery.application.port.EmbeddingPort;
+import com.kntro.reqsai.shared.application.port.EmbeddingPort;
 import com.kntro.reqsai.discovery.application.port.UserStoryRepository;
 import com.kntro.reqsai.discovery.domain.exception.DiscoveryExceptions;
 import com.kntro.reqsai.discovery.domain.model.UserStory;

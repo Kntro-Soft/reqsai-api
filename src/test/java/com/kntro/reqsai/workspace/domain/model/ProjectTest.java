@@ -1,6 +1,7 @@
 package com.kntro.reqsai.workspace.domain.model;
 
 import com.kntro.reqsai.shared.domain.exception.DomainException;
+import com.kntro.reqsai.shared.domain.exception.EntityNotFoundException;
 import com.kntro.reqsai.testsupport.AggregateEvents;
 import com.kntro.reqsai.workspace.domain.event.ProjectCreatedEvent;
 import com.kntro.reqsai.workspace.mothers.ProjectBuilder;
@@ -104,16 +105,85 @@ class ProjectTest {
         @Test
         @DisplayName("should archive and reactivate project status")
         void should_archive_and_reactivate() {
-            // Arrange
             Project project = ProjectMother.standard().build();
             assertThat(project.getStatus()).isEqualTo(ProjectStatus.ACTIVE);
 
-            // Act & Assert
             project.archive();
             assertThat(project.getStatus()).isEqualTo(ProjectStatus.ARCHIVED);
 
             project.activate();
             assertThat(project.getStatus()).isEqualTo(ProjectStatus.ACTIVE);
+        }
+    }
+
+    @Nested
+    @DisplayName("Constraints")
+    class Constraints {
+
+        @Test
+        @DisplayName("should add a constraint")
+        void should_add_constraint() {
+            Project project = ProjectMother.standard().build();
+
+            ProjectConstraint c = project.addConstraint("Must comply with PCI-DSS.");
+
+            assertThat(c.getDescription()).isEqualTo("Must comply with PCI-DSS.");
+            assertThat(c.getEmbedding()).isNull();
+            assertThat(project.getConstraints()).hasSize(1);
+        }
+
+        @Test
+        @DisplayName("should reject blank description")
+        void should_reject_blank_description() {
+            Project project = ProjectMother.standard().build();
+            assertThatThrownBy(() -> project.addConstraint("  "))
+                    .isInstanceOf(DomainException.class);
+        }
+
+        @Test
+        @DisplayName("should update a constraint and clear its embedding")
+        void should_update_constraint_and_clear_embedding() {
+            Project project = ProjectMother.standard().build();
+            ProjectConstraint c = project.addConstraint("Old constraint.");
+            c.applyEmbedding(new float[768]);
+
+            project.updateConstraint(c.getId(), "Updated constraint.");
+
+            assertThat(c.getDescription()).isEqualTo("Updated constraint.");
+            assertThat(c.getEmbedding()).isNull();
+        }
+
+        @Test
+        @DisplayName("should throw when updating a non-existent constraint")
+        void should_throw_when_constraint_not_found_on_update() {
+            Project project = ProjectMother.standard().build();
+            assertThatThrownBy(() -> project.updateConstraint(UUID.randomUUID(), "X"))
+                    .isInstanceOf(EntityNotFoundException.class);
+        }
+
+        @Test
+        @DisplayName("should remove a constraint")
+        void should_remove_constraint() {
+            Project project = ProjectMother.standard().build();
+            ProjectConstraint c = project.addConstraint("PCI-DSS.");
+
+            project.removeConstraint(c.getId());
+
+            assertThat(project.getConstraints()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("should store embedding on a constraint")
+        void should_apply_embedding_to_constraint() {
+            Project project = ProjectMother.standard().build();
+            ProjectConstraint c = project.addConstraint("PCI-DSS.");
+            float[] vector = new float[768];
+            vector[0] = 0.9f;
+
+            project.applyConstraintEmbedding(c.getId(), vector);
+
+            assertThat(c.getEmbedding()).isNotNull();
+            assertThat(c.getEmbedding()[0]).isEqualTo(0.9f);
         }
     }
 }
