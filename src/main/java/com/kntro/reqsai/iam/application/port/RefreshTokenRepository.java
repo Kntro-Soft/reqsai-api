@@ -1,4 +1,4 @@
-package com.kntro.reqsai.iam.domain.port.out;
+package com.kntro.reqsai.iam.application.port;
 
 import com.kntro.reqsai.iam.domain.model.RefreshToken;
 
@@ -9,7 +9,7 @@ import java.util.UUID;
  * Persistence port for the {@link RefreshToken} aggregate.
  * Implemented by {@code RefreshTokenRepositoryAdapter} in the infrastructure layer.
  */
-public interface RefreshTokenRepositoryPort {
+public interface RefreshTokenRepository {
 
     /** Persists a new or updated {@link RefreshToken}. */
     void save(RefreshToken token);

@@ -11,7 +11,7 @@ import com.kntro.reqsai.iam.domain.exception.IamExceptions;
 import com.kntro.reqsai.iam.domain.model.Account;
 import com.kntro.reqsai.iam.domain.model.User;
 import com.kntro.reqsai.iam.domain.model.RefreshToken;
-import com.kntro.reqsai.iam.domain.port.out.RefreshTokenRepositoryPort;
+import com.kntro.reqsai.iam.application.port.RefreshTokenRepository;
 import com.kntro.reqsai.iam.application.port.OrganizationLookupPort;
 import com.kntro.reqsai.shared.domain.valueobjects.Email;
 import lombok.RequiredArgsConstructor;
@@ -48,7 +48,7 @@ public class AuthenticateCommandHandler {
     private final UserRepository users;
     private final PasswordHasher passwordHasher;
     private final TokenIssuer tokenIssuer;
-    private final RefreshTokenRepositoryPort refreshTokens;
+    private final RefreshTokenRepository refreshTokens;
     private final OrganizationLookupPort organizations;
 
     @Transactional

@@ -10,7 +10,7 @@ import com.kntro.reqsai.iam.domain.exception.IamExceptions;
 import com.kntro.reqsai.iam.domain.model.Account;
 import com.kntro.reqsai.iam.domain.model.RefreshToken;
 import com.kntro.reqsai.iam.domain.model.User;
-import com.kntro.reqsai.iam.domain.port.out.RefreshTokenRepositoryPort;
+import com.kntro.reqsai.iam.application.port.RefreshTokenRepository;
 import com.kntro.reqsai.shared.domain.support.HashUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -41,7 +41,7 @@ public class RefreshSessionCommandHandler {
     private static final int REFRESH_TOKEN_BYTES = 32;
     private static final long REFRESH_TOKEN_DAYS = 30L;
 
-    private final RefreshTokenRepositoryPort refreshTokens;
+    private final RefreshTokenRepository refreshTokens;
     private final TokenIssuer tokenIssuer;
     private final OrganizationLookupPort organizations;
     private final UserRepository users;

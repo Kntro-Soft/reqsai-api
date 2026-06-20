@@ -1,7 +1,6 @@
 package com.kntro.reqsai.iam.application.handler;
 
-import com.kntro.reqsai.iam.domain.model.RefreshToken;
-import com.kntro.reqsai.iam.domain.port.out.RefreshTokenRepositoryPort;
+import com.kntro.reqsai.iam.application.port.RefreshTokenRepository;
 import com.kntro.reqsai.shared.domain.support.HashUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,7 +20,7 @@ import java.time.Instant;
 @Slf4j
 public class RevokeRefreshTokenCommandHandler {
 
-    private final RefreshTokenRepositoryPort refreshTokens;
+    private final RefreshTokenRepository refreshTokens;
 
     @Transactional
     public void handle(String rawRefreshToken) {

@@ -1,15 +1,11 @@
 package com.kntro.reqsai.iam.application.handler;
 
 import com.kntro.reqsai.iam.application.command.RegisterAccountCommand;
-import com.kntro.reqsai.iam.application.port.AccountRepository;
-import com.kntro.reqsai.iam.application.port.EmailNotificationPort;
-import com.kntro.reqsai.iam.application.port.PasswordHasher;
-import com.kntro.reqsai.iam.application.port.UserRepository;
+import com.kntro.reqsai.iam.application.port.*;
 import com.kntro.reqsai.iam.domain.exception.IamExceptions;
 import com.kntro.reqsai.iam.domain.model.Account;
-import com.kntro.reqsai.iam.domain.model.User;
 import com.kntro.reqsai.iam.domain.model.EmailVerification;
-import com.kntro.reqsai.iam.domain.port.out.EmailVerificationRepositoryPort;
+import com.kntro.reqsai.iam.domain.model.User;
 import com.kntro.reqsai.shared.domain.valueobjects.Email;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,7 +32,7 @@ public class RegisterAccountCommandHandler {
     private final AccountRepository accounts;
     private final UserRepository users;
     private final PasswordHasher passwordHasher;
-    private final EmailVerificationRepositoryPort emailVerifications;
+    private final EmailVerificationRepository emailVerifications;
     private final EmailNotificationPort emailNotification;
 
     @Transactional
