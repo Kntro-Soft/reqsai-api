@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
+import java.util.UUID;
 
 /** Adapts the {@link com.kntro.reqsai.iam.application.port.EmailVerificationRepository} port to Spring Data JPA. */
 @Repository
@@ -23,5 +24,10 @@ public class EmailVerificationRepositoryAdapter implements EmailVerificationRepo
     @Override
     public Optional<EmailVerification> findByTokenHash(String tokenHash) {
         return jpa.findByTokenHash(tokenHash);
+    }
+
+    @Override
+    public void deleteByAccountId(UUID accountId) {
+        jpa.deleteByAccountId(accountId);
     }
 }
