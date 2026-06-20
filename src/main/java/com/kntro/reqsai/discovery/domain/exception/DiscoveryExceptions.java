@@ -28,6 +28,11 @@ public final class DiscoveryExceptions {
                 "User story '%s' not found".formatted(id));
     }
 
+    public static EntityNotFoundException acceptanceCriterionNotFound(java.util.UUID id) {
+        return new EntityNotFoundException(DiscoveryError.ACCEPTANCE_CRITERION_NOT_FOUND,
+                "Acceptance criterion '%s' not found on this story".formatted(id));
+    }
+
     public static DomainException requirementGenerationFailed(String reason) {
         return new DomainException(DiscoveryError.REQUIREMENT_GENERATION_FAILED,
                 "Requirement generation failed: " + reason);

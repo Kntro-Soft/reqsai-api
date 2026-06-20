@@ -2,6 +2,7 @@ package com.kntro.reqsai.discovery.domain.model;
 
 import com.kntro.reqsai.discovery.application.port.EmbeddingPort;
 import com.kntro.reqsai.discovery.domain.event.UserStoryCreatedEvent;
+import com.kntro.reqsai.discovery.domain.exception.DiscoveryExceptions;
 import com.kntro.reqsai.shared.domain.model.AggregateRoot;
 import com.kntro.reqsai.shared.domain.support.Assert;
 import jakarta.persistence.Column;
@@ -9,12 +10,18 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.OneToMany;
 import lombok.Getter;
 import org.hibernate.annotations.Array;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import org.jspecify.annotations.Nullable;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -69,6 +76,9 @@ public class UserStory extends AggregateRoot {
     @Array(length = EmbeddingPort.DIMENSIONS)
     @Column(name = "embedding")
     private float @Nullable [] embedding;
+
+    @OneToMany(mappedBy = "story", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+    private List<AcceptanceCriterion> acceptanceCriteria = new ArrayList<>();
 
     protected UserStory() {
         super();
@@ -130,5 +140,45 @@ public class UserStory extends AggregateRoot {
         Assert.notNull(embedding, "embedding");
         Assert.isTrue(embedding.length == EmbeddingPort.DIMENSIONS, "embedding", "must have " + EmbeddingPort.DIMENSIONS + " dimensions");
         this.embedding = embedding;
+    }
+
+    /** Returns an unmodifiable view of the acceptance criteria. */
+    public List<AcceptanceCriterion> getAcceptanceCriteria() {
+        return Collections.unmodifiableList(acceptanceCriteria);
+    }
+
+    /**
+     * Adds a new acceptance criterion. {@code scenario} may be null.
+     * @return the newly created criterion
+     */
+    public AcceptanceCriterion addAcceptanceCriterion(@Nullable String scenario, String given, String when, String then) {
+        AcceptanceCriterion criterion = new AcceptanceCriterion(this, scenario, given, when, then);
+        acceptanceCriteria.add(criterion);
+        return criterion;
+    }
+
+    /**
+     * Updates an existing criterion identified by {@code criterionId} and returns it.
+     * Throws {@link com.kntro.reqsai.shared.domain.exception.EntityNotFoundException} if not found.
+     */
+    public AcceptanceCriterion updateAcceptanceCriterion(UUID criterionId, @Nullable String scenario, String given, String when, String then) {
+        AcceptanceCriterion criterion = acceptanceCriteria.stream()
+                .filter(c -> c.getId().equals(criterionId))
+                .findFirst()
+                .orElseThrow(() -> DiscoveryExceptions.acceptanceCriterionNotFound(criterionId));
+        criterion.update(scenario, given, when, then);
+        return criterion;
+    }
+
+    /**
+     * Removes an existing criterion identified by {@code criterionId}.
+     * {@code orphanRemoval = true} on the collection ensures JPA issues the DELETE automatically.
+     * Throws {@link com.kntro.reqsai.shared.domain.exception.EntityNotFoundException} if not found.
+     */
+    public void removeAcceptanceCriterion(UUID criterionId) {
+        boolean removed = acceptanceCriteria.removeIf(c -> c.getId().equals(criterionId));
+        if (!removed) {
+            throw DiscoveryExceptions.acceptanceCriterionNotFound(criterionId);
+        }
     }
 }
