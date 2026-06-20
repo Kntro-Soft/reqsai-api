@@ -116,6 +116,13 @@ public class Project extends AggregateRoot {
         }
     }
 
+    public void applyConstraintEmbedding(UUID constraintId, float[] embedding) {
+        constraints.stream()
+                .filter(c -> c.getId().equals(constraintId))
+                .findFirst()
+                .ifPresent(c -> c.applyEmbedding(embedding));
+    }
+
     public void archive() {
         this.status = ProjectStatus.ARCHIVED;
     }

@@ -61,5 +61,10 @@ public class ProjectConstraint extends AuditableEntity {
 
     void update(String description) {
         this.description = normalizeDescription(description);
+        this.embedding = null;
+    }
+
+    void applyEmbedding(float[] embedding) {
+        this.embedding = Assert.notNull(embedding, "embedding");
     }
 }

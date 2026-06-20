@@ -49,8 +49,9 @@ class WorkspaceModuleApiImplTest {
             project.addConstraint("Max response time 200ms.");
 
             Glossary glossary = GlossaryBuilder.aGlossary().withProjectId(project.getId()).build();
-            glossary.addTerm("Sprint", "Fixed-length iteration.");
-            glossary.addTerm("Backlog", "Prioritized list of features.");
+            UUID anyUser = UUID.randomUUID();
+            glossary.addTerm("Sprint", "Fixed-length iteration.", anyUser);
+            glossary.addTerm("Backlog", "Prioritized list of features.", anyUser);
 
             when(projects.findById(project.getId())).thenReturn(Optional.of(project));
             when(glossaries.findByProjectId(project.getId())).thenReturn(Optional.of(glossary));

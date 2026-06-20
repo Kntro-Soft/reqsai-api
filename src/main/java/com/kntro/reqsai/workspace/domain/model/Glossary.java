@@ -77,4 +77,11 @@ public class Glossary extends AggregateRoot {
             throw WorkspaceExceptions.glossaryTermNotFound(termId);
         }
     }
+
+    public void applyTermEmbedding(UUID termId, float[] embedding) {
+        terms.stream()
+                .filter(t -> t.getId().equals(termId))
+                .findFirst()
+                .ifPresent(t -> t.applyEmbedding(embedding));
+    }
 }
