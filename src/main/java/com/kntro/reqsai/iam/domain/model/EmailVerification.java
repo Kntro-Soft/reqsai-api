@@ -42,7 +42,7 @@ public class EmailVerification extends AggregateRoot {
         ev.tokenHash = HashUtils.sha256(rawToken);
         ev.accountId = accountId;
         ev.expiresAt = expiresAt;
-        ev.registerEvent(EmailVerificationRequestedEvent.of(accountId));
+        ev.registerEvent(EmailVerificationRequestedEvent.of(accountId, rawToken));
         return ev;
     }
 
