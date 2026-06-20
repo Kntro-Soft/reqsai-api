@@ -7,6 +7,7 @@ import com.kntro.reqsai.iam.application.port.UserRepository;
 import com.kntro.reqsai.iam.domain.model.Account;
 import com.kntro.reqsai.iam.domain.model.User;
 import com.kntro.reqsai.shared.domain.exception.AuthenticationException;
+import com.kntro.reqsai.shared.domain.exception.DomainException;
 import com.kntro.reqsai.shared.domain.valueobjects.Email;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -77,6 +78,23 @@ class ChangePasswordCommandHandlerTest {
         // Act & Assert
         assertThatThrownBy(() -> handler.handle(command))
                 .isInstanceOf(AuthenticationException.class);
+        verify(accounts, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("should throw DomainException when new password is the same as current")
+    void handle_throwsWhenNewPasswordMatchesCurrent() {
+        // Arrange
+        Account account = Account.register(Email.of("user@example.com"), CURRENT_HASH);
+        User user = new User(account.getId(), "Jane", "Doe");
+        when(users.findById(user.getId())).thenReturn(Optional.of(user));
+        when(accounts.findById(user.getAccountId())).thenReturn(Optional.of(account));
+        when(passwordHasher.matches(CURRENT_PASS, CURRENT_HASH)).thenReturn(true);
+        ChangePasswordCommand command = new ChangePasswordCommand(user.getId(), CURRENT_PASS, CURRENT_PASS);
+
+        // Act & Assert
+        assertThatThrownBy(() -> handler.handle(command))
+                .isInstanceOf(DomainException.class);
         verify(accounts, never()).save(any());
     }
 

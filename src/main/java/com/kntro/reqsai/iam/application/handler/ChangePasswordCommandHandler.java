@@ -40,6 +40,10 @@ public class ChangePasswordCommandHandler {
             throw IamExceptions.invalidCurrentPassword();
         }
 
+        if (passwordHasher.matches(command.newPassword(), account.getPasswordHash())) {
+            throw IamExceptions.samePasswordNotAllowed();
+        }
+
         account.changePassword(passwordHasher.hash(command.newPassword()));
         accounts.save(account);
 

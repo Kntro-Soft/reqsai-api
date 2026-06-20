@@ -69,4 +69,9 @@ public final class IamExceptions {
         return new DomainException(IamError.ACCOUNT_NOT_PENDING_VERIFICATION,
                 "Account is not pending verification — email may already be verified");
     }
+
+    public static DomainException samePasswordNotAllowed() {
+        return new DomainException(IamError.SAME_PASSWORD_NOT_ALLOWED,
+                "New password must be different from the current password");
+    }
 }
