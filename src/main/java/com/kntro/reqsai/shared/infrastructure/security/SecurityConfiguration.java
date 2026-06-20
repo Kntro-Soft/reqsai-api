@@ -1,5 +1,6 @@
 package com.kntro.reqsai.shared.infrastructure.security;
 
+import com.kntro.reqsai.shared.domain.exception.CommonError;
 import com.kntro.reqsai.shared.infrastructure.persistence.multitenancy.TenantSchemaResolver;
 import com.kntro.reqsai.shared.infrastructure.web.CorrelationFilter;
 import com.kntro.reqsai.shared.infrastructure.web.CorsProperties;
@@ -7,11 +8,15 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
+import org.springframework.http.ProblemDetail;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
@@ -61,9 +66,28 @@ public class SecurityConfiguration {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
                         .anyRequest().authenticated())
+                .exceptionHandling(ex -> ex.authenticationEntryPoint(unauthenticatedEntryPoint()))
                 .addFilterBefore(correlationFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterAfter(jwtAuthenticationFilter, CorrelationFilter.class);
         return http.build();
+    }
+
+    /**
+     * Returns 401 (not 403) when a request reaches a protected endpoint without valid credentials.
+     * Spring Security's default sends 403 via AccessDeniedHandler even for unauthenticated requests;
+     * RFC 9110 §15.5.2 requires 401 when authentication is required but missing or invalid.
+     */
+    private AuthenticationEntryPoint unauthenticatedEntryPoint() {
+        var mapper = new ObjectMapper();
+        return (request, response, ex) -> {
+            CommonError error = CommonError.NOT_AUTHENTICATED;
+            ProblemDetail pd = ProblemDetail.forStatusAndDetail(error.status(), "Authentication required");
+            pd.setProperty("code", error.code());
+            pd.setInstance(java.net.URI.create(request.getRequestURI()));
+            response.setStatus(error.status().value());
+            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+            mapper.writeValue(response.getWriter(), pd);
+        };
     }
 
     @Bean

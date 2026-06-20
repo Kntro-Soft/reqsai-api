@@ -17,4 +17,6 @@ public interface OrganizationRepository {
     boolean existsBySlug(Slug slug);
 
     Optional<Organization> findById(UUID id);
+
+    Optional<Organization> findByOwnerId(UUID ownerId);
 }

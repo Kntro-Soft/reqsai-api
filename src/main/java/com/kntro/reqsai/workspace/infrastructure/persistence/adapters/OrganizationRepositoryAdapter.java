@@ -31,4 +31,9 @@ public class OrganizationRepositoryAdapter implements OrganizationRepository {
     public Optional<Organization> findById(UUID id) {
         return jpa.findById(id);
     }
+
+    @Override
+    public Optional<Organization> findByOwnerId(UUID ownerId) {
+        return jpa.findFirstByOwnerIdOrderByCreatedAtDesc(ownerId);
+    }
 }
