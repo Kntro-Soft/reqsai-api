@@ -1,7 +1,7 @@
 package com.kntro.reqsai.iam.application.handler;
 
 import com.kntro.reqsai.iam.domain.model.RefreshToken;
-import com.kntro.reqsai.iam.domain.port.out.RefreshTokenRepositoryPort;
+import com.kntro.reqsai.iam.application.port.RefreshTokenRepository;
 import com.kntro.reqsai.shared.domain.support.HashUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -32,7 +32,7 @@ class RevokeRefreshTokenCommandHandlerTest {
     private static final UUID USER_ID = UUID.randomUUID();
 
     @Mock
-    private RefreshTokenRepositoryPort refreshTokens;
+    private RefreshTokenRepository refreshTokens;
 
     @InjectMocks
     private RevokeRefreshTokenCommandHandler handler;

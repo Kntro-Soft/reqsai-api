@@ -10,7 +10,7 @@ import com.kntro.reqsai.iam.domain.model.Account;
 import com.kntro.reqsai.iam.domain.model.RefreshToken;
 import com.kntro.reqsai.iam.domain.model.User;
 import com.kntro.reqsai.iam.domain.model.UserPreferences;
-import com.kntro.reqsai.iam.domain.port.out.RefreshTokenRepositoryPort;
+import com.kntro.reqsai.iam.application.port.RefreshTokenRepository;
 import com.kntro.reqsai.shared.domain.exception.AuthenticationException;
 import com.kntro.reqsai.shared.domain.support.HashUtils;
 import com.kntro.reqsai.shared.domain.valueobjects.Email;
@@ -43,7 +43,7 @@ class RefreshSessionCommandHandlerTest {
     private static final UUID USER_ID = UUID.randomUUID();
 
     @Mock
-    private RefreshTokenRepositoryPort refreshTokens;
+    private RefreshTokenRepository refreshTokens;
 
     @Mock
     private TokenIssuer tokenIssuer;
