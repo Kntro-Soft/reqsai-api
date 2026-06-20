@@ -2,6 +2,7 @@ package com.kntro.reqsai.iam.domain.model;
 
 import com.kntro.reqsai.iam.domain.event.AccountCreatedEvent;
 import com.kntro.reqsai.iam.domain.event.AccountVerifiedEvent;
+import com.kntro.reqsai.iam.domain.event.PasswordResetRequestedEvent;
 import com.kntro.reqsai.iam.domain.event.TermsAcceptedEvent;
 import com.kntro.reqsai.iam.domain.exception.IamExceptions;
 import com.kntro.reqsai.iam.infrastructure.persistence.converters.EmailConverter;
@@ -28,7 +29,7 @@ import java.time.Instant;
  * {@code SUSPENDED} or {@code DELETED} by an administrator. Only {@link #isActive()} accounts
  * may authenticate.
  * <p>
- * Password-reset state is embedded here. Email verification tokens live in a separate
+ * The password-reset state is embedded here. Email verification tokens live in a separate
  * {@code email_verifications} aggregate so one account can have at most one pending token
  * without overwriting the previous one.
  */
@@ -37,9 +38,9 @@ import java.time.Instant;
 @Getter
 public class Account extends AggregateRoot {
 
-    private static final int PASSWORD_HASH_MAX   = 255;
-    private static final int RESET_TOKEN_MAX     = 64;
-    private static final int TERMS_VERSION_MAX   = 50;
+    private static final int PASSWORD_HASH_MAX = 255;
+    private static final int RESET_TOKEN_MAX = 64;
+    private static final int TERMS_VERSION_MAX = 50;
 
     @Convert(converter = EmailConverter.class)
     @Column(name = "email", nullable = false, unique = true, length = 320, updatable = false)
@@ -74,15 +75,15 @@ public class Account extends AggregateRoot {
 
     private Account(Email email, String passwordHash, AccountStatus status) {
         super();
-        this.email        = Assert.notNull(email, "email");
+        this.email = Assert.notNull(email, "email");
         this.passwordHash = Assert.maxLength(Assert.notBlank(passwordHash, "passwordHash"), "passwordHash", PASSWORD_HASH_MAX);
-        this.status       = Assert.notNull(status, "status");
+        this.status = Assert.notNull(status, "status");
     }
 
     /**
      * Registers a new account in {@code PENDING_VERIFICATION} state and raises {@link AccountCreatedEvent}.
      *
-     * @param email        unique account email (already validated/normalized)
+     * @param email unique account email (already validated/normalized)
      * @param passwordHash BCrypt hash of the password (never the clear text)
      */
     public static Account register(Email email, String passwordHash) {
@@ -91,15 +92,13 @@ public class Account extends AggregateRoot {
         return account;
     }
 
-    // ── Business methods ──────────────────────────────────────────────────────
-
     /** Activates the account after successful email verification and raises {@link AccountVerifiedEvent}. */
     public void activate() {
         this.status = AccountStatus.ACTIVE;
         registerEvent(AccountVerifiedEvent.of(getId()));
     }
 
-    /** Suspends the account. Suspended accounts cannot authenticate. */
+    /** Suspends the account. Suspended accounts cannot be authenticated. */
     public void suspend() {
         if (isDeleted()) throw IamExceptions.cannotSuspendAccount(getId());
         this.status = AccountStatus.SUSPENDED;
@@ -116,12 +115,17 @@ public class Account extends AggregateRoot {
     }
 
     /**
-     * Stores a password-reset token hash so the reset flow can validate it later.
-     * The caller is responsible for sending the raw token to the user's email.
+     * Stores a password-reset token hash and raises {@link PasswordResetRequestedEvent} so the
+     * notification listener can send the email with the raw token after commit.
+     *
+     * @param rawToken unhashed token — never persisted, only carried in the domain event
+     * @param tokenHash SHA-256 hex digest of {@code rawToken} — the value actually stored
+     * @param expiresAt when the token becomes invalid
      */
-    public void generatePasswordResetToken(String tokenHash, Instant expiresAt) {
-        this.passwordResetToken           = Assert.maxLength(Assert.notBlank(tokenHash, "tokenHash"), "tokenHash", RESET_TOKEN_MAX);
-        this.passwordResetTokenExpiresAt  = Assert.notNull(expiresAt, "expiresAt");
+    public void generatePasswordResetToken(String rawToken, String tokenHash, Instant expiresAt) {
+        this.passwordResetToken = Assert.maxLength(Assert.notBlank(tokenHash, "tokenHash"), "tokenHash", RESET_TOKEN_MAX);
+        this.passwordResetTokenExpiresAt = Assert.notNull(expiresAt, "expiresAt");
+        registerEvent(PasswordResetRequestedEvent.of(getId(), rawToken));
     }
 
     /**
@@ -135,25 +139,23 @@ public class Account extends AggregateRoot {
                 || now.isAfter(passwordResetTokenExpiresAt)) {
             throw IamExceptions.invalidPasswordResetToken();
         }
-        this.passwordHash                 = Assert.maxLength(Assert.notBlank(newPasswordHash, "passwordHash"), "passwordHash", PASSWORD_HASH_MAX);
-        this.passwordResetToken           = null;
-        this.passwordResetTokenExpiresAt  = null;
+        this.passwordHash = Assert.maxLength(Assert.notBlank(newPasswordHash, "passwordHash"), "passwordHash", PASSWORD_HASH_MAX);
+        this.passwordResetToken = null;
+        this.passwordResetTokenExpiresAt = null;
     }
 
     /** Records that the user has accepted a specific T&C version and raises {@link TermsAcceptedEvent}. */
     public void acceptTerms(String version, Instant now) {
-        this.termsVersion    = Assert.maxLength(Assert.notBlank(version, "version"), "version", TERMS_VERSION_MAX);
+        this.termsVersion = Assert.maxLength(Assert.notBlank(version, "version"), "version", TERMS_VERSION_MAX);
         this.termsAcceptedAt = Assert.notNull(now, "now");
         registerEvent(TermsAcceptedEvent.of(getId(), this.termsVersion));
     }
 
-    // ── Query methods ─────────────────────────────────────────────────────────
-
     public boolean isPendingVerification() { return status == AccountStatus.PENDING_VERIFICATION; }
 
-    public boolean isActive()    { return status == AccountStatus.ACTIVE; }
+    public boolean isActive() { return status == AccountStatus.ACTIVE; }
 
     public boolean isSuspended() { return status == AccountStatus.SUSPENDED; }
 
-    public boolean isDeleted()   { return status == AccountStatus.DELETED; }
+    public boolean isDeleted() { return status == AccountStatus.DELETED; }
 }
