@@ -47,11 +47,31 @@ class GlossaryTermIntegrationTest extends AbstractIntegrationTest {
 
         String schema = "tenant_" + expectedSlug;
         Map<String, Object> row = jdbcTemplate.queryForMap(
-                "SELECT term, definition FROM \"" + schema + "\".glossary_terms WHERE glossary_id = (" +
+                "SELECT id::text as id, term, definition FROM \"" + schema + "\".glossary_terms WHERE glossary_id = (" +
                         "SELECT id FROM \"" + schema + "\".glossaries WHERE project_id = ?::uuid)",
                 projectId);
         assertThat(row.get("term")).isEqualTo("Lead");
         assertThat(row.get("definition")).isEqualTo("Potential customer");
+
+        String termId = (String) row.get("id");
+
+        ResponseEntity<String> getOne = client().get().uri("/api/organizations/{orgId}/projects/{projectId}/glossary/{termId}",
+                        orgId, projectId, UUID.fromString(termId))
+                .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId.toString(), "ROLE_USER"))
+                .header("Api-Version", "1")
+                .exchange((req, responseSpec) -> ResponseEntity.status(responseSpec.getStatusCode())
+                        .body(responseSpec.bodyTo(String.class)));
+        assertThat(getOne.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(getOne.getBody()).contains("\"id\":\"" + termId + "\"");
+        assertThat(getOne.getBody()).contains("\"term\":\"Lead\"");
+
+        ResponseEntity<String> list = client().get().uri("/api/organizations/{orgId}/projects/{projectId}/glossary", orgId, projectId)
+                .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId.toString(), "ROLE_USER"))
+                .header("Api-Version", "1")
+                .exchange((req, responseSpec) -> ResponseEntity.status(responseSpec.getStatusCode())
+                        .body(responseSpec.bodyTo(String.class)));
+        assertThat(list.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(list.getBody()).contains("\"term\":\"Lead\"");
     }
 
     @Test

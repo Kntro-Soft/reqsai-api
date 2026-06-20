@@ -41,6 +41,11 @@ public final class WorkspaceExceptions {
                 "Glossary term already exists in this project: " + term);
     }
 
+    public static EntityNotFoundException glossaryTermNotFound(UUID termId) {
+        return new EntityNotFoundException(WorkspaceError.GLOSSARY_TERM_NOT_FOUND,
+                "Glossary term not found: " + termId);
+    }
+
     public static DomainException glossaryTermPlanLimitExceeded(int maxTerms) {
         return new DomainException(WorkspaceError.GLOSSARY_TERM_PLAN_LIMIT_EXCEEDED,
                 "Glossary term limit reached for this plan: " + maxTerms);
