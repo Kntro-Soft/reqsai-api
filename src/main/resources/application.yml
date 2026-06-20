@@ -103,6 +103,9 @@ spring:
 reqsai:
   name: ${APP_NAME:Reqs-AI}
   url: ${APP_URL:http://localhost:8080}
+  email:
+    provider: ${EMAIL_PROVIDER:mailpit}
+    from: ${MAIL_FROM:noreply@reqsai.com}
   ai:
     stt:
       batch:

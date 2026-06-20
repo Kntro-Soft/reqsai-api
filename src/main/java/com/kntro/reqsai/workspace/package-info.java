@@ -5,7 +5,8 @@
  * registry and triggers tenant provisioning on activation. Owner: <strong>Salim</strong>.
  * <p>
  * Layers: {@code api}, {@code domain}, {@code application}, {@code infrastructure}, {@code interfaces}.
- * Depends only on the OPEN {@code shared} module.
+ * Depends only on the OPEN {@code shared} module and the IAM {@code ports} named interface
+ * (to implement {@code OrganizationLookupPort} for cross-context JWT enrichment).
  */
-@org.springframework.modulith.ApplicationModule
+@org.springframework.modulith.ApplicationModule(allowedDependencies = {"shared", "iam::ports"})
 package com.kntro.reqsai.workspace;
