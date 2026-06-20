@@ -3,8 +3,10 @@ package com.kntro.reqsai.workspace.interfaces.rest.swagger;
 import com.kntro.reqsai.shared.infrastructure.configuration.ApiVersioning;
 import com.kntro.reqsai.shared.infrastructure.documentation.openapi.OpenApiConfiguration;
 import com.kntro.reqsai.shared.infrastructure.documentation.openapi.annotations.ApiResponseBadRequest;
+import com.kntro.reqsai.shared.infrastructure.documentation.openapi.annotations.ApiResponseNotFound;
 import com.kntro.reqsai.shared.infrastructure.documentation.openapi.annotations.ApiStandardErrorResponses;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.request.CreateOrganizationRequest;
+import com.kntro.reqsai.workspace.interfaces.rest.dto.request.UpdateOrganizationRequest;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.response.OrganizationResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -17,9 +19,13 @@ import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+
+import java.util.UUID;
 
 /**
  * API contract (OpenAPI documentation) for organization endpoints. The implementation lives in
@@ -62,4 +68,40 @@ public interface OrganizationController {
     @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
     @PostMapping(version = ApiVersioning.V1)
     ResponseEntity<OrganizationResponse> create(@Valid @RequestBody CreateOrganizationRequest request, Authentication authentication);
+
+    @Operation(
+            summary = "Update an organization",
+            description = """
+                    Updates the organization's editable metadata and generation settings.
+
+                    - Editable fields: `name`, `meetingLanguage`, `audioRetentionDays`
+                    - Immutable fields: `slug`, `ownerId`, `planLimits`
+                    - Only the organization owner may perform this update.""")
+    @ApiResponse(
+            responseCode = "200",
+            description = "Organization updated successfully",
+            content = @Content(
+                    mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    schema = @Schema(implementation = OrganizationResponse.class),
+                    examples = @ExampleObject(value = """
+                            {
+                              "id": "019756a0-1234-7abc-8def-000000000001",
+                              "name": "Acme Corp International",
+                              "slug": "acme-corp",
+                              "status": "ACTIVE",
+                              "ownerId": "019756a0-1234-7abc-8def-000000000099",
+                              "meetingLanguage": "pt-BR",
+                              "audioRetentionDays": -1,
+                              "createdAt": "2026-06-15T13:55:00Z",
+                              "updatedAt": "2026-06-20T18:40:00Z"
+                            }""")))
+    @ApiResponseBadRequest
+    @ApiResponseNotFound
+    @ApiStandardErrorResponses
+    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
+    @PutMapping(value = "/{orgId}", version = ApiVersioning.V1)
+    ResponseEntity<OrganizationResponse> update(
+            @PathVariable UUID orgId,
+            @Valid @RequestBody UpdateOrganizationRequest request,
+            Authentication authentication);
 }

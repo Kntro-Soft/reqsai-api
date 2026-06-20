@@ -26,6 +26,11 @@ public final class WorkspaceExceptions {
                 "Slug already in use: " + slug);
     }
 
+    public static DomainException organizationEditPermissionDenied(UUID organizationId, UUID userId) {
+        return new DomainException(WorkspaceError.ORGANIZATION_EDIT_PERMISSION_DENIED,
+                "User %s cannot edit organization %s".formatted(userId, organizationId));
+    }
+
     public static EntityNotFoundException projectNotFound(UUID id) {
         return new EntityNotFoundException(WorkspaceError.PROJECT_NOT_FOUND,
                 "Project not found: " + id);
