@@ -9,6 +9,7 @@ import com.kntro.reqsai.workspace.interfaces.rest.dto.request.CreateOrganization
 import com.kntro.reqsai.workspace.interfaces.rest.dto.request.UpdateOrganizationRequest;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.response.OrganizationResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -26,6 +27,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -36,6 +38,24 @@ import java.util.UUID;
 @RequestMapping(path = ApiVersioning.BASE + "/organizations", produces = MediaType.APPLICATION_JSON_VALUE)
 @Tag(name = "Organizations", description = "Organization registry and tenant schema provisioning")
 public interface OrganizationController {
+
+    @Operation(
+            summary = "List my organizations",
+            description = """
+                    Returns the organizations the authenticated user owns, newest first.
+
+                    Organizations where the user is solely a member are not yet included: member rows \
+                    live in per-tenant schemas without a global index.""")
+    @ApiResponse(
+            responseCode = "200",
+            description = "Organizations the user can access",
+            content = @Content(
+                    mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    array = @ArraySchema(schema = @Schema(implementation = OrganizationResponse.class))))
+    @ApiStandardErrorResponses
+    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
+    @GetMapping(version = ApiVersioning.V1)
+    ResponseEntity<List<OrganizationResponse>> list(Authentication authentication);
 
     @Operation(
             summary = "Get an organization",
