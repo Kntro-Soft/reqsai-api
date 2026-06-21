@@ -32,8 +32,8 @@ class MemberIntegrationTest extends AbstractIntegrationTest {
     private JdbcTemplate jdbcTemplate;
 
     @Test
-    @DisplayName("should create list get and deactivate members in tenant schema")
-    void should_create_list_get_and_deactivate_members_in_tenant_schema() {
+    @DisplayName("should create list get and deactivate members in shared schema")
+    void should_create_list_get_and_deactivate_members_in_shared_schema() {
         String suffix = UUID.randomUUID().toString().substring(0, 8);
         String slug = "acme-" + suffix;
         UUID orgId = createOrganizationAndReturnId(suffix, slug);
@@ -45,10 +45,9 @@ class MemberIntegrationTest extends AbstractIntegrationTest {
                 "role", "ADMIN"));
         assertThat(createdAdmin.getStatusCode()).isEqualTo(HttpStatus.CREATED);
 
-        String schema = "tenant_" + slug;
         String adminMemberId = jdbcTemplate.queryForObject(
-                "SELECT id::text FROM \"" + schema + "\".members WHERE email = ?",
-                String.class, "admin@example.com");
+                "SELECT id::text FROM public.members WHERE organization_id = ?::uuid AND email = ?",
+                String.class, orgId, "admin@example.com");
 
         ResponseEntity<String> createdPending = createMember(orgId, ADMIN_USER_ID, Map.of(
                 "email", "invitee@example.com",
@@ -80,7 +79,7 @@ class MemberIntegrationTest extends AbstractIntegrationTest {
         assertThat(delete.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
 
         String status = jdbcTemplate.queryForObject(
-                "SELECT status FROM \"" + schema + "\".members WHERE id = ?::uuid",
+                "SELECT status FROM public.members WHERE id = ?::uuid",
                 String.class, UUID.fromString(adminMemberId));
         assertThat(status).isEqualTo("INACTIVE");
     }
