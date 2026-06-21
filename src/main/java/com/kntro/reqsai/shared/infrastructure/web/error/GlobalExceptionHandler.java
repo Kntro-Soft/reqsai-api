@@ -7,6 +7,7 @@ import com.kntro.reqsai.shared.domain.exception.EntityNotFoundException;
 import com.kntro.reqsai.shared.domain.exception.InfrastructureException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.InvalidDataAccessResourceUsageException;
 import org.jspecify.annotations.NonNull;
 import org.slf4j.MDC;
 import org.springframework.http.HttpHeaders;
@@ -103,6 +104,28 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         pd.setProperty("correlationId", correlationId());
         pd.setInstance(URI.create(uri(request)));
         return handleExceptionInternal(ex, pd, headers, HttpStatus.BAD_REQUEST, request);
+    }
+
+    // Tenant schema missing — org token is valid, but org is not provisioned (deleted or pending)
+    @ExceptionHandler(InvalidDataAccessResourceUsageException.class)
+    public ProblemDetail handleSchemaError(InvalidDataAccessResourceUsageException ex, HttpServletRequest req) {
+        String cause = ex.getMostSpecificCause().getMessage();
+        if (cause != null && cause.contains("does not exist")) {
+            log.warn("[{}] Tenant schema missing on {} — org not provisioned: {}", tenantId(), req.getRequestURI(), cause);
+            ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.FORBIDDEN);
+            pd.setDetail("Organization is not provisioned");
+            pd.setProperty("code", "TENANT_NOT_PROVISIONED");
+            pd.setProperty("correlationId", correlationId());
+            pd.setInstance(URI.create(req.getRequestURI()));
+            return pd;
+        }
+        log.error("[{}] Data access error on {}", tenantId(), req.getRequestURI(), ex);
+        ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.INTERNAL_SERVER_ERROR);
+        pd.setDetail("A server error occurred. Please try again later.");
+        pd.setProperty("code", CommonError.INTERNAL_ERROR.code());
+        pd.setProperty("correlationId", correlationId());
+        pd.setInstance(URI.create(req.getRequestURI()));
+        return pd;
     }
 
     // Fallback
