@@ -15,7 +15,9 @@ public enum DiscoveryError implements ErrorCatalog {
     REQUIREMENT_GENERATION_FAILED(HttpStatus.UNPROCESSABLE_CONTENT),
     SESSION_NOT_FOUND(HttpStatus.NOT_FOUND),
     USER_STORY_NOT_FOUND(HttpStatus.NOT_FOUND),
-    ACCEPTANCE_CRITERION_NOT_FOUND(HttpStatus.NOT_FOUND);
+    ACCEPTANCE_CRITERION_NOT_FOUND(HttpStatus.NOT_FOUND),
+    SUGGESTION_NOT_FOUND(HttpStatus.NOT_FOUND),
+    SUGGESTION_ALREADY_RESOLVED(HttpStatus.CONFLICT);
 
     private final HttpStatus status;
 
