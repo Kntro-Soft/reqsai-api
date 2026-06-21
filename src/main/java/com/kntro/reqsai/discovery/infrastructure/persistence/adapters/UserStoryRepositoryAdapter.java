@@ -56,6 +56,16 @@ public class UserStoryRepositoryAdapter implements UserStoryRepository {
                 .map(distance -> 1.0 - distance);
     }
 
+    @Override
+    public Optional<SimilarStory> findMostSimilar(UUID projectId, float[] embedding) {
+        return jpa.findClosest(projectId, toVectorLiteral(embedding))
+                .map(row -> {
+                    UUID storyId = UUID.fromString(row[0].toString());
+                    double similarity = 1.0 - ((Number) row[1]).doubleValue();
+                    return new SimilarStory(storyId, similarity);
+                });
+    }
+
     /** Renders a float[] as a pgvector literal, e.g. {@code [0.12,0.34,...]}. */
     private static String toVectorLiteral(float[] vector) {
         StringJoiner joiner = new StringJoiner(",", "[", "]");

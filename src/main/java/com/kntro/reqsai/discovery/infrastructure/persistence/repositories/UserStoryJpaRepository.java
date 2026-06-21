@@ -33,4 +33,19 @@ public interface UserStoryJpaRepository extends JpaRepository<UserStory, UUID> {
             where project_id = :projectId and embedding is not null
             """, nativeQuery = true)
     Optional<Double> minCosineDistance(@Param("projectId") UUID projectId, @Param("embedding") String embedding);
+
+    /**
+     * Returns the {@code (id, distance)} pair for the story that is closest (smallest cosine
+     * distance) to the given vector within the project, or empty when no embedded stories exist.
+     * Uses a {@code LIMIT 1} scan so the database only materialises one row.
+     */
+    @SuppressWarnings("SqlResolve")
+    @Query(value = """
+            select id, (embedding <=> cast(:embedding as vector)) as dist
+            from user_stories
+            where project_id = :projectId and embedding is not null
+            order by dist
+            limit 1
+            """, nativeQuery = true)
+    Optional<Object[]> findClosest(@Param("projectId") UUID projectId, @Param("embedding") String embedding);
 }
