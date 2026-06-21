@@ -8,14 +8,12 @@ WORKDIR /workspace
 # until the build files change. The BuildKit cache mount keeps the Gradle home warm across builds.
 COPY gradlew settings.gradle.kts build.gradle.kts ./
 COPY gradle ./gradle
-RUN --mount=type=cache,target=/root/.gradle \
-    chmod +x ./gradlew && ./gradlew --no-daemon dependencies > /dev/null 2>&1 || true
+RUN chmod +x ./gradlew && ./gradlew --no-daemon dependencies > /dev/null 2>&1 || true
 
 # Build the executable jar (tests run in CI, not in the image build), then explode it into layers
 # (dependencies / spring-boot-loader / snapshot-dependencies / application) for optimal image caching.
 COPY src ./src
-RUN --mount=type=cache,target=/root/.gradle \
-    ./gradlew --no-daemon clean bootJar -x test && \
+RUN ./gradlew --no-daemon clean bootJar -x test && \
     java -Djarmode=tools -jar build/libs/*.jar extract --layers --launcher --destination build/extracted
 
 # ---- Runtime stage ----
