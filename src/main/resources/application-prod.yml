@@ -38,12 +38,6 @@ server:
   compression:
     enabled: true
 
-springdoc:
-  api-docs:
-    enabled: false
-  swagger-ui:
-    enabled: false
-
 logging:
   structured:
     format:
