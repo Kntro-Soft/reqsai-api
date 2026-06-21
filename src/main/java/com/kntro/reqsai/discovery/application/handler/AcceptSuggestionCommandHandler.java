@@ -97,6 +97,7 @@ public class AcceptSuggestionCommandHandler {
                 coalesce(cmd.editedBenefit(), s.getDraftBenefit()),
                 cmd.editedPriority() != null ? cmd.editedPriority() : s.getDraftPriority(),
                 cmd.editedStoryPoints() != null ? cmd.editedStoryPoints() : s.getDraftStoryPoints());
+        embedIfAvailable(target);
         return storyRepo.save(target).getId();
     }
 
