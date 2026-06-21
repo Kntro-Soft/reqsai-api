@@ -48,5 +48,16 @@ public enum SessionEventType {
     FAILED,
 
     /** A user story was generated from the session and persisted. */
-    STORY_GENERATED
+    STORY_GENERATED,
+
+    // Suggestion review layer (realtime AI-to-analyst gate)
+
+    /** A new suggestion was created and is pending analyst review. */
+    SUGGESTION_GENERATED,
+
+    /** The analyst accepted a suggestion (backlog was mutated). */
+    SUGGESTION_ACCEPTED,
+
+    /** The analyst dismissed a suggestion (no backlog change). */
+    SUGGESTION_DISMISSED
 }
