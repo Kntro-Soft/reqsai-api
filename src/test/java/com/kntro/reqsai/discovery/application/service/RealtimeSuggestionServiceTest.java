@@ -5,7 +5,6 @@ import com.kntro.reqsai.discovery.domain.model.DiscoverySession;
 import com.kntro.reqsai.shared.application.port.EmbeddingPort;
 import com.kntro.reqsai.discovery.domain.model.Priority;
 import com.kntro.reqsai.discovery.domain.model.TranscriptSegment;
-import com.kntro.reqsai.discovery.domain.model.UserStory;
 import com.kntro.reqsai.discovery.mothers.DiscoverySessionBuilder;
 import com.kntro.reqsai.workspace.api.GlossaryTermSnapshot;
 import com.kntro.reqsai.workspace.api.ProjectSnapshot;
@@ -38,7 +37,7 @@ class RealtimeSuggestionServiceTest {
     @Mock private TranscriptSegmentRepository segments;
     @Mock private WorkspaceModuleApi workspaceApi;
     @Mock private RequirementGenerationPort generation;
-    @Mock private StoryExtractionService storyExtraction;
+    @Mock private SuggestionCreationService suggestionCreation;
     @Mock private EmbeddingPort embeddingPort;
 
     @InjectMocks
@@ -48,6 +47,7 @@ class RealtimeSuggestionServiceTest {
     void setUp() {
         ReflectionTestUtils.setField(service, "contextWindow", 10);
         ReflectionTestUtils.setField(service, "contextTopK", 5);
+        ReflectionTestUtils.setField(service, "minTranscriptChars", 0);
     }
 
     private DiscoverySession buildSession(UUID projectId) {
@@ -80,8 +80,6 @@ class RealtimeSuggestionServiceTest {
             GenerationResult result = new GenerationResult(List.of(
                     new GenerationResult.GeneratedStory("Login Google", "usuario", "login", "acceso", Priority.HIGH, 3, List.of())
             ));
-            UserStory mockStory = mock(UserStory.class);
-
             when(sessions.findById(sessionId)).thenReturn(Optional.of(session));
             when(segments.findRecentFinalBySessionId(sessionId, 10)).thenReturn(
                     List.of(finalSegment(sessionId, 5, "El cliente quiere login."))
@@ -91,7 +89,6 @@ class RealtimeSuggestionServiceTest {
             when(embeddingPort.embed(any())).thenReturn(vector);
             when(workspaceApi.findRelevantContext(eq(projectId), eq(vector), eq(5))).thenReturn(Optional.of(snapshot));
             when(generation.generate(any(), any(), any(GenerationContext.class))).thenReturn(result);
-            when(storyExtraction.extractOne(any(), eq(sessionId), eq(projectId))).thenReturn(Optional.of(mockStory));
 
             service.suggest(sessionId);
 
@@ -152,7 +149,7 @@ class RealtimeSuggestionServiceTest {
             service.suggest(sessionId);
 
             verify(generation).generate(any(), any(), (GenerationContext) isNull());
-            verifyNoInteractions(storyExtraction);
+            verify(suggestionCreation).createSuggestions(any(), eq(sessionId), eq(projectId));
         }
 
         @Test
@@ -196,7 +193,7 @@ class RealtimeSuggestionServiceTest {
 
             service.suggest(sessionId);
 
-            verifyNoInteractions(segments, generation, storyExtraction);
+            verifyNoInteractions(segments, generation, suggestionCreation);
         }
 
         @Test
@@ -208,7 +205,7 @@ class RealtimeSuggestionServiceTest {
 
             service.suggest(session.getId());
 
-            verifyNoInteractions(generation, storyExtraction);
+            verifyNoInteractions(generation, suggestionCreation);
         }
 
         @Test
@@ -224,7 +221,7 @@ class RealtimeSuggestionServiceTest {
             service.suggest(session.getId());
 
             verify(generation, never()).generate(any(), any());
-            verifyNoInteractions(storyExtraction);
+            verifyNoInteractions(suggestionCreation);
         }
     }
 }

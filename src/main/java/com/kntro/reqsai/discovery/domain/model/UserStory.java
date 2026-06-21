@@ -171,6 +171,24 @@ public class UserStory extends AggregateRoot {
     }
 
     /**
+     * Updates the core story fields from an analyst-reviewed suggestion.
+     * Only non-null values from the caller are applied; null means "keep existing".
+     */
+    public void updateFrom(@Nullable String title, @Nullable String role,
+                           @Nullable String action, @Nullable String benefit,
+                           @Nullable Priority priority, @Nullable Integer storyPoints) {
+        if (title != null)    this.title = Assert.maxLength(Assert.notBlank(title, "title"), "title", TITLE_MAX);
+        if (role != null)     this.role = Assert.maxLength(Assert.notBlank(role, "role"), "role", FIELD_MAX);
+        if (action != null)   this.action = Assert.maxLength(Assert.notBlank(action, "action"), "action", FIELD_MAX);
+        if (benefit != null)  this.benefit = Assert.maxLength(Assert.notBlank(benefit, "benefit"), "benefit", FIELD_MAX);
+        if (priority != null) this.priority = priority;
+        if (storyPoints != null) {
+            Assert.isTrue(storyPoints >= 0, "storyPoints", "must be >= 0");
+            this.storyPoints = storyPoints;
+        }
+    }
+
+    /**
      * Removes an existing criterion identified by {@code criterionId}.
      * {@code orphanRemoval = true} on the collection ensures JPA issues the DELETE automatically.
      * Throws {@link com.kntro.reqsai.shared.domain.exception.EntityNotFoundException} if not found.

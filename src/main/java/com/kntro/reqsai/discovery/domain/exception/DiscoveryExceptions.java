@@ -1,5 +1,6 @@
 package com.kntro.reqsai.discovery.domain.exception;
 
+import com.kntro.reqsai.discovery.domain.model.SuggestionStatus;
 import com.kntro.reqsai.shared.domain.exception.DomainException;
 import com.kntro.reqsai.shared.domain.exception.EntityNotFoundException;
 
@@ -36,5 +37,15 @@ public final class DiscoveryExceptions {
     public static DomainException requirementGenerationFailed(String reason) {
         return new DomainException(DiscoveryError.REQUIREMENT_GENERATION_FAILED,
                 "Requirement generation failed: " + reason);
+    }
+
+    public static EntityNotFoundException suggestionNotFound(java.util.UUID id) {
+        return new EntityNotFoundException(DiscoveryError.SUGGESTION_NOT_FOUND,
+                "Suggestion '%s' not found".formatted(id));
+    }
+
+    public static DomainException suggestionAlreadyResolved(java.util.UUID id, SuggestionStatus status) {
+        return new DomainException(DiscoveryError.SUGGESTION_ALREADY_RESOLVED,
+                "Suggestion '%s' is already %s".formatted(id, status));
     }
 }
