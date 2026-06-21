@@ -125,8 +125,10 @@ class CreateProjectCommandHandlerTest {
         @DisplayName("should fail if project plan limit is exceeded")
         void should_fail_if_plan_limit_exceeded() {
             // Arrange
-            // plan limits maxProjects = 1
-            Organization org = OrganizationMother.active().withPlanLimits(PlanLimits.free()).build();
+            // explicit single-project plan so this stays a limit test regardless of free() defaults
+            Organization org = OrganizationMother.active()
+                    .withPlanLimits(new PlanLimits(3, 1, 10, 100_000L, 50))
+                    .build();
             UUID orgId = org.getId();
             CreateProjectCommand command = CreateProjectCommandMother.withOrganizationId(orgId);
 

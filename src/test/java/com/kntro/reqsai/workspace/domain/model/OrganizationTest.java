@@ -58,7 +58,7 @@ class OrganizationTest {
             // Assert
             assertThat(org.getSettings().meetingLanguage().value()).isEqualTo("en-US");
             assertThat(org.getSettings().audioRetentionDays()).isEqualTo(7);
-            assertThat(org.getPlanLimits().maxProjects()).isEqualTo(1);
+            assertThat(org.getPlanLimits().maxProjects()).isEqualTo(25);
         }
     }
 
