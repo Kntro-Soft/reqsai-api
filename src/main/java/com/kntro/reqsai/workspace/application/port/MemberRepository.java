@@ -16,4 +16,5 @@ public interface MemberRepository {
     boolean existsByOrganizationIdAndEmailAndStatusIn(UUID organizationId, String email, Collection<MemberStatus> statuses);
     int countByOrganizationIdAndStatus(UUID organizationId, MemberStatus status);
     Optional<Member> findByOrganizationIdAndUserIdAndStatus(UUID organizationId, UUID userId, MemberStatus status);
+    List<Member> findAllByUserIdAndStatus(UUID userId, MemberStatus status);
 }

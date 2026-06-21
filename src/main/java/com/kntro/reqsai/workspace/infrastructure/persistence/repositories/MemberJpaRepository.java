@@ -26,4 +26,5 @@ public interface MemberJpaRepository extends JpaRepository<Member, UUID> {
 
     int countByOrganizationIdAndStatus(UUID organizationId, MemberStatus status);
     Optional<Member> findByOrganizationIdAndUserIdAndStatus(UUID organizationId, UUID userId, MemberStatus status);
+    List<Member> findAllByUserIdAndStatus(UUID userId, MemberStatus status);
 }

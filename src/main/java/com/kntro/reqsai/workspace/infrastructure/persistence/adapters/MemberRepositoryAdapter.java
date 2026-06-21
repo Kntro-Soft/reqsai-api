@@ -52,4 +52,9 @@ public class MemberRepositoryAdapter implements MemberRepository {
     public Optional<Member> findByOrganizationIdAndUserIdAndStatus(UUID organizationId, UUID userId, MemberStatus status) {
         return jpa.findByOrganizationIdAndUserIdAndStatus(organizationId, userId, status);
     }
+
+    @Override
+    public List<Member> findAllByUserIdAndStatus(UUID userId, MemberStatus status) {
+        return jpa.findAllByUserIdAndStatus(userId, status);
+    }
 }
