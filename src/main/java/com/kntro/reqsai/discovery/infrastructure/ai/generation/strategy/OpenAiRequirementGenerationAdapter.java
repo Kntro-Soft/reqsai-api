@@ -1,7 +1,6 @@
 package com.kntro.reqsai.discovery.infrastructure.ai.generation.strategy;
 
 import tools.jackson.databind.ObjectMapper;
-import com.kntro.reqsai.discovery.application.port.GenerationResult;
 import com.kntro.reqsai.discovery.infrastructure.exception.DiscoveryInfrastructureExceptions;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.openai.OpenAiChatModel;
@@ -28,15 +27,16 @@ public class OpenAiRequirementGenerationAdapter extends AbstractLlmGenerationAda
     }
 
     @Override
-    public GenerationResult generate(String transcript, String language) {
+    protected String modelName() {
+        return "OpenAI";
+    }
+
+    @Override
+    protected String callModel(String promptText) {
         OpenAiChatModel model = chatModel.getIfAvailable();
         if (model == null) {
             throw DiscoveryInfrastructureExceptions.generationUnavailable();
         }
-        log.debug("Sending extraction prompt to OpenAI ({} chars)", transcript.length());
-        String rawResponse = callAndExtractText(model, EXTRACTION_PROMPT.formatted(transcript));
-        String json = stripMarkdown(rawResponse);
-        log.debug("OpenAI response ({} chars)", json.length());
-        return parseJsonResponse(json, "OpenAI");
+        return callAndExtractText(model, promptText);
     }
 }

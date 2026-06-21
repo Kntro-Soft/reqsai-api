@@ -30,9 +30,10 @@ public class StubRequirementGenerationConfig {
                     "no necesito recordar otra contraseña",
                     Priority.HIGH, 3,
                     List.of(new GenerationResult.GeneratedCriterion(
-                            "Given el usuario en la pantalla de login",
-                            "When hace clic en 'Iniciar con Google'",
-                            "Then es redirigido al OAuth de Google"))),
+                            "Login exitoso con Google OAuth",
+                            "el usuario está en la pantalla de login",
+                            "hace clic en 'Iniciar con Google'",
+                            "es redirigido al OAuth de Google"))),
             new GenerationResult.GeneratedStory(
                     "Gestión de perfil de usuario",
                     "usuario autenticado",

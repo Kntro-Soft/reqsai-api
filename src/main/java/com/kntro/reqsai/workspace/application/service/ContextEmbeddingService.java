@@ -1,8 +1,7 @@
 package com.kntro.reqsai.workspace.application.service;
 
 import com.kntro.reqsai.shared.application.port.EmbeddingPort;
-import com.kntro.reqsai.workspace.application.port.GlossaryRepository;
-import com.kntro.reqsai.workspace.application.port.ProjectRepository;
+import com.kntro.reqsai.shared.application.listener.TenantAwareModuleListener;
 import com.kntro.reqsai.workspace.domain.event.GlossaryTermSavedEvent;
 import com.kntro.reqsai.workspace.domain.event.ProjectConstraintSavedEvent;
 import lombok.RequiredArgsConstructor;
@@ -15,41 +14,28 @@ import org.springframework.stereotype.Component;
  * whenever they are added or updated. Runs in a separate transaction after the aggregate
  * is committed so the embedding never blocks the write path.
  * No-op when the embedding model is not configured ({@code ai.model.embedding=none}).
+ *
+ * <p>DB writes are delegated to {@link ContextEmbeddingWriteService} so
+ * {@code @Transactional(REQUIRES_NEW)} is invoked through the Spring proxy (not a self-call),
+ * ensuring the correct tenant schema is in effect when Hibernate opens the connection.
  */
 @Component
 @RequiredArgsConstructor
 @Slf4j
-class ContextEmbeddingService {
+class ContextEmbeddingService extends TenantAwareModuleListener {
 
     private final EmbeddingPort embeddingPort;
-    private final GlossaryRepository glossaries;
-    private final ProjectRepository projects;
+    private final ContextEmbeddingWriteService writer;
 
     @ApplicationModuleListener
     void onTermSaved(GlossaryTermSavedEvent event) {
         if (!embeddingPort.isAvailable()) return;
-        try {
-            float[] vector = embeddingPort.embed(event.term() + ": " + event.definition());
-            glossaries.findByProjectId(event.projectId()).ifPresent(glossary -> {
-                glossary.applyTermEmbedding(event.termId(), vector);
-                glossaries.save(glossary);
-            });
-        } catch (Exception e) {
-            log.warn("Failed to embed glossary term {} for project {}: {}", event.termId(), event.projectId(), e.getMessage());
-        }
+        withTenant(event, () -> writer.embedTerm(event));
     }
 
     @ApplicationModuleListener
     void onConstraintSaved(ProjectConstraintSavedEvent event) {
         if (!embeddingPort.isAvailable()) return;
-        try {
-            float[] vector = embeddingPort.embed(event.description());
-            projects.findById(event.projectId()).ifPresent(project -> {
-                project.applyConstraintEmbedding(event.constraintId(), vector);
-                projects.save(project);
-            });
-        } catch (Exception e) {
-            log.warn("Failed to embed constraint {} for project {}: {}", event.constraintId(), event.projectId(), e.getMessage());
-        }
+        withTenant(event, () -> writer.embedConstraint(event));
     }
 }

@@ -49,17 +49,34 @@ public final class TenantContext {
     }
 
     /**
+     * Captures the current tenant and schema into an immutable snapshot.
+     * Falls back to {@link #DEFAULT_SCHEMA} when no tenant is bound.
+     * Call this in domain event factory methods ({@code of()}) — the originating thread
+     * still has the context at that point; async listener threads do not.
+     */
+    public static TenantSnapshot capture() {
+        String t = CURRENT_TENANT.get();
+        String s = CURRENT_SCHEMA.get();
+        return new TenantSnapshot(
+                t != null ? t : DEFAULT_SCHEMA,
+                s != null ? s : DEFAULT_SCHEMA);
+    }
+
+    /**
      * Runs {@code action} under the given tenant context, clearing the thread-local in a
      * {@code finally} block. Useful when the caller runs on a thread that has no filter-managed
      * context (e.g. STT streaming callbacks, async event consumers).
      */
-    public static void runWith(String tenant, String schema, Runnable action) {
-        setCurrentTenant(tenant);
-        setCurrentSchema(schema);
+    public static void runWith(TenantSnapshot snapshot, Runnable action) {
+        setCurrentTenant(snapshot.tenantId());
+        setCurrentSchema(snapshot.tenantSchema());
         try {
             action.run();
         } finally {
             clear();
         }
     }
+
+    /** Immutable snapshot of the tenant coordinates at a point in time. */
+    public record TenantSnapshot(String tenantId, String tenantSchema) {}
 }

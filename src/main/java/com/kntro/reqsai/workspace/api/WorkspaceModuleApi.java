@@ -4,11 +4,14 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Public API of the Workspace bounded context, accessible to other Spring Modulith modules.
+ * Public ACL interface of the Workspace bounded context, accessible to other Spring Modulith modules.
  * Returns plain-value snapshots — no JPA entities escape this boundary.
  *
  * <p>Implementations are package-private and registered as Spring beans; callers depend
  * only on this interface (ACL / anti-corruption layer pattern).
+ *
+ * <p>Declare {@code allowedDependencies = "workspace::api"} in the consuming module's
+ * {@code @ApplicationModule} annotation to make Spring Modulith enforce the boundary.
  */
 public interface WorkspaceModuleApi {
 

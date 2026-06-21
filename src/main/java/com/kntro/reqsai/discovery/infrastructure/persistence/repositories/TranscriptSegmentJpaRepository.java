@@ -1,7 +1,10 @@
 package com.kntro.reqsai.discovery.infrastructure.persistence.repositories;
 
 import com.kntro.reqsai.discovery.domain.model.TranscriptSegment;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.UUID;
@@ -10,6 +13,9 @@ import java.util.UUID;
 public interface TranscriptSegmentJpaRepository extends JpaRepository<TranscriptSegment, UUID> {
 
     List<TranscriptSegment> findAllBySessionIdOrderBySequenceAsc(UUID sessionId);
+
+    @Query("SELECT ts FROM TranscriptSegment ts WHERE ts.sessionId = :sessionId AND ts.isFinal = true ORDER BY ts.sequence DESC")
+    List<TranscriptSegment> findRecentFinalBySessionId(@Param("sessionId") UUID sessionId, Pageable pageable);
 
     void deleteAllBySessionId(UUID sessionId);
 }

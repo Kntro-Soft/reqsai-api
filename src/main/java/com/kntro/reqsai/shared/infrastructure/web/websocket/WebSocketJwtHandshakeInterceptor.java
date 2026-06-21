@@ -1,5 +1,6 @@
 package com.kntro.reqsai.shared.infrastructure.web.websocket;
 
+import com.kntro.reqsai.shared.infrastructure.persistence.multitenancy.TenantContext;
 import com.kntro.reqsai.shared.infrastructure.persistence.multitenancy.TenantSchemaResolver;
 import com.kntro.reqsai.shared.infrastructure.security.TokenVerifier;
 import com.kntro.reqsai.shared.infrastructure.security.VerifiedToken;
@@ -7,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
 import org.springframework.web.socket.WebSocketHandler;
@@ -56,20 +58,27 @@ public class WebSocketJwtHandshakeInterceptor implements HandshakeInterceptor {
         String token = extractToken(request.getURI().getQuery());
         if (token == null) {
             log.warn("WS handshake rejected — no token query param (path: {})", request.getURI().getPath());
+            response.setStatusCode(HttpStatus.FORBIDDEN);
             return false;
         }
         try {
             VerifiedToken verified = tokenVerifier.verify(token);
             attributes.put(TenantAwareBinaryWebSocketHandler.ATTR_USER, verified.userId());
             if (verified.orgId() != null) {
+                String schema = schemaResolver.resolveTenantSchema(verified.orgId());
+                if (TenantContext.DEFAULT_SCHEMA.equals(schema)) {
+                    log.warn("WS handshake rejected — tenant {} not provisioned (path: {})", verified.orgId(), request.getURI().getPath());
+                    response.setStatusCode(HttpStatus.FORBIDDEN);
+                    return false;
+                }
                 attributes.put(TenantAwareBinaryWebSocketHandler.ATTR_ORG, verified.orgId());
-                attributes.put(TenantAwareBinaryWebSocketHandler.ATTR_SCHEMA,
-                        schemaResolver.resolveTenantSchema(verified.orgId()));
+                attributes.put(TenantAwareBinaryWebSocketHandler.ATTR_SCHEMA, schema);
             }
             return true;
         } catch (Exception e) {
             log.warn("WS handshake rejected — invalid token (path: {}): {}",
                     request.getURI().getPath(), e.getMessage());
+            response.setStatusCode(HttpStatus.FORBIDDEN);
             return false;
         }
     }

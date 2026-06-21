@@ -1,6 +1,7 @@
 package com.kntro.reqsai.discovery.application.port;
 
 import com.kntro.reqsai.discovery.domain.model.Priority;
+import org.jspecify.annotations.Nullable;
 
 import java.util.List;
 
@@ -20,5 +21,10 @@ public record GenerationResult(List<GeneratedStory> stories) {
             List<GeneratedCriterion> acceptanceCriteria
     ) {}
 
-    public record GeneratedCriterion(String given, String when, String then) {}
+    public record GeneratedCriterion(
+            @Nullable String scenario,
+            String given,
+            String when,
+            String then
+    ) {}
 }

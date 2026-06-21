@@ -1,7 +1,6 @@
 package com.kntro.reqsai.discovery.infrastructure.ai.generation.strategy;
 
 import tools.jackson.databind.ObjectMapper;
-import com.kntro.reqsai.discovery.application.port.GenerationResult;
 import com.kntro.reqsai.discovery.infrastructure.exception.DiscoveryInfrastructureExceptions;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ChatModel;
@@ -27,15 +26,16 @@ public class GeminiRequirementGenerationAdapter extends AbstractLlmGenerationAda
     }
 
     @Override
-    public GenerationResult generate(String transcript, String language) {
+    protected String modelName() {
+        return "Gemini";
+    }
+
+    @Override
+    protected String callModel(String promptText) {
         ChatModel model = chatModel.getIfAvailable();
         if (model == null) {
             throw DiscoveryInfrastructureExceptions.generationUnavailable();
         }
-        log.debug("Sending extraction prompt to Gemini ({} chars)", transcript.length());
-        String rawResponse = callAndExtractText(model, EXTRACTION_PROMPT.formatted(transcript));
-        String json = stripMarkdown(rawResponse);
-        log.debug("Gemini response ({} chars)", json.length());
-        return parseJsonResponse(json, "Gemini");
+        return callAndExtractText(model, promptText);
     }
 }

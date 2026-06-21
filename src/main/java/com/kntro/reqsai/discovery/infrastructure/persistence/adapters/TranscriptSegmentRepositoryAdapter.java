@@ -4,6 +4,7 @@ import com.kntro.reqsai.discovery.application.port.TranscriptSegmentRepository;
 import com.kntro.reqsai.discovery.domain.model.TranscriptSegment;
 import com.kntro.reqsai.discovery.infrastructure.persistence.repositories.TranscriptSegmentJpaRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +26,11 @@ public class TranscriptSegmentRepositoryAdapter implements TranscriptSegmentRepo
     @Override
     public List<TranscriptSegment> findAllBySessionId(UUID sessionId) {
         return jpa.findAllBySessionIdOrderBySequenceAsc(sessionId);
+    }
+
+    @Override
+    public List<TranscriptSegment> findRecentFinalBySessionId(UUID sessionId, int limit) {
+        return jpa.findRecentFinalBySessionId(sessionId, PageRequest.of(0, limit));
     }
 
     @Override

@@ -17,6 +17,12 @@ public interface TranscriptSegmentRepository {
     /** Segments of a session in ascending {@code sequence} order. */
     List<TranscriptSegment> findAllBySessionId(UUID sessionId);
 
+    /**
+     * The {@code limit} most recent finalized segments of a session, in descending sequence order.
+     * Used for realtime suggestion windowing — callers should reverse before concatenating text.
+     */
+    List<TranscriptSegment> findRecentFinalBySessionId(UUID sessionId, int limit);
+
     /** Removes every segment of a session (used when a session is reset). */
     void deleteAllBySessionId(UUID sessionId);
 }

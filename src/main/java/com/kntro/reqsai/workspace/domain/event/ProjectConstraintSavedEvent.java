@@ -1,6 +1,7 @@
 package com.kntro.reqsai.workspace.domain.event;
 
-import com.kntro.reqsai.shared.domain.model.DomainEvent;
+import com.kntro.reqsai.shared.domain.model.TenantAwareDomainEvent;
+import com.kntro.reqsai.shared.infrastructure.persistence.multitenancy.TenantContext;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -9,11 +10,13 @@ public record ProjectConstraintSavedEvent(
         UUID projectId,
         UUID constraintId,
         String description,
+        TenantContext.TenantSnapshot tenant,
         Instant occurredAt
-) implements DomainEvent {
+) implements TenantAwareDomainEvent {
 
     public static ProjectConstraintSavedEvent of(UUID projectId, UUID constraintId, String description) {
-        return new ProjectConstraintSavedEvent(projectId, constraintId, description, Instant.now());
+        return new ProjectConstraintSavedEvent(projectId, constraintId, description,
+                TenantContext.capture(), Instant.now());
     }
 
     @Override

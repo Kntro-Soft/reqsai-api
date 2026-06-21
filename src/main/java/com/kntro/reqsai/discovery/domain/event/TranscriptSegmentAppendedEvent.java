@@ -1,6 +1,7 @@
 package com.kntro.reqsai.discovery.domain.event;
 
-import com.kntro.reqsai.shared.domain.model.DomainEvent;
+import com.kntro.reqsai.shared.domain.model.TenantAwareDomainEvent;
+import com.kntro.reqsai.shared.infrastructure.persistence.multitenancy.TenantContext;
 import org.jspecify.annotations.Nullable;
 
 import java.time.Instant;
@@ -17,6 +18,10 @@ import java.util.UUID;
  * <p>{@code isFinal=false} signals a live hypothesis for immediate WS display; {@code isFinal=true}
  * signals a committed segment that has been persisted to the DB.
  *
+ * <p>Implements {@link TenantAwareDomainEvent}: {@link TenantContext#capture()} is called in
+ * {@link #of} (originating WebSocket thread) so the async listener thread can restore the schema
+ * automatically via {@code TenantContextListenerAspect}.
+ *
  * @param sessionId    originating session
  * @param sequence     monotonic position of the segment within the session
  * @param speakerLabel diarization label, or {@code null} when the provider gives none
@@ -24,6 +29,7 @@ import java.util.UUID;
  * @param startMs      start offset from recording start, in milliseconds
  * @param endMs        end offset from recording start, in milliseconds
  * @param isFinal      {@code true} when the text is committed, {@code false} for a hypothesis
+ * @param tenant       tenant coordinates captured from the originating thread
  */
 public record TranscriptSegmentAppendedEvent(
         UUID sessionId,
@@ -33,11 +39,14 @@ public record TranscriptSegmentAppendedEvent(
         long startMs,
         long endMs,
         boolean isFinal,
+        TenantContext.TenantSnapshot tenant,
         Instant occurredAt
-) implements DomainEvent {
+) implements TenantAwareDomainEvent {
 
     public static TranscriptSegmentAppendedEvent of(UUID sessionId, int sequence, @Nullable String speakerLabel, String text, long startMs, long endMs, boolean isFinal) {
-        return new TranscriptSegmentAppendedEvent(sessionId, sequence, speakerLabel, text, startMs, endMs, isFinal, Instant.now());
+        return new TranscriptSegmentAppendedEvent(sessionId, sequence, speakerLabel, text, startMs, endMs, isFinal,
+                TenantContext.capture(),
+                Instant.now());
     }
 
     @Override

@@ -44,6 +44,9 @@ public class StoryExtractionService {
     public Optional<UserStory> extractOne(GenerationResult.GeneratedStory gen, UUID sessionId, UUID projectId) {
         try {
             UserStory story = new UserStory(sessionId, projectId, gen.title(), gen.role(), gen.action(), gen.benefit(), gen.priority(), gen.storyPoints());
+            if (gen.acceptanceCriteria() != null) {
+                gen.acceptanceCriteria().forEach(c -> story.addAcceptanceCriterion(c.scenario(), c.given(), c.when(), c.then()));
+            }
             deduplication.embedAndGuardDuplicates(story);
             return Optional.of(stories.save(story));
         } catch (DomainException e) {
