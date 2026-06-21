@@ -79,6 +79,13 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
 
 ### Fixed
 
+- **Member organization access (`bugfix/iam-member-org-access`)**: a non-owner active member could
+  see an organization in the switcher but could not switch into it — the JWT `orgId` claim was only
+  ever set to an org the user *owns*, so `PATCH /users/me/preferences` rejected member orgs and
+  `/auth/refresh` kept the user's own org, resolving the tenant to the wrong schema (member orgs
+  showed zero projects). The IAM `OrganizationLookupPort` now exposes `findDefaultOrganizationId` /
+  `canAccess` (owner **or** active member, via `MemberRepository`); login/refresh fallback and the
+  preferences validation use them, making member organizations fully navigable.
 - **Timestamp timezone offset (`bugfix/timestamp-timezone`)**: audit timestamps (`created_at`,
   `updated_at`) were stored with a UTC-5 offset because the Dockerfile set `TZ=America/Lima`,
   causing Hibernate to use the JVM's local timezone when writing to PostgreSQL. Fixed by changing

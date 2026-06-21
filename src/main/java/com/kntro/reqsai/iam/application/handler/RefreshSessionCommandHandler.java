@@ -86,7 +86,7 @@ public class RefreshSessionCommandHandler {
         if (prefs != null && prefs.lastVisitedOrgId() != null) {
             return prefs.lastVisitedOrgId();
         }
-        return organizations.findOrganizationIdByOwnerId(user.getId()).orElse(null);
+        return organizations.findDefaultOrganizationId(user.getId()).orElse(null);
     }
 
     private String generateRawToken() {

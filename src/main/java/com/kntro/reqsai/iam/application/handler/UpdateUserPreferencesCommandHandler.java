@@ -14,8 +14,8 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Persists the user's navigation preferences (last visited organization / project).
  * <p>
- * When {@code lastVisitedOrgId} is provided, ownership is verified before persisting — the org must
- * belong to the requesting user. Once saved, the next {@code /auth/refresh} call will embed that
+ * When {@code lastVisitedOrgId} is provided, access is verified before persisting — the user must own
+ * the org or be an active member of it. Once saved, the next {@code /auth/refresh} call will embed that
  * {@code orgId} in the new JWT, effectively switching the active organization context.
  */
 @Component
@@ -32,7 +32,7 @@ public class UpdateUserPreferencesCommandHandler {
                 .orElseThrow(() -> IamExceptions.userNotFound(command.userId()));
 
         if (command.lastVisitedOrgId() != null
-                && !organizations.isOwnerOf(command.lastVisitedOrgId(), command.userId())) {
+                && !organizations.canAccess(command.lastVisitedOrgId(), command.userId())) {
             throw IamExceptions.organizationNotOwned(command.lastVisitedOrgId());
         }
 
