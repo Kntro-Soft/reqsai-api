@@ -18,16 +18,13 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * Orchestrates realtime user-story suggestions for a live discovery session.
+ * Orchestrates realtime AI suggestions for a live discovery session.
  *
- * <p>Triggered by {@code RealtimeSuggestionListener}
- * after every N finalized transcript segment. Retrieves the most recent segments, enriches the
- * prompt with semantically relevant project context from the Workspace module (pgvector cosine
- * similarity), and persists any new stories through {@link StoryExtractionService} so each story
- * fires its own WebSocket notification.
- *
- * <p>When the embedding model is available, only the {@code topK} most relevant glossary terms
- * and constraints are included in the prompt. Without embeddings, the full lists are used.
+ * <p>Triggered by {@code RealtimeSuggestionListener} after every N finalized transcript segments.
+ * Retrieves the most recent segments, enriches the prompt with semantically relevant project
+ * context from the Workspace module, and routes the LLM output through
+ * {@link SuggestionCreationService} — which applies embedding-based postprocessing and persists
+ * each suggestion in its own transaction so the client receives one WebSocket push per suggestion.
  */
 @Component
 @RequiredArgsConstructor
@@ -38,7 +35,7 @@ public class RealtimeSuggestionService {
     private final TranscriptSegmentRepository segments;
     private final WorkspaceModuleApi workspaceApi;
     private final RequirementGenerationPort generation;
-    private final StoryExtractionService storyExtraction;
+    private final SuggestionCreationService suggestionCreation;
     private final EmbeddingPort embeddingPort;
 
     @Value("${discovery.realtime.context-window:10}")
@@ -86,14 +83,10 @@ public class RealtimeSuggestionService {
 
         GenerationResult result = generation.generate(recentText, session.getLanguage().value(), context);
 
-        int created = 0;
-        for (GenerationResult.GeneratedStory story : result.stories()) {
-            if (storyExtraction.extractOne(story, sessionId, session.getProjectId()).isPresent()) {
-                created++;
-            }
-        }
-        log.info("Realtime suggestion for session {}: {} stories from {} segments (context={})",
-                sessionId, created, recent.size(), context != null ? context.projectName() : "none");
+        List<com.kntro.reqsai.discovery.domain.model.Suggestion> created =
+                suggestionCreation.createSuggestions(result, sessionId, session.getProjectId());
+        log.info("Realtime suggestion for session {}: {} suggestions from {} segments (context={})",
+                sessionId, created.size(), recent.size(), context != null ? context.projectName() : "none");
     }
 
     private GenerationContext buildContext(UUID projectId, String recentText) {

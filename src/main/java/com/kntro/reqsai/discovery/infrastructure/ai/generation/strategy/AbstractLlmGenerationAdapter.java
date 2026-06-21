@@ -1,6 +1,7 @@
 package com.kntro.reqsai.discovery.infrastructure.ai.generation.strategy;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.kntro.reqsai.discovery.domain.model.SuggestionType;
 import tools.jackson.databind.ObjectMapper;
 import com.kntro.reqsai.discovery.application.port.GenerationContext;
 import com.kntro.reqsai.discovery.application.port.GenerationResult;
@@ -32,6 +33,13 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
             - Use the SAME LANGUAGE as the transcript for all text fields.
             - CRITICAL: Return ONLY valid JSON — no markdown, no code fences, no explanation.
 
+            Classify each item with a "type":
+            - "NEW_STORY"   — a new, standalone user story.
+            - "EDGE_CASE"   — a boundary or exceptional scenario that belongs as an acceptance criterion
+                              on an existing story (not a new story); include a "relatedTopic" hint.
+            - "CLARIFYING_QUESTION" — the transcript is ambiguous; ask a question instead of guessing.
+                                      Use the "questions" array, NOT the "stories" array.
+
             Priority mapping (based on context and language cues):
             - CRITICAL: explicit musts, "debe", "necesita", "es imprescindible", "must", "need", "required"
             - HIGH: important needs, "quiere", "importante", "should", "want"
@@ -46,12 +54,14 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
             {
               "stories": [
                 {
+                  "type": "NEW_STORY | EDGE_CASE",
                   "title": "Short descriptive title (max 200 chars)",
                   "role": "User role / actor (max 500 chars)",
                   "action": "What they want to do (max 500 chars)",
                   "benefit": "Expected benefit or reason (max 500 chars)",
                   "priority": "CRITICAL | HIGH | MEDIUM | LOW",
                   "storyPoints": 1,
+                  "relatedTopic": "Only for EDGE_CASE: brief topic hint (max 200 chars) or null",
                   "acceptanceCriteria": [
                     {
                       "scenario": "Brief label for this criterion (max 200 chars)",
@@ -61,6 +71,9 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
                     }
                   ]
                 }
+              ],
+              "questions": [
+                { "question": "Clarifying question text (max 1000 chars)" }
               ]
             }
 
@@ -70,7 +83,7 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
 
     private static final String CONTEXTUAL_EXTRACTION_PROMPT = """
             You are an expert requirements analyst specializing in agile software development.
-            Use the PROJECT CONTEXT below to understand the domain and generate accurate user stories.
+            Use the PROJECT CONTEXT below to understand the domain and generate accurate suggestions.
 
             %s
 
@@ -79,6 +92,15 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
             - Apply domain glossary terms where they match the conversation.
             - Use the SAME LANGUAGE as the transcript for all text fields.
             - CRITICAL: Return ONLY valid JSON — no markdown, no code fences, no explanation.
+
+            Classify each item with a "type":
+            - "NEW_STORY"   — a new, standalone user story not covered by any existing story in the context.
+            - "EDGE_CASE"   — a boundary or exceptional scenario that belongs as an acceptance criterion
+                              on an existing story rather than as a new standalone story; include a
+                              "relatedTopic" hint (one of the domain glossary terms or a concept already
+                              mentioned in the context) to help locate the target story.
+            - "CLARIFYING_QUESTION" — the transcript is ambiguous; ask a question instead of guessing.
+                                      Use the "questions" array, NOT the "stories" array.
 
             Priority mapping (based on context and language cues):
             - CRITICAL: explicit musts, "debe", "necesita", "es imprescindible", "must", "need", "required"
@@ -94,12 +116,14 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
             {
               "stories": [
                 {
+                  "type": "NEW_STORY | EDGE_CASE",
                   "title": "Short descriptive title (max 200 chars)",
                   "role": "User role / actor (max 500 chars)",
                   "action": "What they want to do (max 500 chars)",
                   "benefit": "Expected benefit or reason (max 500 chars)",
                   "priority": "CRITICAL | HIGH | MEDIUM | LOW",
                   "storyPoints": 1,
+                  "relatedTopic": "Only for EDGE_CASE: glossary term or concept the edge case belongs to, or null",
                   "acceptanceCriteria": [
                     {
                       "scenario": "Brief label for this criterion (max 200 chars)",
@@ -109,6 +133,9 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
                     }
                   ]
                 }
+              ],
+              "questions": [
+                { "question": "Clarifying question text (max 1000 chars)" }
               ]
             }
 
@@ -200,14 +227,22 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
         try {
             if (json.startsWith("[")) {
                 log.debug("{} returned array instead of object — treating as no stories", modelName());
-                return new GenerationResult(List.of());
+                return new GenerationResult(List.of(), List.of());
             }
             LlmResponse parsed = objectMapper.readValue(json, LlmResponse.class);
-            if (parsed.stories() == null) return new GenerationResult(List.of());
-            List<GenerationResult.GeneratedStory> stories = parsed.stories().stream()
-                    .map(this::toGeneratedStory)
+
+            List<GenerationResult.GeneratedStory> stories = parsed.stories() == null
+                    ? List.of()
+                    : parsed.stories().stream().map(this::toGeneratedStory).toList();
+
+            List<GenerationResult.GeneratedQuestion> questions = parsed.questions() == null
+                    ? List.of()
+                    : parsed.questions().stream()
+                    .filter(q -> q.question() != null && !q.question().isBlank())
+                    .map(q -> new GenerationResult.GeneratedQuestion(q.question()))
                     .toList();
-            return new GenerationResult(stories);
+
+            return new GenerationResult(stories, questions);
         } catch (Exception e) {
             log.error("Failed to parse {} response: {}", modelName(), e.getMessage());
             log.debug("Full {} response was: {}", modelName(), json);
@@ -218,10 +253,15 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
     private GenerationResult.GeneratedStory toGeneratedStory(LlmStory story) {
         List<GenerationResult.GeneratedCriterion> criteria = story.acceptanceCriteria() == null
                 ? List.of()
-                : story.acceptanceCriteria().stream()
-                .map(this::toGeneratedCriterion)
-                .toList();
-        return new GenerationResult.GeneratedStory(story.title(), story.role(), story.action(), story.benefit(), parsePriority(story.priority()), story.storyPoints(), criteria);
+                : story.acceptanceCriteria().stream().map(this::toGeneratedCriterion).toList();
+
+        SuggestionType type = parseSuggestionType(story.type());
+
+        return new GenerationResult.GeneratedStory(
+                type,
+                story.title(), story.role(), story.action(), story.benefit(),
+                parsePriority(story.priority()), story.storyPoints(),
+                criteria, story.relatedTopic());
     }
 
     private GenerationResult.GeneratedCriterion toGeneratedCriterion(LlmCriterion criterion) {
@@ -237,14 +277,28 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
         }
     }
 
+    protected static SuggestionType parseSuggestionType(@Nullable String value) {
+        if (value == null) return SuggestionType.NEW_STORY;
+        try {
+            return SuggestionType.valueOf(value.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return SuggestionType.NEW_STORY;
+        }
+    }
+
     // Shared Jackson records for all LLM adapters
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    protected record LlmResponse(List<LlmStory> stories) {}
+    protected record LlmResponse(List<LlmStory> stories, @Nullable List<LlmQuestion> questions) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    protected record LlmStory(String title, String role, String action, String benefit, String priority, Integer storyPoints, List<LlmCriterion> acceptanceCriteria) {}
+    protected record LlmStory(@Nullable String type, String title, String role, String action, String benefit,
+                               String priority, @Nullable Integer storyPoints,
+                               @Nullable String relatedTopic, @Nullable List<LlmCriterion> acceptanceCriteria) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     protected record LlmCriterion(@Nullable String scenario, String given, String when, String then) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    protected record LlmQuestion(String question) {}
 }
