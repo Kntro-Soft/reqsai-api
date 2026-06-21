@@ -40,7 +40,7 @@ public class JwtTokenVerifier implements TokenVerifier {
     @PostConstruct
     void init() {
         try {
-            this.publicKey = loadPublicKey(properties.publicKeyPath());
+            this.publicKey = loadPublicKey(properties.publicKeyPem(), properties.publicKeyPath());
             log.info("JWT verification public key loaded");
         } catch (Exception e) {
             throw new IllegalStateException("Unable to load JWT public key", e);
@@ -71,7 +71,10 @@ public class JwtTokenVerifier implements TokenVerifier {
         }
     }
 
-    private PublicKey loadPublicKey(String location) throws Exception {
+    private PublicKey loadPublicKey(String pem, String location) throws Exception {
+        if (pem != null && !pem.isBlank()) {
+            return parsePublicKey(pem);
+        }
         Resource resource = new DefaultResourceLoader().getResource(
                 location.contains(":") ? location : "file:" + location);
         if (!resource.exists()) {
@@ -81,12 +84,15 @@ public class JwtTokenVerifier implements TokenVerifier {
             throw new IllegalStateException("JWT public key not found at: " + location);
         }
         try (InputStream is = resource.getInputStream()) {
-            String pem = new String(is.readAllBytes(), StandardCharsets.UTF_8)
-                    .replace("-----BEGIN PUBLIC KEY-----", "")
-                    .replace("-----END PUBLIC KEY-----", "")
-                    .replaceAll("\\s", "");
-            byte[] der = Base64.getDecoder().decode(pem);
-            return KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(der));
+            return parsePublicKey(new String(is.readAllBytes(), StandardCharsets.UTF_8));
         }
+    }
+
+    private PublicKey parsePublicKey(String pem) throws Exception {
+        byte[] der = Base64.getDecoder().decode(pem
+                .replace("-----BEGIN PUBLIC KEY-----", "")
+                .replace("-----END PUBLIC KEY-----", "")
+                .replaceAll("\\s", ""));
+        return KeyFactory.getInstance("RSA").generatePublic(new X509EncodedKeySpec(der));
     }
 }

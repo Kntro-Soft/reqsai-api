@@ -39,7 +39,7 @@ public class JwtTokenIssuer implements TokenIssuer {
     @PostConstruct
     void init() {
         try {
-            this.privateKey = loadPrivateKey(properties.privateKeyPath());
+            this.privateKey = loadPrivateKey(properties.privateKeyPem(), properties.privateKeyPath());
             log.info("JWT signing private key loaded — IAM token issuer ready");
         } catch (Exception e) {
             throw new IllegalStateException("Unable to load JWT private key", e);
@@ -71,7 +71,10 @@ public class JwtTokenIssuer implements TokenIssuer {
         return new IssuedToken(builder.compact(), properties.accessTokenExpiration().toSeconds());
     }
 
-    private PrivateKey loadPrivateKey(String location) throws Exception {
+    private PrivateKey loadPrivateKey(String pem, String location) throws Exception {
+        if (pem != null && !pem.isBlank()) {
+            return parsePrivateKey(pem);
+        }
         Resource resource = new DefaultResourceLoader().getResource(
                 location.contains(":") ? location : "file:" + location);
         if (!resource.exists()) {
@@ -81,12 +84,15 @@ public class JwtTokenIssuer implements TokenIssuer {
             throw new IllegalStateException("JWT private key not found at: " + location);
         }
         try (InputStream is = resource.getInputStream()) {
-            String pem = new String(is.readAllBytes(), StandardCharsets.UTF_8)
-                    .replace("-----BEGIN PRIVATE KEY-----", "")
-                    .replace("-----END PRIVATE KEY-----", "")
-                    .replaceAll("\\s", "");
-            byte[] der = Base64.getDecoder().decode(pem);
-            return KeyFactory.getInstance("RSA").generatePrivate(new PKCS8EncodedKeySpec(der));
+            return parsePrivateKey(new String(is.readAllBytes(), StandardCharsets.UTF_8));
         }
+    }
+
+    private PrivateKey parsePrivateKey(String pem) throws Exception {
+        byte[] der = Base64.getDecoder().decode(pem
+                .replace("-----BEGIN PRIVATE KEY-----", "")
+                .replace("-----END PRIVATE KEY-----", "")
+                .replaceAll("\\s", ""));
+        return KeyFactory.getInstance("RSA").generatePrivate(new PKCS8EncodedKeySpec(der));
     }
 }

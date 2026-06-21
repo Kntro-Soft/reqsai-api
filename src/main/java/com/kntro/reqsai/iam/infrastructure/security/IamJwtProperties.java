@@ -2,6 +2,7 @@ package com.kntro.reqsai.iam.infrastructure.security;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import org.jspecify.annotations.Nullable;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
@@ -14,6 +15,7 @@ import java.time.Duration;
  * access-token lifetime.
  *
  * @param privateKeyPath           location of the RSA private key (PKCS#8 PEM) — classpath or filesystem
+ * @param privateKeyPem            RSA private key in PKCS#8 PEM format, provided directly as configuration
  * @param issuer                   value placed in the {@code iss} claim (must match what the verifier requires)
  * @param accessTokenExpiration    access-token lifetime (e.g. {@code 15m})
  * @param refreshTokenExpiration   refresh-token lifetime (e.g. {@code 7d})
@@ -22,6 +24,7 @@ import java.time.Duration;
 @ConfigurationProperties(prefix = "reqsai.jwt")
 public record IamJwtProperties(
         @NotBlank String privateKeyPath,
+        @Nullable String privateKeyPem,
         @NotBlank String issuer,
         @NotNull Duration accessTokenExpiration,
         @NotNull Duration refreshTokenExpiration

@@ -1,6 +1,7 @@
 package com.kntro.reqsai.shared.infrastructure.security;
 
 import jakarta.validation.constraints.NotBlank;
+import org.jspecify.annotations.Nullable;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
@@ -12,12 +13,14 @@ import org.springframework.validation.annotation.Validated;
  * bounded context (its {@code TokenIssuer} adapter will bind its own properties under the same prefix).
  *
  * @param publicKeyPath location of the RSA public key (X.509 PEM) — classpath or filesystem path
+ * @param publicKeyPem  RSA public key in X.509 PEM format, provided directly as configuration
  * @param issuer        expected {@code iss} claim
  */
 @Validated
 @ConfigurationProperties(prefix = "reqsai.jwt")
 public record JwtProperties(
         @NotBlank String publicKeyPath,
+        @Nullable String publicKeyPem,
         @NotBlank String issuer
 ) {
 }
