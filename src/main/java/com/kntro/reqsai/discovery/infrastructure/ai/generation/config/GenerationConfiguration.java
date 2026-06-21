@@ -1,6 +1,6 @@
 package com.kntro.reqsai.discovery.infrastructure.ai.generation.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.kntro.reqsai.discovery.application.port.RequirementGenerationPort;
 import com.kntro.reqsai.discovery.infrastructure.ai.generation.RequirementGenerationRouter;
 import com.kntro.reqsai.discovery.infrastructure.ai.generation.strategy.GeminiRequirementGenerationAdapter;

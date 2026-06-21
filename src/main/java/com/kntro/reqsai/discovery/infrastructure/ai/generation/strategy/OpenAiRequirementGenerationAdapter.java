@@ -1,6 +1,6 @@
 package com.kntro.reqsai.discovery.infrastructure.ai.generation.strategy;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.kntro.reqsai.discovery.infrastructure.exception.DiscoveryInfrastructureExceptions;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.openai.OpenAiChatModel;

@@ -2,7 +2,7 @@ package com.kntro.reqsai.discovery.infrastructure.ai.generation.strategy;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.kntro.reqsai.discovery.domain.model.SuggestionType;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import com.kntro.reqsai.discovery.application.port.GenerationContext;
 import com.kntro.reqsai.discovery.application.port.GenerationResult;
 import com.kntro.reqsai.discovery.application.port.RequirementGenerationPort;
