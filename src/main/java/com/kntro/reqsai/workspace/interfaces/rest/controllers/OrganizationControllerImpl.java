@@ -2,8 +2,10 @@ package com.kntro.reqsai.workspace.interfaces.rest.controllers;
 
 import com.kntro.reqsai.workspace.application.handler.CreateOrganizationCommandHandler;
 import com.kntro.reqsai.workspace.application.handler.GetOrganizationQueryHandler;
+import com.kntro.reqsai.workspace.application.handler.ListOrganizationsQueryHandler;
 import com.kntro.reqsai.workspace.application.handler.UpdateOrganizationCommandHandler;
 import com.kntro.reqsai.workspace.application.query.GetOrganizationQuery;
+import com.kntro.reqsai.workspace.application.query.ListOrganizationsQuery;
 import com.kntro.reqsai.workspace.domain.model.Organization;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.request.CreateOrganizationRequest;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.request.UpdateOrganizationRequest;
@@ -18,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.net.URI;
+import java.util.List;
 import java.util.UUID;
 
 /** Implementation of the {@link OrganizationController} API contract. */
@@ -26,8 +29,19 @@ import java.util.UUID;
 public class OrganizationControllerImpl implements OrganizationController {
 
     private final GetOrganizationQueryHandler getOrganization;
+    private final ListOrganizationsQueryHandler listOrganizations;
     private final CreateOrganizationCommandHandler createOrganization;
     private final UpdateOrganizationCommandHandler updateOrganization;
+
+    @Override
+    public ResponseEntity<List<OrganizationResponse>> list(Authentication authentication) {
+        UUID requestedBy = UUID.fromString(authentication.getName());
+        List<OrganizationResponse> response = listOrganizations.handle(new ListOrganizationsQuery(requestedBy))
+                .stream()
+                .map(OrganizationResponseMapper::toResponse)
+                .toList();
+        return ResponseEntity.ok(response);
+    }
 
     @Override
     public ResponseEntity<OrganizationResponse> getById(UUID orgId, Authentication authentication) {

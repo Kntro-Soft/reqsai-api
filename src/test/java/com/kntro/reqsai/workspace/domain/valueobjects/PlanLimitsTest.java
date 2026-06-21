@@ -23,7 +23,7 @@ class PlanLimitsTest {
 
         // Assert
         assertThat(free.maxMembers()).isEqualTo(3);
-        assertThat(free.maxProjects()).isEqualTo(1);
+        assertThat(free.maxProjects()).isEqualTo(25);
         assertThat(free.maxDocumentsPerProject()).isEqualTo(10);
         assertThat(free.maxTokensPerMonth()).isEqualTo(100_000L);
         assertThat(free.maxGlossaryTermsPerProject()).isEqualTo(50);

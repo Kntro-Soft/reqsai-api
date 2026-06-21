@@ -3,6 +3,8 @@ package com.kntro.reqsai.workspace.application.port;
 import com.kntro.reqsai.workspace.domain.model.Organization;
 import com.kntro.reqsai.workspace.domain.valueobjects.Slug;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -19,4 +21,10 @@ public interface OrganizationRepository {
     Optional<Organization> findById(UUID id);
 
     Optional<Organization> findByOwnerId(UUID ownerId);
+
+    /** All organizations owned by the user, newest first (the {@code public.organizations} registry). */
+    List<Organization> findAllByOwnerId(UUID ownerId);
+
+    /** Organizations by id — used to resolve the orgs a user is a member of. */
+    List<Organization> findAllByIdIn(Collection<UUID> ids);
 }

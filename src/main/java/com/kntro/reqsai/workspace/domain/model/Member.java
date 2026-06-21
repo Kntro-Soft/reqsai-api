@@ -8,13 +8,15 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
+import lombok.Getter;
 import org.jspecify.annotations.Nullable;
 
 import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "members")
+@Table(name = "members", schema = "public")
+@Getter
 public class Member extends AggregateRoot {
 
     private static final int DISPLAY_NAME_MAX = 150;
@@ -78,38 +80,6 @@ public class Member extends AggregateRoot {
             Assert.notNull(invitedBy, "invitedBy");
             Assert.notNull(invitedAt, "invitedAt");
         }
-    }
-
-    public UUID getOrganizationId() {
-        return organizationId;
-    }
-
-    public @Nullable UUID getUserId() {
-        return userId;
-    }
-
-    public String getEmail() {
-        return email;
-    }
-
-    public String getDisplayName() {
-        return displayName;
-    }
-
-    public OrgRole getRole() {
-        return role;
-    }
-
-    public MemberStatus getStatus() {
-        return status;
-    }
-
-    public @Nullable UUID getInvitedBy() {
-        return invitedBy;
-    }
-
-    public @Nullable Instant getInvitedAt() {
-        return invitedAt;
     }
 
     public void changeRole(OrgRole role) {

@@ -55,6 +55,6 @@ public record PlanLimits(
 
     /** Default FREE-tier limits applied at organization creation. */
     public static PlanLimits free() {
-        return new PlanLimits(3, 1, 10, 100_000L, 50);
+        return new PlanLimits(3, 25, 10, 100_000L, 50);
     }
 }
