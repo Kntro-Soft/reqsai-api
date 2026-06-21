@@ -27,13 +27,13 @@ import org.jspecify.annotations.Nullable;
 @Getter
 public class ProjectConstraint extends AuditableEntity {
 
-    static final int DESCRIPTION_MAX = 1000;
+    private static final int DESCRIPTION_MAX = 1000;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "project_id", nullable = false, updatable = false)
     private Project project;
 
-    @Column(name = "description", nullable = false, columnDefinition = "text")
+    @Column(name = "description", nullable = false, length = DESCRIPTION_MAX, columnDefinition = "text")
     private String description;
 
     @JdbcTypeCode(SqlTypes.VECTOR)
@@ -47,13 +47,21 @@ public class ProjectConstraint extends AuditableEntity {
 
     ProjectConstraint(Project project, String description) {
         super();
-        this.project     = Assert.notNull(project, "project");
-        this.description = Assert.maxLength(Assert.notBlank(description, "description"), "description", DESCRIPTION_MAX);
+        this.project = Assert.notNull(project, "project");
+        this.description = normalizeDescription(description);
+    }
+
+    static String normalizeDescription(String description) {
+        return Assert.maxLength(Assert.notBlank(description, "description"), "description", DESCRIPTION_MAX);
+    }
+
+    boolean sameDescription(String description) {
+        return this.description.equalsIgnoreCase(normalizeDescription(description));
     }
 
     void update(String description) {
-        this.description = Assert.maxLength(Assert.notBlank(description, "description"), "description", DESCRIPTION_MAX);
-        this.embedding   = null;
+        this.description = normalizeDescription(description);
+        this.embedding = null;
     }
 
     void applyEmbedding(float[] embedding) {

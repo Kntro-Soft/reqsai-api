@@ -10,6 +10,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.InvalidDataAccessResourceUsageException;
 import org.jspecify.annotations.NonNull;
 import org.slf4j.MDC;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -60,6 +63,30 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         ProblemDetail pd = ProblemDetail.forStatus(ex.error().status());
         pd.setDetail("A server error occurred. Please try again later.");
         pd.setProperty("code", ex.error().code());
+        pd.setProperty("correlationId", correlationId());
+        pd.setInstance(URI.create(req.getRequestURI()));
+        return pd;
+    }
+
+    // Spring Security — method-security/authorization denials (e.g. @PreAuthorize). Without this they
+    // fall through to the generic 500 handler instead of a proper 403.
+    // RFC 9110 §15.5.2: if the user is not authenticated at all, return 401 (not 403).
+    @ExceptionHandler(AccessDeniedException.class)
+    public ProblemDetail handleAccessDenied(AccessDeniedException ex, HttpServletRequest req) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        boolean unauthenticated = auth == null || !auth.isAuthenticated()
+                || "anonymousUser".equals(auth.getPrincipal());
+        if (unauthenticated) {
+            log.warn("[{}] Unauthenticated access [{}]: {}", tenantId(), CommonError.NOT_AUTHENTICATED.code(), req.getRequestURI());
+            ProblemDetail pd = ProblemDetail.forStatusAndDetail(CommonError.NOT_AUTHENTICATED.status(), "Authentication required");
+            pd.setProperty("code", CommonError.NOT_AUTHENTICATED.code());
+            pd.setProperty("correlationId", correlationId());
+            pd.setInstance(URI.create(req.getRequestURI()));
+            return pd;
+        }
+        log.warn("[{}] Access denied [{}]: {}", tenantId(), CommonError.PERMISSION_DENIED.code(), ex.getMessage());
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(CommonError.PERMISSION_DENIED.status(), "Access is denied");
+        pd.setProperty("code", CommonError.PERMISSION_DENIED.code());
         pd.setProperty("correlationId", correlationId());
         pd.setInstance(URI.create(req.getRequestURI()));
         return pd;

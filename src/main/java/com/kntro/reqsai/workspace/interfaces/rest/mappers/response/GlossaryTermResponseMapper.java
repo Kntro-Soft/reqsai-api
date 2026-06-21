@@ -12,6 +12,7 @@ public final class GlossaryTermResponseMapper {
                 term.getId(),
                 term.getTerm(),
                 term.getDefinition(),
+                term.getAddedAt(),
                 term.getCreatedAt(),
                 term.getUpdatedAt()
         );

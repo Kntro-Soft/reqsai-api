@@ -5,14 +5,15 @@ import com.kntro.reqsai.workspace.interfaces.rest.dto.response.ProjectConstraint
 
 public final class ProjectConstraintResponseMapper {
 
-    private ProjectConstraintResponseMapper() {}
+    private ProjectConstraintResponseMapper() {
+        throw new UnsupportedOperationException("Utility class - do not instantiate");
+    }
 
     public static ProjectConstraintResponse toResponse(ProjectConstraint constraint) {
         return new ProjectConstraintResponse(
                 constraint.getId(),
                 constraint.getDescription(),
                 constraint.getCreatedAt(),
-                constraint.getUpdatedAt()
-        );
+                constraint.getUpdatedAt());
     }
 }

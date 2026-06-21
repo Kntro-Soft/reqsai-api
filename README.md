@@ -1,4 +1,15 @@
-# backend-reqsai
+<div align="center">
+
+# ReqsAI — Backend API
+
+![Java](https://img.shields.io/badge/Java-25-f89820?logo=openjdk&logoColor=white&labelColor=1f2937)
+![Spring Boot](https://img.shields.io/badge/Spring_Boot-4-6db33f?logo=springboot&logoColor=white&labelColor=1f2937)
+![Spring Modulith](https://img.shields.io/badge/Spring_Modulith-2.0-16a34a?logo=spring&logoColor=white&labelColor=1f2937)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-pgvector-336791?logo=postgresql&logoColor=white&labelColor=1f2937)
+![Architecture](https://img.shields.io/badge/architecture-schema--per--tenant-38bdf8?labelColor=0f172a)
+![Status](https://img.shields.io/badge/status-in%20development-facc15?labelColor=713f12)
+
+</div>
 
 Backend de **Reqs-AI** — plataforma SaaS B2B de elicitación de requisitos asistida por IA.
 
