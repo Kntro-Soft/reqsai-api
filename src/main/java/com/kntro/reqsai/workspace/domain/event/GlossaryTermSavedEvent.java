@@ -1,6 +1,7 @@
 package com.kntro.reqsai.workspace.domain.event;
 
-import com.kntro.reqsai.shared.domain.model.DomainEvent;
+import com.kntro.reqsai.shared.domain.model.TenantAwareDomainEvent;
+import com.kntro.reqsai.shared.infrastructure.persistence.multitenancy.TenantContext;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -10,11 +11,13 @@ public record GlossaryTermSavedEvent(
         UUID termId,
         String term,
         String definition,
+        TenantContext.TenantSnapshot tenant,
         Instant occurredAt
-) implements DomainEvent {
+) implements TenantAwareDomainEvent {
 
     public static GlossaryTermSavedEvent of(UUID projectId, UUID termId, String term, String definition) {
-        return new GlossaryTermSavedEvent(projectId, termId, term, definition, Instant.now());
+        return new GlossaryTermSavedEvent(projectId, termId, term, definition,
+                TenantContext.capture(), Instant.now());
     }
 
     @Override
