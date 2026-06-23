@@ -20,3 +20,9 @@ reqsai:
 logging:
   level:
     com.kntro.reqsai: DEBUG
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
