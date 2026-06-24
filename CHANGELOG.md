@@ -79,6 +79,13 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
 
 ### Fixed
 
+- **OpenAPI/Swagger toggle per environment (`bugfix/openapi-toggle-per-env`)**: `springdoc.api-docs`
+  and `springdoc.swagger-ui` are env-var driven (`SPRINGDOC_API_DOCS_ENABLED` /
+  `SPRINGDOC_SWAGGER_UI_ENABLED`). Production now defaults them to **`false`** (secure by default,
+  still flippable via env var without a redeploy); the base profile keeps the dev-friendly default
+  `true`. The `test` profile (`application-test.yml`) enables them so `SmokeTest`'s
+  `servesOwnOpenApiDocument` serves the OpenAPI document. (CI sets no `SPRINGDOC_*` env var; note an
+  OS-level env var would still outrank the profile file — unset it locally when running tests.)
 - **Timestamp timezone offset (`bugfix/timestamp-timezone`)**: audit timestamps (`created_at`,
   `updated_at`) were stored with a UTC-5 offset because the Dockerfile set `TZ=America/Lima`,
   causing Hibernate to use the JVM's local timezone when writing to PostgreSQL. Fixed by changing
