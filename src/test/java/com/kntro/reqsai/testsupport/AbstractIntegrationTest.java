@@ -1,5 +1,6 @@
 package com.kntro.reqsai.testsupport;
 
+import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -36,9 +37,12 @@ public abstract class AbstractIntegrationTest {
                 .build();
     }
 
+    // The data directory lives in a RAM-backed tmpfs: the heavy per-tenant Flyway migrations
+    // run far faster and nothing needs to survive the JVM, which is exactly what tests want.
     private static final PostgreSQLContainer POSTGRES =
             new PostgreSQLContainer(DockerImageName.parse("pgvector/pgvector:pg16")
-                    .asCompatibleSubstituteFor("postgres"));
+                    .asCompatibleSubstituteFor("postgres"))
+                    .withTmpFs(Map.of("/var/lib/postgresql/data", "rw"));
 
     static {
         POSTGRES.start();

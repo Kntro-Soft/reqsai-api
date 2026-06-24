@@ -156,6 +156,13 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
 
 ### Changed
 
+- **Test-suite performance (`feature/test-suite-performance`)**: faster local + CI test runs.
+  (1) The Testcontainers Postgres data directory now lives in a RAM-backed tmpfs
+  (`AbstractIntegrationTest`), so the per-tenant Flyway migrations are no longer disk-bound.
+  (2) New `./gradlew unitTest` task runs only fast tests — excludes the `integration`, `architecture`
+  and `modularity` tags — giving a Docker-free, sub-second feedback loop (80 of 104 test classes).
+  (3) `gradle.properties` adds `org.gradle.caching` / `parallel` / `daemon` so unchanged tasks (e.g.
+  `:test`) are skipped on re-runs. No production code changed.
 - **AI provider configuration — `local-ai` profile eliminated**: the `application-local-ai.yml`
   overlay is deleted. AI providers are now activated exclusively via env vars (`SPRING_AI_MODEL_CHAT`,
   `SPRING_AI_MODEL_EMBEDDING`, `SPRING_AI_MODEL_AUDIO_TRANSCRIPTION`) and provider selectors

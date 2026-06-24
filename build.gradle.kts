@@ -152,6 +152,17 @@ tasks.withType<Test> {
     jvmArgs("-javaagent:${mockitoAgent.asPath}")
 }
 
+// Fast feedback loop: unit/slice tests only — skips Testcontainers integration,
+// architecture, and modularity tests (no Docker, no app-context boot).
+// Run with: ./gradlew unitTest
+val unitTest by tasks.registering(Test::class) {
+    description = "Runs fast tests only (excludes integration, architecture, modularity)"
+    group = "verification"
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    useJUnitPlatform { excludeTags("integration", "architecture", "modularity") }
+}
+
 // ==================================
 // MODULARITY VERIFICATION
 // ==================================
