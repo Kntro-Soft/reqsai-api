@@ -71,7 +71,7 @@ class RefreshSessionCommandHandlerTest {
                 .thenReturn(Optional.of(existing));
         when(users.findById(existing.getUserId())).thenReturn(Optional.of(user));
         when(accounts.findById(user.getAccountId())).thenReturn(Optional.of(account));
-        when(organizations.findOrganizationIdByOwnerId(user.getId())).thenReturn(Optional.empty());
+        when(organizations.findDefaultOrganizationId(user.getId())).thenReturn(Optional.empty());
         when(tokenIssuer.issue(any(), any(), any(), any()))
                 .thenReturn(new IssuedToken("access-jwt", 900L));
 

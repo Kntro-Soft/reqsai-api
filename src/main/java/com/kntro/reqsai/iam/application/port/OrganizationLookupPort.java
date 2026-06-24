@@ -8,8 +8,12 @@ import java.util.UUID;
  * Implemented in {@code workspace.infrastructure} so IAM does not depend on workspace internals.
  */
 public interface OrganizationLookupPort {
-    Optional<UUID> findOrganizationIdByOwnerId(UUID ownerId);
+    /**
+     * Default active organization for a user: the most recently created org they own, or — if they own
+     * none — the first org where they are an active member. Empty when the user belongs to no org.
+     */
+    Optional<UUID> findDefaultOrganizationId(UUID userId);
 
-    /** Returns {@code true} when {@code organizationId} exists and is owned by {@code ownerId}. */
-    boolean isOwnerOf(UUID organizationId, UUID ownerId);
+    /** Returns {@code true} when the user owns {@code organizationId} or is an active member of it. */
+    boolean canAccess(UUID organizationId, UUID userId);
 }

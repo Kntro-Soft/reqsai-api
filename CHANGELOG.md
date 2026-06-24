@@ -79,6 +79,13 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
 
 ### Fixed
 
+- **Member organization access (`bugfix/iam-member-org-access`)**: a non-owner active member could
+  see an organization in the switcher but could not switch into it — the JWT `orgId` claim was only
+  ever set to an org the user *owns*, so `PATCH /users/me/preferences` rejected member orgs and
+  `/auth/refresh` kept the user's own org, resolving the tenant to the wrong schema (member orgs
+  showed zero projects). The IAM `OrganizationLookupPort` now exposes `findDefaultOrganizationId` /
+  `canAccess` (owner **or** active member, via `MemberRepository`); login/refresh fallback and the
+  preferences validation use them, making member organizations fully navigable.
 - **OpenAPI/Swagger toggle per environment (`bugfix/openapi-toggle-per-env`)**: `springdoc.api-docs`
   and `springdoc.swagger-ui` are env-var driven (`SPRINGDOC_API_DOCS_ENABLED` /
   `SPRINGDOC_SWAGGER_UI_ENABLED`). Production now defaults them to **`false`** (secure by default,
