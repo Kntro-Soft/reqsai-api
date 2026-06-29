@@ -4,9 +4,11 @@ import com.kntro.reqsai.shared.domain.exception.DomainException;
 import com.kntro.reqsai.shared.interfaces.pagination.PageCriteria;
 import com.kntro.reqsai.shared.interfaces.pagination.PageRequestFactory;
 import com.kntro.reqsai.shared.interfaces.pagination.PaginationProperties;
+import com.kntro.reqsai.workspace.application.port.MemberRepository;
 import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
 import com.kntro.reqsai.workspace.application.port.ProjectRepository;
 import com.kntro.reqsai.workspace.application.query.ListProjectsQuery;
+import com.kntro.reqsai.workspace.domain.model.MemberStatus;
 import com.kntro.reqsai.workspace.domain.model.Organization;
 import com.kntro.reqsai.workspace.domain.model.Project;
 import com.kntro.reqsai.workspace.domain.model.ProjectStatus;
@@ -40,6 +42,8 @@ class ListProjectsQueryHandlerTest {
     private ProjectRepository projects;
     @Mock
     private OrganizationRepository organizations;
+    @Mock
+    private MemberRepository members;
 
     private final PageRequestFactory pageRequestFactory = new PageRequestFactory(new PaginationProperties(20, 100));
 
@@ -47,23 +51,56 @@ class ListProjectsQueryHandlerTest {
 
     @BeforeEach
     void setUp() {
-        handler = new ListProjectsQueryHandler(projects, organizations, pageRequestFactory);
+        handler = new ListProjectsQueryHandler(projects, organizations, members, pageRequestFactory);
     }
 
     @Test
-    @DisplayName("should list projects for the organization")
+    @DisplayName("should list projects for the organization owner")
     void should_list_projects_for_the_organization() {
         Organization org = OrganizationMother.active().build();
         UUID orgId = org.getId();
+        UUID requestedBy = org.getOwnerId();
         Project project = ProjectMother.standard().withOrganizationId(orgId).build();
         Page<Project> projectPage = new PageImpl<>(List.of(project), PageRequest.of(0, 20), 1);
 
         when(organizations.findById(orgId)).thenReturn(Optional.of(org));
         when(projects.findAllByOrganizationIdAndStatus(eq(orgId), eq(ProjectStatus.ACTIVE), any())).thenReturn(projectPage);
 
-        Page<Project> result = handler.handle(new ListProjectsQuery(orgId, PageCriteria.of(0, 20, "createdAt", "DESC")));
+        Page<Project> result = handler.handle(new ListProjectsQuery(orgId, requestedBy, PageCriteria.of(0, 20, "createdAt", "DESC")));
 
         assertThat(result.getContent()).containsExactly(project);
+    }
+
+    @Test
+    @DisplayName("should list projects for an active member")
+    void should_list_projects_for_an_active_member() {
+        Organization org = OrganizationMother.active().build();
+        UUID orgId = org.getId();
+        UUID member = UUID.randomUUID();
+        Project project = ProjectMother.standard().withOrganizationId(orgId).build();
+        Page<Project> projectPage = new PageImpl<>(List.of(project), PageRequest.of(0, 20), 1);
+
+        when(organizations.findById(orgId)).thenReturn(Optional.of(org));
+        when(members.existsByOrganizationIdAndUserIdAndStatus(orgId, member, MemberStatus.ACTIVE)).thenReturn(true);
+        when(projects.findAllByOrganizationIdAndStatus(eq(orgId), eq(ProjectStatus.ACTIVE), any())).thenReturn(projectPage);
+
+        Page<Project> result = handler.handle(new ListProjectsQuery(orgId, member, PageCriteria.of(0, 20, null, null)));
+
+        assertThat(result.getContent()).containsExactly(project);
+    }
+
+    @Test
+    @DisplayName("should fail when the requester is neither owner nor active member")
+    void should_fail_when_requester_has_no_access() {
+        Organization org = OrganizationMother.active().build();
+        UUID orgId = org.getId();
+        UUID stranger = UUID.randomUUID();
+
+        when(organizations.findById(orgId)).thenReturn(Optional.of(org));
+        when(members.existsByOrganizationIdAndUserIdAndStatus(orgId, stranger, MemberStatus.ACTIVE)).thenReturn(false);
+
+        assertThatThrownBy(() -> handler.handle(new ListProjectsQuery(orgId, stranger, PageCriteria.of(0, 20, null, null))))
+                .isInstanceOf(DomainException.class);
     }
 
     @Test
@@ -73,7 +110,7 @@ class ListProjectsQueryHandlerTest {
 
         when(organizations.findById(orgId)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> handler.handle(new ListProjectsQuery(orgId, PageCriteria.of(0, 20, null, null))))
+        assertThatThrownBy(() -> handler.handle(new ListProjectsQuery(orgId, UUID.randomUUID(), PageCriteria.of(0, 20, null, null))))
                 .isInstanceOf(DomainException.class);
     }
 }

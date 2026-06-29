@@ -86,7 +86,8 @@ public interface ProjectController {
             @Parameter(description = "Zero-based page index", example = "0") @RequestParam(required = false) Integer page,
             @Parameter(description = "Page size (max 100)", example = "20") @RequestParam(required = false) Integer size,
             @Parameter(description = "Sort field: createdAt | updatedAt | name | status", example = "createdAt") @RequestParam(required = false) String sortBy,
-            @Parameter(description = "Sort direction: ASC | DESC", example = "DESC") @RequestParam(required = false) String sortDirection
+            @Parameter(description = "Sort direction: ASC | DESC", example = "DESC") @RequestParam(required = false) String sortDirection,
+            Authentication authentication
     );
 
     @Operation(summary = "Archive a project manually", description = "Archives the project under the organization. Archived projects are hidden from the default workspace queries.")
