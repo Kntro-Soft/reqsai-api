@@ -58,7 +58,8 @@ public class UserStoryRepositoryAdapter implements UserStoryRepository {
 
     @Override
     public Optional<SimilarStory> findMostSimilar(UUID projectId, float[] embedding) {
-        return jpa.findClosest(projectId, toVectorLiteral(embedding))
+        return jpa.findClosest(projectId, toVectorLiteral(embedding)).stream()
+                .findFirst()
                 .map(row -> {
                     UUID storyId = UUID.fromString(row[0].toString());
                     double similarity = 1.0 - ((Number) row[1]).doubleValue();
