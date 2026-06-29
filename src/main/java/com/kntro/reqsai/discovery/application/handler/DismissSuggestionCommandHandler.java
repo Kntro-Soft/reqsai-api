@@ -16,7 +16,7 @@ public class DismissSuggestionCommandHandler {
 
     @Transactional
     public Suggestion handle(DismissSuggestionCommand cmd) {
-        Suggestion suggestion = suggestions.findByIdAndSessionId(cmd.suggestionId(), cmd.sessionId())
+        Suggestion suggestion = suggestions.findByIdAndSessionIdForUpdate(cmd.suggestionId(), cmd.sessionId())
                 .orElseThrow(() -> DiscoveryExceptions.suggestionNotFound(cmd.suggestionId()));
         suggestion.dismiss();
         return suggestions.save(suggestion);

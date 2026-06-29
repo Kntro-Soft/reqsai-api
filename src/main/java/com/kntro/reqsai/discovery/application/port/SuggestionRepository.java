@@ -15,5 +15,9 @@ public interface SuggestionRepository {
 
     Optional<Suggestion> findByIdAndSessionId(UUID id, UUID sessionId);
 
+    Optional<Suggestion> findByIdAndSessionIdForUpdate(UUID id, UUID sessionId);
+
     List<Suggestion> findAllBySessionIdAndStatus(UUID sessionId, SuggestionStatus status);
+
+    void deleteAllBySessionId(UUID sessionId);
 }
