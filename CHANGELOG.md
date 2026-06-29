@@ -79,6 +79,60 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
 
 ### Fixed
 
+- **Realtime AI suggestions pipeline (`bugfix/discovery-realtime-suggestions`)**: the live
+  suggestion flow was effectively broken and several robustness gaps were closed.
+  - **Similarity lookup (critical)**: `UserStoryJpaRepository.findClosest` was declared
+    `Optional<Object[]>` for a two-column native query; under the current Spring Data/Hibernate the
+    `Object[]` is the **row set**, not a single `(id, dist)` row, so `findMostSimilar` *always* threw
+    (`IndexOutOfBounds` on an empty project, `Invalid UUID string: [Ljava.lang.Object;…` otherwise).
+    `SuggestionCreationService` swallowed it, so **every** realtime suggestion was silently dropped.
+    Changed to `List<Object[]>` + `findFirst()`.
+  - **Duplicate suppression**: overlapping context windows re-surfaced the same idea every trigger.
+    `SuggestionCreationService` now deduplicates generated items against the session's **PENDING**
+    suggestions (and within the same batch) by normalized title/question.
+  - **Failure visibility**: unexpected errors during suggestion creation are logged at **ERROR with
+    the full stack** (not a `getMessage()` WARN), and the summary log reports
+    `created / duplicate-skipped / failed` counts.
+  - **WebSocket discriminator**: `SessionTranscriptSegmentMessage`, `SessionStoryGeneratedMessage`
+    and `SessionProcessingFailedMessage` declared `type()` as a plain override (not a record
+    component), so Jackson serialized them **without** a `type` field and the client could not
+    discriminate live transcript/story/failed events. Added `@JsonProperty("type")`.
+  - **Audio upload size**: `spring.servlet.multipart` was unset, so Spring's 1 MB default rejected
+    real session audio (413). Raised to `${MAX_UPLOAD_FILE_SIZE:50MB}` / `${MAX_UPLOAD_REQUEST_SIZE:55MB}`.
+  - **Logging**: fixed a broken `log.debug` that used SLF4J `{}`/`{:.2f}` placeholders inside Java
+    `String.formatted()` (which never interpolated).
+  - **Watermark-based trigger + flush (`V13`)**: realtime suggestions no longer fire on a rigid
+    every-5-final-segments cadence (which cut topics mid-stream, re-processed overlapping windows,
+    and could skip the tail). `discovery_sessions.last_suggested_sequence` records how far a session
+    has been processed; the service generates only the not-yet-processed tail when enough new
+    transcript has accrued, advances the watermark **only on success** (a transient failure is
+    retried, never lost), and a final **flush on stop** processes the remaining tail so the end of a
+    short meeting is not dropped.
+  - **Duplication Alert (`V14`)**: batch `/process` near-duplicates were silently dropped (the
+    `UserStoryNearDuplicateDetectedEvent` had no consumer), contradicting the architecture's
+    "warn on >80% similarity / Display & Solve Duplication Alert" use case. They are now surfaced as
+    `UPDATE_STORY` suggestions targeting the matched story, carrying a new `similarity` score
+    (`suggestions.similarity`, exposed on `SuggestionResponse`), so the analyst can merge/update or
+    dismiss them through the existing review flow.
+- **Session reset left orphans**: resetting a discovery session to `DRAFT` deleted its user stories
+  but **kept the suggestions and transcript segments**, so the "fresh" session still showed stale
+  PENDING suggestions and old segments. `ResetDiscoverySessionCommandHandler` now also clears the
+  session's suggestions and transcript segments.
+- **Cross-project suggestion target (integrity)**: accepting an `UPDATE_STORY`/`EDGE_CASE`
+  suggestion whose `targetStoryId` pointed at a story in a **different project of the same tenant**
+  mutated that other project's backlog (the target was loaded by id with no project check). The
+  accept handler now verifies the target story belongs to the suggestion's project; otherwise it
+  falls back to creating a new story in the correct project instead of touching the other one.
+- **Concurrent suggestion accept (idempotency)**: two simultaneous `accept` calls on the same
+  suggestion both passed the `PENDING` guard (each in its own snapshot) and **each created a user
+  story** — a double-click/retry produced duplicates. `AcceptSuggestionCommandHandler` and
+  `DismissSuggestionCommandHandler` now load the suggestion with a `PESSIMISTIC_WRITE` row lock
+  (`findByIdAndSessionIdForUpdate`), so concurrent requests serialize: the first wins, the rest
+  re-read the resolved row and the domain guard rejects them (one `200`, the rest `409`, one story).
+- **Project-listing tenant authorization**: `GET /organizations/{orgId}/projects` only checked that
+  the org existed, so passing an org the caller cannot access returned an empty page (200) instead of
+  a clear authorization failure. `ListProjectsQueryHandler` now verifies the requester is the owner
+  **or** an active member of the org (else 403), consistent with the realtime member-access rules.
 - **Member organization access (`bugfix/iam-member-org-access`)**: a non-owner active member could
   see an organization in the switcher but could not switch into it — the JWT `orgId` claim was only
   ever set to an org the user *owns*, so `PATCH /users/me/preferences` rejected member orgs and
