@@ -23,6 +23,12 @@ public interface TranscriptSegmentRepository {
      */
     List<TranscriptSegment> findRecentFinalBySessionId(UUID sessionId, int limit);
 
+    /**
+     * Finalized segments whose {@code sequence} is greater than {@code afterSequence}, ascending.
+     * Drives watermark-based realtime suggestions (only the not-yet-processed tail).
+     */
+    List<TranscriptSegment> findFinalBySessionIdAfter(UUID sessionId, int afterSequence);
+
     /** Removes every segment of a session (used when a session is reset). */
     void deleteAllBySessionId(UUID sessionId);
 }

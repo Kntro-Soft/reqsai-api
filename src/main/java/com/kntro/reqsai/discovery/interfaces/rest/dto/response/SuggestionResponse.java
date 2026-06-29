@@ -58,6 +58,9 @@ public record SuggestionResponse(
         @Schema(description = "Story created or modified on acceptance; null if not yet accepted or type is CLARIFYING_QUESTION", nullable = true)
         @Nullable UUID resolvedStoryId,
 
+        @Schema(description = "Similarity (0..1) to the target story when this is a duplicate alert", nullable = true)
+        @Nullable Double similarity,
+
         @Schema(description = "When the suggestion was created")
         Instant createdAt,
 

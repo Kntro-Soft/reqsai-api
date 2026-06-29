@@ -1,5 +1,6 @@
 package com.kntro.reqsai.discovery.interfaces.notification.messages;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.kntro.reqsai.discovery.interfaces.notification.SessionEventType;
 import org.jspecify.annotations.Nullable;
 
@@ -35,6 +36,7 @@ public record SessionTranscriptSegmentMessage(
 ) implements SessionRealtimeMessage {
 
     @Override
+    @JsonProperty("type")
     public SessionEventType type() {
         return SessionEventType.TRANSCRIPT_SEGMENT;
     }

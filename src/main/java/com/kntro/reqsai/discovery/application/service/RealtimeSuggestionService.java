@@ -2,6 +2,7 @@ package com.kntro.reqsai.discovery.application.service;
 
 import com.kntro.reqsai.discovery.application.port.*;
 import com.kntro.reqsai.discovery.domain.model.DiscoverySession;
+import com.kntro.reqsai.discovery.domain.model.Suggestion;
 import com.kntro.reqsai.shared.application.port.EmbeddingPort;
 import com.kntro.reqsai.discovery.domain.model.TranscriptSegment;
 import com.kntro.reqsai.workspace.api.WorkspaceModuleApi;
@@ -12,7 +13,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -38,55 +38,66 @@ public class RealtimeSuggestionService {
     private final SuggestionCreationService suggestionCreation;
     private final EmbeddingPort embeddingPort;
 
-    @Value("${discovery.realtime.context-window:10}")
-    private int contextWindow;
-
     @Value("${discovery.realtime.context-top-k:5}")
     private int contextTopK;
 
     @Value("${discovery.realtime.min-transcript-chars:300}")
     private int minTranscriptChars;
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = true)
+    /** Incremental pass: generate only when enough new transcripts have accrued past the watermark. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void suggest(UUID sessionId) {
+        suggest(sessionId, false);
+    }
+
+    /**
+     * Processes the not-yet-suggested tail of the transcript (segments past the watermark).
+     *
+     * @param force when {@code true} (flush on stop) generate even if the accrued text is below the
+     *              minimum — so the end of the meeting is never dropped. The watermark only advances
+     *              on success, so a transient failure is retried rather than lost, and overlapping
+     *              triggers never re-process the same segments.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void suggest(UUID sessionId, boolean force) {
         DiscoverySession session = sessions.findById(sessionId).orElse(null);
         if (session == null) {
             log.warn("Realtime suggestion skipped: session {} not found", sessionId);
             return;
         }
 
-        List<TranscriptSegment> recent = segments.findRecentFinalBySessionId(sessionId, contextWindow);
-        if (recent.isEmpty()) {
-            log.debug("No final segments yet for session {}", sessionId);
+        int watermark = session.getLastSuggestedSequence();
+        List<TranscriptSegment> pending = segments.findFinalBySessionIdAfter(sessionId, watermark);
+        if (pending.isEmpty()) {
+            log.debug("No new final segments past watermark {} for session {}", watermark, sessionId);
             return;
         }
 
-        if (!generation.isAvailable()) {
-            log.debug("Generation unavailable, skipping realtime suggestions for session {}", sessionId);
-            return;
-        }
-
-        // Reverse to chronological order before joining
-        List<TranscriptSegment> chronological = new ArrayList<>(recent);
-        java.util.Collections.reverse(chronological);
-        String recentText = chronological.stream()
+        String text = pending.stream()
                 .map(TranscriptSegment::getText)
-                .collect(Collectors.joining(" "));
+                .collect(Collectors.joining(" "))
+                .strip();
 
-        if (recentText.length() < minTranscriptChars) {
-            log.debug("Insufficient transcript context for session {} ({} chars < {} min), skipping",
-                    sessionId, recentText.length(), minTranscriptChars);
+        if (!force && text.length() < minTranscriptChars) {
+            log.debug("Accrued {} chars (< {} min) past watermark for session {}; waiting for more",
+                    text.length(), minTranscriptChars, sessionId);
+            return;
+        }
+        if (text.isBlank() || !generation.isAvailable()) {
+            log.debug("Nothing to generate (blank or generation unavailable) for session {}", sessionId);
             return;
         }
 
-        GenerationContext context = buildContext(session.getProjectId(), recentText);
+        int maxSequence = pending.getLast().getSequence();
+        GenerationContext context = buildContext(session.getProjectId(), text);
+        GenerationResult result = generation.generate(text, session.getLanguage().value(), context);
 
-        GenerationResult result = generation.generate(recentText, session.getLanguage().value(), context);
+        List<Suggestion> created = suggestionCreation.createSuggestions(result, sessionId, session.getProjectId());
 
-        List<com.kntro.reqsai.discovery.domain.model.Suggestion> created =
-                suggestionCreation.createSuggestions(result, sessionId, session.getProjectId());
-        log.info("Realtime suggestion for session {}: {} suggestions from {} segments (context={})",
-                sessionId, created.size(), recent.size(), context != null ? context.projectName() : "none");
+        session.advanceSuggestedSequence(maxSequence);
+        sessions.save(session);
+
+        log.info("Realtime suggestion for session {}: {} suggestions from {} segments (watermark {} -> {}, force={})", sessionId, created.size(), pending.size(), watermark, maxSequence, force);
     }
 
     private GenerationContext buildContext(UUID projectId, String recentText) {

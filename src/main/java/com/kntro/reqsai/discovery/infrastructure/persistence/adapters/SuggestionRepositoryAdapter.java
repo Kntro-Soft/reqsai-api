@@ -34,7 +34,17 @@ public class SuggestionRepositoryAdapter implements SuggestionRepository {
     }
 
     @Override
+    public Optional<Suggestion> findByIdAndSessionIdForUpdate(UUID id, UUID sessionId) {
+        return jpa.findByIdAndSessionIdForUpdate(id, sessionId);
+    }
+
+    @Override
     public List<Suggestion> findAllBySessionIdAndStatus(UUID sessionId, SuggestionStatus status) {
         return jpa.findAllBySessionIdAndStatus(sessionId, status);
+    }
+
+    @Override
+    public void deleteAllBySessionId(UUID sessionId) {
+        jpa.deleteAllBySessionId(sessionId);
     }
 }

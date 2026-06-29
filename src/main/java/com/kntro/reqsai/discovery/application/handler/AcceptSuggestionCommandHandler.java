@@ -43,7 +43,7 @@ public class AcceptSuggestionCommandHandler {
 
     @Transactional
     public Suggestion handle(AcceptSuggestionCommand cmd) {
-        Suggestion suggestion = suggestions.findByIdAndSessionId(cmd.suggestionId(), cmd.sessionId())
+        Suggestion suggestion = suggestions.findByIdAndSessionIdForUpdate(cmd.suggestionId(), cmd.sessionId())
                 .orElseThrow(() -> DiscoveryExceptions.suggestionNotFound(cmd.suggestionId()));
 
         UUID resolvedStoryId = switch (suggestion.getType()) {
@@ -84,9 +84,8 @@ public class AcceptSuggestionCommandHandler {
             return acceptAsNewStory(s, cmd);
         }
         UserStory target = storyRepo.findById(targetId).orElse(null);
-        if (target == null) {
-            log.warn("UPDATE_STORY suggestion {} target story {} no longer exists; creating as new story",
-                    s.getId(), targetId);
+        if (target == null || !target.getProjectId().equals(s.getProjectId())) {
+            log.warn("UPDATE_STORY suggestion {} target story {} is missing or in another project; creating as new story", s.getId(), targetId);
             return acceptAsNewStory(s, cmd);
         }
 
@@ -109,9 +108,8 @@ public class AcceptSuggestionCommandHandler {
             return acceptAsNewStory(s, cmd);
         }
         UserStory target = storyRepo.findById(targetId).orElse(null);
-        if (target == null) {
-            log.warn("EDGE_CASE suggestion {} target story {} no longer exists; creating as new story",
-                    s.getId(), targetId);
+        if (target == null || !target.getProjectId().equals(s.getProjectId())) {
+            log.warn("EDGE_CASE suggestion {} target story {} is missing or in another project; creating as new story", s.getId(), targetId);
             return acceptAsNewStory(s, cmd);
         }
 

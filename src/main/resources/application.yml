@@ -13,6 +13,11 @@ spring:
     virtual:
       enabled: true
 
+  servlet:
+    multipart:
+      max-file-size: ${MAX_UPLOAD_FILE_SIZE:50MB}
+      max-request-size: ${MAX_UPLOAD_REQUEST_SIZE:55MB}
+
   docker:
     compose:
       profiles:
@@ -148,10 +153,10 @@ reqsai:
 
 discovery:
   realtime:
-    suggestion-window: ${DISCOVERY_REALTIME_SUGGESTION_WINDOW:5}
-    context-window: ${DISCOVERY_REALTIME_CONTEXT_WINDOW:10}
-    context-top-k: ${DISCOVERY_REALTIME_CONTEXT_TOP_K:5}
+    # Generate suggestions once this many new (post-watermark) transcript chars have accrued.
     min-transcript-chars: ${DISCOVERY_REALTIME_MIN_TRANSCRIPT_CHARS:300}
+    # Top-K project context snippets injected into the generation prompt (RAG).
+    context-top-k: ${DISCOVERY_REALTIME_CONTEXT_TOP_K:5}
 
 server:
   port: ${PORT:${SERVER_PORT:8080}}

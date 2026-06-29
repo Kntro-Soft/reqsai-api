@@ -1,11 +1,14 @@
 package com.kntro.reqsai.testsupport;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.web.client.RestClient;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
+
+import java.time.Duration;
 
 /**
  * Base class for integration tests that boot the app and provision tenant schemas — those run the
@@ -21,7 +24,16 @@ public abstract class AbstractIntegrationTest {
     private int port;
 
     protected RestClient client() {
-        return RestClient.create("http://localhost:" + port);
+        // Generous read timeout: the first GET /api-docs triggers a full (cold) OpenAPI document
+        // generation that can take well over the request factory's short default under a loaded
+        // Testcontainers JVM, intermittently failing with a Netty ReadTimeoutException.
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(Duration.ofSeconds(10));
+        factory.setReadTimeout(Duration.ofSeconds(60));
+        return RestClient.builder()
+                .baseUrl("http://localhost:" + port)
+                .requestFactory(factory)
+                .build();
     }
 
     private static final PostgreSQLContainer POSTGRES =

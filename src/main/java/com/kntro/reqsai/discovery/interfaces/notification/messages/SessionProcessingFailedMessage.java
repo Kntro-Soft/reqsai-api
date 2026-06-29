@@ -1,5 +1,6 @@
 package com.kntro.reqsai.discovery.interfaces.notification.messages;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.kntro.reqsai.discovery.interfaces.notification.SessionEventType;
 
 import java.time.Instant;
@@ -17,6 +18,7 @@ public record SessionProcessingFailedMessage(
 ) implements SessionRealtimeMessage {
 
     @Override
+    @JsonProperty("type")
     public SessionEventType type() {
         return SessionEventType.FAILED;
     }

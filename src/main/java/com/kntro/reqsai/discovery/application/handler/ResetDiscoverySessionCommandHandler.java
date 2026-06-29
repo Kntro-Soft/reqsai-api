@@ -2,6 +2,8 @@ package com.kntro.reqsai.discovery.application.handler;
 
 import com.kntro.reqsai.discovery.application.command.ResetDiscoverySessionCommand;
 import com.kntro.reqsai.discovery.application.port.DiscoverySessionRepository;
+import com.kntro.reqsai.discovery.application.port.SuggestionRepository;
+import com.kntro.reqsai.discovery.application.port.TranscriptSegmentRepository;
 import com.kntro.reqsai.discovery.application.port.UserStoryRepository;
 import com.kntro.reqsai.discovery.domain.exception.DiscoveryExceptions;
 import com.kntro.reqsai.discovery.domain.model.DiscoverySession;
@@ -20,6 +22,8 @@ public class ResetDiscoverySessionCommandHandler {
 
     private final DiscoverySessionRepository sessions;
     private final UserStoryRepository userStories;
+    private final SuggestionRepository suggestions;
+    private final TranscriptSegmentRepository transcriptSegments;
 
     @Transactional
     public DiscoverySession handle(ResetDiscoverySessionCommand command) {
@@ -27,7 +31,9 @@ public class ResetDiscoverySessionCommandHandler {
                 .filter(s -> s.getProjectId().equals(command.projectId()))
                 .orElseThrow(() -> DiscoveryExceptions.sessionNotFound(command.sessionId()));
 
-        userStories.deleteAllBySessionId(command.sessionId());
+       userStories.deleteAllBySessionId(command.sessionId());
+        suggestions.deleteAllBySessionId(command.sessionId());
+        transcriptSegments.deleteAllBySessionId(command.sessionId());
         session.reset();
         DiscoverySession saved = sessions.save(session);
 

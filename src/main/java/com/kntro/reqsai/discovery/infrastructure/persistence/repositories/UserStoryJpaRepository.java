@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -47,5 +48,5 @@ public interface UserStoryJpaRepository extends JpaRepository<UserStory, UUID> {
             order by dist
             limit 1
             """, nativeQuery = true)
-    Optional<Object[]> findClosest(@Param("projectId") UUID projectId, @Param("embedding") String embedding);
+    List<Object[]> findClosest(@Param("projectId") UUID projectId, @Param("embedding") String embedding);
 }

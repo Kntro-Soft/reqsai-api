@@ -71,9 +71,10 @@ public class ProjectControllerImpl implements ProjectController {
     }
 
     @Override
-    public ResponseEntity<PageResponse<ProjectResponse>> list(UUID orgId, Integer page, Integer size, String sortBy, String sortDirection) {
+    public ResponseEntity<PageResponse<ProjectResponse>> list(UUID orgId, Integer page, Integer size, String sortBy, String sortDirection, Authentication authentication) {
+        UUID requestedBy = UUID.fromString(authentication.getName());
         PageResponse<ProjectResponse> response = PageResponse.of(
-                listProjects.handle(new ListProjectsQuery(orgId, PageCriteria.of(page, size, sortBy, sortDirection)))
+                listProjects.handle(new ListProjectsQuery(orgId, requestedBy, PageCriteria.of(page, size, sortBy, sortDirection)))
                         .map(ProjectResponseMapper::toResponse));
         return ResponseEntity.ok(response);
     }
