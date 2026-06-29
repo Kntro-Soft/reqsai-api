@@ -4,6 +4,7 @@ import com.kntro.reqsai.discovery.application.port.GenerationResult;
 import com.kntro.reqsai.discovery.application.port.SuggestionRepository;
 import com.kntro.reqsai.discovery.application.port.UserStoryRepository;
 import com.kntro.reqsai.discovery.domain.model.Suggestion;
+import com.kntro.reqsai.discovery.domain.model.SuggestionStatus;
 import com.kntro.reqsai.discovery.domain.model.SuggestionType;
 import com.kntro.reqsai.discovery.domain.model.UserStory;
 import com.kntro.reqsai.shared.application.port.EmbeddingPort;
@@ -14,8 +15,12 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Creates {@link Suggestion} entities from AI-generated output, applying embedding-based
@@ -25,7 +30,7 @@ import java.util.UUID;
  * <ol>
  *   <li>LLM emits {@code NEW_STORY}: embed candidate text → similarity ≥ {@link UserStory#DUPLICATE_THRESHOLD}?
  *       → downgrade to {@code UPDATE_STORY}; otherwise keep as {@code NEW_STORY}.</li>
- *   <li>LLM emits {@code EDGE_CASE}: embed → find closest existing story → set {@code targetStoryId}
+ *   <li>LLM emits {@code EDGE_CASE}: embed → find the closest existing story → set {@code targetStoryId}
  *       (even if similarity is low; the LLM already decided it's an edge case).</li>
  *   <li>LLM emits {@code CLARIFYING_QUESTION}: forward as-is (no embedding needed).</li>
  * </ol>
@@ -52,30 +57,71 @@ public class SuggestionCreationService {
     public List<Suggestion> createSuggestions(GenerationResult result, UUID sessionId, UUID projectId) {
         List<Suggestion> created = new ArrayList<>();
 
+        // Overlapping context windows re-surface the same idea every trigger. Dedup the LLM output
+        // against suggestions already PENDING for this session (and against this same batch) by
+        // normalized title / question so the analyst is not flooded with repeats.
+        List<Suggestion> pending = suggestions.findAllBySessionIdAndStatus(sessionId, SuggestionStatus.PENDING);
+        Set<String> seenTitles = pending.stream()
+                .map(s -> normalize(s.getDraftTitle()))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(HashSet::new));
+        Set<String> seenQuestions = pending.stream()
+                .map(s -> normalize(s.getQuestion()))
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(HashSet::new));
+
+        int skippedDuplicate = 0;
+        int failed = 0;
+
         for (GenerationResult.GeneratedStory gen : result.stories()) {
+            String key = normalize(gen.title());
+            if (key != null && !seenTitles.add(key)) {
+                skippedDuplicate++;
+                log.debug("Skipping duplicate story suggestion '{}' (session={})", gen.title(), sessionId);
+                continue;
+            }
             try {
                 Suggestion suggestion = classifyAndCreate(gen, sessionId, projectId);
                 created.add(suggestions.save(suggestion)); // Spring Data publishes events on commit
                 log.debug("Suggestion created: type={} session={} title='{}'",
                         suggestion.getType(), sessionId, suggestion.getDraftTitle());
             } catch (Exception e) {
-                log.warn("Skipping story suggestion '{}' (session={}): {}", gen.title(), sessionId, e.getMessage());
+                failed++;
+                // Don't swallow silently: log the full stack so real bugs (e.g. a broken similarity
+                // lookup) surface instead of looking like "0 suggestions".
+                log.error("Failed to create story suggestion '{}' (session={}) — unexpected error",
+                        gen.title(), sessionId, e);
             }
         }
 
         for (GenerationResult.GeneratedQuestion q : result.questions()) {
+            String key = normalize(q.question());
+            if (key != null && !seenQuestions.add(key)) {
+                skippedDuplicate++;
+                log.debug("Skipping duplicate clarifying-question suggestion (session={})", sessionId);
+                continue;
+            }
             try {
                 Suggestion suggestion = Suggestion.clarifyingQuestion(sessionId, projectId, q.question());
                 created.add(suggestions.save(suggestion));
                 log.debug("Clarifying-question suggestion created: session={}", sessionId);
             } catch (Exception e) {
-                log.warn("Skipping clarifying-question suggestion (session={}): {}", sessionId, e.getMessage());
+                failed++;
+                log.error("Failed to create clarifying-question suggestion (session={}) — unexpected error",
+                        sessionId, e);
             }
         }
 
-        log.info("Suggestions created for session {}: {} total ({} from stories, {} questions)",
-                sessionId, created.size(), result.stories().size(), result.questions().size());
+        log.info("Suggestions created for session {}: {} created, {} duplicate-skipped, {} failed "
+                        + "(from {} stories + {} questions)",
+                sessionId, created.size(), skippedDuplicate, failed,
+                result.stories().size(), result.questions().size());
         return created;
+    }
+
+    /** Trim + lowercase for duplicate comparison; null/blank → null (no key). */
+    private static String normalize(String value) {
+        return (value == null || value.isBlank()) ? null : value.strip().toLowerCase();
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
@@ -92,8 +138,8 @@ public class SuggestionCreationService {
                 case NEW_STORY -> {
                     UserStoryRepository.SimilarStory closest = stories.findMostSimilar(projectId, embedding).orElse(null);
                     if (closest != null && closest.similarity() >= UserStory.DUPLICATE_THRESHOLD) {
-                        log.debug("LLM NEW_STORY upgraded to UPDATE_STORY (sim={:.2f}, target={})".formatted(
-                                closest.similarity(), closest.storyId()));
+                        log.debug("LLM NEW_STORY upgraded to UPDATE_STORY (sim={}, target={})",
+                                closest.similarity(), closest.storyId());
                         yield Suggestion.updateStory(sessionId, projectId,
                                 gen.title(), gen.role(), gen.action(), gen.benefit(),
                                 gen.priority(), gen.storyPoints(), closest.storyId());
