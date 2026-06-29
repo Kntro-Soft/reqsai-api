@@ -24,6 +24,7 @@ public final class SuggestionResponseMapper {
                 s.getTargetStoryId(),
                 s.getQuestion(),
                 s.getResolvedStoryId(),
+                s.getSimilarity(),
                 s.getCreatedAt(),
                 s.getUpdatedAt());
     }

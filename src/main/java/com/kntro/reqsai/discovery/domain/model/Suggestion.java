@@ -95,10 +95,14 @@ public class Suggestion extends AggregateRoot {
     @Column(name = "question", length = QUESTION_MAX)
     private @Nullable String question;
 
-    // ── Resolution (populated by the accept handler) ──────────────────────────
+    // ── Resolution (populated by the acceptance handler) ──────────────────────────
 
     @Column(name = "resolved_story_id", columnDefinition = "uuid")
     private @Nullable UUID resolvedStoryId;
+
+    /** Cosine similarity (0..1) to the matched story when raised as a duplicate alert; null otherwise. */
+    @Column(name = "similarity")
+    private @Nullable Double similarity;
 
     protected Suggestion() {
         super();
@@ -160,7 +164,7 @@ public class Suggestion extends AggregateRoot {
 
     /**
      * Accepts the suggestion. The caller must subsequently perform the actual backlog mutation
-     * (create story, update story, add criterion) and pass the resulting {@code storyId}.
+     * (create a story, update a story, add a criterion) and pass the resulting {@code storyId}.
      *
      * @param resolvedStoryId the story that was created or updated as a result; {@code null} for
      *                        CLARIFYING_QUESTION (no story produced)
@@ -177,6 +181,11 @@ public class Suggestion extends AggregateRoot {
         guardPending();
         this.status = SuggestionStatus.DISMISSED;
         registerEvent(SuggestionDismissedEvent.of(this));
+    }
+
+    /** Records the similarity to the matched story (duplicate alert raised from batch extraction). */
+    public void recordSimilarity(double value) {
+        this.similarity = value;
     }
 
     private void guardPending() {
