@@ -59,6 +59,10 @@ public class DiscoverySession extends AggregateRoot {
     @Column(name = "last_sequence", nullable = false)
     private int lastSequence = 0;
 
+    /** Highest final-segment sequence already turned into realtime suggestions (watermark). */
+    @Column(name = "last_suggested_sequence", nullable = false)
+    private int lastSuggestedSequence = 0;
+
     @Column(name = "processing_error", length = PROCESSING_ERROR_MAX)
     private String processingError;
 
@@ -177,6 +181,14 @@ public class DiscoverySession extends AggregateRoot {
         this.processingError = null;
         this.audioDurationMs = 0;
         this.lastSequence = 0;
+        this.lastSuggestedSequence = 0;
         registerEvent(DiscoverySessionResetEvent.of(getId(), projectId));
+    }
+
+    /** Advances the realtime-suggestion watermark; never moves it backwards. */
+    public void advanceSuggestedSequence(int sequence) {
+        if (sequence > this.lastSuggestedSequence) {
+            this.lastSuggestedSequence = sequence;
+        }
     }
 }

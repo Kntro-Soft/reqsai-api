@@ -45,7 +45,6 @@ class RealtimeSuggestionServiceTest {
 
     @BeforeEach
     void setUp() {
-        ReflectionTestUtils.setField(service, "contextWindow", 10);
         ReflectionTestUtils.setField(service, "contextTopK", 5);
         ReflectionTestUtils.setField(service, "minTranscriptChars", 0);
     }
@@ -81,7 +80,7 @@ class RealtimeSuggestionServiceTest {
                     new GenerationResult.GeneratedStory("Login Google", "usuario", "login", "acceso", Priority.HIGH, 3, List.of())
             ));
             when(sessions.findById(sessionId)).thenReturn(Optional.of(session));
-            when(segments.findRecentFinalBySessionId(sessionId, 10)).thenReturn(
+            when(segments.findFinalBySessionIdAfter(sessionId, 0)).thenReturn(
                     List.of(finalSegment(sessionId, 5, "El cliente quiere login."))
             );
             when(generation.isAvailable()).thenReturn(true);
@@ -98,6 +97,8 @@ class RealtimeSuggestionServiceTest {
             verify(generation).generate(any(), eq("es-PE"), contextCaptor.capture());
             assertThat(contextCaptor.getValue().projectName()).isEqualTo("PayApp");
             assertThat(contextCaptor.getValue().constraints()).containsExactly("PCI-DSS compliant");
+            verify(sessions).save(session);
+            assertThat(session.getLastSuggestedSequence()).isEqualTo(5);
         }
 
         @Test
@@ -115,7 +116,7 @@ class RealtimeSuggestionServiceTest {
             );
 
             when(sessions.findById(sessionId)).thenReturn(Optional.of(session));
-            when(segments.findRecentFinalBySessionId(sessionId, 10)).thenReturn(
+            when(segments.findFinalBySessionIdAfter(sessionId, 0)).thenReturn(
                     List.of(finalSegment(sessionId, 5, "texto"))
             );
             when(generation.isAvailable()).thenReturn(true);
@@ -137,7 +138,7 @@ class RealtimeSuggestionServiceTest {
             UUID sessionId = session.getId();
 
             when(sessions.findById(sessionId)).thenReturn(Optional.of(session));
-            when(segments.findRecentFinalBySessionId(sessionId, 10)).thenReturn(
+            when(segments.findFinalBySessionIdAfter(sessionId, 0)).thenReturn(
                     List.of(finalSegment(sessionId, 5, "El cliente quiere reportes."))
             );
             when(generation.isAvailable()).thenReturn(true);
@@ -153,21 +154,20 @@ class RealtimeSuggestionServiceTest {
         }
 
         @Test
-        @DisplayName("should concatenate segments in chronological order")
+        @DisplayName("should concatenate segments past the watermark in ascending order")
         void should_concatenate_segments_chronologically() {
             UUID projectId = UUID.randomUUID();
             DiscoverySession session = buildSession(projectId);
             UUID sessionId = session.getId();
 
-            // JPA returns DESC, service reverses to chronological
-            List<TranscriptSegment> descSegments = List.of(
-                    finalSegment(sessionId, 3, "THIRD."),
+            List<TranscriptSegment> ascSegments = List.of(
+                    finalSegment(sessionId, 1, "FIRST."),
                     finalSegment(sessionId, 2, "SECOND."),
-                    finalSegment(sessionId, 1, "FIRST.")
+                    finalSegment(sessionId, 3, "THIRD.")
             );
 
             when(sessions.findById(sessionId)).thenReturn(Optional.of(session));
-            when(segments.findRecentFinalBySessionId(sessionId, 10)).thenReturn(descSegments);
+            when(segments.findFinalBySessionIdAfter(sessionId, 0)).thenReturn(ascSegments);
             when(generation.isAvailable()).thenReturn(true);
             when(embeddingPort.isAvailable()).thenReturn(false);
             when(workspaceApi.findProjectSnapshot(any())).thenReturn(Optional.empty());
@@ -197,11 +197,11 @@ class RealtimeSuggestionServiceTest {
         }
 
         @Test
-        @DisplayName("should skip when no final segments exist yet")
+        @DisplayName("should skip when no new segments past the watermark")
         void should_skip_when_no_segments() {
             DiscoverySession session = buildSession(UUID.randomUUID());
             when(sessions.findById(session.getId())).thenReturn(Optional.of(session));
-            when(segments.findRecentFinalBySessionId(session.getId(), 10)).thenReturn(List.of());
+            when(segments.findFinalBySessionIdAfter(session.getId(), 0)).thenReturn(List.of());
 
             service.suggest(session.getId());
 
@@ -213,7 +213,7 @@ class RealtimeSuggestionServiceTest {
         void should_skip_when_generation_unavailable() {
             DiscoverySession session = buildSession(UUID.randomUUID());
             when(sessions.findById(session.getId())).thenReturn(Optional.of(session));
-            when(segments.findRecentFinalBySessionId(session.getId(), 10)).thenReturn(
+            when(segments.findFinalBySessionIdAfter(session.getId(), 0)).thenReturn(
                     List.of(finalSegment(session.getId(), 1, "texto"))
             );
             when(generation.isAvailable()).thenReturn(false);

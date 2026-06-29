@@ -17,5 +17,8 @@ public interface TranscriptSegmentJpaRepository extends JpaRepository<Transcript
     @Query("SELECT ts FROM TranscriptSegment ts WHERE ts.sessionId = :sessionId AND ts.isFinal = true ORDER BY ts.sequence DESC")
     List<TranscriptSegment> findRecentFinalBySessionId(@Param("sessionId") UUID sessionId, Pageable pageable);
 
+    @Query("SELECT ts FROM TranscriptSegment ts WHERE ts.sessionId = :sessionId AND ts.isFinal = true AND ts.sequence > :afterSequence ORDER BY ts.sequence ASC")
+    List<TranscriptSegment> findFinalBySessionIdAfter(@Param("sessionId") UUID sessionId, @Param("afterSequence") int afterSequence);
+
     void deleteAllBySessionId(UUID sessionId);
 }
