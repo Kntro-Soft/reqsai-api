@@ -152,6 +152,37 @@ tasks.withType<Test> {
     jvmArgs("-javaagent:${mockitoAgent.asPath}")
 }
 
+// Fast feedback loop: unit/slice tests only — skips Testcontainers integration,
+// architecture, and modularity tests (no Docker, no app-context boot).
+// Run with: ./gradlew unitTest
+val unitTest by tasks.registering(Test::class) {
+    description = "Runs fast tests only (excludes integration, architecture, modularity)"
+    group = "verification"
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    useJUnitPlatform { excludeTags("integration", "architecture", "modularity") }
+}
+
+// Testcontainers-backed integration / slice tests (need Docker + the Spring context).
+// Run with: ./gradlew integrationTest
+val integrationTest by tasks.registering(Test::class) {
+    description = "Runs Testcontainers-backed integration tests"
+    group = "verification"
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    useJUnitPlatform { includeTags("integration") }
+}
+
+// ArchUnit architecture fitness functions — no Docker, but kept out of the fast unit lane.
+// Run with: ./gradlew architectureTest
+val architectureTest by tasks.registering(Test::class) {
+    description = "Runs ArchUnit architecture fitness functions"
+    group = "verification"
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    useJUnitPlatform { includeTags("architecture") }
+}
+
 // ==================================
 // MODULARITY VERIFICATION
 // ==================================
@@ -218,7 +249,11 @@ spotless {
 jacoco { toolVersion = "0.8.15" }
 
 tasks.jacocoTestReport {
-    dependsOn(tasks.test)
+    // Report over whichever Test task produced execution data, so the same task works after the
+    // full `test` (local `build`) and after `unitTest` / `integrationTest` alone (per-stage CI
+    // coverage that Codecov merges by flag). Ordered after any test task present in the graph.
+    executionData(fileTree(layout.buildDirectory.get().asFile).include("jacoco/*.exec"))
+    mustRunAfter(tasks.withType<Test>())
     reports {
         xml.required = true
         html.required = true
