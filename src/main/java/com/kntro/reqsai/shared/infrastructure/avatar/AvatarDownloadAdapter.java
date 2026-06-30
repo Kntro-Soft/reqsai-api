@@ -1,5 +1,6 @@
 package com.kntro.reqsai.shared.infrastructure.avatar;
 
+import com.kntro.reqsai.shared.application.avatar.AvatarDownloadPort;
 import com.kntro.reqsai.shared.application.avatar.GeneratedAvatar;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
@@ -19,7 +20,7 @@ import java.util.Optional;
  */
 @Component
 @Slf4j
-public class AvatarDownloadAdapter {
+public class AvatarDownloadAdapter implements AvatarDownloadPort {
 
     private static final String DEFAULT_CONTENT_TYPE = MediaType.valueOf("image/svg+xml").toString();
 
@@ -33,6 +34,7 @@ public class AvatarDownloadAdapter {
      * Downloads the avatar at {@code url}. Returns {@link Optional#empty()} on any failure (network error,
      * non-2xx status, empty body) after logging a warning — entity creation must continue regardless.
      */
+    @Override
     public Optional<GeneratedAvatar> download(String url) {
         try {
             ResponseEntity<byte[]> response = restClient.get()

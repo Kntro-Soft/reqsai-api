@@ -1,6 +1,6 @@
 package com.kntro.reqsai.workspace.application.handler;
 
-import com.kntro.reqsai.shared.infrastructure.avatar.AvatarDownloadAdapter;
+import com.kntro.reqsai.shared.application.avatar.AvatarDownloadPort;
 import com.kntro.reqsai.workspace.application.command.CreateProjectCommand;
 import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
 import com.kntro.reqsai.workspace.application.port.ProjectRepository;
@@ -21,7 +21,7 @@ public class CreateProjectCommandHandler {
 
     private final ProjectRepository projects;
     private final OrganizationRepository organizations;
-    private final AvatarDownloadAdapter avatarDownloadAdapter;
+    private final AvatarDownloadPort avatarDownloadAdapter;
 
     @Transactional
     public Project handle(CreateProjectCommand command) {

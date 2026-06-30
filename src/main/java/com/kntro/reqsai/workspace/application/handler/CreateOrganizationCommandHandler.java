@@ -1,7 +1,7 @@
 package com.kntro.reqsai.workspace.application.handler;
 
+import com.kntro.reqsai.shared.application.avatar.AvatarDownloadPort;
 import com.kntro.reqsai.shared.domain.valueobjects.LanguageCode;
-import com.kntro.reqsai.shared.infrastructure.avatar.AvatarDownloadAdapter;
 import com.kntro.reqsai.shared.infrastructure.persistence.multitenancy.ProvisioningService;
 import com.kntro.reqsai.workspace.application.command.CreateOrganizationCommand;
 import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
@@ -33,7 +33,7 @@ public class CreateOrganizationCommandHandler {
 
     private final OrganizationRepository organizations;
     private final ProvisioningService provisioningService;
-    private final AvatarDownloadAdapter avatarDownloadAdapter;
+    private final AvatarDownloadPort avatarDownloadAdapter;
 
     public Organization handle(CreateOrganizationCommand command) {
         Slug slug = (command.slug() != null && !command.slug().isBlank())

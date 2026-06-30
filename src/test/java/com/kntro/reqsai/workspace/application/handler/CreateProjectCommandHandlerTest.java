@@ -1,7 +1,7 @@
 package com.kntro.reqsai.workspace.application.handler;
 
+import com.kntro.reqsai.shared.application.avatar.AvatarDownloadPort;
 import com.kntro.reqsai.shared.domain.exception.DomainException;
-import com.kntro.reqsai.shared.infrastructure.avatar.AvatarDownloadAdapter;
 import com.kntro.reqsai.workspace.application.command.CreateProjectCommand;
 import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
 import com.kntro.reqsai.workspace.application.port.ProjectRepository;
@@ -34,7 +34,7 @@ class CreateProjectCommandHandlerTest {
     @Mock
     private OrganizationRepository organizations;
     @Mock
-    private AvatarDownloadAdapter avatarDownloadAdapter;
+    private AvatarDownloadPort avatarDownloadAdapter;
     @InjectMocks
     private CreateProjectCommandHandler handler;
 

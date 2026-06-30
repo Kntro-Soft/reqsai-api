@@ -10,9 +10,9 @@ import com.kntro.reqsai.iam.domain.exception.IamExceptions;
 import com.kntro.reqsai.iam.domain.model.Account;
 import com.kntro.reqsai.iam.domain.model.EmailVerification;
 import com.kntro.reqsai.iam.domain.model.User;
+import com.kntro.reqsai.shared.application.avatar.AvatarDownloadPort;
 import com.kntro.reqsai.shared.domain.support.TokenGenerator;
 import com.kntro.reqsai.shared.domain.valueobjects.Email;
-import com.kntro.reqsai.shared.infrastructure.avatar.AvatarDownloadAdapter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -40,7 +40,7 @@ public class RegisterAccountCommandHandler {
     private final PasswordHasher passwordHasher;
     private final EmailVerificationRepository emailVerifications;
     private final IamTokenProperties tokenProperties;
-    private final AvatarDownloadAdapter avatarDownloadAdapter;
+    private final AvatarDownloadPort avatarDownloadAdapter;
 
     @Transactional
     public User handle(RegisterAccountCommand command) {
