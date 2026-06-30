@@ -2,7 +2,7 @@ package com.kntro.reqsai.iam.application.handler;
 
 import com.kntro.reqsai.iam.application.port.UserRepository;
 import com.kntro.reqsai.iam.application.query.GetUserAvatarQuery;
-import com.kntro.reqsai.shared.infrastructure.avatar.GeneratedAvatar;
+import com.kntro.reqsai.shared.application.avatar.GeneratedAvatar;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;

@@ -1,5 +1,6 @@
-package com.kntro.reqsai.shared.infrastructure.avatar;
+package com.kntro.reqsai.shared.interfaces.rest;
 
+import com.kntro.reqsai.shared.application.avatar.GeneratedAvatar;
 import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -9,7 +10,8 @@ import java.util.Optional;
 import java.util.zip.CRC32;
 
 /**
- * Builds the {@link ResponseEntity} for the public avatar serve endpoints.
+ * Builds the {@link ResponseEntity} for the public avatar serve endpoints (a presentation concern, so it
+ * lives in the interfaces layer).
  * <p>
  * Returns the stored bytes with their content type (defaulting to {@code image/svg+xml}),
  * {@code Cache-Control: public, max-age=86400}, and a content-hash {@code ETag}. A missing avatar

@@ -1,6 +1,6 @@
 package com.kntro.reqsai.workspace.interfaces.rest.mappers.response;
 
-import com.kntro.reqsai.shared.infrastructure.configuration.ApiVersioning;
+import com.kntro.reqsai.shared.application.avatar.AvatarPaths;
 import com.kntro.reqsai.workspace.domain.model.Organization;
 import com.kntro.reqsai.workspace.domain.valueobjects.GenerationSettings;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.response.OrganizationResponse;
@@ -22,7 +22,7 @@ public final class OrganizationResponseMapper {
                 organization.getOwnerId(),
                 settings.meetingLanguage().value(),
                 settings.audioRetentionDays(),
-                ApiVersioning.BASE + "/organizations/" + organization.getId() + "/avatar",
+                AvatarPaths.organization(organization.getId()),
                 organization.getCreatedAt(),
                 organization.getUpdatedAt());
     }

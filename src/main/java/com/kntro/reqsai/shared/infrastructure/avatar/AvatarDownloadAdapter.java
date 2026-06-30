@@ -1,5 +1,6 @@
 package com.kntro.reqsai.shared.infrastructure.avatar;
 
+import com.kntro.reqsai.shared.application.avatar.GeneratedAvatar;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;

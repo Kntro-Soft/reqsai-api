@@ -1,6 +1,6 @@
 package com.kntro.reqsai.workspace.interfaces.rest.controllers;
 
-import com.kntro.reqsai.shared.infrastructure.avatar.AvatarResponses;
+import com.kntro.reqsai.shared.interfaces.rest.AvatarResponses;
 import com.kntro.reqsai.workspace.application.handler.GetOrganizationAvatarQueryHandler;
 import com.kntro.reqsai.workspace.application.query.GetOrganizationAvatarQuery;
 import com.kntro.reqsai.workspace.interfaces.rest.swagger.OrganizationAvatarController;

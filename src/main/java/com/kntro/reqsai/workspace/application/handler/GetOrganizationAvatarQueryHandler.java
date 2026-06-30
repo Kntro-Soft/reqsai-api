@@ -1,6 +1,6 @@
 package com.kntro.reqsai.workspace.application.handler;
 
-import com.kntro.reqsai.shared.infrastructure.avatar.GeneratedAvatar;
+import com.kntro.reqsai.shared.application.avatar.GeneratedAvatar;
 import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
 import com.kntro.reqsai.workspace.application.query.GetOrganizationAvatarQuery;
 import lombok.RequiredArgsConstructor;

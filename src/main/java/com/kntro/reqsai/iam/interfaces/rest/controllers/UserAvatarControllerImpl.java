@@ -3,7 +3,7 @@ package com.kntro.reqsai.iam.interfaces.rest.controllers;
 import com.kntro.reqsai.iam.application.handler.GetUserAvatarQueryHandler;
 import com.kntro.reqsai.iam.application.query.GetUserAvatarQuery;
 import com.kntro.reqsai.iam.interfaces.rest.swagger.UserAvatarController;
-import com.kntro.reqsai.shared.infrastructure.avatar.AvatarResponses;
+import com.kntro.reqsai.shared.interfaces.rest.AvatarResponses;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
