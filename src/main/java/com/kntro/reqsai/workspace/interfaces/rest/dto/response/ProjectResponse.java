@@ -19,6 +19,7 @@ public record ProjectResponse(
         @Nullable String architecture,
         @Nullable String domain,
         String status,
+        String avatarUrl,
         Instant createdAt,
         Instant updatedAt
 ) {}

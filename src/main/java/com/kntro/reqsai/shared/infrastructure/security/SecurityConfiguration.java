@@ -48,6 +48,17 @@ public class SecurityConfiguration {
             "/ws/**"
     };
 
+    /**
+     * Public avatar serve endpoints (GET only). Loaded by browser {@code <img src>} tags, which cannot
+     * carry the Bearer token; the bytes are non-sensitive generated identicons and the ids are
+     * unguessable UUIDv7. See the avatar controllers.
+     */
+    private static final String[] PUBLIC_GET_ENDPOINTS = {
+            "/api/organizations/*/avatar",
+            "/api/organizations/*/projects/*/avatar",
+            "/api/users/*/avatar"
+    };
+
     private final TokenVerifier tokenVerifier;
     private final TenantSchemaResolver tenantSchemaResolver;
     private final CorsProperties corsProperties;
@@ -64,6 +75,7 @@ public class SecurityConfiguration {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, PUBLIC_GET_ENDPOINTS).permitAll()
                         .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(unauthenticatedEntryPoint()))

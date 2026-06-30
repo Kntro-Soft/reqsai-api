@@ -1,5 +1,6 @@
 package com.kntro.reqsai.workspace.application.handler;
 
+import com.kntro.reqsai.shared.application.avatar.AvatarDownloadPort;
 import com.kntro.reqsai.shared.domain.valueobjects.LanguageCode;
 import com.kntro.reqsai.shared.infrastructure.persistence.multitenancy.ProvisioningService;
 import com.kntro.reqsai.workspace.application.command.CreateOrganizationCommand;
@@ -28,9 +29,11 @@ import org.springframework.stereotype.Component;
 public class CreateOrganizationCommandHandler {
 
     private static final int DEFAULT_RETENTION_DAYS = 30;
+    private static final String AVATAR_URL_TEMPLATE = "https://avatar.vercel.sh/%s.svg";
 
     private final OrganizationRepository organizations;
     private final ProvisioningService provisioningService;
+    private final AvatarDownloadPort avatarDownloadAdapter;
 
     public Organization handle(CreateOrganizationCommand command) {
         Slug slug = (command.slug() != null && !command.slug().isBlank())
@@ -50,6 +53,9 @@ public class CreateOrganizationCommandHandler {
         log.info("Organization {} persisted as PENDING (slug={})", organization.getId(), slug.value());
 
         provisioningService.provisionTenant(slug.value());
+
+        avatarDownloadAdapter.download(AVATAR_URL_TEMPLATE.formatted(slug.value()))
+                .ifPresent(avatar -> organization.applyAvatar(avatar.bytes(), avatar.contentType()));
 
         organization.activate();
         organizations.save(organization);

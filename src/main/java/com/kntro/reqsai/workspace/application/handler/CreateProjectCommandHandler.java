@@ -1,5 +1,6 @@
 package com.kntro.reqsai.workspace.application.handler;
 
+import com.kntro.reqsai.shared.application.avatar.AvatarDownloadPort;
 import com.kntro.reqsai.workspace.application.command.CreateProjectCommand;
 import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
 import com.kntro.reqsai.workspace.application.port.ProjectRepository;
@@ -16,8 +17,11 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class CreateProjectCommandHandler {
 
+    private static final String AVATAR_URL_TEMPLATE = "https://avatar.vercel.sh/%s.svg";
+
     private final ProjectRepository projects;
     private final OrganizationRepository organizations;
+    private final AvatarDownloadPort avatarDownloadAdapter;
 
     @Transactional
     public Project handle(CreateProjectCommand command) {
@@ -51,6 +55,11 @@ public class CreateProjectCommandHandler {
                 profile,
                 command.requestedBy()
         );
+        projects.save(project);
+
+        avatarDownloadAdapter.download(AVATAR_URL_TEMPLATE.formatted(project.getId()))
+                .ifPresent(avatar -> project.applyAvatar(avatar.bytes(), avatar.contentType()));
+
         return projects.save(project);
     }
 }

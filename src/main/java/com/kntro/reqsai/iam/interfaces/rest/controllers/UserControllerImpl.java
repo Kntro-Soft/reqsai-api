@@ -65,7 +65,7 @@ public class UserControllerImpl implements UserController {
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<UserResponse> updateProfile(UpdateProfileRequest request, Authentication authentication) {
         UUID userId = UUID.fromString(authentication.getName());
-        User user = updateProfile.handle(new UpdateProfileCommand(userId, request.firstName(), request.lastName(), request.avatarUrl()));
+        User user = updateProfile.handle(new UpdateProfileCommand(userId, request.firstName(), request.lastName()));
         return ResponseEntity.ok(UserResponseMapper.toResponse(user));
     }
 

@@ -4,6 +4,7 @@ import com.kntro.reqsai.iam.domain.model.User;
 import com.kntro.reqsai.iam.domain.model.UserPreferences;
 import com.kntro.reqsai.iam.interfaces.rest.dto.response.UserPreferencesResponse;
 import com.kntro.reqsai.iam.interfaces.rest.dto.response.UserResponse;
+import com.kntro.reqsai.shared.application.avatar.AvatarPaths;
 
 /** Maps the {@link User} aggregate to its response DTO. */
 public final class UserResponseMapper {
@@ -18,7 +19,7 @@ public final class UserResponseMapper {
                 user.getFirstName(),
                 user.getLastName(),
                 user.getFullName(),
-                user.getAvatarUrl(),
+                AvatarPaths.user(user.getId()),
                 toPreferencesResponse(user.getPreferences()));
     }
 

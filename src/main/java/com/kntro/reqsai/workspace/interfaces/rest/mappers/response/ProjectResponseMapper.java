@@ -1,5 +1,6 @@
 package com.kntro.reqsai.workspace.interfaces.rest.mappers.response;
 
+import com.kntro.reqsai.shared.application.avatar.AvatarPaths;
 import com.kntro.reqsai.workspace.domain.model.Project;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.response.ProjectResponse;
 
@@ -22,6 +23,7 @@ public final class ProjectResponseMapper {
                 project.getTechnicalProfile().architecture(),
                 project.getTechnicalProfile().domain(),
                 project.getStatus().name(),
+                AvatarPaths.project(project.getOrganizationId(), project.getId()),
                 project.getCreatedAt(),
                 project.getUpdatedAt()
         );
