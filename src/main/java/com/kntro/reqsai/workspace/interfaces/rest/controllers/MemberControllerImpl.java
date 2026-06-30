@@ -1,5 +1,6 @@
 package com.kntro.reqsai.workspace.interfaces.rest.controllers;
 
+import com.kntro.reqsai.workspace.application.handler.ChangeMemberRoleCommandHandler;
 import com.kntro.reqsai.workspace.application.handler.CreateMemberCommandHandler;
 import com.kntro.reqsai.workspace.application.handler.DeleteMemberCommandHandler;
 import com.kntro.reqsai.workspace.application.handler.GetMemberQueryHandler;
@@ -7,6 +8,7 @@ import com.kntro.reqsai.workspace.application.handler.ListMembersQueryHandler;
 import com.kntro.reqsai.workspace.application.query.GetMemberQuery;
 import com.kntro.reqsai.workspace.application.query.ListMembersQuery;
 import com.kntro.reqsai.workspace.domain.model.Member;
+import com.kntro.reqsai.workspace.interfaces.rest.dto.request.ChangeMemberRoleRequest;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.request.CreateMemberRequest;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.response.MemberResponse;
 import com.kntro.reqsai.workspace.interfaces.rest.mappers.request.MemberRequestMapper;
@@ -29,6 +31,7 @@ public class MemberControllerImpl implements MemberController {
     private final CreateMemberCommandHandler createMember;
     private final ListMembersQueryHandler listMembers;
     private final GetMemberQueryHandler getMember;
+    private final ChangeMemberRoleCommandHandler changeMemberRole;
     private final DeleteMemberCommandHandler deleteMember;
 
     @Override
@@ -50,6 +53,13 @@ public class MemberControllerImpl implements MemberController {
     public ResponseEntity<MemberResponse> getMember(UUID orgId, UUID memberId, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         return ResponseEntity.ok(MemberResponseMapper.toResponse(getMember.handle(new GetMemberQuery(orgId, memberId, requestedBy))));
+    }
+
+    @Override
+    public ResponseEntity<MemberResponse> changeMemberRole(UUID orgId, UUID memberId, ChangeMemberRoleRequest request, Authentication authentication) {
+        UUID requestedBy = UUID.fromString(authentication.getName());
+        Member member = changeMemberRole.handle(MemberRequestMapper.toChangeRoleCommand(orgId, memberId, request, requestedBy));
+        return ResponseEntity.ok(MemberResponseMapper.toResponse(member));
     }
 
     @Override

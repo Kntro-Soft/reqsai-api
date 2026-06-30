@@ -10,6 +10,7 @@ public interface ProjectMemberRepository {
     ProjectMember save(ProjectMember assignment);
     Optional<ProjectMember> findByIdAndProjectId(UUID id, UUID projectId);
     List<ProjectMember> findAllByProjectId(UUID projectId);
+    List<ProjectMember> findAllByMemberId(UUID memberId);
     boolean existsByProjectIdAndMemberId(UUID projectId, UUID memberId);
     void delete(ProjectMember assignment);
 }

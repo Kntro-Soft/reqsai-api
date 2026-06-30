@@ -65,8 +65,9 @@ public class ProjectControllerImpl implements ProjectController {
     }
 
     @Override
-    public ResponseEntity<ProjectResponse> getById(UUID orgId, UUID projectId) {
-        Project project = getProject.handle(new GetProjectQuery(orgId, projectId));
+    public ResponseEntity<ProjectResponse> getById(UUID orgId, UUID projectId, Authentication authentication) {
+        UUID requestedBy = UUID.fromString(authentication.getName());
+        Project project = getProject.handle(new GetProjectQuery(orgId, projectId, requestedBy));
         return ResponseEntity.ok(ProjectResponseMapper.toResponse(project));
     }
 

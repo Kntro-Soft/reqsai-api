@@ -72,7 +72,8 @@ public interface ProjectController {
     @GetMapping(value = "/{projectId}", version = ApiVersioning.V1)
     ResponseEntity<ProjectResponse> getById(
             @Parameter(description = "Organization context UUID") @PathVariable UUID orgId,
-            @Parameter(description = "Project UUID") @PathVariable UUID projectId
+            @Parameter(description = "Project UUID") @PathVariable UUID projectId,
+            Authentication authentication
     );
 
     @Operation(summary = "List projects for an organization", description = "Returns a paginated list of projects for the given organization, scoped to the authenticated tenant.")

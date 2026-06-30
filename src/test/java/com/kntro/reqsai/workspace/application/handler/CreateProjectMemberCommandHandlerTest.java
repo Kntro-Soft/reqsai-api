@@ -7,7 +7,7 @@ import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
 import com.kntro.reqsai.workspace.application.port.ProjectMemberRepository;
 import com.kntro.reqsai.workspace.application.port.ProjectRepository;
 import com.kntro.reqsai.workspace.application.port.ProjectRoleRepository;
-import com.kntro.reqsai.workspace.application.service.OrganizationAdminAccessService;
+import com.kntro.reqsai.workspace.application.service.ProjectPermissionService;
 import com.kntro.reqsai.workspace.domain.model.Member;
 import com.kntro.reqsai.workspace.domain.model.MemberStatus;
 import com.kntro.reqsai.workspace.domain.model.OrgRole;
@@ -55,7 +55,7 @@ class CreateProjectMemberCommandHandlerTest {
     @Mock
     private ProjectMemberRepository assignments;
     @Mock
-    private OrganizationAdminAccessService access;
+    private ProjectPermissionService permissions;
     @InjectMocks
     private CreateProjectMemberCommandHandler handler;
 
@@ -76,7 +76,7 @@ class CreateProjectMemberCommandHandlerTest {
             CreateProjectMemberCommand command = new CreateProjectMemberCommand(orgId, projectId, memberId, roleId, requestedBy);
 
             when(organizations.findById(orgId)).thenReturn(Optional.of(organization));
-            doNothing().when(access).assertOwnerOrAdmin(organization, requestedBy, "manage project members");
+            doNothing().when(permissions).assertHasProjectPermission(organization, projectId, requestedBy, Permission.MANAGE_MEMBERS, "manage project members");
             when(projects.findByIdAndOrganizationIdAndStatus(projectId, orgId, ProjectStatus.ACTIVE))
                     .thenReturn(Optional.of(ProjectMother.standard().withOrganizationId(orgId).build()));
             when(members.findByIdAndOrganizationIdAndStatusIn(memberId, orgId, List.of(MemberStatus.ACTIVE)))
@@ -110,7 +110,7 @@ class CreateProjectMemberCommandHandlerTest {
             CreateProjectMemberCommand command = new CreateProjectMemberCommand(orgId, projectId, memberId, roleId, requestedBy);
 
             when(organizations.findById(orgId)).thenReturn(Optional.of(organization));
-            doNothing().when(access).assertOwnerOrAdmin(organization, requestedBy, "manage project members");
+            doNothing().when(permissions).assertHasProjectPermission(organization, projectId, requestedBy, Permission.MANAGE_MEMBERS, "manage project members");
             when(projects.findByIdAndOrganizationIdAndStatus(projectId, orgId, ProjectStatus.ACTIVE))
                     .thenReturn(Optional.of(ProjectMother.standard().withOrganizationId(orgId).build()));
             when(members.findByIdAndOrganizationIdAndStatusIn(memberId, orgId, List.of(MemberStatus.ACTIVE)))
@@ -132,7 +132,7 @@ class CreateProjectMemberCommandHandlerTest {
             CreateProjectMemberCommand command = new CreateProjectMemberCommand(orgId, projectId, memberId, roleId, requestedBy);
 
             when(organizations.findById(orgId)).thenReturn(Optional.of(organization));
-            doNothing().when(access).assertOwnerOrAdmin(organization, requestedBy, "manage project members");
+            doNothing().when(permissions).assertHasProjectPermission(organization, projectId, requestedBy, Permission.MANAGE_MEMBERS, "manage project members");
             when(projects.findByIdAndOrganizationIdAndStatus(projectId, orgId, ProjectStatus.ACTIVE))
                     .thenReturn(Optional.of(ProjectMother.standard().withOrganizationId(orgId).build()));
             when(members.findByIdAndOrganizationIdAndStatusIn(memberId, orgId, List.of(MemberStatus.ACTIVE)))

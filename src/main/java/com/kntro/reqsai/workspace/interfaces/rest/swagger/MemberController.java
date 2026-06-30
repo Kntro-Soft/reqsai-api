@@ -5,6 +5,7 @@ import com.kntro.reqsai.shared.infrastructure.documentation.openapi.OpenApiConfi
 import com.kntro.reqsai.shared.infrastructure.documentation.openapi.annotations.ApiResponseBadRequest;
 import com.kntro.reqsai.shared.infrastructure.documentation.openapi.annotations.ApiResponseNotFound;
 import com.kntro.reqsai.shared.infrastructure.documentation.openapi.annotations.ApiStandardErrorResponses;
+import com.kntro.reqsai.workspace.interfaces.rest.dto.request.ChangeMemberRoleRequest;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.request.CreateMemberRequest;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.response.MemberResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -31,6 +32,10 @@ public interface MemberController {
     @ApiResponseNotFound @ApiStandardErrorResponses
     @GetMapping(value = "/{memberId}", version = ApiVersioning.V1)
     ResponseEntity<MemberResponse> getMember(@PathVariable UUID orgId, @PathVariable UUID memberId, Authentication authentication);
+
+    @ApiResponseBadRequest @ApiResponseNotFound @ApiStandardErrorResponses
+    @PatchMapping(value = "/{memberId}", version = ApiVersioning.V1)
+    ResponseEntity<MemberResponse> changeMemberRole(@PathVariable UUID orgId, @PathVariable UUID memberId, @Valid @RequestBody ChangeMemberRoleRequest request, Authentication authentication);
 
     @ApiResponseNotFound @ApiStandardErrorResponses
     @DeleteMapping(value = "/{memberId}", version = ApiVersioning.V1)

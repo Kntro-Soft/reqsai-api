@@ -4,11 +4,10 @@ import com.kntro.reqsai.shared.domain.exception.DomainException;
 import com.kntro.reqsai.shared.interfaces.pagination.PageCriteria;
 import com.kntro.reqsai.shared.interfaces.pagination.PageRequestFactory;
 import com.kntro.reqsai.shared.interfaces.pagination.PaginationProperties;
-import com.kntro.reqsai.workspace.application.port.MemberRepository;
 import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
 import com.kntro.reqsai.workspace.application.port.ProjectRepository;
 import com.kntro.reqsai.workspace.application.query.ListProjectsQuery;
-import com.kntro.reqsai.workspace.domain.model.MemberStatus;
+import com.kntro.reqsai.workspace.application.service.ProjectAccessService;
 import com.kntro.reqsai.workspace.domain.model.Organization;
 import com.kntro.reqsai.workspace.domain.model.Project;
 import com.kntro.reqsai.workspace.domain.model.ProjectStatus;
@@ -26,6 +25,7 @@ import org.springframework.data.domain.PageRequest;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -43,7 +43,7 @@ class ListProjectsQueryHandlerTest {
     @Mock
     private OrganizationRepository organizations;
     @Mock
-    private MemberRepository members;
+    private ProjectAccessService projectAccess;
 
     private final PageRequestFactory pageRequestFactory = new PageRequestFactory(new PaginationProperties(20, 100));
 
@@ -51,12 +51,12 @@ class ListProjectsQueryHandlerTest {
 
     @BeforeEach
     void setUp() {
-        handler = new ListProjectsQueryHandler(projects, organizations, members, pageRequestFactory);
+        handler = new ListProjectsQueryHandler(projects, organizations, projectAccess, pageRequestFactory);
     }
 
     @Test
-    @DisplayName("should list projects for the organization owner")
-    void should_list_projects_for_the_organization() {
+    @DisplayName("should list every project for an owner/admin (unrestricted access)")
+    void should_list_every_project_for_owner_or_admin() {
         Organization org = OrganizationMother.active().build();
         UUID orgId = org.getId();
         UUID requestedBy = org.getOwnerId();
@@ -64,6 +64,7 @@ class ListProjectsQueryHandlerTest {
         Page<Project> projectPage = new PageImpl<>(List.of(project), PageRequest.of(0, 20), 1);
 
         when(organizations.findById(orgId)).thenReturn(Optional.of(org));
+        when(projectAccess.accessibleProjectIds(org, requestedBy)).thenReturn(Optional.empty());
         when(projects.findAllByOrganizationIdAndStatus(eq(orgId), eq(ProjectStatus.ACTIVE), any())).thenReturn(projectPage);
 
         Page<Project> result = handler.handle(new ListProjectsQuery(orgId, requestedBy, PageCriteria.of(0, 20, "createdAt", "DESC")));
@@ -72,8 +73,8 @@ class ListProjectsQueryHandlerTest {
     }
 
     @Test
-    @DisplayName("should list projects for an active member")
-    void should_list_projects_for_an_active_member() {
+    @DisplayName("should list only assigned projects for a regular member")
+    void should_list_only_assigned_projects_for_a_member() {
         Organization org = OrganizationMother.active().build();
         UUID orgId = org.getId();
         UUID member = UUID.randomUUID();
@@ -81,12 +82,28 @@ class ListProjectsQueryHandlerTest {
         Page<Project> projectPage = new PageImpl<>(List.of(project), PageRequest.of(0, 20), 1);
 
         when(organizations.findById(orgId)).thenReturn(Optional.of(org));
-        when(members.existsByOrganizationIdAndUserIdAndStatus(orgId, member, MemberStatus.ACTIVE)).thenReturn(true);
-        when(projects.findAllByOrganizationIdAndStatus(eq(orgId), eq(ProjectStatus.ACTIVE), any())).thenReturn(projectPage);
+        when(projectAccess.accessibleProjectIds(org, member)).thenReturn(Optional.of(Set.of(project.getId())));
+        when(projects.findAllByOrganizationIdAndStatusAndIdIn(eq(orgId), eq(ProjectStatus.ACTIVE), eq(Set.of(project.getId())), any()))
+                .thenReturn(projectPage);
 
         Page<Project> result = handler.handle(new ListProjectsQuery(orgId, member, PageCriteria.of(0, 20, null, null)));
 
         assertThat(result.getContent()).containsExactly(project);
+    }
+
+    @Test
+    @DisplayName("should return an empty page for a member with no assignments")
+    void should_return_empty_page_for_member_without_assignments() {
+        Organization org = OrganizationMother.active().build();
+        UUID orgId = org.getId();
+        UUID member = UUID.randomUUID();
+
+        when(organizations.findById(orgId)).thenReturn(Optional.of(org));
+        when(projectAccess.accessibleProjectIds(org, member)).thenReturn(Optional.of(Set.of()));
+
+        Page<Project> result = handler.handle(new ListProjectsQuery(orgId, member, PageCriteria.of(0, 20, null, null)));
+
+        assertThat(result.getContent()).isEmpty();
     }
 
     @Test
@@ -97,7 +114,8 @@ class ListProjectsQueryHandlerTest {
         UUID stranger = UUID.randomUUID();
 
         when(organizations.findById(orgId)).thenReturn(Optional.of(org));
-        when(members.existsByOrganizationIdAndUserIdAndStatus(orgId, stranger, MemberStatus.ACTIVE)).thenReturn(false);
+        when(projectAccess.accessibleProjectIds(org, stranger))
+                .thenThrow(new DomainException(com.kntro.reqsai.workspace.domain.exception.WorkspaceError.INSUFFICIENT_PERMISSIONS, "denied"));
 
         assertThatThrownBy(() -> handler.handle(new ListProjectsQuery(orgId, stranger, PageCriteria.of(0, 20, null, null))))
                 .isInstanceOf(DomainException.class);

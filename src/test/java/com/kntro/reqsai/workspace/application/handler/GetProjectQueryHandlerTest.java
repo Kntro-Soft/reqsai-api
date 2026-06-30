@@ -4,6 +4,7 @@ import com.kntro.reqsai.shared.domain.exception.DomainException;
 import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
 import com.kntro.reqsai.workspace.application.port.ProjectRepository;
 import com.kntro.reqsai.workspace.application.query.GetProjectQuery;
+import com.kntro.reqsai.workspace.application.service.ProjectAccessService;
 import com.kntro.reqsai.workspace.domain.model.Organization;
 import com.kntro.reqsai.workspace.domain.model.Project;
 import com.kntro.reqsai.workspace.domain.model.ProjectStatus;
@@ -31,6 +32,8 @@ class GetProjectQueryHandlerTest {
     private ProjectRepository projects;
     @Mock
     private OrganizationRepository organizations;
+    @Mock
+    private ProjectAccessService projectAccess;
     @InjectMocks
     private GetProjectQueryHandler handler;
 
@@ -39,13 +42,14 @@ class GetProjectQueryHandlerTest {
     void should_return_project_when_it_belongs_to_organization() {
         Organization org = OrganizationMother.active().build();
         UUID orgId = org.getId();
+        UUID requestedBy = org.getOwnerId();
         Project project = ProjectMother.standard().withOrganizationId(orgId).build();
 
         when(organizations.findById(orgId)).thenReturn(Optional.of(org));
         when(projects.findByIdAndOrganizationIdAndStatus(project.getId(), orgId, ProjectStatus.ACTIVE))
                 .thenReturn(Optional.of(project));
 
-        Project result = handler.handle(new GetProjectQuery(orgId, project.getId()));
+        Project result = handler.handle(new GetProjectQuery(orgId, project.getId(), requestedBy));
 
         assertThat(result).isEqualTo(project);
     }
@@ -58,7 +62,7 @@ class GetProjectQueryHandlerTest {
 
         when(organizations.findById(orgId)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> handler.handle(new GetProjectQuery(orgId, projectId)))
+        assertThatThrownBy(() -> handler.handle(new GetProjectQuery(orgId, projectId, UUID.randomUUID())))
                 .isInstanceOf(DomainException.class);
     }
 
@@ -73,7 +77,7 @@ class GetProjectQueryHandlerTest {
         when(projects.findByIdAndOrganizationIdAndStatus(project.getId(), orgId, ProjectStatus.ACTIVE))
                 .thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> handler.handle(new GetProjectQuery(orgId, project.getId())))
+        assertThatThrownBy(() -> handler.handle(new GetProjectQuery(orgId, project.getId(), org.getOwnerId())))
                 .isInstanceOf(DomainException.class);
     }
 }

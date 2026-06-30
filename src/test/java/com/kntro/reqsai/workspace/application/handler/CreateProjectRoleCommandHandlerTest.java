@@ -5,7 +5,7 @@ import com.kntro.reqsai.workspace.application.command.CreateProjectRoleCommand;
 import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
 import com.kntro.reqsai.workspace.application.port.ProjectRepository;
 import com.kntro.reqsai.workspace.application.port.ProjectRoleRepository;
-import com.kntro.reqsai.workspace.application.service.OrganizationAdminAccessService;
+import com.kntro.reqsai.workspace.application.service.ProjectPermissionService;
 import com.kntro.reqsai.workspace.domain.model.Organization;
 import com.kntro.reqsai.workspace.domain.model.Permission;
 import com.kntro.reqsai.workspace.domain.model.Project;
@@ -44,7 +44,7 @@ class CreateProjectRoleCommandHandlerTest {
     @Mock
     private ProjectRoleRepository roles;
     @Mock
-    private OrganizationAdminAccessService access;
+    private ProjectPermissionService permissions;
     @InjectMocks
     private CreateProjectRoleCommandHandler handler;
 
@@ -64,7 +64,7 @@ class CreateProjectRoleCommandHandlerTest {
                     orgId, projectId, "Analyst", Set.of(Permission.READ_PROJECT, Permission.RUN_DISCOVERY), requestedBy);
 
             when(organizations.findById(orgId)).thenReturn(Optional.of(organization));
-            doNothing().when(access).assertOwnerOrAdmin(organization, requestedBy, "manage project roles");
+            doNothing().when(permissions).assertHasProjectPermission(organization, projectId, requestedBy, Permission.MANAGE_ROLES, "manage project roles");
             when(projects.findByIdAndOrganizationIdAndStatus(projectId, orgId, ProjectStatus.ACTIVE))
                     .thenReturn(Optional.of(project));
             when(roles.existsByProjectIdAndName(projectId, "Analyst")).thenReturn(false);
@@ -92,7 +92,6 @@ class CreateProjectRoleCommandHandlerTest {
                     orgId, projectId, "Analyst", Set.of(Permission.READ_PROJECT), requestedBy);
 
             when(organizations.findById(orgId)).thenReturn(Optional.of(organization));
-            doNothing().when(access).assertOwnerOrAdmin(organization, requestedBy, "manage project roles");
             when(projects.findByIdAndOrganizationIdAndStatus(projectId, orgId, ProjectStatus.ACTIVE))
                     .thenReturn(Optional.empty());
 
@@ -111,7 +110,7 @@ class CreateProjectRoleCommandHandlerTest {
                     orgId, projectId, "Analyst", Set.of(Permission.READ_PROJECT), requestedBy);
 
             when(organizations.findById(orgId)).thenReturn(Optional.of(organization));
-            doNothing().when(access).assertOwnerOrAdmin(organization, requestedBy, "manage project roles");
+            doNothing().when(permissions).assertHasProjectPermission(organization, projectId, requestedBy, Permission.MANAGE_ROLES, "manage project roles");
             when(projects.findByIdAndOrganizationIdAndStatus(projectId, orgId, ProjectStatus.ACTIVE))
                     .thenReturn(Optional.of(ProjectMother.standard().withOrganizationId(orgId).build()));
             when(roles.existsByProjectIdAndName(projectId, "Analyst")).thenReturn(true);
