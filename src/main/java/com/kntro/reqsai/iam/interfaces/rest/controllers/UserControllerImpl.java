@@ -10,7 +10,7 @@ import com.kntro.reqsai.iam.application.handler.GetAuthenticatedUserQueryHandler
 import com.kntro.reqsai.iam.application.handler.UpdateProfileCommandHandler;
 import com.kntro.reqsai.iam.application.handler.UpdateUserPreferencesCommandHandler;
 import com.kntro.reqsai.iam.application.query.GetAuthenticatedUserQuery;
-import com.kntro.reqsai.iam.domain.model.User;
+import com.kntro.reqsai.iam.application.result.UserProfile;
 import com.kntro.reqsai.iam.interfaces.rest.dto.request.AcceptTermsRequest;
 import com.kntro.reqsai.iam.interfaces.rest.dto.request.ChangePasswordRequest;
 import com.kntro.reqsai.iam.interfaces.rest.dto.request.UpdatePreferencesRequest;
@@ -41,8 +41,8 @@ public class UserControllerImpl implements UserController {
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<UserResponse> me(Authentication authentication) {
         UUID userId = UUID.fromString(authentication.getName());
-        User user = getAuthenticatedUser.handle(new GetAuthenticatedUserQuery(userId));
-        return ResponseEntity.ok(UserResponseMapper.toResponse(user));
+        UserProfile profile = getAuthenticatedUser.handle(new GetAuthenticatedUserQuery(userId));
+        return ResponseEntity.ok(UserResponseMapper.toResponse(profile));
     }
 
     @Override
@@ -57,16 +57,16 @@ public class UserControllerImpl implements UserController {
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<UserResponse> updatePreferences(UpdatePreferencesRequest request, Authentication authentication) {
         UUID userId = UUID.fromString(authentication.getName());
-        User user = updateUserPreferences.handle(new UpdateUserPreferencesCommand(userId, request.lastVisitedOrgId()));
-        return ResponseEntity.ok(UserResponseMapper.toResponse(user));
+        UserProfile profile = updateUserPreferences.handle(new UpdateUserPreferencesCommand(userId, request.lastVisitedOrgId()));
+        return ResponseEntity.ok(UserResponseMapper.toResponse(profile));
     }
 
     @Override
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<UserResponse> updateProfile(UpdateProfileRequest request, Authentication authentication) {
         UUID userId = UUID.fromString(authentication.getName());
-        User user = updateProfile.handle(new UpdateProfileCommand(userId, request.firstName(), request.lastName()));
-        return ResponseEntity.ok(UserResponseMapper.toResponse(user));
+        UserProfile profile = updateProfile.handle(new UpdateProfileCommand(userId, request.firstName(), request.lastName()));
+        return ResponseEntity.ok(UserResponseMapper.toResponse(profile));
     }
 
     @Override

@@ -25,7 +25,7 @@ public final class AuthResponseMapper {
                 session.accessToken(),
                 TOKEN_TYPE,
                 session.expiresInSeconds(),
-                UserResponseMapper.toResponse(session.user()),
+                UserResponseMapper.toResponse(session.user(), session.email()),
                 session.organizationId());
     }
 

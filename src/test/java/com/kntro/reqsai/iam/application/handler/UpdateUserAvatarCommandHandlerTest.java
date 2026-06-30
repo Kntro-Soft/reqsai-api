@@ -1,6 +1,6 @@
 package com.kntro.reqsai.iam.application.handler;
 
-import com.kntro.reqsai.iam.application.command.UpdateProfileCommand;
+import com.kntro.reqsai.iam.application.command.UpdateUserAvatarCommand;
 import com.kntro.reqsai.iam.application.port.AccountRepository;
 import com.kntro.reqsai.iam.application.port.UserRepository;
 import com.kntro.reqsai.iam.application.result.UserProfile;
@@ -15,6 +15,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -26,13 +27,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Unit tests for {@link UpdateProfileCommandHandler} with mocked ports.
+ * Unit tests for {@link UpdateUserAvatarCommandHandler} with mocked ports.
  *
- * @see UpdateProfileCommandHandler
+ * @see UpdateUserAvatarCommandHandler
  */
-@DisplayName("Application: Update Profile")
+@DisplayName("Application: Update User Avatar")
 @ExtendWith(MockitoExtension.class)
-class UpdateProfileCommandHandlerTest {
+class UpdateUserAvatarCommandHandlerTest {
 
     private static final UUID ACCOUNT_ID = UUID.randomUUID();
 
@@ -43,25 +44,26 @@ class UpdateProfileCommandHandlerTest {
     private AccountRepository accounts;
 
     @InjectMocks
-    private UpdateProfileCommandHandler handler;
+    private UpdateUserAvatarCommandHandler handler;
 
     @Test
-    @DisplayName("should update first name and last name and return the updated profile with email")
-    void handle_updatesProfileAndReturnsUser() {
+    @DisplayName("should store the uploaded bytes and content type on the user")
+    void handle_appliesAvatarAndReturnsUser() {
         // Arrange
-        User user = new User(ACCOUNT_ID, "Old", "Name");
+        User user = new User(ACCOUNT_ID, "Jane", "Doe");
         Account account = Account.register(Email.of("jane.doe@example.com"), "hash");
+        byte[] bytes = "<svg/>".getBytes(StandardCharsets.UTF_8);
         when(users.findById(user.getId())).thenReturn(Optional.of(user));
         when(users.save(user)).thenReturn(user);
         when(accounts.findById(user.getAccountId())).thenReturn(Optional.of(account));
-        UpdateProfileCommand command = new UpdateProfileCommand(user.getId(), "Jane", "Doe");
+        UpdateUserAvatarCommand command = new UpdateUserAvatarCommand(user.getId(), bytes, "image/svg+xml");
 
         // Act
         UserProfile result = handler.handle(command);
 
         // Assert
-        assertThat(result.user().getFirstName()).isEqualTo("Jane");
-        assertThat(result.user().getLastName()).isEqualTo("Doe");
+        assertThat(result.user().getAvatar()).isEqualTo(bytes);
+        assertThat(result.user().getAvatarContentType()).isEqualTo("image/svg+xml");
         assertThat(result.email()).isEqualTo("jane.doe@example.com");
         verify(users).save(user);
     }
@@ -72,7 +74,8 @@ class UpdateProfileCommandHandlerTest {
         // Arrange
         UUID unknownId = UUID.randomUUID();
         when(users.findById(unknownId)).thenReturn(Optional.empty());
-        UpdateProfileCommand command = new UpdateProfileCommand(unknownId, "Jane", "Doe");
+        UpdateUserAvatarCommand command = new UpdateUserAvatarCommand(
+                unknownId, "x".getBytes(StandardCharsets.UTF_8), "image/png");
 
         // Act & Assert
         assertThatThrownBy(() -> handler.handle(command))

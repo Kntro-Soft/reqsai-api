@@ -14,7 +14,8 @@ import java.util.UUID;
  * @param rawRefreshToken  the 64-char hex refresh token — the controller sets this as an HttpOnly cookie;
  *                         it is NEVER serialised to the response body
  * @param user             the authenticated user
+ * @param email            the authenticated user's account email
  * @param organizationId   the organization owned by the user, or {@code null} if none exists yet
  */
-public record AuthenticatedSession(String accessToken, long expiresInSeconds, String rawRefreshToken, User user, @Nullable UUID organizationId) {
+public record AuthenticatedSession(String accessToken, long expiresInSeconds, String rawRefreshToken, User user, String email, @Nullable UUID organizationId) {
 }

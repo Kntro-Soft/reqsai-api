@@ -14,7 +14,7 @@ import com.kntro.reqsai.iam.application.handler.RevokeRefreshTokenCommandHandler
 import com.kntro.reqsai.iam.application.handler.VerifyEmailCommandHandler;
 import com.kntro.reqsai.iam.application.result.AuthenticatedSession;
 import com.kntro.reqsai.iam.application.result.RefreshedSession;
-import com.kntro.reqsai.iam.domain.model.User;
+import com.kntro.reqsai.iam.application.result.UserProfile;
 import com.kntro.reqsai.iam.interfaces.rest.dto.request.ForgotPasswordRequest;
 import com.kntro.reqsai.iam.interfaces.rest.dto.request.LoginRequest;
 import com.kntro.reqsai.iam.interfaces.rest.dto.request.RegisterRequest;
@@ -57,8 +57,8 @@ public class AuthControllerImpl implements AuthController {
 
     @Override
     public ResponseEntity<UserResponse> signUp(RegisterRequest request) {
-        User user = registerAccount.handle(AuthRequestMapper.toCommand(request));
-        return ResponseEntity.status(HttpStatus.CREATED).body(UserResponseMapper.toResponse(user));
+        UserProfile profile = registerAccount.handle(AuthRequestMapper.toCommand(request));
+        return ResponseEntity.status(HttpStatus.CREATED).body(UserResponseMapper.toResponse(profile));
     }
 
     @Override
