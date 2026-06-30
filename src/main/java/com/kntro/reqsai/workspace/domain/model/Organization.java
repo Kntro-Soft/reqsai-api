@@ -7,12 +7,14 @@ import com.kntro.reqsai.workspace.domain.valueobjects.GenerationSettings;
 import com.kntro.reqsai.workspace.domain.valueobjects.PlanLimits;
 import com.kntro.reqsai.workspace.domain.valueobjects.Slug;
 import com.kntro.reqsai.workspace.infrastructure.persistence.converters.SlugConverter;
+import jakarta.persistence.Basic;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.Table;
 import lombok.Getter;
 
@@ -56,6 +58,13 @@ public class Organization extends AggregateRoot {
     @Embedded
     private PlanLimits planLimits;
 
+    @Basic(fetch = FetchType.LAZY)
+    @Column(name = "avatar", columnDefinition = "bytea")
+    private byte[] avatar;
+
+    @Column(name = "avatar_content_type", length = 64)
+    private String avatarContentType;
+
     protected Organization() {
         super();
     }
@@ -81,6 +90,12 @@ public class Organization extends AggregateRoot {
 
     public void updateLimits(PlanLimits planLimits) {
         this.planLimits = Assert.notNull(planLimits, "planLimits");
+    }
+
+    /** Stores the generated avatar bytes and their content type (downloaded after creation). */
+    public void applyAvatar(byte[] avatar, String avatarContentType) {
+        this.avatar = avatar;
+        this.avatarContentType = avatarContentType;
     }
 
     public void activate() {

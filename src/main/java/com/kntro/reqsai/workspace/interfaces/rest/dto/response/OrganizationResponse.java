@@ -32,6 +32,10 @@ public record OrganizationResponse(
         @Schema(description = "Number of days audio recordings are retained before deletion", example = "30")
         int audioRetentionDays,
 
+        @Schema(description = "Path to the organization's avatar image served by this API",
+                example = "/api/organizations/019756a0-1234-7abc-8def-000000000001/avatar")
+        String avatarUrl,
+
         @Schema(description = "Timestamp when the organization was created", example = "2026-06-15T13:55:00Z")
         Instant createdAt,
 

@@ -1,6 +1,7 @@
 package com.kntro.reqsai.workspace.application.handler;
 
 import com.kntro.reqsai.shared.domain.exception.DomainException;
+import com.kntro.reqsai.shared.infrastructure.avatar.AvatarDownloadAdapter;
 import com.kntro.reqsai.workspace.application.command.CreateProjectCommand;
 import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
 import com.kntro.reqsai.workspace.application.port.ProjectRepository;
@@ -32,6 +33,8 @@ class CreateProjectCommandHandlerTest {
     private ProjectRepository projects;
     @Mock
     private OrganizationRepository organizations;
+    @Mock
+    private AvatarDownloadAdapter avatarDownloadAdapter;
     @InjectMocks
     private CreateProjectCommandHandler handler;
 
@@ -60,7 +63,7 @@ class CreateProjectCommandHandlerTest {
             assertThat(project.getOrganizationId()).isEqualTo(orgId);
             assertThat(project.getName()).isEqualTo(command.name());
             assertThat(project.getStatus()).isEqualTo(ProjectStatus.ACTIVE);
-            verify(projects).save(any(Project.class));
+            verify(projects, times(2)).save(any(Project.class)); // persist for id, then persist avatar
         }
     }
 
@@ -118,7 +121,7 @@ class CreateProjectCommandHandlerTest {
             // Assert
             assertThat(project.getName()).isEqualTo(command.name());
             verify(projects).existsByOrganizationIdAndNameAndStatus(orgId, command.name(), ProjectStatus.ACTIVE);
-            verify(projects).save(any(Project.class));
+            verify(projects, times(2)).save(any(Project.class)); // persist for id, then persist avatar
         }
 
         @Test
@@ -162,7 +165,7 @@ class CreateProjectCommandHandlerTest {
             // Assert
             assertThat(project).isNotNull();
             verify(projects).countActiveByOrganizationId(orgId);
-            verify(projects).save(any(Project.class));
+            verify(projects, times(2)).save(any(Project.class)); // persist for id, then persist avatar
         }
     }
 }

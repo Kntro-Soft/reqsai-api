@@ -1,6 +1,7 @@
 package com.kntro.reqsai.workspace.application.handler;
 
 import com.kntro.reqsai.shared.domain.exception.DomainException;
+import com.kntro.reqsai.shared.infrastructure.avatar.AvatarDownloadAdapter;
 import com.kntro.reqsai.shared.infrastructure.persistence.multitenancy.ProvisioningService;
 import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
 import com.kntro.reqsai.workspace.domain.model.OrgStatus;
@@ -32,6 +33,8 @@ class CreateOrganizationCommandHandlerTest {
     private OrganizationRepository organizations;
     @Mock
     private ProvisioningService provisioningService;
+    @Mock
+    private AvatarDownloadAdapter avatarDownloadAdapter;
     @InjectMocks
     private CreateOrganizationCommandHandler handler;
 

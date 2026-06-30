@@ -18,6 +18,7 @@ public record ProjectResponse(
         String architecture,
         String domain,
         String status,
+        String avatarUrl,
         Instant createdAt,
         Instant updatedAt
 ) {}

@@ -5,6 +5,7 @@ import com.kntro.reqsai.shared.domain.support.Assert;
 import com.kntro.reqsai.workspace.domain.event.ProjectCreatedEvent;
 import com.kntro.reqsai.workspace.domain.exception.WorkspaceExceptions;
 import com.kntro.reqsai.workspace.domain.valueobjects.TechnicalProfile;
+import jakarta.persistence.Basic;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embedded;
@@ -45,6 +46,13 @@ public class Project extends AggregateRoot {
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 16)
     private ProjectStatus status;
+
+    @Basic(fetch = FetchType.LAZY)
+    @Column(name = "avatar", columnDefinition = "bytea")
+    private byte[] avatar;
+
+    @Column(name = "avatar_content_type", length = 64)
+    private String avatarContentType;
 
     @OneToMany(mappedBy = "project", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<ProjectConstraint> constraints = new ArrayList<>();
@@ -121,6 +129,12 @@ public class Project extends AggregateRoot {
                 .filter(c -> c.getId().equals(constraintId))
                 .findFirst()
                 .ifPresent(c -> c.applyEmbedding(embedding));
+    }
+
+    /** Stores the generated avatar bytes and their content type (downloaded after creation). */
+    public void applyAvatar(byte[] avatar, String avatarContentType) {
+        this.avatar = avatar;
+        this.avatarContentType = avatarContentType;
     }
 
     public void archive() {
