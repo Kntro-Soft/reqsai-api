@@ -42,6 +42,11 @@ public class DeepgramStreamingAdapter extends AbstractWebSocketStreamingAdapter 
     @Override
     protected URI endpoint(Context context) {
         String language = context.language() != null ? context.language() : "es";
+        // Deepgram streaming (nova-2) does not support region-specific Spanish codes like es-PE.
+        // Map any regional Spanish (e.g. es-PE, es-ES) to the base 'es' tag, keeping 'es-419'.
+        if (language.startsWith("es-") && !language.equals("es-419")) {
+            language = "es";
+        }
         return URI.create("wss://api.deepgram.com/v1/listen"
                 + "?model=" + URLEncoder.encode(model, StandardCharsets.UTF_8)
                 + "&language=" + URLEncoder.encode(language, StandardCharsets.UTF_8)
