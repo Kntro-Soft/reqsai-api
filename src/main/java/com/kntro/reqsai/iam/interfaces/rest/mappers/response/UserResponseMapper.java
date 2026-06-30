@@ -1,21 +1,27 @@
 package com.kntro.reqsai.iam.interfaces.rest.mappers.response;
 
+import com.kntro.reqsai.iam.application.result.UserProfile;
 import com.kntro.reqsai.iam.domain.model.User;
 import com.kntro.reqsai.iam.domain.model.UserPreferences;
 import com.kntro.reqsai.iam.interfaces.rest.dto.response.UserPreferencesResponse;
 import com.kntro.reqsai.iam.interfaces.rest.dto.response.UserResponse;
 import com.kntro.reqsai.shared.application.avatar.AvatarPaths;
 
-/** Maps the {@link User} aggregate to its response DTO. */
+/** Maps the {@link User} aggregate (plus its account email) to its response DTO. */
 public final class UserResponseMapper {
 
     private UserResponseMapper() {
         throw new UnsupportedOperationException("Utility class - do not instantiate");
     }
 
-    public static UserResponse toResponse(User user) {
+    public static UserResponse toResponse(UserProfile profile) {
+        return toResponse(profile.user(), profile.email());
+    }
+
+    public static UserResponse toResponse(User user, String email) {
         return new UserResponse(
                 user.getId(),
+                email,
                 user.getFirstName(),
                 user.getLastName(),
                 user.getFullName(),

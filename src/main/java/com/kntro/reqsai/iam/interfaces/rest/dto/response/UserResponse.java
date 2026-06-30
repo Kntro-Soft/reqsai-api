@@ -10,6 +10,9 @@ public record UserResponse(
         @Schema(description = "User unique identifier (the JWT subject)", example = "019756a0-1234-7abc-8def-000000000099")
         UUID id,
 
+        @Schema(description = "User's account email", example = "jane.doe@example.com")
+        String email,
+
         @Schema(description = "User's first name", example = "Jane")
         String firstName,
 

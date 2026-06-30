@@ -1,9 +1,13 @@
 package com.kntro.reqsai.iam.application.handler;
 
 import com.kntro.reqsai.iam.application.command.UpdateUserAvatarCommand;
+import com.kntro.reqsai.iam.application.port.AccountRepository;
 import com.kntro.reqsai.iam.application.port.UserRepository;
+import com.kntro.reqsai.iam.application.result.UserProfile;
+import com.kntro.reqsai.iam.domain.model.Account;
 import com.kntro.reqsai.iam.domain.model.User;
 import com.kntro.reqsai.shared.domain.exception.EntityNotFoundException;
+import com.kntro.reqsai.shared.domain.valueobjects.Email;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -36,6 +40,9 @@ class UpdateUserAvatarCommandHandlerTest {
     @Mock
     private UserRepository users;
 
+    @Mock
+    private AccountRepository accounts;
+
     @InjectMocks
     private UpdateUserAvatarCommandHandler handler;
 
@@ -44,17 +51,20 @@ class UpdateUserAvatarCommandHandlerTest {
     void handle_appliesAvatarAndReturnsUser() {
         // Arrange
         User user = new User(ACCOUNT_ID, "Jane", "Doe");
+        Account account = Account.register(Email.of("jane.doe@example.com"), "hash");
         byte[] bytes = "<svg/>".getBytes(StandardCharsets.UTF_8);
         when(users.findById(user.getId())).thenReturn(Optional.of(user));
         when(users.save(user)).thenReturn(user);
+        when(accounts.findById(user.getAccountId())).thenReturn(Optional.of(account));
         UpdateUserAvatarCommand command = new UpdateUserAvatarCommand(user.getId(), bytes, "image/svg+xml");
 
         // Act
-        User result = handler.handle(command);
+        UserProfile result = handler.handle(command);
 
         // Assert
-        assertThat(result.getAvatar()).isEqualTo(bytes);
-        assertThat(result.getAvatarContentType()).isEqualTo("image/svg+xml");
+        assertThat(result.user().getAvatar()).isEqualTo(bytes);
+        assertThat(result.user().getAvatarContentType()).isEqualTo("image/svg+xml");
+        assertThat(result.email()).isEqualTo("jane.doe@example.com");
         verify(users).save(user);
     }
 

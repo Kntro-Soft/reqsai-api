@@ -4,7 +4,7 @@ import com.kntro.reqsai.iam.application.command.UpdateUserAvatarCommand;
 import com.kntro.reqsai.iam.application.handler.GetUserAvatarQueryHandler;
 import com.kntro.reqsai.iam.application.handler.UpdateUserAvatarCommandHandler;
 import com.kntro.reqsai.iam.application.query.GetUserAvatarQuery;
-import com.kntro.reqsai.iam.domain.model.User;
+import com.kntro.reqsai.iam.application.result.UserProfile;
 import com.kntro.reqsai.iam.interfaces.rest.dto.response.UserResponse;
 import com.kntro.reqsai.iam.interfaces.rest.mappers.response.UserResponseMapper;
 import com.kntro.reqsai.iam.interfaces.rest.swagger.UserAvatarController;
@@ -38,7 +38,7 @@ public class UserAvatarControllerImpl implements UserAvatarController {
     public ResponseEntity<UserResponse> uploadAvatar(MultipartFile file, Authentication authentication) {
         UUID userId = UUID.fromString(authentication.getName());
         GeneratedAvatar avatar = AvatarUploads.validated(file);
-        User user = updateUserAvatar.handle(new UpdateUserAvatarCommand(userId, avatar.bytes(), avatar.contentType()));
-        return ResponseEntity.ok(UserResponseMapper.toResponse(user));
+        UserProfile profile = updateUserAvatar.handle(new UpdateUserAvatarCommand(userId, avatar.bytes(), avatar.contentType()));
+        return ResponseEntity.ok(UserResponseMapper.toResponse(profile));
     }
 }

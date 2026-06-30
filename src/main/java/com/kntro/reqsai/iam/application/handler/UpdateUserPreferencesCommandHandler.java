@@ -1,9 +1,12 @@
 package com.kntro.reqsai.iam.application.handler;
 
 import com.kntro.reqsai.iam.application.command.UpdateUserPreferencesCommand;
+import com.kntro.reqsai.iam.application.port.AccountRepository;
 import com.kntro.reqsai.iam.application.port.OrganizationLookupPort;
 import com.kntro.reqsai.iam.application.port.UserRepository;
+import com.kntro.reqsai.iam.application.result.UserProfile;
 import com.kntro.reqsai.iam.domain.exception.IamExceptions;
+import com.kntro.reqsai.iam.domain.model.Account;
 import com.kntro.reqsai.iam.domain.model.User;
 import com.kntro.reqsai.iam.domain.model.UserPreferences;
 import lombok.RequiredArgsConstructor;
@@ -24,10 +27,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class UpdateUserPreferencesCommandHandler {
 
     private final UserRepository users;
+    private final AccountRepository accounts;
     private final OrganizationLookupPort organizations;
 
     @Transactional
-    public User handle(UpdateUserPreferencesCommand command) {
+    public UserProfile handle(UpdateUserPreferencesCommand command) {
         User user = users.findById(command.userId())
                 .orElseThrow(() -> IamExceptions.userNotFound(command.userId()));
 
@@ -42,7 +46,9 @@ public class UpdateUserPreferencesCommandHandler {
                 current != null ? current.lastVisitedProjectId() : null));
 
         User saved = users.save(user);
+        Account account = accounts.findById(saved.getAccountId())
+                .orElseThrow(() -> IamExceptions.userNotFound(command.userId()));
         log.info("Updated preferences for user {} — lastVisitedOrgId={}", command.userId(), command.lastVisitedOrgId());
-        return saved;
+        return new UserProfile(saved, account.getEmail().value());
     }
 }

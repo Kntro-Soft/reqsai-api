@@ -79,7 +79,7 @@ public class AuthenticateCommandHandler {
         refreshTokens.save(refreshToken);
 
         log.info("Authenticated user {}", user.getId());
-        return new AuthenticatedSession(token.token(), token.expiresInSeconds(), rawRefreshToken, user, orgId);
+        return new AuthenticatedSession(token.token(), token.expiresInSeconds(), rawRefreshToken, user, account.getEmail().value(), orgId);
     }
 
     private UUID resolveOrgId(User user) {

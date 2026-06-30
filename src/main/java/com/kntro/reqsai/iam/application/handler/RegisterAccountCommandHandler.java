@@ -9,6 +9,7 @@ import com.kntro.reqsai.iam.application.port.UserRepository;
 import com.kntro.reqsai.iam.domain.exception.IamExceptions;
 import com.kntro.reqsai.iam.domain.model.Account;
 import com.kntro.reqsai.iam.domain.model.EmailVerification;
+import com.kntro.reqsai.iam.application.result.UserProfile;
 import com.kntro.reqsai.iam.domain.model.User;
 import com.kntro.reqsai.shared.application.avatar.AvatarDownloadPort;
 import com.kntro.reqsai.shared.domain.support.TokenGenerator;
@@ -43,7 +44,7 @@ public class RegisterAccountCommandHandler {
     private final AvatarDownloadPort avatarDownloadAdapter;
 
     @Transactional
-    public User handle(RegisterAccountCommand command) {
+    public UserProfile handle(RegisterAccountCommand command) {
         Email email = Email.of(command.email());
 
         if (accounts.existsByEmail(email)) {
@@ -64,6 +65,6 @@ public class RegisterAccountCommandHandler {
         emailVerifications.save(verification);
 
         log.info("Registered account {} (user {})", account.getId(), user.getId());
-        return user;
+        return new UserProfile(user, email.value());
     }
 }

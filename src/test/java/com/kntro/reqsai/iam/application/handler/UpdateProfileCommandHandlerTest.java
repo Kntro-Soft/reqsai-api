@@ -1,9 +1,13 @@
 package com.kntro.reqsai.iam.application.handler;
 
 import com.kntro.reqsai.iam.application.command.UpdateProfileCommand;
+import com.kntro.reqsai.iam.application.port.AccountRepository;
 import com.kntro.reqsai.iam.application.port.UserRepository;
+import com.kntro.reqsai.iam.application.result.UserProfile;
+import com.kntro.reqsai.iam.domain.model.Account;
 import com.kntro.reqsai.iam.domain.model.User;
 import com.kntro.reqsai.shared.domain.exception.EntityNotFoundException;
+import com.kntro.reqsai.shared.domain.valueobjects.Email;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -31,29 +35,34 @@ import static org.mockito.Mockito.when;
 class UpdateProfileCommandHandlerTest {
 
     private static final UUID ACCOUNT_ID = UUID.randomUUID();
-    private static final UUID USER_ID    = UUID.randomUUID();
 
     @Mock
     private UserRepository users;
+
+    @Mock
+    private AccountRepository accounts;
 
     @InjectMocks
     private UpdateProfileCommandHandler handler;
 
     @Test
-    @DisplayName("should update first name and last name and return the updated user")
+    @DisplayName("should update first name and last name and return the updated profile with email")
     void handle_updatesProfileAndReturnsUser() {
         // Arrange
         User user = new User(ACCOUNT_ID, "Old", "Name");
+        Account account = Account.register(Email.of("jane.doe@example.com"), "hash");
         when(users.findById(user.getId())).thenReturn(Optional.of(user));
         when(users.save(user)).thenReturn(user);
+        when(accounts.findById(user.getAccountId())).thenReturn(Optional.of(account));
         UpdateProfileCommand command = new UpdateProfileCommand(user.getId(), "Jane", "Doe");
 
         // Act
-        User result = handler.handle(command);
+        UserProfile result = handler.handle(command);
 
         // Assert
-        assertThat(result.getFirstName()).isEqualTo("Jane");
-        assertThat(result.getLastName()).isEqualTo("Doe");
+        assertThat(result.user().getFirstName()).isEqualTo("Jane");
+        assertThat(result.user().getLastName()).isEqualTo("Doe");
+        assertThat(result.email()).isEqualTo("jane.doe@example.com");
         verify(users).save(user);
     }
 
