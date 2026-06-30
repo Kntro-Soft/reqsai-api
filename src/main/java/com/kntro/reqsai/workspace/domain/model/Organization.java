@@ -2,6 +2,7 @@ package com.kntro.reqsai.workspace.domain.model;
 
 import com.kntro.reqsai.shared.domain.model.AggregateRoot;
 import com.kntro.reqsai.shared.domain.support.Assert;
+import com.kntro.reqsai.shared.domain.valueobjects.LanguageCode;
 import com.kntro.reqsai.workspace.domain.event.OrganizationCreatedEvent;
 import com.kntro.reqsai.workspace.domain.valueobjects.GenerationSettings;
 import com.kntro.reqsai.workspace.domain.valueobjects.PlanLimits;
@@ -86,6 +87,21 @@ public class Organization extends AggregateRoot {
 
     public void updateSettings(GenerationSettings settings) {
         this.settings = Assert.notNull(settings, "settings");
+    }
+
+    /**
+     * Applies a partial update: each argument is optional and a {@code null} leaves the corresponding
+     * field unchanged. When present, {@code name} is validated and the settings are rebuilt keeping the
+     * untouched fields. {@code meetingLanguage} is the raw BCP-47 string (parsed into a {@link LanguageCode}).
+     */
+    public void applyPatch(String name, String meetingLanguage, Integer audioRetentionDays) {
+        if (name != null) {
+            this.name = Assert.maxLength(Assert.notBlank(name, "name"), "name", NAME_MAX);
+        }
+        if (meetingLanguage != null || audioRetentionDays != null) {
+            LanguageCode language = meetingLanguage != null ? LanguageCode.of(meetingLanguage) : null;
+            this.settings = this.settings.withChanges(language, audioRetentionDays);
+        }
     }
 
     public void updateLimits(PlanLimits planLimits) {

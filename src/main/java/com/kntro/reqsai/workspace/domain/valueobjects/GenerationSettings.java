@@ -46,4 +46,14 @@ public record GenerationSettings(
     public static GenerationSettings of(LanguageCode meetingLanguage, int audioRetentionDays) {
         return new GenerationSettings(meetingLanguage, audioRetentionDays);
     }
+
+    /**
+     * Returns a copy with only the provided (non-null) fields changed; {@code null} arguments keep the
+     * current value. Used by partial (PATCH) updates so a field can be left untouched.
+     */
+    public GenerationSettings withChanges(LanguageCode meetingLanguage, Integer audioRetentionDays) {
+        return new GenerationSettings(
+                meetingLanguage != null ? meetingLanguage : this.meetingLanguage,
+                audioRetentionDays != null ? audioRetentionDays : this.audioRetentionDays);
+    }
 }

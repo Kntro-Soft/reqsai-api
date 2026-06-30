@@ -64,6 +64,93 @@ class UpdateOrganizationCommandHandlerTest {
             assertThat(updated.getSettings().audioRetentionDays()).isEqualTo(-1);
             verify(organizations).save(organization);
         }
+
+        @Test
+        @DisplayName("should update only the name and leave settings unchanged when other fields are null")
+        void should_update_only_name_and_leave_settings_unchanged() {
+            UUID ownerId = UUID.randomUUID();
+            Organization organization = OrganizationMother.active()
+                    .withOwnerId(ownerId)
+                    .withName("Acme")
+                    .withMeetingLanguage("en-US")
+                    .withAudioRetentionDays(30)
+                    .build();
+
+            UpdateOrganizationCommand command = new UpdateOrganizationCommand(
+                    organization.getId(),
+                    "Acme International",
+                    null,
+                    null,
+                    ownerId
+            );
+
+            when(organizations.findById(organization.getId())).thenReturn(Optional.of(organization));
+            when(organizations.save(any(Organization.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            Organization updated = handler.handle(command);
+
+            assertThat(updated.getName()).isEqualTo("Acme International");
+            assertThat(updated.getSettings().meetingLanguage().value()).isEqualTo("en-US");
+            assertThat(updated.getSettings().audioRetentionDays()).isEqualTo(30);
+        }
+
+        @Test
+        @DisplayName("should update only audio retention and leave name and language unchanged")
+        void should_update_only_audio_retention() {
+            UUID ownerId = UUID.randomUUID();
+            Organization organization = OrganizationMother.active()
+                    .withOwnerId(ownerId)
+                    .withName("Acme")
+                    .withMeetingLanguage("en-US")
+                    .withAudioRetentionDays(30)
+                    .build();
+
+            UpdateOrganizationCommand command = new UpdateOrganizationCommand(
+                    organization.getId(),
+                    null,
+                    null,
+                    -1,
+                    ownerId
+            );
+
+            when(organizations.findById(organization.getId())).thenReturn(Optional.of(organization));
+            when(organizations.save(any(Organization.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            Organization updated = handler.handle(command);
+
+            assertThat(updated.getName()).isEqualTo("Acme");
+            assertThat(updated.getSettings().meetingLanguage().value()).isEqualTo("en-US");
+            assertThat(updated.getSettings().audioRetentionDays()).isEqualTo(-1);
+        }
+
+        @Test
+        @DisplayName("should be a no-op that leaves everything unchanged when all fields are null")
+        void should_be_a_no_op_when_all_fields_are_null() {
+            UUID ownerId = UUID.randomUUID();
+            Organization organization = OrganizationMother.active()
+                    .withOwnerId(ownerId)
+                    .withName("Acme")
+                    .withMeetingLanguage("en-US")
+                    .withAudioRetentionDays(30)
+                    .build();
+
+            UpdateOrganizationCommand command = new UpdateOrganizationCommand(
+                    organization.getId(),
+                    null,
+                    null,
+                    null,
+                    ownerId
+            );
+
+            when(organizations.findById(organization.getId())).thenReturn(Optional.of(organization));
+            when(organizations.save(any(Organization.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            Organization updated = handler.handle(command);
+
+            assertThat(updated.getName()).isEqualTo("Acme");
+            assertThat(updated.getSettings().meetingLanguage().value()).isEqualTo("en-US");
+            assertThat(updated.getSettings().audioRetentionDays()).isEqualTo(30);
+        }
     }
 
     @Nested
