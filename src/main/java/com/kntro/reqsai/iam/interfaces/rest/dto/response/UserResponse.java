@@ -1,7 +1,6 @@
 package com.kntro.reqsai.iam.interfaces.rest.dto.response;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.annotation.Nullable;
 
 import java.util.UUID;
 
@@ -20,8 +19,8 @@ public record UserResponse(
         @Schema(description = "User's full name", example = "Jane Doe")
         String fullName,
 
-        @Nullable
-        @Schema(description = "URL of the user's avatar image", nullable = true, example = "https://cdn.reqsai.com/avatars/abc.png")
+        @Schema(description = "Path to the user's avatar image served by this API",
+                example = "/api/users/019756a0-1234-7abc-8def-000000000099/avatar")
         String avatarUrl,
 
         @Schema(description = "User's navigation preferences")

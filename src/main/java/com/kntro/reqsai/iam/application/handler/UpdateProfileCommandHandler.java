@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Updates the editable profile fields (first name, last name, avatar URL) for the authenticated user.
+ * Updates the editable profile fields (first name, last name) for the authenticated user.
  * <p>
  * Flow: load {@link User} by id → apply {@link User#updateProfile} → persist → return updated user.
  */
@@ -26,7 +26,7 @@ public class UpdateProfileCommandHandler {
         User user = users.findById(command.userId())
                 .orElseThrow(() -> IamExceptions.userNotFound(command.userId()));
 
-        user.updateProfile(command.firstName(), command.lastName(), command.avatarUrl());
+        user.updateProfile(command.firstName(), command.lastName());
         users.save(user);
 
         log.info("Profile updated for user {}", user.getId());

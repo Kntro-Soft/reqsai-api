@@ -12,6 +12,7 @@ import com.kntro.reqsai.iam.domain.model.EmailVerification;
 import com.kntro.reqsai.iam.domain.model.User;
 import com.kntro.reqsai.shared.domain.support.TokenGenerator;
 import com.kntro.reqsai.shared.domain.valueobjects.Email;
+import com.kntro.reqsai.shared.infrastructure.avatar.AvatarDownloadAdapter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -32,11 +33,14 @@ import java.time.Instant;
 @Slf4j
 public class RegisterAccountCommandHandler {
 
+    private static final String AVATAR_URL_TEMPLATE = "https://api.dicebear.com/9.x/glass/svg?seed=%s";
+
     private final AccountRepository accounts;
     private final UserRepository users;
     private final PasswordHasher passwordHasher;
     private final EmailVerificationRepository emailVerifications;
     private final IamTokenProperties tokenProperties;
+    private final AvatarDownloadAdapter avatarDownloadAdapter;
 
     @Transactional
     public User handle(RegisterAccountCommand command) {
@@ -50,6 +54,9 @@ public class RegisterAccountCommandHandler {
         accounts.save(account);
 
         User user = users.save(new User(account.getId(), command.firstName(), command.lastName()));
+
+        avatarDownloadAdapter.download(AVATAR_URL_TEMPLATE.formatted(user.getId()))
+                .ifPresent(avatar -> user.applyAvatar(avatar.bytes(), avatar.contentType()));
 
         String rawToken = TokenGenerator.generate(tokenProperties.tokenBytes());
         EmailVerification verification = EmailVerification.issue(

@@ -87,7 +87,7 @@ public interface UserController {
 
     @Operation(
             summary = "Update profile",
-            description = "Updates the authenticated user's first name, last name, and avatar URL.")
+            description = "Updates the authenticated user's first name and last name.")
     @ApiResponse(
             responseCode = "200",
             description = "Profile updated",

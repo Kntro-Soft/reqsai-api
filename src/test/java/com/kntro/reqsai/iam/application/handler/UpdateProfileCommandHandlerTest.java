@@ -40,14 +40,13 @@ class UpdateProfileCommandHandlerTest {
     private UpdateProfileCommandHandler handler;
 
     @Test
-    @DisplayName("should update first name, last name and avatar URL and return the updated user")
+    @DisplayName("should update first name and last name and return the updated user")
     void handle_updatesProfileAndReturnsUser() {
         // Arrange
         User user = new User(ACCOUNT_ID, "Old", "Name");
         when(users.findById(user.getId())).thenReturn(Optional.of(user));
         when(users.save(user)).thenReturn(user);
-        UpdateProfileCommand command = new UpdateProfileCommand(
-                user.getId(), "Jane", "Doe", "https://cdn.example.com/avatar.png");
+        UpdateProfileCommand command = new UpdateProfileCommand(user.getId(), "Jane", "Doe");
 
         // Act
         User result = handler.handle(command);
@@ -55,24 +54,6 @@ class UpdateProfileCommandHandlerTest {
         // Assert
         assertThat(result.getFirstName()).isEqualTo("Jane");
         assertThat(result.getLastName()).isEqualTo("Doe");
-        assertThat(result.getAvatarUrl()).isEqualTo("https://cdn.example.com/avatar.png");
-        verify(users).save(user);
-    }
-
-    @Test
-    @DisplayName("should clear avatar URL when null is passed")
-    void handle_clearsAvatarUrlWhenNull() {
-        // Arrange
-        User user = new User(ACCOUNT_ID, "Jane", "Doe");
-        when(users.findById(user.getId())).thenReturn(Optional.of(user));
-        when(users.save(user)).thenReturn(user);
-        UpdateProfileCommand command = new UpdateProfileCommand(user.getId(), "Jane", "Doe", null);
-
-        // Act
-        User result = handler.handle(command);
-
-        // Assert
-        assertThat(result.getAvatarUrl()).isNull();
         verify(users).save(user);
     }
 
@@ -82,7 +63,7 @@ class UpdateProfileCommandHandlerTest {
         // Arrange
         UUID unknownId = UUID.randomUUID();
         when(users.findById(unknownId)).thenReturn(Optional.empty());
-        UpdateProfileCommand command = new UpdateProfileCommand(unknownId, "Jane", "Doe", null);
+        UpdateProfileCommand command = new UpdateProfileCommand(unknownId, "Jane", "Doe");
 
         // Act & Assert
         assertThatThrownBy(() -> handler.handle(command))

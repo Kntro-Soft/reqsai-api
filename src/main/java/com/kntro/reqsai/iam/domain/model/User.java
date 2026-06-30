@@ -2,10 +2,11 @@ package com.kntro.reqsai.iam.domain.model;
 
 import com.kntro.reqsai.shared.domain.model.AggregateRoot;
 import com.kntro.reqsai.shared.domain.support.Assert;
-import jakarta.annotation.Nullable;
+import jakarta.persistence.Basic;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.Table;
 import lombok.Getter;
 
@@ -22,8 +23,7 @@ import java.util.UUID;
 @Getter
 public class User extends AggregateRoot {
 
-    private static final int NAME_MAX       = 100;
-    private static final int AVATAR_URL_MAX = 2048;
+    private static final int NAME_MAX = 100;
 
     @Column(name = "account_id", columnDefinition = "uuid", nullable = false, updatable = false)
     private UUID accountId;
@@ -34,9 +34,12 @@ public class User extends AggregateRoot {
     @Column(name = "last_name", nullable = false, length = NAME_MAX)
     private String lastName;
 
-    @Nullable
-    @Column(name = "avatar_url", length = AVATAR_URL_MAX)
-    private String avatarUrl;
+    @Basic(fetch = FetchType.LAZY)
+    @Column(name = "avatar", columnDefinition = "bytea")
+    private byte[] avatar;
+
+    @Column(name = "avatar_content_type", length = 64)
+    private String avatarContentType;
 
     @Embedded
     private UserPreferences preferences;
@@ -53,11 +56,16 @@ public class User extends AggregateRoot {
         this.preferences = UserPreferences.empty();
     }
 
-    /** Updates the editable profile fields. {@code avatarUrl} may be {@code null} to clear it. */
-    public void updateProfile(String firstName, String lastName, @Nullable String avatarUrl) {
+    /** Updates the editable profile fields. */
+    public void updateProfile(String firstName, String lastName) {
         this.firstName = Assert.maxLength(Assert.notBlank(firstName, "firstName"), "firstName", NAME_MAX);
         this.lastName  = Assert.maxLength(Assert.notBlank(lastName, "lastName"), "lastName", NAME_MAX);
-        this.avatarUrl = avatarUrl == null ? null : Assert.maxLength(avatarUrl.trim(), "avatarUrl", AVATAR_URL_MAX);
+    }
+
+    /** Stores the generated avatar bytes and their content type (downloaded after registration). */
+    public void applyAvatar(byte[] avatar, String avatarContentType) {
+        this.avatar = avatar;
+        this.avatarContentType = avatarContentType;
     }
 
     /** Records the last org/project the user navigated to. */
