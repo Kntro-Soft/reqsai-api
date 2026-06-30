@@ -4,8 +4,10 @@
 FROM eclipse-temurin:25-jdk AS build
 WORKDIR /workspace
 
-# Dependency layer first: copy only build inputs so the Gradle download layer is cached and reused
-# until the build files change. The BuildKit cache mount keeps the Gradle home warm across builds.
+# Dependency layer first: copy only the build inputs and resolve dependencies in their own layer,
+# so this layer is cached and reused until the build files change. Plain Docker layer caching is
+# used on purpose (no BuildKit `--mount=type=cache`) so the image also builds on Kaniko-based
+# builders such as Railway, which do not support cache mounts.
 COPY gradlew settings.gradle.kts build.gradle.kts ./
 COPY gradle ./gradle
 RUN chmod +x ./gradlew && ./gradlew --no-daemon dependencies > /dev/null 2>&1 || true
