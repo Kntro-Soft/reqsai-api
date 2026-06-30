@@ -9,6 +9,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 
+import java.util.Collection;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -41,6 +42,11 @@ public class ProjectRepositoryAdapter implements ProjectRepository {
     @Override
     public Page<Project> findAllByOrganizationIdAndStatus(UUID organizationId, ProjectStatus status, Pageable pageable) {
         return jpa.findAllByOrganizationIdAndStatus(organizationId, status, pageable);
+    }
+
+    @Override
+    public Page<Project> findAllByOrganizationIdAndStatusAndIdIn(UUID organizationId, ProjectStatus status, Collection<UUID> ids, Pageable pageable) {
+        return jpa.findAllByOrganizationIdAndStatusAndIdIn(organizationId, status, ids, pageable);
     }
 
     @Override

@@ -32,6 +32,11 @@ public class ProjectMemberRepositoryAdapter implements ProjectMemberRepository {
     }
 
     @Override
+    public List<ProjectMember> findAllByMemberId(UUID memberId) {
+        return jpa.findAllByMemberId(memberId);
+    }
+
+    @Override
     public boolean existsByProjectIdAndMemberId(UUID projectId, UUID memberId) {
         return jpa.existsByProjectIdAndMemberId(projectId, memberId);
     }

@@ -1,7 +1,9 @@
 package com.kntro.reqsai.workspace.interfaces.rest.mappers.request;
 
+import com.kntro.reqsai.workspace.application.command.ChangeMemberRoleCommand;
 import com.kntro.reqsai.workspace.application.command.CreateMemberCommand;
 import com.kntro.reqsai.workspace.application.command.DeleteMemberCommand;
+import com.kntro.reqsai.workspace.interfaces.rest.dto.request.ChangeMemberRoleRequest;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.request.CreateMemberRequest;
 
 import java.util.UUID;
@@ -18,5 +20,9 @@ public final class MemberRequestMapper {
 
     public static DeleteMemberCommand toDeleteCommand(UUID orgId, UUID memberId, UUID requestedBy) {
         return new DeleteMemberCommand(orgId, memberId, requestedBy);
+    }
+
+    public static ChangeMemberRoleCommand toChangeRoleCommand(UUID orgId, UUID memberId, ChangeMemberRoleRequest request, UUID requestedBy) {
+        return new ChangeMemberRoleCommand(orgId, memberId, request.role(), requestedBy);
     }
 }
