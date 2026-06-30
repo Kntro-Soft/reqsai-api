@@ -22,8 +22,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 
@@ -110,11 +110,13 @@ public interface OrganizationController {
     ResponseEntity<OrganizationResponse> create(@Valid @RequestBody CreateOrganizationRequest request, Authentication authentication);
 
     @Operation(
-            summary = "Update an organization",
+            summary = "Update an organization (partial)",
             description = """
-                    Updates the organization's editable metadata and generation settings.
+                    Partially updates the organization's editable metadata and generation settings.
 
-                    - Editable fields: `name`, `meetingLanguage`, `audioRetentionDays`
+                    - Editable fields: `name`, `meetingLanguage`, `audioRetentionDays` — all optional
+                    - Only fields present (non-null) in the body are applied; omitted fields are left unchanged
+                    - An empty body (no fields) is a successful no-op and returns the unchanged organization
                     - Immutable fields: `slug`, `ownerId`, `planLimits`
                     - Only the organization owner may perform this update.""")
     @ApiResponse(
@@ -139,7 +141,7 @@ public interface OrganizationController {
     @ApiResponseNotFound
     @ApiStandardErrorResponses
     @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
-    @PutMapping(value = "/{orgId}", version = ApiVersioning.V1)
+    @PatchMapping(value = "/{orgId}", version = ApiVersioning.V1)
     ResponseEntity<OrganizationResponse> update(
             @PathVariable UUID orgId,
             @Valid @RequestBody UpdateOrganizationRequest request,
