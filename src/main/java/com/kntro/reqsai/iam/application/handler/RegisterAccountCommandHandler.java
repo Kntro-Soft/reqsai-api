@@ -33,7 +33,7 @@ import java.time.Instant;
 @Slf4j
 public class RegisterAccountCommandHandler {
 
-    private static final String AVATAR_URL_TEMPLATE = "https://api.dicebear.com/9.x/glass/svg?seed=%s";
+    private static final String AVATAR_URL_TEMPLATE = "https://api.dicebear.com/9.x/notionists/svg?seed=%s";
 
     private final AccountRepository accounts;
     private final UserRepository users;
