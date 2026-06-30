@@ -20,8 +20,8 @@ public record ProjectSnapshot(
         List<String> frameworks,
         List<String> clientPlatforms,
         List<String> databases,
-        String architecture,
-        String domain,
+        @Nullable String architecture,
+        @Nullable String domain,
         List<String> constraints,
         List<GlossaryTermSnapshot> glossaryTerms
 ) {}

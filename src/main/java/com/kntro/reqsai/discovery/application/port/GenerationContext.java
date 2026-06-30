@@ -15,8 +15,8 @@ public record GenerationContext(
         List<String> programmingLanguages,
         List<String> frameworks,
         List<String> databases,
-        String architecture,
-        String domain,
+        @Nullable String architecture,
+        @Nullable String domain,
         List<String> constraints,
         List<GlossaryEntry> glossaryTerms
 ) {

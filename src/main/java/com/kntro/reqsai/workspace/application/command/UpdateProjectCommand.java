@@ -13,7 +13,7 @@ public record UpdateProjectCommand(
         List<String> frameworks,
         List<String> clientPlatforms,
         List<String> databases,
-        String architecture,
-        String domain,
+        @Nullable String architecture,
+        @Nullable String domain,
         UUID requestedBy
 ) {}
