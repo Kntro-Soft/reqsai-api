@@ -52,6 +52,19 @@ public class ProvisioningServiceImpl implements ProvisioningService {
         runTenantMigrations(schema);
     }
 
+    @Override
+    public void deprovisionTenant(String slug) {
+        String schema = TenantSchemaResolver.SCHEMA_PREFIX + slug.toLowerCase();
+        try {
+            log.info("Deprovisioning tenant schema: {}", schema);
+            jdbcTemplate.execute("DROP SCHEMA IF EXISTS \"" + schema + "\" CASCADE");
+            log.info("Tenant schema dropped: {}", schema);
+        } catch (Exception e) {
+            log.error("Failed to deprovision tenant schema {}", schema, e);
+            throw Exceptions.tenantProvisioningFailed(slug, e);
+        }
+    }
+
     private void runTenantMigrations(String schema) {
         Flyway.configure()
                 .dataSource(dataSource)

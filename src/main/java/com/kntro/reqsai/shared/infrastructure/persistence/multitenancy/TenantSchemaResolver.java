@@ -2,6 +2,7 @@ package com.kntro.reqsai.shared.infrastructure.persistence.multitenancy;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -59,5 +60,14 @@ public class TenantSchemaResolver {
         }
         log.warn("No provisioned schema for tenant {} — defaulting to public", tenantId);
         return TenantContext.DEFAULT_SCHEMA;
+    }
+
+    /**
+     * Evicts the cached {@code id → schema} mapping for a tenant. Must be called after slug changes,
+     * deactivation or deletion so a stale schema is never resolved for a tenant whose schema changed.
+     */
+    @CacheEvict(value = "tenantSchemas", key = "#tenantId")
+    public void evictTenantSchema(String tenantId) {
+        log.debug("Evicted cached schema mapping for tenant {}", tenantId);
     }
 }

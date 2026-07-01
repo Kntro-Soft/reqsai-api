@@ -22,4 +22,13 @@ public interface ProvisioningService {
      * @param slug organization slug
      */
     void migrateExistingTenant(String slug);
+
+    /**
+     * Drops {@code tenant_<slug>} and all its data — the inverse of {@link #provisionTenant(String)}.
+     * Invoked when an organization is deleted so no orphaned tenant schema is left behind. Idempotent:
+     * a missing schema is a no-op.
+     *
+     * @param slug organization slug
+     */
+    void deprovisionTenant(String slug);
 }
