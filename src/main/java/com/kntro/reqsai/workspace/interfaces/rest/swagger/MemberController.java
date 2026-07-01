@@ -5,7 +5,9 @@ import com.kntro.reqsai.shared.infrastructure.documentation.openapi.OpenApiConfi
 import com.kntro.reqsai.shared.infrastructure.documentation.openapi.annotations.ApiResponseBadRequest;
 import com.kntro.reqsai.shared.infrastructure.documentation.openapi.annotations.ApiResponseNotFound;
 import com.kntro.reqsai.shared.infrastructure.documentation.openapi.annotations.ApiStandardErrorResponses;
+import com.kntro.reqsai.workspace.interfaces.rest.dto.request.BatchInviteMembersRequest;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.request.ChangeMemberRoleRequest;
+import com.kntro.reqsai.workspace.interfaces.rest.dto.request.ChangeMemberStatusRequest;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.request.CreateMemberRequest;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.response.MemberResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -40,4 +42,16 @@ public interface MemberController {
     @ApiResponseNotFound @ApiStandardErrorResponses
     @DeleteMapping(value = "/{memberId}", version = ApiVersioning.V1)
     ResponseEntity<Void> deleteMember(@PathVariable UUID orgId, @PathVariable UUID memberId, Authentication authentication);
+
+    @ApiResponseBadRequest @ApiResponseNotFound @ApiStandardErrorResponses
+    @PatchMapping(value = "/{memberId}/status", version = ApiVersioning.V1)
+    ResponseEntity<MemberResponse> changeMemberStatus(@PathVariable UUID orgId, @PathVariable UUID memberId, @Valid @RequestBody ChangeMemberStatusRequest request, Authentication authentication);
+
+    @ApiResponseBadRequest @ApiStandardErrorResponses
+    @PostMapping(value = "/batch", version = ApiVersioning.V1)
+    ResponseEntity<List<MemberResponse>> batchInvite(@PathVariable UUID orgId, @Valid @RequestBody BatchInviteMembersRequest request, Authentication authentication);
+
+    @ApiStandardErrorResponses
+    @DeleteMapping(value = "/me", version = ApiVersioning.V1)
+    ResponseEntity<Void> leaveOrganization(@PathVariable UUID orgId, Authentication authentication);
 }

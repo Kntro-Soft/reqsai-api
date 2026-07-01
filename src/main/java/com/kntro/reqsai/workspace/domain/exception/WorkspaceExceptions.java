@@ -130,4 +130,14 @@ public final class WorkspaceExceptions {
         return new DomainException(WorkspaceError.PROJECT_MEMBER_ALREADY_EXISTS,
                 "Member is already assigned to this project: " + memberId);
     }
+
+    public static DomainException ownerCannotLeave(UUID organizationId) {
+        return new DomainException(WorkspaceError.ORGANIZATION_OWNER_CANNOT_LEAVE,
+                "The organization owner cannot leave organization %s — transfer ownership first".formatted(organizationId));
+    }
+
+    public static DomainException invalidOwnershipTransfer(String reason) {
+        return new DomainException(WorkspaceError.INVALID_OWNERSHIP_TRANSFER,
+                "Invalid ownership transfer: " + reason);
+    }
 }

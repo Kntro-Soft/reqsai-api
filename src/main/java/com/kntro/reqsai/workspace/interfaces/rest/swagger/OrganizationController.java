@@ -6,6 +6,7 @@ import com.kntro.reqsai.shared.infrastructure.documentation.openapi.annotations.
 import com.kntro.reqsai.shared.infrastructure.documentation.openapi.annotations.ApiResponseNotFound;
 import com.kntro.reqsai.shared.infrastructure.documentation.openapi.annotations.ApiStandardErrorResponses;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.request.CreateOrganizationRequest;
+import com.kntro.reqsai.workspace.interfaces.rest.dto.request.TransferOwnershipRequest;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.request.UpdateOrganizationRequest;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.response.OrganizationResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -22,6 +23,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -146,4 +148,43 @@ public interface OrganizationController {
             @PathVariable UUID orgId,
             @Valid @RequestBody UpdateOrganizationRequest request,
             Authentication authentication);
+
+    @Operation(
+            summary = "Transfer organization ownership",
+            description = """
+                    Reassigns ownership of the organization to an existing ACTIVE member.
+
+                    - Only the current owner may transfer ownership
+                    - The target is identified by their `newOwnerMemberId` and must be an ACTIVE member
+                    - On success the target's user becomes the new `ownerId`; the previous owner is demoted                     to an ADMIN member.""")
+    @ApiResponse(
+            responseCode = "200",
+            description = "Ownership transferred; the organization now reflects the new owner",
+            content = @Content(
+                    mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    schema = @Schema(implementation = OrganizationResponse.class)))
+    @ApiResponseBadRequest
+    @ApiResponseNotFound
+    @ApiStandardErrorResponses
+    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
+    @PostMapping(value = "/{orgId}/transfer-ownership", version = ApiVersioning.V1)
+    ResponseEntity<OrganizationResponse> transferOwnership(
+            @PathVariable UUID orgId,
+            @Valid @RequestBody TransferOwnershipRequest request,
+            Authentication authentication);
+
+    @Operation(
+            summary = "Delete an organization",
+            description = """
+                    Deletes the organization (owner-only) and deprovisions its tenant schema.
+
+                    - Only the organization owner may delete it
+                    - The registry row is soft-deleted (status `DELETED`) and the `tenant_<slug>` schema is dropped
+                    - Returns `204 No Content`.""")
+    @ApiResponse(responseCode = "204", description = "Organization deleted and tenant deprovisioned")
+    @ApiResponseNotFound
+    @ApiStandardErrorResponses
+    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
+    @DeleteMapping(value = "/{orgId}", version = ApiVersioning.V1)
+    ResponseEntity<Void> delete(@PathVariable UUID orgId, Authentication authentication);
 }

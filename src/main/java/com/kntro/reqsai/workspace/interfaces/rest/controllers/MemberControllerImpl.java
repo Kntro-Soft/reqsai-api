@@ -1,14 +1,19 @@
 package com.kntro.reqsai.workspace.interfaces.rest.controllers;
 
+import com.kntro.reqsai.workspace.application.handler.BatchInviteMembersCommandHandler;
 import com.kntro.reqsai.workspace.application.handler.ChangeMemberRoleCommandHandler;
+import com.kntro.reqsai.workspace.application.handler.ChangeMemberStatusCommandHandler;
 import com.kntro.reqsai.workspace.application.handler.CreateMemberCommandHandler;
 import com.kntro.reqsai.workspace.application.handler.DeleteMemberCommandHandler;
 import com.kntro.reqsai.workspace.application.handler.GetMemberQueryHandler;
+import com.kntro.reqsai.workspace.application.handler.LeaveOrganizationCommandHandler;
 import com.kntro.reqsai.workspace.application.handler.ListMembersQueryHandler;
 import com.kntro.reqsai.workspace.application.query.GetMemberQuery;
 import com.kntro.reqsai.workspace.application.query.ListMembersQuery;
 import com.kntro.reqsai.workspace.domain.model.Member;
+import com.kntro.reqsai.workspace.interfaces.rest.dto.request.BatchInviteMembersRequest;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.request.ChangeMemberRoleRequest;
+import com.kntro.reqsai.workspace.interfaces.rest.dto.request.ChangeMemberStatusRequest;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.request.CreateMemberRequest;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.response.MemberResponse;
 import com.kntro.reqsai.workspace.interfaces.rest.mappers.request.MemberRequestMapper;
@@ -33,6 +38,9 @@ public class MemberControllerImpl implements MemberController {
     private final GetMemberQueryHandler getMember;
     private final ChangeMemberRoleCommandHandler changeMemberRole;
     private final DeleteMemberCommandHandler deleteMember;
+    private final ChangeMemberStatusCommandHandler changeMemberStatus;
+    private final BatchInviteMembersCommandHandler batchInvite;
+    private final LeaveOrganizationCommandHandler leaveOrganization;
 
     @Override
     public ResponseEntity<MemberResponse> createMember(UUID orgId, CreateMemberRequest request, Authentication authentication) {
@@ -66,6 +74,28 @@ public class MemberControllerImpl implements MemberController {
     public ResponseEntity<Void> deleteMember(UUID orgId, UUID memberId, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         deleteMember.handle(MemberRequestMapper.toDeleteCommand(orgId, memberId, requestedBy));
+        return ResponseEntity.noContent().build();
+    }
+
+    @Override
+    public ResponseEntity<MemberResponse> changeMemberStatus(UUID orgId, UUID memberId, ChangeMemberStatusRequest request, Authentication authentication) {
+        UUID requestedBy = UUID.fromString(authentication.getName());
+        Member member = changeMemberStatus.handle(MemberRequestMapper.toChangeStatusCommand(orgId, memberId, request, requestedBy));
+        return ResponseEntity.ok(MemberResponseMapper.toResponse(member));
+    }
+
+    @Override
+    public ResponseEntity<List<MemberResponse>> batchInvite(UUID orgId, BatchInviteMembersRequest request, Authentication authentication) {
+        UUID requestedBy = UUID.fromString(authentication.getName());
+        List<MemberResponse> created = batchInvite.handle(MemberRequestMapper.toBatchInviteCommand(orgId, request, requestedBy))
+                .stream().map(MemberResponseMapper::toResponse).toList();
+        return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED).body(created);
+    }
+
+    @Override
+    public ResponseEntity<Void> leaveOrganization(UUID orgId, Authentication authentication) {
+        UUID requestedBy = UUID.fromString(authentication.getName());
+        leaveOrganization.handle(MemberRequestMapper.toLeaveCommand(orgId, requestedBy));
         return ResponseEntity.noContent().build();
     }
 }

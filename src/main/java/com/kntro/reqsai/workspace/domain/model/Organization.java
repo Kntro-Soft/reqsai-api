@@ -85,6 +85,11 @@ public class Organization extends AggregateRoot {
         this.name = Assert.maxLength(Assert.notBlank(name, "name"), "name", NAME_MAX);
     }
 
+    /** Reassigns ownership to another user id. The previous owner is demoted to a member elsewhere. */
+    public void transferOwnership(UUID newOwnerId) {
+        this.ownerId = Assert.notNull(newOwnerId, "newOwnerId");
+    }
+
     public void updateSettings(GenerationSettings settings) {
         this.settings = Assert.notNull(settings, "settings");
     }
