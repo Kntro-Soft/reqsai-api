@@ -116,6 +116,76 @@ class WorkspaceSearchPortImplTest {
     }
 
     @Test
+    @DisplayName("unrestricted glossary term search hits the tenant wide query")
+    void searchGlossaryTerms_unrestricted_uses_tenant_query() {
+        SearchHit hit = new SearchHit(SearchHitType.GLOSSARY_TERM, UUID.randomUUID(), "Sprint",
+                "A time-box.", UUID.randomUUID());
+        when(lexicalSearch.searchGlossaryTermsInTenant("spr", 8)).thenReturn(List.of(hit));
+
+        List<SearchHit> result = port().searchGlossaryTerms("spr", 8, ProjectScope.unrestricted());
+
+        assertThat(result).containsExactly(hit);
+        verify(lexicalSearch, never()).searchGlossaryTermsInIds(any(), any(), anyInt());
+    }
+
+    @Test
+    @DisplayName("restricted glossary term search is scoped to the accessible ids")
+    void searchGlossaryTerms_restricted_uses_id_query() {
+        UUID assigned = UUID.randomUUID();
+        when(lexicalSearch.searchGlossaryTermsInIds(eq(Set.of(assigned)), eq("spr"), eq(8)))
+                .thenReturn(List.of());
+
+        port().searchGlossaryTerms("spr", 8, ProjectScope.restrictedTo(Set.of(assigned)));
+
+        verify(lexicalSearch).searchGlossaryTermsInIds(Set.of(assigned), "spr", 8);
+        verify(lexicalSearch, never()).searchGlossaryTermsInTenant(any(), anyInt());
+    }
+
+    @Test
+    @DisplayName("empty scope short circuits glossary term search")
+    void searchGlossaryTerms_empty_scope_returns_empty() {
+        List<SearchHit> result = port().searchGlossaryTerms("x", 8, ProjectScope.restrictedTo(Set.of()));
+
+        assertThat(result).isEmpty();
+        verifyNoInteractions(lexicalSearch);
+    }
+
+    @Test
+    @DisplayName("unrestricted document search hits the tenant wide query")
+    void searchDocuments_unrestricted_uses_tenant_query() {
+        SearchHit hit = new SearchHit(SearchHitType.DOCUMENT, UUID.randomUUID(), "Business Rules v1",
+                "BUSINESS_RULES", UUID.randomUUID());
+        when(lexicalSearch.searchDocumentsInTenant("bus", 8)).thenReturn(List.of(hit));
+
+        List<SearchHit> result = port().searchDocuments("bus", 8, ProjectScope.unrestricted());
+
+        assertThat(result).containsExactly(hit);
+        verify(lexicalSearch, never()).searchDocumentsInIds(any(), any(), anyInt());
+    }
+
+    @Test
+    @DisplayName("restricted document search is scoped to the accessible ids")
+    void searchDocuments_restricted_uses_id_query() {
+        UUID assigned = UUID.randomUUID();
+        when(lexicalSearch.searchDocumentsInIds(eq(Set.of(assigned)), eq("bus"), eq(8)))
+                .thenReturn(List.of());
+
+        port().searchDocuments("bus", 8, ProjectScope.restrictedTo(Set.of(assigned)));
+
+        verify(lexicalSearch).searchDocumentsInIds(Set.of(assigned), "bus", 8);
+        verify(lexicalSearch, never()).searchDocumentsInTenant(any(), anyInt());
+    }
+
+    @Test
+    @DisplayName("empty scope short circuits document search")
+    void searchDocuments_empty_scope_returns_empty() {
+        List<SearchHit> result = port().searchDocuments("x", 8, ProjectScope.restrictedTo(Set.of()));
+
+        assertThat(result).isEmpty();
+        verifyNoInteractions(lexicalSearch);
+    }
+
+    @Test
     @DisplayName("member search is denied for a caller outside the organization")
     void searchMembers_denied_for_non_member() {
         UUID orgId = UUID.randomUUID();

@@ -93,6 +93,30 @@ class GlobalSearchIntegrationTest extends AbstractIntegrationTest {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     }
 
+    private void createGlossaryTerm(String orgId, UUID projectId, String term, String definition) {
+        ResponseEntity<String> res = client()
+                .post().uri("/api/organizations/{orgId}/projects/{projectId}/glossary/terms", orgId, projectId)
+                .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId, "ROLE_USER"))
+                .header("Api-Version", "1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("term", term, "definition", definition))
+                .exchange((req, response) -> ResponseEntity.status(response.getStatusCode())
+                        .body(response.bodyTo(String.class)), false);
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    }
+
+    private void createDocument(String orgId, UUID projectId, String name, String documentType) {
+        ResponseEntity<String> res = client()
+                .post().uri("/api/organizations/{orgId}/projects/{projectId}/documents", orgId, projectId)
+                .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId, "ROLE_USER"))
+                .header("Api-Version", "1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("name", name, "documentType", documentType))
+                .exchange((req, response) -> ResponseEntity.status(response.getStatusCode())
+                        .body(response.bodyTo(String.class)), false);
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    }
+
     @Test
     @DisplayName("finds a project, its story, the org and the owner member by a shared term")
     void finds_hits_across_types() {
@@ -108,6 +132,45 @@ class GlobalSearchIntegrationTest extends AbstractIntegrationTest {
         assertThat(body).contains("\"type\":\"USER_STORY\"");
         assertThat(body).contains("Checkout speed improvements");
         assertThat(body).contains("\"projectId\":\"" + projectId + "\"");
+    }
+
+    @Test
+    @DisplayName("finds a glossary term and a project document by a shared term")
+    void finds_glossary_term_and_document() {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        String orgId = createOrg(suffix);
+        UUID projectId = createProject(orgId, "Payments Platform");
+        createGlossaryTerm(orgId, projectId, "Settlement", "The final transfer of funds.");
+        createDocument(orgId, projectId, "Settlement Runbook", "REFERENCE");
+
+        String body = get(orgId, "/api/search?q=settlement&limit=10");
+
+        assertThat(body).contains("\"type\":\"GLOSSARY_TERM\"");
+        assertThat(body).contains("Settlement");
+        assertThat(body).contains("The final transfer of funds.");
+        assertThat(body).contains("\"type\":\"DOCUMENT\"");
+        assertThat(body).contains("Settlement Runbook");
+        assertThat(body).contains("\"projectId\":\"" + projectId + "\"");
+    }
+
+    @Test
+    @DisplayName("does not leak glossary terms or documents from another tenant's projects")
+    void excludes_glossary_and_documents_from_inaccessible_projects() {
+        String otherSuffix = UUID.randomUUID().toString().substring(0, 8);
+        String otherOrgId = createOrg(otherSuffix);
+        UUID otherProjectId = createProject(otherOrgId, "Other Platform");
+        createGlossaryTerm(otherOrgId, otherProjectId, "Reconciliation", "Matching two sets of records.");
+        createDocument(otherOrgId, otherProjectId, "Reconciliation Guide", "REFERENCE");
+
+        // A caller bound to a different tenant must not see the other org's project-scoped hits.
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        String orgId = createOrg(suffix);
+
+        String body = get(orgId, "/api/search?q=reconciliation&limit=10");
+
+        assertThat(body).doesNotContain("\"type\":\"GLOSSARY_TERM\"");
+        assertThat(body).doesNotContain("\"type\":\"DOCUMENT\"");
+        assertThat(body).doesNotContain(otherProjectId.toString());
     }
 
     @Test
