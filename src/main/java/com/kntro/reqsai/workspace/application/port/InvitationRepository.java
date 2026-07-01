@@ -15,6 +15,13 @@ public interface InvitationRepository {
 
     Invitation save(Invitation invitation);
 
+    /**
+     * Persists and flushes immediately. Used when superseding the previous PENDING invitation before
+     * inserting a new one, so the status UPDATE reaches the DB before the INSERT and the partial unique
+     * index {@code uq_invitations_member_pending} (one PENDING per member) is not transiently violated.
+     */
+    Invitation saveAndFlush(Invitation invitation);
+
     Optional<Invitation> findByTokenHash(String tokenHash);
 
     /** The single active (PENDING) invitation for a member, if any. */

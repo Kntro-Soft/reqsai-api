@@ -23,6 +23,11 @@ public class InvitationRepositoryAdapter implements InvitationRepository {
     }
 
     @Override
+    public Invitation saveAndFlush(Invitation invitation) {
+        return jpa.saveAndFlush(invitation);
+    }
+
+    @Override
     public Optional<Invitation> findByTokenHash(String tokenHash) {
         return jpa.findByTokenHash(tokenHash);
     }

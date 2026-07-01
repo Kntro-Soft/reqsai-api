@@ -39,7 +39,9 @@ public class InvitationIssuer {
         invitations.findByMemberIdAndStatus(member.getId(), com.kntro.reqsai.workspace.domain.model.InvitationStatus.PENDING)
                 .ifPresent(existing -> {
                     existing.supersede();
-                    invitations.save(existing);
+                    // Flush the status change before inserting the new PENDING row so the partial unique
+                    // index (one PENDING per member) is never transiently violated within the flush.
+                    invitations.saveAndFlush(existing);
                 });
 
         String rawToken = TokenGenerator.generate(TOKEN_BYTES);
