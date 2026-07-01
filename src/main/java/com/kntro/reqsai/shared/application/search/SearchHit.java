@@ -13,7 +13,8 @@ import java.util.UUID;
  * @param id        the entity id
  * @param title     the primary label shown in the palette (e.g. project name, story title)
  * @param subtitle  optional secondary label (e.g. member email, org slug); {@code null} when absent
- * @param projectId owning project id for project-scoped hits (PROJECT, USER_STORY); {@code null} otherwise
+ * @param projectId owning project id for project-scoped hits (PROJECT, USER_STORY, GLOSSARY_TERM,
+ *                  DOCUMENT); {@code null} otherwise
  */
 public record SearchHit(
         SearchHitType type,

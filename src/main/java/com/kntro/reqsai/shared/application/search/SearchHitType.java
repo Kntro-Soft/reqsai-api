@@ -9,5 +9,7 @@ public enum SearchHitType {
     PROJECT,
     USER_STORY,
     ORGANIZATION,
-    MEMBER
+    MEMBER,
+    GLOSSARY_TERM,
+    DOCUMENT
 }
