@@ -31,13 +31,14 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
   token/expiry, re-sending the email. Only valid while the member is `PENDING` (`409` otherwise).
 - **Revoke on removal** — `DELETE /api/organizations/{orgId}/members/{memberId}` now also marks a
   removed PENDING member's active invitation `REVOKED`, so the emailed link stops working.
-- **Link-on-signup safety net** — a workspace listener reacts to IAM's `AccountVerifiedEvent` and
-  auto-accepts any PENDING invitation addressed to the just-verified (proven) email, covering invitees
-  who sign up without clicking the link.
+- **Link-on-signup safety net** — a workspace listener reacts to IAM's
+  `AccountVerifiedIntegrationEvent` and auto-accepts any PENDING invitation addressed to the
+  just-verified (proven) email, covering invitees who sign up without clicking the link.
 - **Config** — `reqsai.invitation.expiry` (`Duration`, default `7d`, env `INVITATION_EXPIRY`).
 - Module boundary: the email listener consumes IAM's `EmailNotificationPort` (`iam::ports`) and the
-  link-on-signup listener consumes `AccountVerifiedEvent` (new `iam::events` named interface); the
-  email-match check resolves the caller's email via a new `AccountLookupPort` (`iam::ports`).
+  link-on-signup listener consumes `AccountVerifiedIntegrationEvent` (relayed from IAM's internal
+  `AccountVerifiedEvent` into a new `iam::api` named interface, keeping the domain layer Spring-free);
+  the email-match check resolves the caller's email via a new `AccountLookupPort` (`iam::ports`).
   `verifyModularity` stays green. See [ADR-0021](docs/adr/0021-organization-invitations.md).
 
 ### Added (Global search — `feature/global-search`)

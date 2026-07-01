@@ -56,20 +56,24 @@ being forwarded to or intercepted by a different account. The caller's email is 
   `reactivate(callerUserId)`d (→ ACTIVE) and the invitation ACCEPTED. A **public** `GET
   /api/invitations/{token}` returns a minimal, non-sensitive view for the accept/signup screen.
 - **Stage 2 (safety net)** — a workspace `@ApplicationModuleListener` reacts to IAM's
-  `AccountVerifiedEvent` (fired only when email ownership is **proven**) and auto-accepts any PENDING
-  invitations addressed to that exact email. The verified email is naturally the trust anchor here, so
-  the same exact email-match rule holds by construction.
+  `AccountVerifiedIntegrationEvent` (relayed from the internal `AccountVerifiedEvent`, fired only when
+  email ownership is **proven**) and auto-accepts any PENDING invitations addressed to that exact
+  email. The verified email is naturally the trust anchor here, so the same exact email-match rule
+  holds by construction.
 
 ### Module-boundary wiring
 
 - The **email listener** lives in `workspace` and calls IAM's `EmailNotificationPort`
   (`sendInvitationEmail`), which sits in the `iam::ports` named interface that workspace already
   depends on — no new dependency needed for Stage 1.
-- For **Stage 2**, IAM's `domain.event` package is exposed as a new `iam::events` named interface and
-  added to workspace's `allowedDependencies`, so workspace may subscribe to `AccountVerifiedEvent`.
-  That event now carries the verified `email` (like `AccountCreatedEvent`), avoiding a lookup on the
-  common path; `AccountLookupPort.findUserIdByAccountId` resolves the user id to link.
-- `verifyModularity` passes with these two named-interface dependencies (`iam::ports`, `iam::events`).
+- For **Stage 2**, IAM keeps `AccountVerifiedEvent` internal and **relays** it (an in-module IAM
+  `@ApplicationModuleListener`) to a public `AccountVerifiedIntegrationEvent` in a new `iam::api` named
+  interface, which workspace adds to its `allowedDependencies` and subscribes to. This avoids putting a
+  Modulith `@NamedInterface` annotation on a `..domain..` package (the `domain_must_not_use_spring`
+  ArchUnit rule forbids Spring in the domain layer). The relayed event carries the verified `email`;
+  `AccountLookupPort.findUserIdByAccountId` resolves the user id to link.
+- `verifyModularity` and the `architectureTest` fitness functions both pass; workspace's named-interface
+  dependencies are `iam::ports` and `iam::api`.
 
 ### Configuration
 
