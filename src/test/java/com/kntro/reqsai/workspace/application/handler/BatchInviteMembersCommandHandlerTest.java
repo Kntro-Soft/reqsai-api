@@ -4,6 +4,7 @@ import com.kntro.reqsai.shared.domain.exception.DomainException;
 import com.kntro.reqsai.workspace.application.command.BatchInviteMembersCommand;
 import com.kntro.reqsai.workspace.application.port.MemberRepository;
 import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
+import com.kntro.reqsai.workspace.application.service.InvitationIssuer;
 import com.kntro.reqsai.workspace.application.service.OrganizationAdminAccessService;
 import com.kntro.reqsai.workspace.domain.model.Member;
 import com.kntro.reqsai.workspace.domain.model.MemberStatus;
@@ -39,13 +40,15 @@ class BatchInviteMembersCommandHandlerTest {
     private OrganizationRepository organizations;
     @Mock
     private MemberRepository members;
+    @Mock
+    private InvitationIssuer invitationIssuer;
     @InjectMocks
     private OrganizationAdminAccessService access;
 
     private BatchInviteMembersCommandHandler handler;
 
     private void initHandler() {
-        handler = new BatchInviteMembersCommandHandler(organizations, members, access);
+        handler = new BatchInviteMembersCommandHandler(organizations, members, access, invitationIssuer);
     }
 
     private BatchInviteMembersCommand.Invitation invite(String email, OrgRole role) {

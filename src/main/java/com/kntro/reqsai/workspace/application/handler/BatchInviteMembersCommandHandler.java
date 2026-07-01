@@ -5,6 +5,7 @@ import com.kntro.reqsai.shared.domain.valueobjects.Email;
 import com.kntro.reqsai.workspace.application.command.BatchInviteMembersCommand;
 import com.kntro.reqsai.workspace.application.port.MemberRepository;
 import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
+import com.kntro.reqsai.workspace.application.service.InvitationIssuer;
 import com.kntro.reqsai.workspace.application.service.OrganizationAdminAccessService;
 import com.kntro.reqsai.workspace.domain.exception.WorkspaceExceptions;
 import com.kntro.reqsai.workspace.domain.model.Member;
@@ -36,6 +37,7 @@ public class BatchInviteMembersCommandHandler {
     private final OrganizationRepository organizations;
     private final MemberRepository members;
     private final OrganizationAdminAccessService access;
+    private final InvitationIssuer invitationIssuer;
 
     @Transactional
     public List<Member> handle(BatchInviteMembersCommand command) {
@@ -73,7 +75,9 @@ public class BatchInviteMembersCommandHandler {
                     MemberStatus.PENDING,
                     command.requestedBy(),
                     Instant.now());
-            created.add(members.save(member));
+            Member saved = members.save(member);
+            invitationIssuer.issueFor(organization, saved, command.requestedBy());
+            created.add(saved);
         }
 
         if (maxMembers != -1) {
