@@ -11,6 +11,35 @@ follows [Semantic Versioning](https://semver.org/).
 
 _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in progress._
 
+### Added (Organization management — `feature/org-management-endpoints`)
+
+- **Transfer ownership** — `POST /api/organizations/{orgId}/transfer-ownership` (body
+  `{ "newOwnerMemberId": UUID }`) hands the organization to another **active** member and returns the
+  updated `OrganizationResponse`. Owner-only (`403` otherwise); the previous owner is demoted to an
+  `ADMIN` member row (existing row updated, or created if none existed). Invalid transfers (target
+  already owner, member without a linked user) → `409 INVALID_OWNERSHIP_TRANSFER`.
+- **Delete organization** — `DELETE /api/organizations/{orgId}` → `204`. Owner-only. Soft-deletes the
+  registry row (`OrgStatus.DELETED`), evicts the tenant-schema cache and **drops the `tenant_<slug>`
+  schema `CASCADE`** via the new `ProvisioningService.deprovisionTenant` (the inverse of provisioning).
+  The handler is intentionally non-`@Transactional` (DDL must not run inside a JPA transaction), so the
+  soft-delete commits first and a drop failure leaves a harmless `DELETED` org rather than an active org
+  with no schema.
+- **Leave organization** — `DELETE /api/organizations/{orgId}/members/me` → `204`. Deactivates the
+  caller's own membership. The owner cannot leave (`409 ORGANIZATION_OWNER_CANNOT_LEAVE`) — they must
+  transfer ownership first. `/me` is matched before `/{memberId}` by literal-segment precedence.
+- **Batch invite** — `POST /api/organizations/{orgId}/members/batch` (body
+  `{ "invitations": [ { "email", "displayName", "role" } ] }`) → `201 MemberResponse[]` (the created
+  `PENDING` members, in order). Owner/Admin-only, same rules as the single invite. Atomic
+  (`@Transactional`): any invalid entry, in-batch duplicate or already-present email fails the whole
+  request (`409 MEMBER_ALREADY_EXISTS` naming the offending email; `400` for an OWNER role or empty list).
+- **Activate / deactivate a member** — `PATCH /api/organizations/{orgId}/members/{memberId}/status`
+  (body `{ "status": "ACTIVE" | "INACTIVE" }`) → `200 MemberResponse`. Same RBAC as the role change
+  (owner over any non-owner; admin only over `MEMBER` rows, never self / another admin / owner). Uses a
+  distinct `/status` sub-path so it does not collide with the existing role `PATCH /{memberId}`.
+- **Multitenancy** — `ProvisioningService.deprovisionTenant(slug)` drops a tenant schema and evicts it
+  from the schema cache, supporting organization deletion. No Flyway migration (reuses existing
+  `public.organizations` / `public.members` tables).
+
 ### Added (Quality Gates — `feature/tooling-quality-gates`)
 
 - **Spotless** (`com.diffplug.spotless:8.6.0`): Java code formatter using Eclipse formatter.
