@@ -1,13 +1,16 @@
 package com.kntro.reqsai.workspace.interfaces.rest.controllers;
 
 import com.kntro.reqsai.workspace.application.handler.CreateOrganizationCommandHandler;
+import com.kntro.reqsai.workspace.application.handler.DeleteOrganizationCommandHandler;
 import com.kntro.reqsai.workspace.application.handler.GetOrganizationQueryHandler;
 import com.kntro.reqsai.workspace.application.handler.ListOrganizationsQueryHandler;
+import com.kntro.reqsai.workspace.application.handler.TransferOwnershipCommandHandler;
 import com.kntro.reqsai.workspace.application.handler.UpdateOrganizationCommandHandler;
 import com.kntro.reqsai.workspace.application.query.GetOrganizationQuery;
 import com.kntro.reqsai.workspace.application.query.ListOrganizationsQuery;
 import com.kntro.reqsai.workspace.domain.model.Organization;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.request.CreateOrganizationRequest;
+import com.kntro.reqsai.workspace.interfaces.rest.dto.request.TransferOwnershipRequest;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.request.UpdateOrganizationRequest;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.response.OrganizationResponse;
 import com.kntro.reqsai.workspace.interfaces.rest.mappers.request.OrganizationRequestMapper;
@@ -32,6 +35,8 @@ public class OrganizationControllerImpl implements OrganizationController {
     private final ListOrganizationsQueryHandler listOrganizations;
     private final CreateOrganizationCommandHandler createOrganization;
     private final UpdateOrganizationCommandHandler updateOrganization;
+    private final TransferOwnershipCommandHandler transferOwnership;
+    private final DeleteOrganizationCommandHandler deleteOrganization;
 
     @Override
     public ResponseEntity<List<OrganizationResponse>> list(Authentication authentication) {
@@ -69,5 +74,20 @@ public class OrganizationControllerImpl implements OrganizationController {
         Organization organization = updateOrganization.handle(
                 OrganizationRequestMapper.toCommand(orgId, request, requestedBy));
         return ResponseEntity.ok(OrganizationResponseMapper.toResponse(organization));
+    }
+
+    @Override
+    public ResponseEntity<OrganizationResponse> transferOwnership(UUID orgId, TransferOwnershipRequest request, Authentication authentication) {
+        UUID requestedBy = UUID.fromString(authentication.getName());
+        Organization organization = transferOwnership.handle(
+                OrganizationRequestMapper.toTransferCommand(orgId, request, requestedBy));
+        return ResponseEntity.ok(OrganizationResponseMapper.toResponse(organization));
+    }
+
+    @Override
+    public ResponseEntity<Void> delete(UUID orgId, Authentication authentication) {
+        UUID requestedBy = UUID.fromString(authentication.getName());
+        deleteOrganization.handle(OrganizationRequestMapper.toDeleteCommand(orgId, requestedBy));
+        return ResponseEntity.noContent().build();
     }
 }
