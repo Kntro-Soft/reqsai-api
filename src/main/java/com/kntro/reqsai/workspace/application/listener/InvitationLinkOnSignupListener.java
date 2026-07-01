@@ -1,7 +1,7 @@
 package com.kntro.reqsai.workspace.application.listener;
 
+import com.kntro.reqsai.iam.api.AccountVerifiedIntegrationEvent;
 import com.kntro.reqsai.iam.application.port.AccountLookupPort;
-import com.kntro.reqsai.iam.domain.event.AccountVerifiedEvent;
 import com.kntro.reqsai.workspace.application.port.InvitationRepository;
 import com.kntro.reqsai.workspace.application.port.MemberRepository;
 import com.kntro.reqsai.workspace.domain.model.Invitation;
@@ -22,8 +22,8 @@ import java.util.UUID;
  * invitations addressed to that exact email. Covers the case where an invited person signs up and
  * verifies their email without ever clicking the invitation link.
  * <p>
- * Reacts to IAM's {@link AccountVerifiedEvent} (from the {@code iam::events} named interface, which the
- * workspace module depends on). The event's email is the trust anchor — it was proven by
+ * Reacts to IAM's {@link AccountVerifiedIntegrationEvent} (from the {@code iam::api} named interface,
+ * which the workspace module depends on). The event's email is the trust anchor — it was proven by
  * verification — so the email-match rule is naturally exact here; we still filter on it explicitly.
  * Invitations and members live in {@code public}, so no tenant context is needed. Runs after commit
  * in its own transaction (Spring Modulith).
@@ -38,7 +38,7 @@ class InvitationLinkOnSignupListener {
     private final AccountLookupPort accountLookup;
 
     @ApplicationModuleListener
-    void onAccountVerified(AccountVerifiedEvent event) {
+    void onAccountVerified(AccountVerifiedIntegrationEvent event) {
         String verifiedEmail = event.email();
         List<Invitation> pending =
                 invitations.findAllByEmailIgnoreCaseAndStatus(verifiedEmail, InvitationStatus.PENDING);

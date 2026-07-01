@@ -1,7 +1,7 @@
 package com.kntro.reqsai.workspace.application.listener;
 
+import com.kntro.reqsai.iam.api.AccountVerifiedIntegrationEvent;
 import com.kntro.reqsai.iam.application.port.AccountLookupPort;
-import com.kntro.reqsai.iam.domain.event.AccountVerifiedEvent;
 import com.kntro.reqsai.workspace.application.port.InvitationRepository;
 import com.kntro.reqsai.workspace.application.port.MemberRepository;
 import com.kntro.reqsai.workspace.domain.model.Invitation;
@@ -61,7 +61,7 @@ class InvitationLinkOnSignupListenerTest {
         when(accountLookup.findUserIdByAccountId(accountId)).thenReturn(Optional.of(userId));
         when(members.findByIdAndOrganizationIdAndStatusIn(any(), any(), any())).thenReturn(Optional.of(member));
 
-        listener.onAccountVerified(new AccountVerifiedEvent(accountId, "invitee@example.com", Instant.now()));
+        listener.onAccountVerified(new AccountVerifiedIntegrationEvent(accountId, "invitee@example.com", Instant.now()));
 
         assertThat(member.getStatus()).isEqualTo(MemberStatus.ACTIVE);
         assertThat(member.getUserId()).isEqualTo(userId);
@@ -77,7 +77,7 @@ class InvitationLinkOnSignupListenerTest {
         when(invitations.findAllByEmailIgnoreCaseAndStatus("nobody@example.com", InvitationStatus.PENDING))
                 .thenReturn(List.of());
 
-        listener.onAccountVerified(new AccountVerifiedEvent(accountId, "nobody@example.com", Instant.now()));
+        listener.onAccountVerified(new AccountVerifiedIntegrationEvent(accountId, "nobody@example.com", Instant.now()));
 
         verify(accountLookup, never()).findUserIdByAccountId(any());
         verify(members, never()).save(any());
