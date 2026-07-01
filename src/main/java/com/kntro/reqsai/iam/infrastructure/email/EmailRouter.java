@@ -44,6 +44,13 @@ public class EmailRouter implements EmailNotificationPort {
         resolve().sendPasswordResetEmail(toEmail, firstName, rawToken);
     }
 
+    @Override
+    public void sendInvitationEmail(String toEmail, String displayName, String organizationName, String role,
+                                    String invitedByName, String rawToken) {
+        log.debug("Routing invitation email to provider '{}' for {}", provider, toEmail);
+        resolve().sendInvitationEmail(toEmail, displayName, organizationName, role, invitedByName, rawToken);
+    }
+
     private SmtpEmailAdapter resolve() {
         return switch (provider) {
             case "mailtrap" -> mailtrap;

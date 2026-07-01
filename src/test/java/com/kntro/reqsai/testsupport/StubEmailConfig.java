@@ -21,6 +21,10 @@ public class StubEmailConfig {
 
             @Override
             public void sendPasswordResetEmail(String toEmail, String firstName, String rawToken) {}
+
+            @Override
+            public void sendInvitationEmail(String toEmail, String displayName, String organizationName,
+                                            String role, String invitedByName, String rawToken) {}
         };
     }
 }
