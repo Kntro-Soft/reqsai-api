@@ -95,7 +95,7 @@ public class Account extends AggregateRoot {
     /** Activates the account after successful email verification and raises {@link AccountVerifiedEvent}. */
     public void activate() {
         this.status = AccountStatus.ACTIVE;
-        registerEvent(AccountVerifiedEvent.of(getId()));
+        registerEvent(AccountVerifiedEvent.of(getId(), email.value()));
     }
 
     /** Suspends the account. Suspended accounts cannot be authenticated. */
