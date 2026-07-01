@@ -14,11 +14,15 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
 ### Added (Global search — `feature/global-search`)
 
 - **Global search** — `GET /api/search?q={term}&limit={n}` (`Api-Version: 1`, JWT-auth) → `200`
-  `SearchHitResponse[]` where `SearchHitResponse = { type: "PROJECT"|"USER_STORY"|"ORGANIZATION"|"MEMBER",
+  `SearchHitResponse[]` where `SearchHitResponse = { type:
+  "PROJECT"|"USER_STORY"|"ORGANIZATION"|"MEMBER"|"GLOSSARY_TERM"|"DOCUMENT",
   id: UUID, title: string, subtitle: string|null, projectId: UUID|null }`. Powers the frontend command
   palette. `limit` defaults to `8` and is clamped to `[1, 20]`; a blank/whitespace `q` returns `200 []`.
   The tenant (organization) is resolved from the JWT `orgId`, like sibling endpoints. Results are the
-  top matches merged across types (top-K per type, then merged and capped).
+  top matches merged across types (top-K per type, then merged and capped). For `GLOSSARY_TERM` the
+  `title` is the term and `subtitle` is its definition; for `DOCUMENT` the `title` is the document name
+  and `subtitle` is its `documentType`; both carry the owning `projectId`. See
+  [ADR-0020](docs/adr/0020-global-search-postgres-trigram.md).
 - **Lexical primitive (`pg_trgm`)** — new `pg_trgm` extension (created `WITH SCHEMA public`, mirroring
   `vector`) plus trigram GIN indexes: tenant migration `V17__search_trgm_indexes.sql` on
   `projects.name`, `user_stories.title`, `glossary_terms.term`, `project_documents.name`; common
@@ -30,7 +34,10 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
   (`shared.application.search.SearchHit`) — no JPA entity crosses a module boundary. Authorization
   reuses the existing rules: `ProjectAccessService` scopes projects/stories to what the caller can see
   (owner/admin see all; members see only assigned projects), and organization/member searches are scoped
-  to the caller's own organizations/membership.
+  to the caller's own organizations/membership. The `workspace::search` port also covers **glossary
+  terms** (`glossary_terms`, joined to its project via `glossaries`) and **project documents**
+  (`project_documents`), filtered by the same accessible-project scope so no inaccessible-project row
+  leaks.
 ### Added (Organization management — `feature/org-management-endpoints`)
 
 - **Transfer ownership** — `POST /api/organizations/{orgId}/transfer-ownership` (body
