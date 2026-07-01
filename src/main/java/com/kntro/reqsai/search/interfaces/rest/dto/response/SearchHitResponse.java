@@ -13,11 +13,12 @@ import java.util.UUID;
 @Schema(description = "A single global-search result")
 public record SearchHitResponse(
         @Schema(description = "Kind of entity matched", example = "PROJECT",
-                allowableValues = {"PROJECT", "USER_STORY", "ORGANIZATION", "MEMBER"})
+                allowableValues = {"PROJECT", "USER_STORY", "ORGANIZATION", "MEMBER", "GLOSSARY_TERM", "DOCUMENT"})
         String type,
         @Schema(description = "Entity id") UUID id,
         @Schema(description = "Primary label", example = "Checkout redesign") String title,
-        @Schema(description = "Secondary label (member email, org slug, ...)", nullable = true)
+        @Schema(description = "Secondary label (member email, org slug, term definition, document type, ...)",
+                nullable = true)
         @Nullable String subtitle,
         @Schema(description = "Owning project id for project-scoped hits", nullable = true)
         @Nullable UUID projectId

@@ -35,7 +35,8 @@ public class GlobalSearchService {
     private final DiscoverySearchPort discoverySearch;
 
     /**
-     * Merged top matches across projects, user stories, organizations and members.
+     * Merged top matches across projects, user stories, organizations, members, glossary terms and
+     * documents.
      *
      * @param term     raw query; blank/whitespace returns an empty list
      * @param limit    requested cap (clamped to {@code [1, MAX_LIMIT]}); also the per-type top-K
@@ -61,6 +62,8 @@ public class GlobalSearchService {
         merged.addAll(discoverySearch.searchUserStories(normalized, cappedLimit, projectScope));
         merged.addAll(workspaceSearch.searchOrganizations(normalized, cappedLimit, callerId));
         merged.addAll(workspaceSearch.searchMembers(normalized, cappedLimit, orgId, callerId));
+        merged.addAll(workspaceSearch.searchGlossaryTerms(normalized, cappedLimit, projectScope));
+        merged.addAll(workspaceSearch.searchDocuments(normalized, cappedLimit, projectScope));
 
         return merged.size() > cappedLimit ? merged.subList(0, cappedLimit) : merged;
     }
