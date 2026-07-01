@@ -51,6 +51,10 @@ public interface MemberController {
     @PostMapping(value = "/batch", version = ApiVersioning.V1)
     ResponseEntity<List<MemberResponse>> batchInvite(@PathVariable UUID orgId, @Valid @RequestBody BatchInviteMembersRequest request, Authentication authentication);
 
+    @ApiResponseNotFound @ApiStandardErrorResponses
+    @PostMapping(value = "/{memberId}/resend", version = ApiVersioning.V1)
+    ResponseEntity<MemberResponse> resendInvitation(@PathVariable UUID orgId, @PathVariable UUID memberId, Authentication authentication);
+
     @ApiStandardErrorResponses
     @DeleteMapping(value = "/me", version = ApiVersioning.V1)
     ResponseEntity<Void> leaveOrganization(@PathVariable UUID orgId, Authentication authentication);
