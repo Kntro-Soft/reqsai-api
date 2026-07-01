@@ -40,4 +40,18 @@ public interface WorkspaceSearchPort {
      * an empty list is returned. Ordered by trigram similarity, best first.
      */
     List<SearchHit> searchMembers(String term, int limit, UUID organizationId, UUID callerId);
+
+    /**
+     * Top-{@code limit} glossary terms whose term matches {@code term}, filtered to the caller's
+     * {@code scope} (the same accessible-project scope used for projects and user stories). Ordered by
+     * trigram similarity, best first.
+     */
+    List<SearchHit> searchGlossaryTerms(String term, int limit, ProjectScope scope);
+
+    /**
+     * Top-{@code limit} project documents whose name matches {@code term}, filtered to the caller's
+     * {@code scope} (the same accessible-project scope used for projects and user stories). Ordered by
+     * trigram similarity, best first.
+     */
+    List<SearchHit> searchDocuments(String term, int limit, ProjectScope scope);
 }

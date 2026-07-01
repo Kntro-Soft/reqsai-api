@@ -76,6 +76,30 @@ class WorkspaceSearchPortImpl implements WorkspaceSearchPort {
         return lexicalSearch.searchMembers(organizationId, term, limit);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<SearchHit> searchGlossaryTerms(String term, int limit, ProjectScope scope) {
+        if (scope.isEmpty()) {
+            return List.of();
+        }
+        if (scope.all()) {
+            return lexicalSearch.searchGlossaryTermsInTenant(term, limit);
+        }
+        return lexicalSearch.searchGlossaryTermsInIds(scope.projectIds(), term, limit);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<SearchHit> searchDocuments(String term, int limit, ProjectScope scope) {
+        if (scope.isEmpty()) {
+            return List.of();
+        }
+        if (scope.all()) {
+            return lexicalSearch.searchDocumentsInTenant(term, limit);
+        }
+        return lexicalSearch.searchDocumentsInIds(scope.projectIds(), term, limit);
+    }
+
     /** Organizations the caller owns or is an active member of. */
     private Set<UUID> accessibleOrganizationIds(UUID callerId) {
         Stream<UUID> owned = organizations.findAllByOwnerId(callerId).stream().map(Organization::getId);

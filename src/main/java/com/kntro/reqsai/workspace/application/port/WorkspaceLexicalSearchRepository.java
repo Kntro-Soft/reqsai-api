@@ -25,4 +25,16 @@ public interface WorkspaceLexicalSearchRepository {
 
     /** Members of the organization whose display name or email matches {@code term}. */
     List<SearchHit> searchMembers(UUID organizationId, String term, int limit);
+
+    /** Glossary terms in the tenant whose term matches {@code term} (owner/admin scope). */
+    List<SearchHit> searchGlossaryTermsInTenant(String term, int limit);
+
+    /** Glossary terms restricted to {@code projectIds} whose term matches {@code term} (member scope). */
+    List<SearchHit> searchGlossaryTermsInIds(Collection<UUID> projectIds, String term, int limit);
+
+    /** Project documents in the tenant whose name matches {@code term} (owner/admin scope). */
+    List<SearchHit> searchDocumentsInTenant(String term, int limit);
+
+    /** Project documents restricted to {@code projectIds} whose name matches {@code term} (member scope). */
+    List<SearchHit> searchDocumentsInIds(Collection<UUID> projectIds, String term, int limit);
 }
