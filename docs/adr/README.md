@@ -29,6 +29,7 @@ one (and update the old one's status).
 | [0017](./0017-jacoco-codecov-coverage.md)                        | Code coverage with JaCoCo + Codecov                    | Accepted |
 | [0018](./0018-owasp-dependency-check.md)                         | CVE scanning with OWASP Dependency-Check               | Accepted |
 | [0019](./0019-archunit-architecture-fitness-functions.md)        | Architecture fitness functions with ArchUnit           | Accepted |
+| [0020](./0020-global-search-postgres-trigram.md)                 | Global search with Postgres trigram lexical matching   | Accepted |
 
 ## Template
 
