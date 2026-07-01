@@ -140,4 +140,22 @@ public final class WorkspaceExceptions {
         return new DomainException(WorkspaceError.INVALID_OWNERSHIP_TRANSFER,
                 "Invalid ownership transfer: " + reason);
     }
+
+    public static EntityNotFoundException invitationNotFound() {
+        return new EntityNotFoundException(WorkspaceError.INVITATION_NOT_FOUND, "Invitation not found");
+    }
+
+    public static DomainException invitationExpired() {
+        return new DomainException(WorkspaceError.INVITATION_EXPIRED, "Invitation has expired");
+    }
+
+    public static DomainException invitationEmailMismatch() {
+        return new DomainException(WorkspaceError.INVITATION_EMAIL_MISMATCH,
+                "This invitation was addressed to a different email");
+    }
+
+    public static DomainException memberNotPending(UUID memberId) {
+        return new DomainException(WorkspaceError.MEMBER_NOT_PENDING,
+                "Member is not pending an invitation: " + memberId);
+    }
 }
