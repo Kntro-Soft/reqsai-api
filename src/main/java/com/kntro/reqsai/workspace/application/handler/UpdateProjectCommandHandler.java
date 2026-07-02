@@ -3,7 +3,10 @@ package com.kntro.reqsai.workspace.application.handler;
 import com.kntro.reqsai.workspace.application.command.UpdateProjectCommand;
 import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
 import com.kntro.reqsai.workspace.application.port.ProjectRepository;
+import com.kntro.reqsai.workspace.application.service.ProjectPermissionService;
 import com.kntro.reqsai.workspace.domain.exception.WorkspaceExceptions;
+import com.kntro.reqsai.workspace.domain.model.Organization;
+import com.kntro.reqsai.workspace.domain.model.Permission;
 import com.kntro.reqsai.workspace.domain.model.Project;
 import com.kntro.reqsai.workspace.domain.model.ProjectStatus;
 import com.kntro.reqsai.workspace.domain.valueobjects.TechnicalProfile;
@@ -17,11 +20,14 @@ public class UpdateProjectCommandHandler {
 
     private final ProjectRepository projects;
     private final OrganizationRepository organizations;
+    private final ProjectPermissionService projectPermission;
 
     @Transactional
     public Project handle(UpdateProjectCommand command) {
-        organizations.findById(command.organizationId())
+        Organization organization = organizations.findById(command.organizationId())
                 .orElseThrow(() -> WorkspaceExceptions.organizationNotFound(command.organizationId()));
+        projectPermission.assertHasProjectPermission(
+                organization, command.projectId(), command.requestedBy(), Permission.WRITE_PROJECT, "update project");
 
         Project project = projects.findByIdAndOrganizationIdAndStatus(
                         command.projectId(), command.organizationId(), ProjectStatus.ACTIVE)
