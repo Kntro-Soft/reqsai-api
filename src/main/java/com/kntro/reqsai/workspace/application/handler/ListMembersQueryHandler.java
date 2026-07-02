@@ -26,7 +26,7 @@ public class ListMembersQueryHandler {
     public List<Member> handle(ListMembersQuery query) {
         Organization organization = organizations.findById(query.organizationId())
                 .orElseThrow(() -> WorkspaceExceptions.organizationNotFound(query.organizationId()));
-        access.assertOwnerOrAdmin(organization, query.requestedBy(), "view organization members");
+        access.assertMember(organization, query.requestedBy(), "view organization members");
 
         return List.copyOf(members.findAllByOrganizationIdAndStatusIn(query.organizationId(),
                 List.of(MemberStatus.ACTIVE, MemberStatus.PENDING)));
