@@ -52,6 +52,12 @@ public class TransferOwnershipCommandHandler {
         organization.transferOwnership(newOwnerUserId);
         organizations.save(organization);
 
+        // Align the new owner's member row to OWNER so its role is never stale. We intentionally keep the
+        // row (rather than deleting it): members are soft-deleted across the domain, and a later
+        // transfer-away demotes the former owner by finding exactly this row.
+        target.changeRole(OrgRole.OWNER);
+        members.save(target);
+
         demotePreviousOwner(organization.getId(), previousOwnerId, command.requestedBy());
         return organization;
     }

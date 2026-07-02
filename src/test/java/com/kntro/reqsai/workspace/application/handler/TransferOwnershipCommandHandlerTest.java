@@ -24,6 +24,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -65,6 +66,7 @@ class TransferOwnershipCommandHandlerTest {
         Organization result = handler.handle(new TransferOwnershipCommand(orgId, target.getId(), ownerId));
 
         assertThat(result.getOwnerId()).isEqualTo(newOwnerUser);
+        assertThat(target.getRole()).isEqualTo(OrgRole.OWNER);
         assertThat(ownerMember.getRole()).isEqualTo(OrgRole.ADMIN);
         verify(organizations).save(org);
     }
@@ -87,7 +89,7 @@ class TransferOwnershipCommandHandlerTest {
         Organization result = handler.handle(new TransferOwnershipCommand(orgId, target.getId(), ownerId));
 
         assertThat(result.getOwnerId()).isEqualTo(newOwnerUser);
-        verify(members).save(any(Member.class));
+        verify(members, atLeastOnce()).save(any(Member.class));
     }
 
     @Test
