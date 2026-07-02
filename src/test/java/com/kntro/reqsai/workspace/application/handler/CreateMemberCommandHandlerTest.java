@@ -4,6 +4,7 @@ import com.kntro.reqsai.shared.domain.exception.DomainException;
 import com.kntro.reqsai.workspace.application.command.CreateMemberCommand;
 import com.kntro.reqsai.workspace.application.port.MemberRepository;
 import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
+import com.kntro.reqsai.workspace.application.service.InvitationIssuer;
 import com.kntro.reqsai.workspace.application.service.OrganizationAdminAccessService;
 import com.kntro.reqsai.workspace.domain.model.Member;
 import com.kntro.reqsai.workspace.domain.model.MemberStatus;
@@ -40,6 +41,8 @@ class CreateMemberCommandHandlerTest {
     private MemberRepository members;
     @Mock
     private OrganizationAdminAccessService access;
+    @Mock
+    private InvitationIssuer invitationIssuer;
     @InjectMocks
     private CreateMemberCommandHandler handler;
 

@@ -1,50 +1,53 @@
 package com.kntro.reqsai.workspace.application.handler;
 
-import com.kntro.reqsai.workspace.application.command.DeleteMemberCommand;
-import com.kntro.reqsai.workspace.application.port.InvitationRepository;
+import com.kntro.reqsai.workspace.application.command.ResendInvitationCommand;
 import com.kntro.reqsai.workspace.application.port.MemberRepository;
 import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
+import com.kntro.reqsai.workspace.application.service.InvitationIssuer;
 import com.kntro.reqsai.workspace.application.service.OrganizationAdminAccessService;
 import com.kntro.reqsai.workspace.domain.exception.WorkspaceExceptions;
-import com.kntro.reqsai.workspace.domain.model.InvitationStatus;
 import com.kntro.reqsai.workspace.domain.model.Member;
 import com.kntro.reqsai.workspace.domain.model.MemberStatus;
 import com.kntro.reqsai.workspace.domain.model.Organization;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
+/**
+ * Resends the invitation for a PENDING member (owner/admin only). Supersedes the member's current
+ * active invitation and issues a fresh one — new token, new expiry — which re-raises
+ * {@code MemberInvitedEvent} so a new email goes out. Only valid while the member is PENDING.
+ */
 @Component
 @RequiredArgsConstructor
-public class DeleteMemberCommandHandler {
+@Slf4j
+public class ResendInvitationCommandHandler {
 
     private final OrganizationRepository organizations;
     private final MemberRepository members;
-    private final InvitationRepository invitations;
     private final OrganizationAdminAccessService access;
+    private final InvitationIssuer invitationIssuer;
 
     @Transactional
-    public void handle(DeleteMemberCommand command) {
+    public Member handle(ResendInvitationCommand command) {
         Organization organization = organizations.findById(command.organizationId())
                 .orElseThrow(() -> WorkspaceExceptions.organizationNotFound(command.organizationId()));
         access.assertOwnerOrAdmin(organization, command.requestedBy(), "manage organization members");
 
-        Member member = members.findByIdAndOrganizationIdAndStatusIn(command.memberId(), command.organizationId(),
-                        List.of(MemberStatus.ACTIVE, MemberStatus.PENDING))
+        Member member = members.findByIdAndOrganizationIdAndStatusIn(
+                        command.memberId(), command.organizationId(),
+                        List.of(MemberStatus.PENDING, MemberStatus.ACTIVE))
                 .orElseThrow(() -> WorkspaceExceptions.memberNotFound(command.memberId()));
 
-        // Removing a PENDING member also revokes its active invitation so the emailed link stops working.
-        if (member.getStatus() == MemberStatus.PENDING) {
-            invitations.findByMemberIdAndStatus(member.getId(), InvitationStatus.PENDING)
-                    .ifPresent(invitation -> {
-                        invitation.revoke();
-                        invitations.save(invitation);
-                    });
+        if (member.getStatus() != MemberStatus.PENDING) {
+            throw WorkspaceExceptions.memberNotPending(command.memberId());
         }
 
-        member.deactivate();
-        members.save(member);
+        invitationIssuer.issueFor(organization, member, command.requestedBy());
+        log.info("Invitation resent for member {} (org {})", member.getId(), command.organizationId());
+        return member;
     }
 }

@@ -126,6 +126,8 @@ reqsai:
       token-bytes: ${IAM_TOKEN_BYTES:32}
       password-reset-expiration: ${IAM_PASSWORD_RESET_EXPIRATION:1h}
       email-verification-expiration: ${IAM_EMAIL_VERIFICATION_EXPIRATION:24h}
+  invitation:
+    expiry: ${INVITATION_EXPIRY:7d}
   jwt:
     private-key-path: ${JWT_PRIVATE_KEY_PATH:classpath:certs/private_key.pem}
     private-key-pem: ${JWT_PRIVATE_KEY_PEM:}

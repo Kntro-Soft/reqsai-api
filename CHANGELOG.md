@@ -11,6 +11,36 @@ follows [Semantic Versioning](https://semver.org/).
 
 _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in progress._
 
+### Added (Organization invitations — `feature/org-invitations`)
+
+- **Invitation lifecycle** — inviting a member (single `POST /api/organizations/{orgId}/members`,
+  batch `.../members/batch`) now also issues a tokenized `Invitation` (new `public.invitations` table,
+  Flyway `V10__invitations.sql`) alongside the existing PENDING member, and emails a tokenized
+  acceptance link. Only the SHA-256 hash of the token is stored; the raw token travels only in the
+  `MemberInvitedEvent`. One active (PENDING) invitation per member is enforced by a partial unique index.
+- **Accept** — `POST /api/invitations/accept` (`Api-Version: 1`, **JWT-auth**), body `{ "token": string }`
+  → `200` `{ organizationId: UUID, organizationName: string, memberId: UUID, role: string }`. Requires
+  the caller's account email to match the invited email (exact, case-insensitive). `404` unknown token,
+  `410` expired (and the invitation is marked `EXPIRED`), `403` on email mismatch, idempotent `200` when
+  already accepted. On success the member is linked to the caller and activated.
+- **Public lookup** — `GET /api/invitations/{token}` (`Api-Version: 1`, **public**, no auth) → `200`
+  `{ organizationName, role, email, invitedByName: string|null, status, expired: boolean }` for the
+  accept/signup screen; `404` if the token is unknown. Returns no sensitive fields.
+- **Resend** — `POST /api/organizations/{orgId}/members/{memberId}/resend` (`Api-Version: 1`,
+  **owner/admin**) → `200` `MemberResponse`. Supersedes the member's current invitation and issues a new
+  token/expiry, re-sending the email. Only valid while the member is `PENDING` (`409` otherwise).
+- **Revoke on removal** — `DELETE /api/organizations/{orgId}/members/{memberId}` now also marks a
+  removed PENDING member's active invitation `REVOKED`, so the emailed link stops working.
+- **Link-on-signup safety net** — a workspace listener reacts to IAM's
+  `AccountVerifiedIntegrationEvent` and auto-accepts any PENDING invitation addressed to the
+  just-verified (proven) email, covering invitees who sign up without clicking the link.
+- **Config** — `reqsai.invitation.expiry` (`Duration`, default `7d`, env `INVITATION_EXPIRY`).
+- Module boundary: the email listener consumes IAM's `EmailNotificationPort` (`iam::ports`) and the
+  link-on-signup listener consumes `AccountVerifiedIntegrationEvent` (relayed from IAM's internal
+  `AccountVerifiedEvent` into a new `iam::api` named interface, keeping the domain layer Spring-free);
+  the email-match check resolves the caller's email via a new `AccountLookupPort` (`iam::ports`).
+  `verifyModularity` stays green. See [ADR-0021](docs/adr/0021-organization-invitations.md).
+
 ### Added (Global search — `feature/global-search`)
 
 - **Global search** — `GET /api/search?q={term}&limit={n}` (`Api-Version: 1`, JWT-auth) → `200`

@@ -4,6 +4,7 @@ import com.kntro.reqsai.shared.domain.exception.Exceptions;
 import com.kntro.reqsai.workspace.application.command.CreateMemberCommand;
 import com.kntro.reqsai.workspace.application.port.MemberRepository;
 import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
+import com.kntro.reqsai.workspace.application.service.InvitationIssuer;
 import com.kntro.reqsai.workspace.application.service.OrganizationAdminAccessService;
 import com.kntro.reqsai.workspace.domain.exception.WorkspaceExceptions;
 import com.kntro.reqsai.workspace.domain.model.Member;
@@ -26,6 +27,7 @@ public class CreateMemberCommandHandler {
     private final OrganizationRepository organizations;
     private final MemberRepository members;
     private final OrganizationAdminAccessService access;
+    private final InvitationIssuer invitationIssuer;
 
     @Transactional
     public Member handle(CreateMemberCommand command) {
@@ -61,6 +63,13 @@ public class CreateMemberCommandHandler {
                 status,
                 command.requestedBy(),
                 Instant.now());
-        return members.save(member);
+        Member saved = members.save(member);
+
+        // A PENDING member (no linked user yet) gets a tokenized invitation + email; an ACTIVE member
+        // created with a known userId (already inside the org) does not need one.
+        if (status == MemberStatus.PENDING) {
+            invitationIssuer.issueFor(organization, saved, command.requestedBy());
+        }
+        return saved;
     }
 }

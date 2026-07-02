@@ -56,7 +56,11 @@ public class SecurityConfiguration {
     private static final String[] PUBLIC_GET_ENDPOINTS = {
             "/api/organizations/*/avatar",
             "/api/organizations/*/projects/*/avatar",
-            "/api/users/*/avatar"
+            "/api/users/*/avatar",
+            // Public invitation lookup for the accept/signup screen (loaded before sign-in). Returns
+            // only non-sensitive fields; the token is an unguessable random value. GET only — the
+            // POST /api/invitations/accept endpoint stays authenticated.
+            "/api/invitations/*"
     };
 
     private final TokenVerifier tokenVerifier;

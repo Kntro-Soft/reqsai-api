@@ -8,6 +8,8 @@ import com.kntro.reqsai.workspace.application.handler.DeleteMemberCommandHandler
 import com.kntro.reqsai.workspace.application.handler.GetMemberQueryHandler;
 import com.kntro.reqsai.workspace.application.handler.LeaveOrganizationCommandHandler;
 import com.kntro.reqsai.workspace.application.handler.ListMembersQueryHandler;
+import com.kntro.reqsai.workspace.application.handler.ResendInvitationCommandHandler;
+import com.kntro.reqsai.workspace.application.command.ResendInvitationCommand;
 import com.kntro.reqsai.workspace.application.query.GetMemberQuery;
 import com.kntro.reqsai.workspace.application.query.ListMembersQuery;
 import com.kntro.reqsai.workspace.domain.model.Member;
@@ -41,6 +43,7 @@ public class MemberControllerImpl implements MemberController {
     private final ChangeMemberStatusCommandHandler changeMemberStatus;
     private final BatchInviteMembersCommandHandler batchInvite;
     private final LeaveOrganizationCommandHandler leaveOrganization;
+    private final ResendInvitationCommandHandler resendInvitation;
 
     @Override
     public ResponseEntity<MemberResponse> createMember(UUID orgId, CreateMemberRequest request, Authentication authentication) {
@@ -90,6 +93,13 @@ public class MemberControllerImpl implements MemberController {
         List<MemberResponse> created = batchInvite.handle(MemberRequestMapper.toBatchInviteCommand(orgId, request, requestedBy))
                 .stream().map(MemberResponseMapper::toResponse).toList();
         return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED).body(created);
+    }
+
+    @Override
+    public ResponseEntity<MemberResponse> resendInvitation(UUID orgId, UUID memberId, Authentication authentication) {
+        UUID requestedBy = UUID.fromString(authentication.getName());
+        Member member = resendInvitation.handle(new ResendInvitationCommand(orgId, memberId, requestedBy));
+        return ResponseEntity.ok(MemberResponseMapper.toResponse(member));
     }
 
     @Override

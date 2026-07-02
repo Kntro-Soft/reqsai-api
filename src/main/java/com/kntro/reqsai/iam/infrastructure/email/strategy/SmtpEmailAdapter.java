@@ -42,6 +42,20 @@ public class SmtpEmailAdapter implements EmailNotificationPort {
                 "password reset email");
     }
 
+    @Override
+    public void sendInvitationEmail(String toEmail, String displayName, String organizationName, String role,
+                                    String invitedByName, String rawToken) {
+        String link = appUrl + "/invitations/accept?token=" + rawToken;
+        String inviter = invitedByName != null && !invitedByName.isBlank()
+                ? invitedByName + " te ha invitado"
+                : "Te han invitado";
+        send(toEmail, "Te invitaron a " + organizationName + " — Reqs-AI",
+                "<p>Hola " + displayName + ",</p>" +
+                "<p>" + inviter + " a unirte a <strong>" + organizationName + "</strong> como " + role + ".</p>" +
+                "<p><a href=\"" + link + "\">Aceptar invitación</a></p>",
+                "invitation email");
+    }
+
     private void send(String toEmail, String subject, String htmlBody, String emailType) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
