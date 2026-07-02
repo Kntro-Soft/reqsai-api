@@ -24,6 +24,16 @@ public class OrganizationAdminAccessService {
         }
     }
 
+    /**
+     * Asserts the caller belongs to the organization (owner or any active member) for read-only
+     * access such as viewing the member roster. Management actions still require owner/admin.
+     */
+    public void assertMember(Organization organization, UUID requestedBy, String action) {
+        if (effectiveRole(organization, requestedBy).isEmpty()) {
+            throw WorkspaceExceptions.insufficientPermissions(action, requestedBy);
+        }
+    }
+
     public boolean isOwnerOrAdmin(Organization organization, UUID requestedBy) {
         OrgRole role = effectiveRole(organization, requestedBy).orElse(null);
         return role == OrgRole.OWNER || role == OrgRole.ADMIN;

@@ -31,4 +31,17 @@ public interface AccountLookupPort {
      * @return the linked user id, or empty when no profile exists yet
      */
     Optional<UUID> findUserIdByAccountId(UUID accountId);
+
+    /**
+     * Resolves the display profile (email + full name) behind a user id. Used by the workspace to
+     * render the organization owner in the member roster: the owner is implicit (no member row), so
+     * its profile is read here rather than denormalized on a member.
+     *
+     * @param userId the user id (e.g. {@code Organization.ownerId})
+     * @return the owner's email and display name, or empty when the user/account is unknown
+     */
+    Optional<UserProfile> findProfileByUserId(UUID userId);
+
+    /** A user's public-facing identity, resolved across the account (email) and user (name) aggregates. */
+    record UserProfile(String email, String displayName) {}
 }

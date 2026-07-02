@@ -105,6 +105,28 @@ class MemberIntegrationTest extends AbstractIntegrationTest {
         assertThat(forbidden.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
 
+    @Test
+    @DisplayName("should let a regular member view the roster")
+    void should_let_a_regular_member_view_the_roster() {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        String slug = "acme-" + suffix;
+        UUID orgId = createOrganizationAndReturnId(suffix, slug);
+
+        ResponseEntity<String> createdMember = createMember(orgId, OWNER_USER_ID, Map.of(
+                "userId", MEMBER_USER_ID,
+                "email", "member@example.com",
+                "displayName", "Regular Member",
+                "role", "MEMBER"));
+        assertThat(createdMember.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+
+        ResponseEntity<String> list = client().get().uri("/api/organizations/{orgId}/members", orgId)
+                .header("Authorization", TestJwtFactory.bearer(MEMBER_USER_ID, orgId.toString(), "ROLE_USER"))
+                .header("Api-Version", "1")
+                .exchange((req, res) -> ResponseEntity.status(res.getStatusCode()).body(res.bodyTo(String.class)));
+        assertThat(list.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(list.getBody()).contains("member@example.com");
+    }
+
     private UUID createOrganizationAndReturnId(String suffix, String expectedSlug) {
         ResponseEntity<String> orgRes = client().post().uri("/api/organizations")
                 .header("Authorization", TestJwtFactory.bearer(OWNER_USER_ID, UUID.randomUUID().toString(), "ROLE_USER"))

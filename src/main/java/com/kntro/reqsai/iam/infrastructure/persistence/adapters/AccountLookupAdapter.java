@@ -32,4 +32,10 @@ public class AccountLookupAdapter implements AccountLookupPort {
     public Optional<UUID> findUserIdByAccountId(UUID accountId) {
         return users.findByAccountId(accountId).map(user -> user.getId());
     }
+
+    @Override
+    public Optional<UserProfile> findProfileByUserId(UUID userId) {
+        return users.findById(userId).flatMap(user -> accounts.findById(user.getAccountId())
+                .map(account -> new UserProfile(account.getEmail().value(), user.getFullName())));
+    }
 }
