@@ -23,6 +23,7 @@ import com.kntro.reqsai.shared.interfaces.pagination.PageCriteria;
 import com.kntro.reqsai.shared.interfaces.pagination.PageResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
@@ -43,6 +44,7 @@ public class ProjectControllerImpl implements ProjectController {
     private final ListProjectsQueryHandler listProjects;
 
     @Override
+    @PreAuthorize("@authz.orgOwnerOrAdmin(#orgId, authentication)")
     public ResponseEntity<ProjectResponse> create(UUID orgId, CreateProjectRequest request, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         Project project = createProject.handle(ProjectRequestMapper.toCommand(orgId, request, requestedBy));
@@ -58,6 +60,7 @@ public class ProjectControllerImpl implements ProjectController {
     }
 
     @Override
+    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'WRITE_PROJECT', authentication)")
     public ResponseEntity<ProjectResponse> update(UUID orgId, UUID projectId, UpdateProjectRequest request, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         Project project = updateProject.handle(ProjectRequestMapper.toCommand(orgId, projectId, request, requestedBy));
@@ -65,6 +68,7 @@ public class ProjectControllerImpl implements ProjectController {
     }
 
     @Override
+    @PreAuthorize("@authz.projectAccess(#orgId, #projectId, authentication)")
     public ResponseEntity<ProjectResponse> getById(UUID orgId, UUID projectId, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         Project project = getProject.handle(new GetProjectQuery(orgId, projectId, requestedBy));
@@ -72,6 +76,7 @@ public class ProjectControllerImpl implements ProjectController {
     }
 
     @Override
+    @PreAuthorize("@authz.orgMember(#orgId, authentication)")
     public ResponseEntity<PageResponse<ProjectResponse>> list(UUID orgId, Integer page, Integer size, String sortBy, String sortDirection, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         PageResponse<ProjectResponse> response = PageResponse.of(
@@ -81,6 +86,7 @@ public class ProjectControllerImpl implements ProjectController {
     }
 
     @Override
+    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'WRITE_PROJECT', authentication)")
     public ResponseEntity<Void> archive(UUID orgId, UUID projectId, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         archiveProject.handle(new ArchiveProjectCommand(orgId, projectId, requestedBy));
@@ -88,6 +94,7 @@ public class ProjectControllerImpl implements ProjectController {
     }
 
     @Override
+    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'WRITE_PROJECT', authentication)")
     public ResponseEntity<Void> restore(UUID orgId, UUID projectId, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         restoreProject.handle(new RestoreProjectCommand(orgId, projectId, requestedBy));
@@ -95,6 +102,7 @@ public class ProjectControllerImpl implements ProjectController {
     }
 
     @Override
+    @PreAuthorize("@authz.orgOwnerOrAdmin(#orgId, authentication)")
     public ResponseEntity<Void> delete(UUID orgId, UUID projectId, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         deleteProject.handle(new DeleteProjectCommand(orgId, projectId, requestedBy));

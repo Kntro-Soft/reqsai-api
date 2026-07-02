@@ -34,12 +34,19 @@ public class ProjectPermissionService {
 
     public void assertHasProjectPermission(
             Organization organization, UUID projectId, UUID requestedBy, Permission permission, String action) {
-        if (orgAccess.isOwnerOrAdmin(organization, requestedBy)) {
-            return;
-        }
-        if (!hasProjectPermission(organization, projectId, requestedBy, permission)) {
+        if (!hasPermission(organization, projectId, requestedBy, permission)) {
             throw WorkspaceExceptions.insufficientPermissions(action, requestedBy);
         }
+    }
+
+    /**
+     * Whether the caller may exercise {@code permission} on the project: org owners/admins always may;
+     * otherwise the caller needs a {@link ProjectMember} assignment whose {@link ProjectRole} carries it.
+     */
+    public boolean hasPermission(
+            Organization organization, UUID projectId, UUID requestedBy, Permission permission) {
+        return orgAccess.isOwnerOrAdmin(organization, requestedBy)
+                || hasProjectPermission(organization, projectId, requestedBy, permission);
     }
 
     private boolean hasProjectPermission(

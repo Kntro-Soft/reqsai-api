@@ -23,6 +23,7 @@ import com.kntro.reqsai.workspace.interfaces.rest.mappers.response.MemberRespons
 import com.kntro.reqsai.workspace.interfaces.rest.swagger.MemberController;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
@@ -46,6 +47,7 @@ public class MemberControllerImpl implements MemberController {
     private final ResendInvitationCommandHandler resendInvitation;
 
     @Override
+    @PreAuthorize("@authz.orgOwnerOrAdmin(#orgId, authentication)")
     public ResponseEntity<MemberResponse> createMember(UUID orgId, CreateMemberRequest request, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         Member member = createMember.handle(MemberRequestMapper.toCommand(orgId, request, requestedBy));
@@ -54,6 +56,7 @@ public class MemberControllerImpl implements MemberController {
     }
 
     @Override
+    @PreAuthorize("@authz.orgMember(#orgId, authentication)")
     public ResponseEntity<List<MemberResponse>> listMembers(UUID orgId, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         return ResponseEntity.ok(listMembers.handle(new ListMembersQuery(orgId, requestedBy)).stream()
@@ -61,12 +64,14 @@ public class MemberControllerImpl implements MemberController {
     }
 
     @Override
+    @PreAuthorize("@authz.orgOwnerOrAdmin(#orgId, authentication)")
     public ResponseEntity<MemberResponse> getMember(UUID orgId, UUID memberId, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         return ResponseEntity.ok(MemberResponseMapper.toResponse(getMember.handle(new GetMemberQuery(orgId, memberId, requestedBy))));
     }
 
     @Override
+    @PreAuthorize("@authz.orgOwnerOrAdmin(#orgId, authentication)")
     public ResponseEntity<MemberResponse> changeMemberRole(UUID orgId, UUID memberId, ChangeMemberRoleRequest request, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         Member member = changeMemberRole.handle(MemberRequestMapper.toChangeRoleCommand(orgId, memberId, request, requestedBy));
@@ -74,6 +79,7 @@ public class MemberControllerImpl implements MemberController {
     }
 
     @Override
+    @PreAuthorize("@authz.orgOwnerOrAdmin(#orgId, authentication)")
     public ResponseEntity<Void> deleteMember(UUID orgId, UUID memberId, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         deleteMember.handle(MemberRequestMapper.toDeleteCommand(orgId, memberId, requestedBy));
@@ -81,6 +87,7 @@ public class MemberControllerImpl implements MemberController {
     }
 
     @Override
+    @PreAuthorize("@authz.orgOwnerOrAdmin(#orgId, authentication)")
     public ResponseEntity<MemberResponse> changeMemberStatus(UUID orgId, UUID memberId, ChangeMemberStatusRequest request, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         Member member = changeMemberStatus.handle(MemberRequestMapper.toChangeStatusCommand(orgId, memberId, request, requestedBy));
@@ -88,6 +95,7 @@ public class MemberControllerImpl implements MemberController {
     }
 
     @Override
+    @PreAuthorize("@authz.orgOwnerOrAdmin(#orgId, authentication)")
     public ResponseEntity<List<MemberResponse>> batchInvite(UUID orgId, BatchInviteMembersRequest request, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         List<MemberResponse> created = batchInvite.handle(MemberRequestMapper.toBatchInviteCommand(orgId, request, requestedBy))
@@ -96,6 +104,7 @@ public class MemberControllerImpl implements MemberController {
     }
 
     @Override
+    @PreAuthorize("@authz.orgOwnerOrAdmin(#orgId, authentication)")
     public ResponseEntity<MemberResponse> resendInvitation(UUID orgId, UUID memberId, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         Member member = resendInvitation.handle(new ResendInvitationCommand(orgId, memberId, requestedBy));
@@ -103,6 +112,7 @@ public class MemberControllerImpl implements MemberController {
     }
 
     @Override
+    @PreAuthorize("@authz.orgMember(#orgId, authentication)")
     public ResponseEntity<Void> leaveOrganization(UUID orgId, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         leaveOrganization.handle(MemberRequestMapper.toLeaveCommand(orgId, requestedBy));

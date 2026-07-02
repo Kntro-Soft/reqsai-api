@@ -39,6 +39,16 @@ public class OrganizationAdminAccessService {
         return role == OrgRole.OWNER || role == OrgRole.ADMIN;
     }
 
+    /** Whether the caller is the organization owner. */
+    public boolean isOwner(Organization organization, UUID requestedBy) {
+        return organization.getOwnerId().equals(requestedBy);
+    }
+
+    /** Whether the caller belongs to the organization (owner or any active member). */
+    public boolean isMember(Organization organization, UUID requestedBy) {
+        return effectiveRole(organization, requestedBy).isPresent();
+    }
+
     /**
      * Resolves the caller's effective organization role. The organization owner is always {@code OWNER}
      * regardless of any member row; otherwise the caller's role comes from their ACTIVE member record.
