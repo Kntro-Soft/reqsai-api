@@ -5,7 +5,6 @@ import com.kntro.reqsai.workspace.application.command.CreateMemberCommand;
 import com.kntro.reqsai.workspace.application.port.MemberRepository;
 import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
 import com.kntro.reqsai.workspace.application.service.InvitationIssuer;
-import com.kntro.reqsai.workspace.application.service.OrganizationAdminAccessService;
 import com.kntro.reqsai.workspace.domain.model.Member;
 import com.kntro.reqsai.workspace.domain.model.MemberStatus;
 import com.kntro.reqsai.workspace.domain.model.OrgRole;
@@ -26,7 +25,6 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -39,8 +37,6 @@ class CreateMemberCommandHandlerTest {
     private OrganizationRepository organizations;
     @Mock
     private MemberRepository members;
-    @Mock
-    private OrganizationAdminAccessService access;
     @Mock
     private InvitationIssuer invitationIssuer;
     @InjectMocks
@@ -61,7 +57,6 @@ class CreateMemberCommandHandlerTest {
                     orgId, userId, "active@example.com", "Active Member", OrgRole.MEMBER, requestedBy);
 
             when(organizations.findById(orgId)).thenReturn(Optional.of(organization));
-            doNothing().when(access).assertOwnerOrAdmin(organization, requestedBy, "manage organization members");
             when(members.existsByOrganizationIdAndEmailAndStatusIn(orgId, "active@example.com",
                     List.of(MemberStatus.ACTIVE, MemberStatus.PENDING))).thenReturn(false);
             when(members.existsByOrganizationIdAndUserIdAndStatus(orgId, userId, MemberStatus.ACTIVE)).thenReturn(false);
@@ -85,7 +80,6 @@ class CreateMemberCommandHandlerTest {
                     orgId, null, "invitee@example.com", "Invitee", OrgRole.ADMIN, requestedBy);
 
             when(organizations.findById(orgId)).thenReturn(Optional.of(organization));
-            doNothing().when(access).assertOwnerOrAdmin(organization, requestedBy, "manage organization members");
             when(members.existsByOrganizationIdAndEmailAndStatusIn(orgId, "invitee@example.com",
                     List.of(MemberStatus.ACTIVE, MemberStatus.PENDING))).thenReturn(false);
             when(members.save(any(Member.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -124,7 +118,6 @@ class CreateMemberCommandHandlerTest {
                     orgId, null, "invitee@example.com", "Invitee", OrgRole.MEMBER, requestedBy);
 
             when(organizations.findById(orgId)).thenReturn(Optional.of(organization));
-            doNothing().when(access).assertOwnerOrAdmin(organization, requestedBy, "manage organization members");
             when(members.existsByOrganizationIdAndEmailAndStatusIn(orgId, "invitee@example.com",
                     List.of(MemberStatus.ACTIVE, MemberStatus.PENDING))).thenReturn(true);
 
@@ -143,7 +136,6 @@ class CreateMemberCommandHandlerTest {
                     orgId, userId, "active@example.com", "Active Member", OrgRole.MEMBER, requestedBy);
 
             when(organizations.findById(orgId)).thenReturn(Optional.of(organization));
-            doNothing().when(access).assertOwnerOrAdmin(organization, requestedBy, "manage organization members");
             when(members.existsByOrganizationIdAndEmailAndStatusIn(orgId, "active@example.com",
                     List.of(MemberStatus.ACTIVE, MemberStatus.PENDING))).thenReturn(false);
             when(members.existsByOrganizationIdAndUserIdAndStatus(orgId, userId, MemberStatus.ACTIVE)).thenReturn(true);

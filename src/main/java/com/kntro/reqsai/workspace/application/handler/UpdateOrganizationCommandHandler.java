@@ -19,10 +19,6 @@ public class UpdateOrganizationCommandHandler {
         Organization organization = organizations.findById(command.organizationId())
                 .orElseThrow(() -> WorkspaceExceptions.organizationNotFound(command.organizationId()));
 
-        if (!organization.getOwnerId().equals(command.requestedBy())) {
-            throw WorkspaceExceptions.organizationEditPermissionDenied(command.organizationId(), command.requestedBy());
-        }
-
         organization.applyPatch(command.name(), command.meetingLanguage(), command.audioRetentionDays());
 
         return organizations.save(organization);

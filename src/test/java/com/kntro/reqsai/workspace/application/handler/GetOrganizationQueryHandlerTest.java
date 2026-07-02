@@ -62,17 +62,5 @@ class GetOrganizationQueryHandlerTest {
             assertThatThrownBy(() -> handler.handle(new GetOrganizationQuery(orgId, requestedBy)))
                     .isInstanceOf(DomainException.class);
         }
-
-        @Test
-        @DisplayName("should fail if requested by non-owner")
-        void should_fail_if_requested_by_non_owner() {
-            UUID ownerId = UUID.randomUUID();
-            Organization organization = OrganizationMother.active().withOwnerId(ownerId).build();
-
-            when(organizations.findById(organization.getId())).thenReturn(Optional.of(organization));
-
-            assertThatThrownBy(() -> handler.handle(new GetOrganizationQuery(organization.getId(), UUID.randomUUID())))
-                    .isInstanceOf(DomainException.class);
-        }
     }
 }

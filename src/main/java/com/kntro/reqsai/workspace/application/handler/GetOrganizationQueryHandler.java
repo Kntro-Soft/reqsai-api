@@ -19,10 +19,6 @@ public class GetOrganizationQueryHandler {
         Organization organization = organizations.findById(query.organizationId())
                 .orElseThrow(() -> WorkspaceExceptions.organizationNotFound(query.organizationId()));
 
-        if (!organization.getOwnerId().equals(query.requestedBy())) {
-            throw WorkspaceExceptions.organizationEditPermissionDenied(query.organizationId(), query.requestedBy());
-        }
-
         return organization;
     }
 }

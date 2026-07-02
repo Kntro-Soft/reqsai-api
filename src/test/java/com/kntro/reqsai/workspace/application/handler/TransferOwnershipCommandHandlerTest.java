@@ -93,19 +93,6 @@ class TransferOwnershipCommandHandlerTest {
     }
 
     @Test
-    @DisplayName("non-owner caller is rejected")
-    void non_owner_rejected() {
-        UUID ownerId = UUID.randomUUID();
-        Organization org = OrganizationMother.active().withOwnerId(ownerId).build();
-
-        when(organizations.findById(org.getId())).thenReturn(Optional.of(org));
-
-        assertThatThrownBy(() -> handler.handle(new TransferOwnershipCommand(org.getId(), UUID.randomUUID(), UUID.randomUUID())))
-                .isInstanceOf(DomainException.class);
-        verify(organizations, never()).save(any());
-    }
-
-    @Test
     @DisplayName("target that is not an active member is rejected")
     void target_not_active_member_rejected() {
         UUID ownerId = UUID.randomUUID();

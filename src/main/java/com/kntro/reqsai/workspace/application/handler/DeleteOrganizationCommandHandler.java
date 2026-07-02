@@ -34,10 +34,6 @@ public class DeleteOrganizationCommandHandler {
         Organization organization = organizations.findById(command.organizationId())
                 .orElseThrow(() -> WorkspaceExceptions.organizationNotFound(command.organizationId()));
 
-        if (!organization.getOwnerId().equals(command.requestedBy())) {
-            throw WorkspaceExceptions.organizationEditPermissionDenied(command.organizationId(), command.requestedBy());
-        }
-
         organization.delete();
         organizations.save(organization);
 
