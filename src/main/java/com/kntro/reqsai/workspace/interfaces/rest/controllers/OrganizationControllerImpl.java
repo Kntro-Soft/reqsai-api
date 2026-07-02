@@ -18,6 +18,7 @@ import com.kntro.reqsai.workspace.interfaces.rest.mappers.response.OrganizationR
 import com.kntro.reqsai.workspace.interfaces.rest.swagger.OrganizationController;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
@@ -49,6 +50,7 @@ public class OrganizationControllerImpl implements OrganizationController {
     }
 
     @Override
+    @PreAuthorize("@authz.orgOwner(#orgId, authentication)")
     public ResponseEntity<OrganizationResponse> getById(UUID orgId, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         Organization organization = getOrganization.handle(new GetOrganizationQuery(orgId, requestedBy));
@@ -69,6 +71,7 @@ public class OrganizationControllerImpl implements OrganizationController {
     }
 
     @Override
+    @PreAuthorize("@authz.orgOwner(#orgId, authentication)")
     public ResponseEntity<OrganizationResponse> update(UUID orgId, UpdateOrganizationRequest request, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         Organization organization = updateOrganization.handle(
@@ -77,6 +80,7 @@ public class OrganizationControllerImpl implements OrganizationController {
     }
 
     @Override
+    @PreAuthorize("@authz.orgOwner(#orgId, authentication)")
     public ResponseEntity<OrganizationResponse> transferOwnership(UUID orgId, TransferOwnershipRequest request, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         Organization organization = transferOwnership.handle(
@@ -85,6 +89,7 @@ public class OrganizationControllerImpl implements OrganizationController {
     }
 
     @Override
+    @PreAuthorize("@authz.orgOwner(#orgId, authentication)")
     public ResponseEntity<Void> delete(UUID orgId, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         deleteOrganization.handle(OrganizationRequestMapper.toDeleteCommand(orgId, requestedBy));
