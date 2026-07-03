@@ -6,7 +6,6 @@ import com.kntro.reqsai.workspace.application.command.BatchInviteMembersCommand;
 import com.kntro.reqsai.workspace.application.port.MemberRepository;
 import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
 import com.kntro.reqsai.workspace.application.service.InvitationIssuer;
-import com.kntro.reqsai.workspace.application.service.OrganizationAdminAccessService;
 import com.kntro.reqsai.workspace.domain.exception.WorkspaceExceptions;
 import com.kntro.reqsai.workspace.domain.model.Member;
 import com.kntro.reqsai.workspace.domain.model.MemberStatus;
@@ -36,14 +35,12 @@ public class BatchInviteMembersCommandHandler {
 
     private final OrganizationRepository organizations;
     private final MemberRepository members;
-    private final OrganizationAdminAccessService access;
     private final InvitationIssuer invitationIssuer;
 
     @Transactional
     public List<Member> handle(BatchInviteMembersCommand command) {
         Organization organization = organizations.findById(command.organizationId())
                 .orElseThrow(() -> WorkspaceExceptions.organizationNotFound(command.organizationId()));
-        access.assertOwnerOrAdmin(organization, command.requestedBy(), "manage organization members");
 
         if (command.invitations() == null || command.invitations().isEmpty()) {
             throw Exceptions.invalidValue("invitations", "at least one invitation is required");

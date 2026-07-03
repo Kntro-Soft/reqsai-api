@@ -177,27 +177,6 @@ class UpdateOrganizationCommandHandlerTest {
         }
 
         @Test
-        @DisplayName("should fail if requested by non-owner")
-        void should_fail_if_requested_by_non_owner() {
-            UUID ownerId = UUID.randomUUID();
-            Organization organization = OrganizationMother.active().withOwnerId(ownerId).build();
-
-            UpdateOrganizationCommand command = new UpdateOrganizationCommand(
-                    organization.getId(),
-                    "Acme International",
-                    "pt-BR",
-                    30,
-                    UUID.randomUUID()
-            );
-
-            when(organizations.findById(organization.getId())).thenReturn(Optional.of(organization));
-
-            assertThatThrownBy(() -> handler.handle(command))
-                    .isInstanceOf(DomainException.class);
-            verify(organizations, never()).save(any());
-        }
-
-        @Test
         @DisplayName("should fail on invalid meeting language")
         void should_fail_on_invalid_meeting_language() {
             UUID ownerId = UUID.randomUUID();

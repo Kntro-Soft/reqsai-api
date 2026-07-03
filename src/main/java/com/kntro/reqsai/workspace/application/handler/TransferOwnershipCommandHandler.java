@@ -33,9 +33,6 @@ public class TransferOwnershipCommandHandler {
                 .orElseThrow(() -> WorkspaceExceptions.organizationNotFound(command.organizationId()));
 
         UUID previousOwnerId = organization.getOwnerId();
-        if (!previousOwnerId.equals(command.requestedBy())) {
-            throw WorkspaceExceptions.insufficientPermissions("transfer organization ownership", command.requestedBy());
-        }
 
         Member target = members.findByIdAndOrganizationIdAndStatusIn(
                         command.newOwnerMemberId(), command.organizationId(), java.util.List.of(MemberStatus.ACTIVE))

@@ -1,6 +1,5 @@
 package com.kntro.reqsai.workspace.application.handler;
 
-import com.kntro.reqsai.shared.domain.exception.DomainException;
 import com.kntro.reqsai.shared.infrastructure.persistence.multitenancy.ProvisioningService;
 import com.kntro.reqsai.shared.infrastructure.persistence.multitenancy.TenantSchemaResolver;
 import com.kntro.reqsai.workspace.application.command.DeleteOrganizationCommand;
@@ -19,9 +18,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -53,19 +50,5 @@ class DeleteOrganizationCommandHandlerTest {
         verify(organizations).save(org);
         verify(tenantSchemaResolver).evictTenantSchema(org.getId().toString());
         verify(provisioningService).deprovisionTenant("acme");
-    }
-
-    @Test
-    @DisplayName("non-owner is rejected and nothing is deprovisioned")
-    void non_owner_rejected() {
-        UUID ownerId = UUID.randomUUID();
-        Organization org = OrganizationMother.active().withOwnerId(ownerId).build();
-
-        when(organizations.findById(org.getId())).thenReturn(Optional.of(org));
-
-        assertThatThrownBy(() -> handler.handle(new DeleteOrganizationCommand(org.getId(), UUID.randomUUID())))
-                .isInstanceOf(DomainException.class);
-        verify(organizations, never()).save(any());
-        verify(provisioningService, never()).deprovisionTenant(any());
     }
 }

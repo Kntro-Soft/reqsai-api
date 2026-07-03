@@ -5,7 +5,6 @@ import com.kntro.reqsai.workspace.application.command.BatchInviteMembersCommand;
 import com.kntro.reqsai.workspace.application.port.MemberRepository;
 import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
 import com.kntro.reqsai.workspace.application.service.InvitationIssuer;
-import com.kntro.reqsai.workspace.application.service.OrganizationAdminAccessService;
 import com.kntro.reqsai.workspace.domain.model.Member;
 import com.kntro.reqsai.workspace.domain.model.MemberStatus;
 import com.kntro.reqsai.workspace.domain.model.OrgRole;
@@ -14,7 +13,6 @@ import com.kntro.reqsai.workspace.mothers.OrganizationMother;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -25,7 +23,6 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -42,13 +39,11 @@ class BatchInviteMembersCommandHandlerTest {
     private MemberRepository members;
     @Mock
     private InvitationIssuer invitationIssuer;
-    @InjectMocks
-    private OrganizationAdminAccessService access;
 
     private BatchInviteMembersCommandHandler handler;
 
     private void initHandler() {
-        handler = new BatchInviteMembersCommandHandler(organizations, members, access, invitationIssuer);
+        handler = new BatchInviteMembersCommandHandler(organizations, members, invitationIssuer);
     }
 
     private BatchInviteMembersCommand.Invitation invite(String email, OrgRole role) {
@@ -102,26 +97,6 @@ class BatchInviteMembersCommandHandlerTest {
 
         assertThatThrownBy(() -> handler.handle(new BatchInviteMembersCommand(orgId,
                 List.of(invite("taken@example.com", OrgRole.MEMBER)), ownerId)))
-                .isInstanceOf(DomainException.class);
-        verify(members, never()).save(any());
-    }
-
-    @Test
-    @DisplayName("a regular member cannot batch invite")
-    void member_cannot_invite() {
-        UUID ownerId = UUID.randomUUID();
-        Organization org = OrganizationMother.active().withOwnerId(ownerId).build();
-        UUID orgId = org.getId();
-        UUID memberUser = UUID.randomUUID();
-        Member memberRow = new Member(orgId, memberUser, "mem@example.com", "Mem", OrgRole.MEMBER,
-                MemberStatus.ACTIVE, ownerId, java.time.Instant.now());
-
-        when(organizations.findById(orgId)).thenReturn(Optional.of(org));
-        when(members.findByOrganizationIdAndUserIdAndStatus(orgId, memberUser, MemberStatus.ACTIVE)).thenReturn(Optional.of(memberRow));
-        initHandler();
-
-        assertThatThrownBy(() -> handler.handle(new BatchInviteMembersCommand(orgId,
-                List.of(invite("x@example.com", OrgRole.MEMBER)), memberUser)))
                 .isInstanceOf(DomainException.class);
         verify(members, never()).save(any());
     }

@@ -2,16 +2,12 @@ package com.kntro.reqsai.workspace.application.handler;
 
 import com.kntro.reqsai.shared.domain.exception.DomainException;
 import com.kntro.reqsai.workspace.application.command.CreateProjectRoleCommand;
-import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
 import com.kntro.reqsai.workspace.application.port.ProjectRepository;
 import com.kntro.reqsai.workspace.application.port.ProjectRoleRepository;
-import com.kntro.reqsai.workspace.application.service.ProjectPermissionService;
-import com.kntro.reqsai.workspace.domain.model.Organization;
 import com.kntro.reqsai.workspace.domain.model.Permission;
 import com.kntro.reqsai.workspace.domain.model.Project;
 import com.kntro.reqsai.workspace.domain.model.ProjectRole;
 import com.kntro.reqsai.workspace.domain.model.ProjectStatus;
-import com.kntro.reqsai.workspace.mothers.OrganizationMother;
 import com.kntro.reqsai.workspace.mothers.ProjectMother;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -28,7 +24,6 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -38,13 +33,9 @@ import static org.mockito.Mockito.when;
 class CreateProjectRoleCommandHandlerTest {
 
     @Mock
-    private OrganizationRepository organizations;
-    @Mock
     private ProjectRepository projects;
     @Mock
     private ProjectRoleRepository roles;
-    @Mock
-    private ProjectPermissionService permissions;
     @InjectMocks
     private CreateProjectRoleCommandHandler handler;
 
@@ -55,16 +46,13 @@ class CreateProjectRoleCommandHandlerTest {
         @Test
         @DisplayName("should create project role in active project")
         void should_create_project_role_in_active_project() {
-            Organization organization = OrganizationMother.active().build();
-            UUID orgId = organization.getId();
+            UUID orgId = UUID.randomUUID();
             UUID projectId = UUID.randomUUID();
             UUID requestedBy = UUID.randomUUID();
             Project project = ProjectMother.standard().withOrganizationId(orgId).build();
             CreateProjectRoleCommand command = new CreateProjectRoleCommand(
                     orgId, projectId, "Analyst", Set.of(Permission.READ_PROJECT, Permission.RUN_DISCOVERY), requestedBy);
 
-            when(organizations.findById(orgId)).thenReturn(Optional.of(organization));
-            doNothing().when(permissions).assertHasProjectPermission(organization, projectId, requestedBy, Permission.MANAGE_ROLES, "manage project roles");
             when(projects.findByIdAndOrganizationIdAndStatus(projectId, orgId, ProjectStatus.ACTIVE))
                     .thenReturn(Optional.of(project));
             when(roles.existsByProjectIdAndName(projectId, "Analyst")).thenReturn(false);
@@ -84,14 +72,12 @@ class CreateProjectRoleCommandHandlerTest {
         @Test
         @DisplayName("should fail if project does not exist")
         void should_fail_if_project_does_not_exist() {
-            Organization organization = OrganizationMother.active().build();
-            UUID orgId = organization.getId();
+            UUID orgId = UUID.randomUUID();
             UUID projectId = UUID.randomUUID();
             UUID requestedBy = UUID.randomUUID();
             CreateProjectRoleCommand command = new CreateProjectRoleCommand(
                     orgId, projectId, "Analyst", Set.of(Permission.READ_PROJECT), requestedBy);
 
-            when(organizations.findById(orgId)).thenReturn(Optional.of(organization));
             when(projects.findByIdAndOrganizationIdAndStatus(projectId, orgId, ProjectStatus.ACTIVE))
                     .thenReturn(Optional.empty());
 
@@ -102,15 +88,12 @@ class CreateProjectRoleCommandHandlerTest {
         @Test
         @DisplayName("should fail if role name already exists")
         void should_fail_if_role_name_already_exists() {
-            Organization organization = OrganizationMother.active().build();
-            UUID orgId = organization.getId();
+            UUID orgId = UUID.randomUUID();
             UUID projectId = UUID.randomUUID();
             UUID requestedBy = UUID.randomUUID();
             CreateProjectRoleCommand command = new CreateProjectRoleCommand(
                     orgId, projectId, "Analyst", Set.of(Permission.READ_PROJECT), requestedBy);
 
-            when(organizations.findById(orgId)).thenReturn(Optional.of(organization));
-            doNothing().when(permissions).assertHasProjectPermission(organization, projectId, requestedBy, Permission.MANAGE_ROLES, "manage project roles");
             when(projects.findByIdAndOrganizationIdAndStatus(projectId, orgId, ProjectStatus.ACTIVE))
                     .thenReturn(Optional.of(ProjectMother.standard().withOrganizationId(orgId).build()));
             when(roles.existsByProjectIdAndName(projectId, "Analyst")).thenReturn(true);

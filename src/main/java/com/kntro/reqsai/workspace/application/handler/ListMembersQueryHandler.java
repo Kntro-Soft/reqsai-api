@@ -4,7 +4,6 @@ import com.kntro.reqsai.iam.application.port.AccountLookupPort;
 import com.kntro.reqsai.workspace.application.port.MemberRepository;
 import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
 import com.kntro.reqsai.workspace.application.query.ListMembersQuery;
-import com.kntro.reqsai.workspace.application.service.OrganizationAdminAccessService;
 import com.kntro.reqsai.workspace.domain.exception.WorkspaceExceptions;
 import com.kntro.reqsai.workspace.domain.model.Member;
 import com.kntro.reqsai.workspace.domain.model.MemberStatus;
@@ -25,14 +24,12 @@ public class ListMembersQueryHandler {
 
     private final OrganizationRepository organizations;
     private final MemberRepository members;
-    private final OrganizationAdminAccessService access;
     private final AccountLookupPort accountLookup;
 
     @Transactional(readOnly = true)
     public List<Member> handle(ListMembersQuery query) {
         Organization organization = organizations.findById(query.organizationId())
                 .orElseThrow(() -> WorkspaceExceptions.organizationNotFound(query.organizationId()));
-        access.assertMember(organization, query.requestedBy(), "view organization members");
 
         UUID ownerId = organization.getOwnerId();
         List<Member> roster = members.findAllByOrganizationIdAndStatusIn(query.organizationId(),

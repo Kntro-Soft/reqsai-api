@@ -5,7 +5,6 @@ import com.kntro.reqsai.iam.application.port.AccountLookupPort.UserProfile;
 import com.kntro.reqsai.workspace.application.port.MemberRepository;
 import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
 import com.kntro.reqsai.workspace.application.query.ListMembersQuery;
-import com.kntro.reqsai.workspace.application.service.OrganizationAdminAccessService;
 import com.kntro.reqsai.workspace.domain.model.Member;
 import com.kntro.reqsai.workspace.domain.model.MemberStatus;
 import com.kntro.reqsai.workspace.domain.model.OrgRole;
@@ -37,8 +36,6 @@ class ListMembersQueryHandlerTest {
     private OrganizationRepository organizations;
     @Mock
     private MemberRepository members;
-    @Mock
-    private OrganizationAdminAccessService access;
     @Mock
     private AccountLookupPort accountLookup;
     @InjectMocks

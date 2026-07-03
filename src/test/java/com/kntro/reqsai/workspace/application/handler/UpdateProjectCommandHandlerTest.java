@@ -4,6 +4,8 @@ import com.kntro.reqsai.shared.domain.exception.DomainException;
 import com.kntro.reqsai.workspace.application.command.UpdateProjectCommand;
 import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
 import com.kntro.reqsai.workspace.application.port.ProjectRepository;
+import com.kntro.reqsai.workspace.application.service.ProjectPermissionService;
+import com.kntro.reqsai.workspace.domain.exception.WorkspaceExceptions;
 import com.kntro.reqsai.workspace.domain.model.Organization;
 import com.kntro.reqsai.workspace.domain.model.Project;
 import com.kntro.reqsai.workspace.domain.model.ProjectStatus;
@@ -32,6 +34,8 @@ class UpdateProjectCommandHandlerTest {
     private ProjectRepository projects;
     @Mock
     private OrganizationRepository organizations;
+    @Mock
+    private ProjectPermissionService projectPermission;
     @InjectMocks
     private UpdateProjectCommandHandler handler;
 
@@ -98,6 +102,24 @@ class UpdateProjectCommandHandlerTest {
             // Act & Assert
             assertThatThrownBy(() -> handler.handle(command))
                     .isInstanceOf(DomainException.class);
+            verify(projects, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("should reject a caller without WRITE_PROJECT permission")
+        void should_reject_without_write_permission() {
+            Organization org = OrganizationMother.active().build();
+            UUID orgId = org.getId();
+            UUID projectId = UUID.randomUUID();
+            UpdateProjectCommand command = new UpdateProjectCommand(
+                    orgId, projectId, "Name", "Desc", List.of("Java"), List.of("Spring"),
+                    List.of("Web"), List.of("PostgreSQL"), "Clean", "Fintech", UUID.randomUUID());
+
+            when(organizations.findById(orgId)).thenReturn(Optional.of(org));
+            doThrow(WorkspaceExceptions.insufficientPermissions("update project", command.requestedBy()))
+                    .when(projectPermission).assertHasProjectPermission(any(), any(), any(), any(), any());
+
+            assertThatThrownBy(() -> handler.handle(command)).isInstanceOf(DomainException.class);
             verify(projects, never()).save(any());
         }
 

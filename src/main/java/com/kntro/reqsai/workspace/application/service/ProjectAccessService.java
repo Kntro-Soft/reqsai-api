@@ -60,4 +60,19 @@ public class ProjectAccessService {
             throw WorkspaceExceptions.insufficientPermissions("access project " + projectId, requestedBy);
         }
     }
+
+    /**
+     * Whether the caller may access the given project: owners/admins always may; a regular member must
+     * hold an explicit assignment for that project; anyone else may not.
+     */
+    public boolean canAccessProject(Organization organization, UUID projectId, UUID requestedBy) {
+        if (orgAccess.isOwnerOrAdmin(organization, requestedBy)) {
+            return true;
+        }
+        return members.findByOrganizationIdAndUserIdAndStatus(
+                        organization.getId(), requestedBy, MemberStatus.ACTIVE)
+                .map(member -> assignments.findAllByMemberId(member.getId()).stream()
+                        .anyMatch(assignment -> assignment.getProjectId().equals(projectId)))
+                .orElse(false);
+    }
 }

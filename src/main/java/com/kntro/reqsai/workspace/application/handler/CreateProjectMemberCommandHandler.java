@@ -2,16 +2,12 @@ package com.kntro.reqsai.workspace.application.handler;
 
 import com.kntro.reqsai.workspace.application.command.CreateProjectMemberCommand;
 import com.kntro.reqsai.workspace.application.port.MemberRepository;
-import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
 import com.kntro.reqsai.workspace.application.port.ProjectMemberRepository;
 import com.kntro.reqsai.workspace.application.port.ProjectRepository;
 import com.kntro.reqsai.workspace.application.port.ProjectRoleRepository;
-import com.kntro.reqsai.workspace.application.service.ProjectPermissionService;
 import com.kntro.reqsai.workspace.domain.exception.WorkspaceExceptions;
 import com.kntro.reqsai.workspace.domain.model.Member;
 import com.kntro.reqsai.workspace.domain.model.MemberStatus;
-import com.kntro.reqsai.workspace.domain.model.Organization;
-import com.kntro.reqsai.workspace.domain.model.Permission;
 import com.kntro.reqsai.workspace.domain.model.ProjectMember;
 import com.kntro.reqsai.workspace.domain.model.ProjectRole;
 import com.kntro.reqsai.workspace.domain.model.ProjectStatus;
@@ -26,23 +22,15 @@ import java.util.List;
 @RequiredArgsConstructor
 public class CreateProjectMemberCommandHandler {
 
-    private final OrganizationRepository organizations;
     private final ProjectRepository projects;
     private final MemberRepository members;
     private final ProjectRoleRepository roles;
     private final ProjectMemberRepository assignments;
-    private final ProjectPermissionService permissions;
 
     @Transactional
     public ProjectMember handle(CreateProjectMemberCommand command) {
-        Organization organization = organizations.findById(command.organizationId())
-                .orElseThrow(() -> WorkspaceExceptions.organizationNotFound(command.organizationId()));
-
         projects.findByIdAndOrganizationIdAndStatus(command.projectId(), command.organizationId(), ProjectStatus.ACTIVE)
                 .orElseThrow(() -> WorkspaceExceptions.projectNotFound(command.projectId()));
-
-        permissions.assertHasProjectPermission(
-                organization, command.projectId(), command.requestedBy(), Permission.MANAGE_MEMBERS, "manage project members");
 
         Member member = members.findByIdAndOrganizationIdAndStatusIn(command.memberId(), command.organizationId(),
                         List.of(MemberStatus.ACTIVE))
