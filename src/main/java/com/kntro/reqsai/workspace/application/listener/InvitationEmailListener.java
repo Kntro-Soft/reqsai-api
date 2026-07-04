@@ -25,6 +25,20 @@ class InvitationEmailListener {
 
     @ApplicationModuleListener
     void onMemberInvited(MemberInvitedEvent event) {
+        if (event.hasProjectTarget()) {
+            emailNotification.sendProjectInvitationEmail(
+                    event.email(),
+                    event.displayName(),
+                    event.organizationName(),
+                    event.role(),
+                    event.projectName(),
+                    event.projectRoleName(),
+                    event.invitedByName(),
+                    event.rawToken());
+            log.info("Project-invitation email sent for invitation {} (org {}, project {})",
+                    event.invitationId(), event.organizationId(), event.projectName());
+            return;
+        }
         emailNotification.sendInvitationEmail(
                 event.email(),
                 event.displayName(),

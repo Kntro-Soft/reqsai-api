@@ -51,7 +51,8 @@ public class InviteProjectMembersCommandHandler {
         Organization organization = organizations.findById(command.organizationId())
                 .orElseThrow(() -> WorkspaceExceptions.organizationNotFound(command.organizationId()));
 
-        projects.findByIdAndOrganizationIdAndStatus(command.projectId(), command.organizationId(), ProjectStatus.ACTIVE)
+        com.kntro.reqsai.workspace.domain.model.Project project = projects
+                .findByIdAndOrganizationIdAndStatus(command.projectId(), command.organizationId(), ProjectStatus.ACTIVE)
                 .orElseThrow(() -> WorkspaceExceptions.projectNotFound(command.projectId()));
 
         if (command.invitations() == null || command.invitations().isEmpty()) {
@@ -66,8 +67,9 @@ public class InviteProjectMembersCommandHandler {
             String normalizedEmail = Email.of(invitation.email()).value();
 
             // Each role must belong to the target project (404 if it does not).
-            roles.findByIdAndProjectId(invitation.roleId(), command.projectId())
-                    .orElseThrow(() -> WorkspaceExceptions.projectRoleNotFound(invitation.roleId()));
+            com.kntro.reqsai.workspace.domain.model.ProjectRole role =
+                    roles.findByIdAndProjectId(invitation.roleId(), command.projectId())
+                            .orElseThrow(() -> WorkspaceExceptions.projectRoleNotFound(invitation.roleId()));
 
             if (!seen.add(normalizedEmail)) {
                 throw WorkspaceExceptions.memberAlreadyExists(normalizedEmail);
@@ -86,8 +88,7 @@ public class InviteProjectMembersCommandHandler {
                     command.requestedBy(),
                     Instant.now());
             Member saved = members.save(member);
-            invitationIssuer.issueFor(
-                    organization, saved, command.requestedBy(), command.projectId(), invitation.roleId());
+            invitationIssuer.issueFor(organization, saved, command.requestedBy(), command.projectId(), invitation.roleId(), project.getName(), role.getName());
             created.add(saved);
         }
 

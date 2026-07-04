@@ -131,16 +131,21 @@ public class Invitation extends AggregateRoot {
             @Nullable String invitedByName,
             Instant expiresAt) {
         return issue(organizationId, organizationName, memberId, email, displayName, role, rawToken,
-                invitedBy, invitedByName, expiresAt, null, null);
+                invitedBy, invitedByName, expiresAt, null, null, null, null);
     }
 
     /**
      * Issues a PENDING invitation optionally scoped to a project. When {@code targetProjectId} and
      * {@code targetRoleId} are both non-null, accepting the invitation additionally materializes a
-     * {@code ProjectMember} assignment for the invited member in that project with that role.
+     * {@code ProjectMember} assignment for the invited member in that project with that role. The
+     * {@code projectName}/{@code projectRoleName} are carried in {@link MemberInvitedEvent} for the email
+     * body only (not stored); resolving them is the caller's responsibility since they live in the tenant
+     * schema.
      *
-     * @param targetProjectId optional project to assign the member to on accept ({@code null} for org-only)
-     * @param targetRoleId    optional project-role for that assignment ({@code null} for org-only)
+     * @param targetProjectId  optional project to assign the member to on accept ({@code null} for org-only)
+     * @param targetRoleId     optional project-role for that assignment ({@code null} for org-only)
+     * @param projectName      optional target project name for the email body ({@code null} for org-only)
+     * @param projectRoleName  optional target project-role name for the email body ({@code null} for org-only)
      */
     public static Invitation issue(
             UUID organizationId,
@@ -154,13 +159,15 @@ public class Invitation extends AggregateRoot {
             @Nullable String invitedByName,
             Instant expiresAt,
             @Nullable UUID targetProjectId,
-            @Nullable UUID targetRoleId) {
+            @Nullable UUID targetRoleId,
+            @Nullable String projectName,
+            @Nullable String projectRoleName) {
         Invitation invitation = new Invitation(
                 organizationId, memberId, email, role, HashUtils.sha256(rawToken), invitedBy, expiresAt,
                 targetProjectId, targetRoleId);
         invitation.registerEvent(MemberInvitedEvent.of(
                 invitation.getId(), organizationId, organizationName, invitation.email,
-                displayName, role.name(), rawToken, invitedByName));
+                displayName, role.name(), rawToken, invitedByName, projectName, projectRoleName));
         return invitation;
     }
 

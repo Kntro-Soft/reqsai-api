@@ -73,7 +73,7 @@ class AcceptInvitationCommandHandlerTest {
     private Invitation projectInvitation(Organization org, UUID memberId, String email, UUID projectId, UUID roleId) {
         return Invitation.issue(org.getId(), org.getName(), memberId, email, "Invitee",
                 OrgRole.MEMBER, RAW_TOKEN, UUID.randomUUID(), "Owner",
-                Instant.now().plus(1, ChronoUnit.DAYS), projectId, roleId);
+                Instant.now().plus(1, ChronoUnit.DAYS), projectId, roleId, "Project", "Analyst");
     }
 
     private Member pendingMember(Organization org, String email) {
