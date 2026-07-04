@@ -3,11 +3,13 @@ package com.kntro.reqsai.workspace.application.handler;
 import com.kntro.reqsai.iam.application.port.AccountLookupPort;
 import com.kntro.reqsai.shared.domain.exception.DomainException;
 import com.kntro.reqsai.shared.domain.support.HashUtils;
+import com.kntro.reqsai.shared.infrastructure.persistence.multitenancy.TenantSchemaResolver;
 import com.kntro.reqsai.workspace.application.command.AcceptInvitationCommand;
 import com.kntro.reqsai.workspace.application.port.InvitationRepository;
 import com.kntro.reqsai.workspace.application.port.MemberRepository;
 import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
 import com.kntro.reqsai.workspace.application.result.AcceptInvitationResult;
+import com.kntro.reqsai.workspace.application.service.ProjectAssignmentMaterializer;
 import com.kntro.reqsai.workspace.domain.exception.WorkspaceError;
 import com.kntro.reqsai.workspace.domain.model.Invitation;
 import com.kntro.reqsai.workspace.domain.model.InvitationStatus;
@@ -33,6 +35,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -51,6 +54,10 @@ class AcceptInvitationCommandHandlerTest {
     private OrganizationRepository organizations;
     @Mock
     private AccountLookupPort accountLookup;
+    @Mock
+    private ProjectAssignmentMaterializer projectAssignmentMaterializer;
+    @Mock
+    private TenantSchemaResolver tenantSchemaResolver;
     @InjectMocks
     private AcceptInvitationCommandHandler handler;
 
@@ -61,6 +68,12 @@ class AcceptInvitationCommandHandlerTest {
     private Invitation invitation(Organization org, UUID memberId, String email, Instant expiresAt) {
         return Invitation.issue(org.getId(), org.getName(), memberId, email, "Invitee",
                 OrgRole.MEMBER, RAW_TOKEN, UUID.randomUUID(), "Owner", expiresAt);
+    }
+
+    private Invitation projectInvitation(Organization org, UUID memberId, String email, UUID projectId, UUID roleId) {
+        return Invitation.issue(org.getId(), org.getName(), memberId, email, "Invitee",
+                OrgRole.MEMBER, RAW_TOKEN, UUID.randomUUID(), "Owner",
+                Instant.now().plus(1, ChronoUnit.DAYS), projectId, roleId, "Project", "Analyst");
     }
 
     private Member pendingMember(Organization org, String email) {
@@ -89,6 +102,31 @@ class AcceptInvitationCommandHandlerTest {
         assertThat(member.getUserId()).isEqualTo(callerId);
         assertThat(invitation.getStatus()).isEqualTo(InvitationStatus.ACCEPTED);
         verify(members).save(member);
+        verify(projectAssignmentMaterializer, never()).assign(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("project-scoped invitation materializes the project assignment on accept")
+    void accept_materializes_project_assignment() {
+        Organization org = org();
+        UUID callerId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        UUID roleId = UUID.randomUUID();
+        Invitation invitation = projectInvitation(org, memberId, "invitee@example.com", projectId, roleId);
+        Member member = pendingMember(org, "invitee@example.com");
+
+        when(invitations.findByTokenHash(HashUtils.sha256(RAW_TOKEN))).thenReturn(Optional.of(invitation));
+        when(organizations.findById(org.getId())).thenReturn(Optional.of(org));
+        when(accountLookup.findEmailByUserId(callerId)).thenReturn(Optional.of("invitee@example.com"));
+        when(members.findByIdAndOrganizationIdAndStatusIn(any(), any(), any())).thenReturn(Optional.of(member));
+        when(tenantSchemaResolver.resolveTenantSchema(org.getId().toString())).thenReturn("tenant_acme");
+
+        handler.handle(new AcceptInvitationCommand(RAW_TOKEN, callerId));
+
+        assertThat(member.getStatus()).isEqualTo(MemberStatus.ACTIVE);
+        assertThat(invitation.getStatus()).isEqualTo(InvitationStatus.ACCEPTED);
+        verify(projectAssignmentMaterializer).assign(eq(projectId), eq(roleId), eq(member.getId()));
     }
 
     @Test

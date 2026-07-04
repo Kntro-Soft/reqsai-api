@@ -51,7 +51,7 @@ class CreateProjectRoleCommandHandlerTest {
             UUID requestedBy = UUID.randomUUID();
             Project project = ProjectMother.standard().withOrganizationId(orgId).build();
             CreateProjectRoleCommand command = new CreateProjectRoleCommand(
-                    orgId, projectId, "Analyst", Set.of(Permission.READ_PROJECT, Permission.RUN_DISCOVERY), requestedBy);
+                    orgId, projectId, "Analyst", Set.of(Permission.MEMBER_READ, Permission.DOCUMENT_READ), requestedBy);
 
             when(projects.findByIdAndOrganizationIdAndStatus(projectId, orgId, ProjectStatus.ACTIVE))
                     .thenReturn(Optional.of(project));
@@ -61,7 +61,7 @@ class CreateProjectRoleCommandHandlerTest {
             ProjectRole role = handler.handle(command);
 
             assertThat(role.getProjectId()).isEqualTo(projectId);
-            assertThat(role.getPermissions()).contains(Permission.RUN_DISCOVERY);
+            assertThat(role.getPermissions()).contains(Permission.DOCUMENT_READ);
         }
     }
 
@@ -76,7 +76,7 @@ class CreateProjectRoleCommandHandlerTest {
             UUID projectId = UUID.randomUUID();
             UUID requestedBy = UUID.randomUUID();
             CreateProjectRoleCommand command = new CreateProjectRoleCommand(
-                    orgId, projectId, "Analyst", Set.of(Permission.READ_PROJECT), requestedBy);
+                    orgId, projectId, "Analyst", Set.of(Permission.MEMBER_READ), requestedBy);
 
             when(projects.findByIdAndOrganizationIdAndStatus(projectId, orgId, ProjectStatus.ACTIVE))
                     .thenReturn(Optional.empty());
@@ -92,7 +92,7 @@ class CreateProjectRoleCommandHandlerTest {
             UUID projectId = UUID.randomUUID();
             UUID requestedBy = UUID.randomUUID();
             CreateProjectRoleCommand command = new CreateProjectRoleCommand(
-                    orgId, projectId, "Analyst", Set.of(Permission.READ_PROJECT), requestedBy);
+                    orgId, projectId, "Analyst", Set.of(Permission.MEMBER_READ), requestedBy);
 
             when(projects.findByIdAndOrganizationIdAndStatus(projectId, orgId, ProjectStatus.ACTIVE))
                     .thenReturn(Optional.of(ProjectMother.standard().withOrganizationId(orgId).build()));

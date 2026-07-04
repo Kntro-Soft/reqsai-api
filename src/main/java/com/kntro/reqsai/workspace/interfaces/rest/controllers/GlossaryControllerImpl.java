@@ -16,6 +16,7 @@ import com.kntro.reqsai.workspace.interfaces.rest.mappers.response.GlossaryRespo
 import com.kntro.reqsai.workspace.interfaces.rest.swagger.GlossaryController;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
@@ -35,6 +36,7 @@ public class GlossaryControllerImpl implements GlossaryController {
     private final DeleteGlossaryTermCommandHandler deleteGlossaryTerm;
 
     @Override
+    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'GLOSSARY_READ', authentication)")
     public ResponseEntity<List<GlossaryTermResponse>> listTerms(UUID orgId, UUID projectId, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         List<GlossaryTermResponse> response = listGlossaryTerms.handle(
@@ -46,6 +48,7 @@ public class GlossaryControllerImpl implements GlossaryController {
     }
 
     @Override
+    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'GLOSSARY_TERM_WRITE', authentication)")
     public ResponseEntity<GlossaryTermResponse> addTerm(UUID orgId, UUID projectId, AddGlossaryTermRequest request, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         GlossaryTerm term = addGlossaryTerm.handle(
@@ -61,6 +64,7 @@ public class GlossaryControllerImpl implements GlossaryController {
     }
 
     @Override
+    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'GLOSSARY_READ', authentication)")
     public ResponseEntity<GlossaryTermResponse> getTerm(UUID orgId, UUID projectId, UUID termId, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         GlossaryTerm term = getGlossaryTerm.handle(new GetGlossaryTermQuery(orgId, projectId, termId, requestedBy));
@@ -68,6 +72,7 @@ public class GlossaryControllerImpl implements GlossaryController {
     }
 
     @Override
+    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'GLOSSARY_TERM_WRITE', authentication)")
     public ResponseEntity<GlossaryTermResponse> updateTerm(UUID orgId, UUID projectId, UUID termId, UpdateGlossaryTermRequest request, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         GlossaryTerm term = updateGlossaryTerm.handle(
@@ -76,6 +81,7 @@ public class GlossaryControllerImpl implements GlossaryController {
     }
 
     @Override
+    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'GLOSSARY_TERM_DELETE', authentication)")
     public ResponseEntity<Void> deleteTerm(UUID orgId, UUID projectId, UUID termId, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         deleteGlossaryTerm.handle(GlossaryRequestMapper.toDeleteCommand(orgId, projectId, termId, requestedBy));

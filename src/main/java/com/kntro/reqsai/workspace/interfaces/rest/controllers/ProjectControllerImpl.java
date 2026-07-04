@@ -60,7 +60,7 @@ public class ProjectControllerImpl implements ProjectController {
     }
 
     @Override
-    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'WRITE_PROJECT', authentication)")
+    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'PROJECT_UPDATE', authentication)")
     public ResponseEntity<ProjectResponse> update(UUID orgId, UUID projectId, UpdateProjectRequest request, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         Project project = updateProject.handle(ProjectRequestMapper.toCommand(orgId, projectId, request, requestedBy));
@@ -86,7 +86,7 @@ public class ProjectControllerImpl implements ProjectController {
     }
 
     @Override
-    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'WRITE_PROJECT', authentication)")
+    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'PROJECT_ARCHIVE', authentication)")
     public ResponseEntity<Void> archive(UUID orgId, UUID projectId, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         archiveProject.handle(new ArchiveProjectCommand(orgId, projectId, requestedBy));
@@ -94,7 +94,7 @@ public class ProjectControllerImpl implements ProjectController {
     }
 
     @Override
-    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'WRITE_PROJECT', authentication)")
+    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'PROJECT_ARCHIVE', authentication)")
     public ResponseEntity<Void> restore(UUID orgId, UUID projectId, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         restoreProject.handle(new RestoreProjectCommand(orgId, projectId, requestedBy));
@@ -102,7 +102,7 @@ public class ProjectControllerImpl implements ProjectController {
     }
 
     @Override
-    @PreAuthorize("@authz.orgOwnerOrAdmin(#orgId, authentication)")
+    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'PROJECT_DELETE', authentication)")
     public ResponseEntity<Void> delete(UUID orgId, UUID projectId, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         deleteProject.handle(new DeleteProjectCommand(orgId, projectId, requestedBy));

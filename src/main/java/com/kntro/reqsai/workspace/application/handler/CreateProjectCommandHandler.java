@@ -4,7 +4,6 @@ import com.kntro.reqsai.shared.application.avatar.AvatarDownloadPort;
 import com.kntro.reqsai.workspace.application.command.CreateProjectCommand;
 import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
 import com.kntro.reqsai.workspace.application.port.ProjectRepository;
-import com.kntro.reqsai.workspace.application.service.OrganizationAdminAccessService;
 import com.kntro.reqsai.workspace.domain.exception.WorkspaceExceptions;
 import com.kntro.reqsai.workspace.domain.model.Organization;
 import com.kntro.reqsai.workspace.domain.model.Project;
@@ -23,13 +22,11 @@ public class CreateProjectCommandHandler {
     private final ProjectRepository projects;
     private final OrganizationRepository organizations;
     private final AvatarDownloadPort avatarDownloadAdapter;
-    private final OrganizationAdminAccessService orgAccess;
 
     @Transactional
     public Project handle(CreateProjectCommand command) {
         Organization organization = organizations.findById(command.organizationId())
                 .orElseThrow(() -> WorkspaceExceptions.organizationNotFound(command.organizationId()));
-        orgAccess.assertOwnerOrAdmin(organization, command.requestedBy(), "create project");
 
         if (projects.existsByOrganizationIdAndNameAndStatus(
                 command.organizationId(), command.name(), ProjectStatus.ACTIVE)) {

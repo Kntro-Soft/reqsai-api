@@ -36,6 +36,25 @@ public class InvitationIssuer {
      * invitation for the member is superseded first, so only one stays active.
      */
     public Invitation issueFor(Organization organization, Member member, UUID invitedBy) {
+        return issueFor(organization, member, invitedBy, null, null, null, null);
+    }
+
+    /**
+     * Issues a fresh PENDING invitation for {@code member} (assumed PENDING), optionally scoped to a
+     * project. When {@code targetProjectId} and {@code targetRoleId} are non-null, accepting the
+     * invitation also materializes a project assignment, and the {@code projectName}/{@code projectRoleName}
+     * (already resolved by the caller from the tenant schema) are carried into the invitation email so the
+     * invitee learns which project and role they will get. Any existing PENDING invitation for the member
+     * is superseded first, so only one stays active.
+     */
+    public Invitation issueFor(
+            Organization organization,
+            Member member,
+            UUID invitedBy,
+            @Nullable UUID targetProjectId,
+            @Nullable UUID targetRoleId,
+            @Nullable String projectName,
+            @Nullable String projectRoleName) {
         invitations.findByMemberIdAndStatus(member.getId(), com.kntro.reqsai.workspace.domain.model.InvitationStatus.PENDING)
                 .ifPresent(existing -> {
                     existing.supersede();
@@ -55,7 +74,11 @@ public class InvitationIssuer {
                 rawToken,
                 invitedBy,
                 resolveInviterName(organization.getId(), invitedBy),
-                Instant.now().plus(properties.expiry()));
+                Instant.now().plus(properties.expiry()),
+                targetProjectId,
+                targetRoleId,
+                projectName,
+                projectRoleName);
         return invitations.save(invitation);
     }
 

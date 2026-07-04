@@ -2,6 +2,7 @@ package com.kntro.reqsai.workspace.application.handler;
 
 import com.kntro.reqsai.shared.domain.exception.DomainException;
 import com.kntro.reqsai.workspace.application.command.CreateProjectMemberCommand;
+import com.kntro.reqsai.workspace.application.event.ProjectMemberAssignedEvent;
 import com.kntro.reqsai.workspace.application.port.MemberRepository;
 import com.kntro.reqsai.workspace.application.port.ProjectMemberRepository;
 import com.kntro.reqsai.workspace.application.port.ProjectRepository;
@@ -18,9 +19,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.Instant;
 import java.util.List;
@@ -47,6 +50,8 @@ class CreateProjectMemberCommandHandlerTest {
     private ProjectRoleRepository roles;
     @Mock
     private ProjectMemberRepository assignments;
+    @Mock
+    private ApplicationEventPublisher events;
     @InjectMocks
     private CreateProjectMemberCommandHandler handler;
 
@@ -71,7 +76,7 @@ class CreateProjectMemberCommandHandlerTest {
                     .thenReturn(Optional.of(new Member(orgId, UUID.randomUUID(), "member@example.com", "Member", OrgRole.MEMBER,
                             MemberStatus.ACTIVE, requestedBy, Instant.now())));
             when(roles.findByIdAndProjectId(roleId, projectId))
-                    .thenReturn(Optional.of(new ProjectRole(projectId, "Analyst", Set.of(Permission.READ_PROJECT))));
+                    .thenReturn(Optional.of(new ProjectRole(projectId, "Analyst", Set.of(Permission.MEMBER_READ))));
             when(assignments.existsByProjectIdAndMemberId(projectId, memberId)).thenReturn(false);
             when(assignments.save(any(ProjectMember.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -79,6 +84,45 @@ class CreateProjectMemberCommandHandlerTest {
 
             assertThat(assignment.getMemberId()).isEqualTo(memberId);
             assertThat(assignment.getRoleId()).isNotNull();
+        }
+
+        @Test
+        @DisplayName("should publish ProjectMemberAssignedEvent with resolved project and role names")
+        void should_publish_project_member_assigned_event() {
+            UUID orgId = UUID.randomUUID();
+            UUID projectId = UUID.randomUUID();
+            UUID memberId = UUID.randomUUID();
+            UUID roleId = UUID.randomUUID();
+            UUID requestedBy = UUID.randomUUID();
+
+            CreateProjectMemberCommand command = new CreateProjectMemberCommand(orgId, projectId, memberId, roleId, requestedBy);
+
+            com.kntro.reqsai.workspace.domain.model.Project project =
+                    ProjectMother.standard().withOrganizationId(orgId).withName("Apollo").build();
+            when(projects.findByIdAndOrganizationIdAndStatus(projectId, orgId, ProjectStatus.ACTIVE))
+                    .thenReturn(Optional.of(project));
+            Member member = new Member(orgId, UUID.randomUUID(), "member@example.com", "Member", OrgRole.MEMBER,
+                    MemberStatus.ACTIVE, requestedBy, Instant.now());
+            when(members.findByIdAndOrganizationIdAndStatusIn(memberId, orgId, List.of(MemberStatus.ACTIVE)))
+                    .thenReturn(Optional.of(member));
+            ProjectRole role = new ProjectRole(projectId, "Analyst", Set.of(Permission.MEMBER_READ));
+            when(roles.findByIdAndProjectId(roleId, projectId)).thenReturn(Optional.of(role));
+            when(assignments.existsByProjectIdAndMemberId(projectId, memberId)).thenReturn(false);
+            when(assignments.save(any(ProjectMember.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            handler.handle(command);
+
+            ArgumentCaptor<ProjectMemberAssignedEvent> captor = ArgumentCaptor.forClass(ProjectMemberAssignedEvent.class);
+            verify(events).publishEvent(captor.capture());
+            ProjectMemberAssignedEvent event = captor.getValue();
+            assertThat(event.organizationId()).isEqualTo(orgId);
+            assertThat(event.projectId()).isEqualTo(project.getId());
+            assertThat(event.projectName()).isEqualTo("Apollo");
+            assertThat(event.memberId()).isEqualTo(member.getId());
+            assertThat(event.roleId()).isEqualTo(role.getId());
+            assertThat(event.roleName()).isEqualTo("Analyst");
+            assertThat(event.recipientEmail()).isEqualTo("member@example.com");
+            assertThat(event.recipientName()).isEqualTo("Member");
         }
     }
 
@@ -103,6 +147,7 @@ class CreateProjectMemberCommandHandlerTest {
 
             assertThatThrownBy(() -> handler.handle(command)).isInstanceOf(DomainException.class);
             verify(assignments, never()).save(any());
+            verify(events, never()).publishEvent(any());
         }
 
         @Test
@@ -124,6 +169,7 @@ class CreateProjectMemberCommandHandlerTest {
 
             assertThatThrownBy(() -> handler.handle(command)).isInstanceOf(DomainException.class);
             verify(assignments, never()).save(any());
+            verify(events, never()).publishEvent(any());
         }
     }
 }

@@ -51,6 +51,22 @@ public class EmailRouter implements EmailNotificationPort {
         resolve().sendInvitationEmail(toEmail, displayName, organizationName, role, invitedByName, rawToken);
     }
 
+    @Override
+    public void sendProjectInvitationEmail(String toEmail, String displayName, String organizationName, String role,
+                                           String projectName, String projectRoleName, String invitedByName,
+                                           String rawToken) {
+        log.debug("Routing project invitation email to provider '{}' for {}", provider, toEmail);
+        resolve().sendProjectInvitationEmail(toEmail, displayName, organizationName, role, projectName,
+                projectRoleName, invitedByName, rawToken);
+    }
+
+    @Override
+    public void sendProjectAssignmentEmail(String toEmail, String displayName, String projectName,
+                                           String projectRoleName, String projectId) {
+        log.debug("Routing project assignment email to provider '{}' for {}", provider, toEmail);
+        resolve().sendProjectAssignmentEmail(toEmail, displayName, projectName, projectRoleName, projectId);
+    }
+
     private SmtpEmailAdapter resolve() {
         return switch (provider) {
             case "mailtrap" -> mailtrap;

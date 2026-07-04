@@ -2,10 +2,13 @@ package com.kntro.reqsai.workspace.interfaces.rest.mappers.request;
 
 import com.kntro.reqsai.workspace.application.command.CreateProjectMemberCommand;
 import com.kntro.reqsai.workspace.application.command.DeleteProjectMemberCommand;
+import com.kntro.reqsai.workspace.application.command.InviteProjectMembersCommand;
 import com.kntro.reqsai.workspace.application.command.UpdateProjectMemberCommand;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.request.CreateProjectMemberRequest;
+import com.kntro.reqsai.workspace.interfaces.rest.dto.request.InviteProjectMembersRequest;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.request.UpdateProjectMemberRequest;
 
+import java.util.List;
 import java.util.UUID;
 
 public final class ProjectMemberRequestMapper {
@@ -24,5 +27,12 @@ public final class ProjectMemberRequestMapper {
 
     public static DeleteProjectMemberCommand toDeleteCommand(UUID orgId, UUID projectId, UUID assignmentId, UUID requestedBy) {
         return new DeleteProjectMemberCommand(orgId, projectId, assignmentId, requestedBy);
+    }
+
+    public static InviteProjectMembersCommand toInviteCommand(UUID orgId, UUID projectId, InviteProjectMembersRequest request, UUID requestedBy) {
+        List<InviteProjectMembersCommand.Invitation> invitations = request.invitations().stream()
+                .map(item -> new InviteProjectMembersCommand.Invitation(item.email(), item.displayName(), item.roleId()))
+                .toList();
+        return new InviteProjectMembersCommand(orgId, projectId, invitations, requestedBy);
     }
 }

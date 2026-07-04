@@ -6,10 +6,12 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
+import lombok.Getter;
 
 import java.util.Set;
 import java.util.UUID;
 
+@Getter
 @Entity
 @Table(name = "project_roles")
 public class ProjectRole extends AggregateRoot {
@@ -35,18 +37,6 @@ public class ProjectRole extends AggregateRoot {
         this.projectId = Assert.notNull(projectId, "projectId");
         this.name = normalizeName(name);
         this.permissions = Set.copyOf(Assert.notEmpty(permissions, "permissions"));
-    }
-
-    public UUID getProjectId() {
-        return projectId;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public Set<Permission> getPermissions() {
-        return permissions;
     }
 
     public void update(String name, Set<Permission> permissions) {

@@ -37,6 +37,17 @@ public class CapturingEmailConfig {
                                             String role, String invitedByName, String rawToken) {
                 capture.record(toEmail, rawToken);
             }
+
+            @Override
+            public void sendProjectInvitationEmail(String toEmail, String displayName, String organizationName,
+                                                   String role, String projectName, String projectRoleName,
+                                                   String invitedByName, String rawToken) {
+                capture.record(toEmail, rawToken);
+            }
+
+            @Override
+            public void sendProjectAssignmentEmail(String toEmail, String displayName, String projectName,
+                                                   String projectRoleName, String projectId) {}
         };
     }
 

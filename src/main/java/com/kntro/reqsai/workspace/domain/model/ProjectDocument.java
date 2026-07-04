@@ -7,9 +7,11 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
+import lombok.Getter;
 
 import java.util.UUID;
 
+@Getter
 @Entity
 @Table(name = "project_documents")
 public class ProjectDocument extends AggregateRoot {
@@ -40,22 +42,6 @@ public class ProjectDocument extends AggregateRoot {
         this.name = normalizeName(name);
         this.documentType = Assert.notNull(documentType, "documentType");
         this.status = DocumentStatus.ACTIVE;
-    }
-
-    public UUID getProjectId() {
-        return projectId;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public DocumentType getDocumentType() {
-        return documentType;
-    }
-
-    public DocumentStatus getStatus() {
-        return status;
     }
 
     public static String normalizeName(String name) {

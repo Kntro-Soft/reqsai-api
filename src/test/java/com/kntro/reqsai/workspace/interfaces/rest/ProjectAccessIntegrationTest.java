@@ -51,7 +51,7 @@ class ProjectAccessIntegrationTest extends AbstractIntegrationTest {
         UUID assigned = createProjectAndReturnId(orgId, slug, "Assigned Project");
         UUID unassigned = createProjectAndReturnId(orgId, slug, "Unassigned Project");
 
-        String roleId = createRoleAndReturnId(orgId, assigned, OWNER_USER_ID, "Reader", List.of("READ_PROJECT"), schema);
+        String roleId = createRoleAndReturnId(orgId, assigned, OWNER_USER_ID, "Reader", List.of("MEMBER_READ"), schema);
         assignMember(orgId, assigned, OWNER_USER_ID, memberId.toString(), roleId);
 
         // Owner sees both projects
@@ -80,7 +80,7 @@ class ProjectAccessIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("project member with MANAGE_MEMBERS permission can manage members; without it is denied")
+    @DisplayName("project member with MEMBER_INVITE permission can manage members; without it (ROLE_CREATE) is denied")
     void project_permission_enforced_on_member_management() {
         String suffix = UUID.randomUUID().toString().substring(0, 8);
         String slug = "acme-" + suffix;
@@ -102,9 +102,9 @@ class ProjectAccessIntegrationTest extends AbstractIntegrationTest {
         UUID projectId = createProjectAndReturnId(orgId, slug, "RBAC Project");
 
         String managerRoleId = createRoleAndReturnId(orgId, projectId, OWNER_USER_ID, "Lead",
-                List.of("READ_PROJECT", "MANAGE_MEMBERS"), schema);
+                List.of("MEMBER_READ", "MEMBER_INVITE"), schema);
         String readerRoleId = createRoleAndReturnId(orgId, projectId, OWNER_USER_ID, "Reader",
-                List.of("READ_PROJECT"), schema);
+                List.of("MEMBER_READ"), schema);
 
         // Assign the manager (with MANAGE_MEMBERS) and the plain member (read only) to the project.
         assignMember(orgId, projectId, OWNER_USER_ID, managerId.toString(), managerRoleId);
@@ -124,7 +124,7 @@ class ProjectAccessIntegrationTest extends AbstractIntegrationTest {
                 .header("Authorization", TestJwtFactory.bearer(MEMBER_USER_ID, orgId.toString(), "ROLE_USER"))
                 .header("Api-Version", "1")
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(Map.of("name", "Sneaky", "permissions", List.of("READ_PROJECT")))
+                .body(Map.of("name", "Sneaky", "permissions", List.of("MEMBER_READ")))
                 .exchange((req, res) -> ResponseEntity.status(res.getStatusCode()).body(res.bodyTo(String.class)));
         assertThat(roleByPlainMember.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }

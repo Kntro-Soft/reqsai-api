@@ -58,7 +58,7 @@ class ProjectPermissionServiceTest {
         UUID owner = org.getOwnerId();
 
         assertThatCode(() -> service().assertHasProjectPermission(
-                org, UUID.randomUUID(), owner, Permission.MANAGE_MEMBERS, "manage project members"))
+                org, UUID.randomUUID(), owner, Permission.MEMBER_INVITE, "manage project members"))
                 .doesNotThrowAnyException();
     }
 
@@ -71,7 +71,7 @@ class ProjectPermissionServiceTest {
                 .thenReturn(Optional.of(member(org.getId(), adminUser, OrgRole.ADMIN)));
 
         assertThatCode(() -> service().assertHasProjectPermission(
-                org, UUID.randomUUID(), adminUser, Permission.MANAGE_ROLES, "manage project roles"))
+                org, UUID.randomUUID(), adminUser, Permission.ROLE_CREATE, "manage project roles"))
                 .doesNotThrowAnyException();
     }
 
@@ -91,10 +91,10 @@ class ProjectPermissionServiceTest {
         when(assignments.findAllByMemberId(m.getId()))
                 .thenReturn(List.of(new ProjectMember(projectId, m.getId(), roleId, UUID.randomUUID(), Instant.now())));
         when(roles.findByIdAndProjectId(roleId, projectId))
-                .thenReturn(Optional.of(new ProjectRole(projectId, "Lead", Set.of(Permission.MANAGE_MEMBERS))));
+                .thenReturn(Optional.of(new ProjectRole(projectId, "Lead", Set.of(Permission.MEMBER_INVITE))));
 
         assertThatCode(() -> service().assertHasProjectPermission(
-                org, projectId, memberUser, Permission.MANAGE_MEMBERS, "manage project members"))
+                org, projectId, memberUser, Permission.MEMBER_INVITE, "manage project members"))
                 .doesNotThrowAnyException();
     }
 
@@ -114,10 +114,10 @@ class ProjectPermissionServiceTest {
         when(assignments.findAllByMemberId(m.getId()))
                 .thenReturn(List.of(new ProjectMember(projectId, m.getId(), roleId, UUID.randomUUID(), Instant.now())));
         when(roles.findByIdAndProjectId(roleId, projectId))
-                .thenReturn(Optional.of(new ProjectRole(projectId, "Reader", Set.of(Permission.READ_PROJECT))));
+                .thenReturn(Optional.of(new ProjectRole(projectId, "Reader", Set.of(Permission.MEMBER_READ))));
 
         assertThatThrownBy(() -> service().assertHasProjectPermission(
-                org, projectId, memberUser, Permission.MANAGE_MEMBERS, "manage project members"))
+                org, projectId, memberUser, Permission.MEMBER_INVITE, "manage project members"))
                 .isInstanceOf(DomainException.class);
     }
 
@@ -136,7 +136,7 @@ class ProjectPermissionServiceTest {
         when(assignments.findAllByMemberId(m.getId())).thenReturn(List.of());
 
         assertThatThrownBy(() -> service().assertHasProjectPermission(
-                org, projectId, memberUser, Permission.MANAGE_ROLES, "manage project roles"))
+                org, projectId, memberUser, Permission.ROLE_CREATE, "manage project roles"))
                 .isInstanceOf(DomainException.class);
     }
 }

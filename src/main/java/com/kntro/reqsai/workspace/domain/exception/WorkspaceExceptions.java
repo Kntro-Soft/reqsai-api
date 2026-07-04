@@ -116,6 +116,12 @@ public final class WorkspaceExceptions {
                 "Project role not found: " + roleId);
     }
 
+    public static DomainException projectRoleInUse(UUID roleId, long assignedMembers) {
+        return new DomainException(WorkspaceError.PROJECT_ROLE_IN_USE,
+                "Project role %s is assigned to %d member(s); reassign them before deleting it"
+                        .formatted(roleId, assignedMembers));
+    }
+
     public static DomainException projectRoleNameAlreadyExists(String name) {
         return new DomainException(WorkspaceError.PROJECT_ROLE_NAME_ALREADY_EXISTS,
                 "Project role name already exists in this project: " + name);

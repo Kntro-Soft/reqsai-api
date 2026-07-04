@@ -19,12 +19,12 @@ class ProjectRoleTest {
         ProjectRole role = new ProjectRole(
                 UUID.randomUUID(),
                 "Analyst",
-                Set.of(Permission.READ_PROJECT, Permission.RUN_DISCOVERY));
+                Set.of(Permission.MEMBER_READ, Permission.DOCUMENT_READ));
 
         assertThat(role.getName()).isEqualTo("Analyst");
         assertThat(role.getPermissions()).containsExactlyInAnyOrder(
-                Permission.READ_PROJECT,
-                Permission.RUN_DISCOVERY);
+                Permission.MEMBER_READ,
+                Permission.DOCUMENT_READ);
     }
 
     @Test
@@ -33,7 +33,7 @@ class ProjectRoleTest {
         assertThatThrownBy(() -> new ProjectRole(
                 UUID.randomUUID(),
                 "   ",
-                Set.of(Permission.READ_PROJECT)))
+                Set.of(Permission.MEMBER_READ)))
                 .isInstanceOf(DomainException.class);
     }
 
@@ -50,13 +50,13 @@ class ProjectRoleTest {
         ProjectRole role = new ProjectRole(
                 UUID.randomUUID(),
                 "Analyst",
-                Set.of(Permission.READ_PROJECT));
+                Set.of(Permission.MEMBER_READ));
 
-        role.update("Lead Analyst", Set.of(Permission.READ_PROJECT, Permission.MANAGE_MEMBERS));
+        role.update("Lead Analyst", Set.of(Permission.MEMBER_READ, Permission.MEMBER_INVITE));
 
         assertThat(role.getName()).isEqualTo("Lead Analyst");
         assertThat(role.getPermissions()).containsExactlyInAnyOrder(
-                Permission.READ_PROJECT,
-                Permission.MANAGE_MEMBERS);
+                Permission.MEMBER_READ,
+                Permission.MEMBER_INVITE);
     }
 }

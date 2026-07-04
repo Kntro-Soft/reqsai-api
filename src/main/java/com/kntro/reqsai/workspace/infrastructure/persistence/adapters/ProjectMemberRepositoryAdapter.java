@@ -42,6 +42,11 @@ public class ProjectMemberRepositoryAdapter implements ProjectMemberRepository {
     }
 
     @Override
+    public long countByProjectIdAndRoleId(UUID projectId, UUID roleId) {
+        return jpa.countByProjectIdAndRoleId(projectId, roleId);
+    }
+
+    @Override
     public void delete(ProjectMember assignment) {
         jpa.delete(assignment);
     }

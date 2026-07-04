@@ -6,7 +6,9 @@ import com.kntro.reqsai.shared.infrastructure.documentation.openapi.annotations.
 import com.kntro.reqsai.shared.infrastructure.documentation.openapi.annotations.ApiResponseNotFound;
 import com.kntro.reqsai.shared.infrastructure.documentation.openapi.annotations.ApiStandardErrorResponses;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.request.CreateProjectMemberRequest;
+import com.kntro.reqsai.workspace.interfaces.rest.dto.request.InviteProjectMembersRequest;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.request.UpdateProjectMemberRequest;
+import com.kntro.reqsai.workspace.interfaces.rest.dto.response.MemberResponse;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.response.ProjectMemberResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import jakarta.validation.Valid;
@@ -24,6 +26,10 @@ public interface ProjectMemberController {
     @ApiResponseBadRequest @ApiStandardErrorResponses
     @PostMapping(version = ApiVersioning.V1)
     ResponseEntity<ProjectMemberResponse> createAssignment(@PathVariable UUID orgId, @PathVariable UUID projectId, @Valid @RequestBody CreateProjectMemberRequest request, Authentication authentication);
+
+    @ApiResponseBadRequest @ApiResponseNotFound @ApiStandardErrorResponses
+    @PostMapping(value = "/invite", version = ApiVersioning.V1)
+    ResponseEntity<List<MemberResponse>> inviteToProject(@PathVariable UUID orgId, @PathVariable UUID projectId, @Valid @RequestBody InviteProjectMembersRequest request, Authentication authentication);
 
     @ApiStandardErrorResponses
     @GetMapping(version = ApiVersioning.V1)

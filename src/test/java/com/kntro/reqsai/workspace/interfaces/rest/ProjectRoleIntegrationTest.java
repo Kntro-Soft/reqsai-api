@@ -51,7 +51,7 @@ class ProjectRoleIntegrationTest extends AbstractIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(Map.of(
                         "name", "Analyst",
-                        "permissions", List.of("READ_PROJECT", "RUN_DISCOVERY")))
+                        "permissions", List.of("MEMBER_READ", "DOCUMENT_READ")))
                 .exchange((req, res) -> ResponseEntity.status(res.getStatusCode()).body(res.bodyTo(String.class)));
         assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(created.getBody()).contains("\"name\":\"Analyst\"");
@@ -82,7 +82,7 @@ class ProjectRoleIntegrationTest extends AbstractIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(Map.of(
                         "name", "Lead Analyst",
-                        "permissions", List.of("READ_PROJECT", "MANAGE_MEMBERS")))
+                        "permissions", List.of("MEMBER_READ", "MEMBER_INVITE")))
                 .exchange((req, res) -> ResponseEntity.status(res.getStatusCode()).body(res.bodyTo(String.class)));
         assertThat(update.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(update.getBody()).contains("\"name\":\"Lead Analyst\"");
@@ -117,7 +117,7 @@ class ProjectRoleIntegrationTest extends AbstractIntegrationTest {
                 .header("Authorization", TestJwtFactory.bearer(MEMBER_USER_ID, orgId.toString(), "ROLE_USER"))
                 .header("Api-Version", "1")
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(Map.of("name", "Analyst", "permissions", List.of("READ_PROJECT")))
+                .body(Map.of("name", "Analyst", "permissions", List.of("MEMBER_READ")))
                 .exchange((req, res) -> ResponseEntity.status(res.getStatusCode()).body(res.bodyTo(String.class)));
         assertThat(forbidden.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }

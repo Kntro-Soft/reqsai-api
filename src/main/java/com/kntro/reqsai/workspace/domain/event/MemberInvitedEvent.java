@@ -19,6 +19,8 @@ import java.util.UUID;
  * @param role           the org role being granted
  * @param rawToken       the unhashed token — placed in the acceptance link, never stored
  * @param invitedByName  display name of the inviter, when known
+ * @param projectName    target project name for a project-scoped invitation, else {@code null}
+ * @param projectRoleName target project-role name for a project-scoped invitation, else {@code null}
  */
 public record MemberInvitedEvent(
         UUID invitationId,
@@ -29,6 +31,8 @@ public record MemberInvitedEvent(
         String role,
         String rawToken,
         @Nullable String invitedByName,
+        @Nullable String projectName,
+        @Nullable String projectRoleName,
         Instant occurredAt) implements DomainEvent {
 
     public static MemberInvitedEvent of(
@@ -40,8 +44,28 @@ public record MemberInvitedEvent(
             String role,
             String rawToken,
             @Nullable String invitedByName) {
+        return of(invitationId, organizationId, organizationName, email, displayName, role, rawToken,
+                invitedByName, null, null);
+    }
+
+    public static MemberInvitedEvent of(
+            UUID invitationId,
+            UUID organizationId,
+            String organizationName,
+            String email,
+            String displayName,
+            String role,
+            String rawToken,
+            @Nullable String invitedByName,
+            @Nullable String projectName,
+            @Nullable String projectRoleName) {
         return new MemberInvitedEvent(invitationId, organizationId, organizationName, email, displayName,
-                role, rawToken, invitedByName, Instant.now());
+                role, rawToken, invitedByName, projectName, projectRoleName, Instant.now());
+    }
+
+    /** {@code true} when this invitation also assigns the invitee to a project on accept. */
+    public boolean hasProjectTarget() {
+        return projectName != null && projectRoleName != null;
     }
 
     @Override
