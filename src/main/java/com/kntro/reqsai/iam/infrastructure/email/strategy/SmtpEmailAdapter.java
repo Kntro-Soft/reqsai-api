@@ -56,6 +56,35 @@ public class SmtpEmailAdapter implements EmailNotificationPort {
                 "invitation email");
     }
 
+    @Override
+    public void sendProjectInvitationEmail(String toEmail, String displayName, String organizationName, String role,
+                                           String projectName, String projectRoleName, String invitedByName,
+                                           String rawToken) {
+        String link = appUrl + "/invitations/accept?token=" + rawToken;
+        String inviter = invitedByName != null && !invitedByName.isBlank()
+                ? invitedByName + " te ha invitado"
+                : "Te han invitado";
+        send(toEmail, "Te invitaron a " + organizationName + " — Reqs-AI",
+                "<p>Hola " + displayName + ",</p>" +
+                "<p>" + inviter + " a unirte a <strong>" + organizationName + "</strong> como " + role + ".</p>" +
+                "<p>Al aceptar quedarás asignado al proyecto <strong>" + projectName + "</strong> con el rol "
+                + projectRoleName + ".</p>" +
+                "<p><a href=\"" + link + "\">Aceptar invitación</a></p>",
+                "project invitation email");
+    }
+
+    @Override
+    public void sendProjectAssignmentEmail(String toEmail, String displayName, String projectName,
+                                           String projectRoleName, String projectId) {
+        String link = appUrl + "/projects/" + projectId;
+        send(toEmail, "Te agregaron al proyecto " + projectName + " — Reqs-AI",
+                "<p>Hola " + displayName + ",</p>" +
+                "<p>Te agregaron al proyecto <strong>" + projectName + "</strong> con el rol "
+                + projectRoleName + ".</p>" +
+                "<p><a href=\"" + link + "\">Ir al proyecto</a></p>",
+                "project assignment email");
+    }
+
     private void send(String toEmail, String subject, String htmlBody, String emailType) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
