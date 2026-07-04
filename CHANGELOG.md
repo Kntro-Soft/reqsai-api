@@ -11,6 +11,53 @@ follows [Semantic Versioning](https://semver.org/).
 
 _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in progress._
 
+### Added (Discovery session control — `feature/discovery-session-control`)
+
+- **Discovery authorization at the edge** — every discovery REST endpoint (6 controllers) is now gated by
+  Spring `@PreAuthorize`. Project-scoped routes use `@authz.projectPermission(#projectId, '…', authentication)`
+  (org resolved from the JWT tenant, since these routes carry no `orgId` path variable); session-scoped
+  routes (`/api/sessions/{sessionId}/…`) use a new `@Component("discoveryAuthz")` facade that resolves the
+  session to its project and delegates to `WorkspaceModuleApi`. Six new `Permission` values —
+  `SESSION_READ/RUN/DECIDE`, `STORY_READ/WRITE` — gate reads (`SESSION_READ`/`STORY_READ`), lifecycle and
+  transcript actions (`SESSION_RUN`), suggestion accept/dismiss (`SESSION_DECIDE`), and story/criteria
+  writes (`STORY_WRITE`). Owners/org-admins bypass, as in workspace. `project_roles.permissions` is text, so
+  no migration is needed for the new values. `WorkspaceModuleApi.callerHasProjectPermission(projectId,
+  userId, permission)` resolves the project permission from the currently-bound tenant.
+- **WebSocket STT authorization** — opening a live STT stream (`/ws/stt`) now requires `SESSION_RUN` on the
+  session's project. The handshake already authenticated the JWT and bound the tenant, but any active org
+  member could previously stream audio into any project's session. `StartSttStreamCommandHandler` resolves
+  the handshake user and checks the permission before connecting upstream; denial closes the socket with
+  `1008 POLICY_VIOLATION` (new `SESSION_ACCESS_DENIED` error).
+- **Single active session per project** — starting or resuming a session while another session of the same
+  project is `RECORDING` or `PAUSED` now returns `409 SESSION_ALREADY_ACTIVE`, whose message carries the
+  offending active session id. Checked inside the start/resume `@Transactional` handlers; a partial unique
+  index `uq_sessions_project_active` (tenant migration `V18__discovery_single_active_session.sql`) is the
+  concurrency backstop so two simultaneous starts cannot both win.
+- **Session history-table stats** — `DiscoverySessionResponse` gains `storiesGenerated`, `storiesAccepted`,
+  `suggestionsPending`, `questionsAsked` and `durationSeconds`. The four counts come from a new
+  `SessionStatsRepository` computing them with two grouped queries (stories, suggestions) over the whole
+  page of session ids — no N+1 on the list endpoint. `durationSeconds` is derived from `startedAt`/`endedAt`
+  (null until a session has both). Populated on the get/list session endpoints; lifecycle-transition
+  responses leave the counts null.
+- **Project-level pending suggestions** — `GET /api/projects/{projectId}/suggestions?status=PENDING` (gated
+  `SESSION_READ`, paginated, default status `PENDING`) lists a project's suggestions across all sessions, so
+  the frontend can show "N pending from previous sessions". Reuses the existing suggestion response mapper.
+- **Post-stop suggestion decisions** — accept/dismiss of a `PENDING` suggestion works after the session has
+  `STOPPED`/`COMPLETED` (post-meeting triage). No status coupling existed in the decision handlers, so this
+  was verified (unit + integration) and preserved rather than added; the `SUGGESTION_ALREADY_RESOLVED` guard
+  remains the only gate.
+
+### Changed / Removed (Discovery session control — `feature/discovery-session-control`)
+
+- **Removed the session reset capability** (`refactor(discovery)!`) — sessions are immutable once finished, so
+  the `POST /{sessionId}/reset` endpoint, its command/handler, `DiscoverySession.reset()`, the reset domain
+  event and the `SESSION_RESET` realtime event type are gone.
+- **No session deletion** — sessions are permanent immutable history (who did what, when) and can never be
+  deleted; there is no delete endpoint and no `SESSION_DELETE` permission.
+- Module boundaries unchanged: discovery references the workspace `@authz`/`WorkspaceModuleApi` beans by SpEL
+  name only (no compile-time dependency on workspace internals); `architectureTest` and `verifyModularity`
+  stay green.
+
 ### Added (Project access control — `feature/project-access-control`)
 
 - **Granular project permissions** — replaced the coarse `MANAGE_*` permissions with a `resource:action`
