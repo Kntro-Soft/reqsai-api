@@ -5,10 +5,12 @@ import com.kntro.reqsai.shared.domain.support.Assert;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
+import lombok.Getter;
 
 import java.time.Instant;
 import java.util.UUID;
 
+@Getter
 @Entity
 @Table(name = "project_members")
 public class ProjectMember extends AggregateRoot {
@@ -39,26 +41,6 @@ public class ProjectMember extends AggregateRoot {
         this.roleId = Assert.notNull(roleId, "roleId");
         this.assignedBy = Assert.notNull(assignedBy, "assignedBy");
         this.assignedAt = Assert.notNull(assignedAt, "assignedAt");
-    }
-
-    public UUID getProjectId() {
-        return projectId;
-    }
-
-    public UUID getMemberId() {
-        return memberId;
-    }
-
-    public UUID getRoleId() {
-        return roleId;
-    }
-
-    public UUID getAssignedBy() {
-        return assignedBy;
-    }
-
-    public Instant getAssignedAt() {
-        return assignedAt;
     }
 
     public void changeRole(UUID roleId) {
