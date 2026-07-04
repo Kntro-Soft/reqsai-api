@@ -18,6 +18,17 @@ public interface TranscriptSegmentRepository {
     List<TranscriptSegment> findAllBySessionId(UUID sessionId);
 
     /**
+     * A page of finalized segments for cursor pagination: the {@code limit} highest-sequence finals
+     * whose {@code sequence} is strictly less than {@code beforeSequence}, returned DESCENDING (newest
+     * first). Pass {@code Integer.MAX_VALUE} as {@code beforeSequence} for the newest page. Callers
+     * reverse to ascending for rendering.
+     */
+    List<TranscriptSegment> findFinalBySessionIdBefore(UUID sessionId, int beforeSequence, int limit);
+
+    /** Total number of finalized segments of a session (used to signal whether older pages remain). */
+    long countFinalBySessionId(UUID sessionId);
+
+    /**
      * The {@code limit} most recent finalized segments of a session, in descending sequence order.
      * Used for realtime suggestion windowing — callers should reverse before concatenating text.
      */
