@@ -1,6 +1,7 @@
 package com.kntro.reqsai.workspace.application.handler;
 
 import com.kntro.reqsai.workspace.application.command.DeleteProjectRoleCommand;
+import com.kntro.reqsai.workspace.application.port.ProjectMemberRepository;
 import com.kntro.reqsai.workspace.application.port.ProjectRepository;
 import com.kntro.reqsai.workspace.application.port.ProjectRoleRepository;
 import com.kntro.reqsai.workspace.domain.exception.WorkspaceExceptions;
@@ -16,6 +17,7 @@ public class DeleteProjectRoleCommandHandler {
 
     private final ProjectRepository projects;
     private final ProjectRoleRepository roles;
+    private final ProjectMemberRepository members;
 
     @Transactional
     public void handle(DeleteProjectRoleCommand command) {
@@ -24,6 +26,12 @@ public class DeleteProjectRoleCommandHandler {
 
         ProjectRole role = roles.findByIdAndProjectId(command.roleId(), command.projectId())
                 .orElseThrow(() -> WorkspaceExceptions.projectRoleNotFound(command.roleId()));
+
+        long assigned = members.countByProjectIdAndRoleId(command.projectId(), command.roleId());
+        if (assigned > 0) {
+            throw WorkspaceExceptions.projectRoleInUse(command.roleId(), assigned);
+        }
+
         roles.delete(role);
     }
 }

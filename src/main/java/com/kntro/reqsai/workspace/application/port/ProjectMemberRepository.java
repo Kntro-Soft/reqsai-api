@@ -12,5 +12,6 @@ public interface ProjectMemberRepository {
     List<ProjectMember> findAllByProjectId(UUID projectId);
     List<ProjectMember> findAllByMemberId(UUID memberId);
     boolean existsByProjectIdAndMemberId(UUID projectId, UUID memberId);
+    long countByProjectIdAndRoleId(UUID projectId, UUID roleId);
     void delete(ProjectMember assignment);
 }
