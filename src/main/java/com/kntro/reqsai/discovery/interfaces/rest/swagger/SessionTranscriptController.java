@@ -3,6 +3,7 @@ package com.kntro.reqsai.discovery.interfaces.rest.swagger;
 import com.kntro.reqsai.discovery.interfaces.rest.dto.response.DiscoverySessionResponse;
 import com.kntro.reqsai.discovery.interfaces.rest.dto.response.ProcessTranscriptResponse;
 import com.kntro.reqsai.discovery.interfaces.rest.dto.response.TranscriptResponse;
+import com.kntro.reqsai.discovery.interfaces.rest.dto.response.TranscriptSegmentPageResponse;
 import com.kntro.reqsai.shared.infrastructure.configuration.ApiVersioning;
 import com.kntro.reqsai.shared.infrastructure.documentation.openapi.OpenApiConfiguration;
 import com.kntro.reqsai.shared.infrastructure.documentation.openapi.annotations.ApiResponseNotFound;
@@ -113,4 +114,36 @@ public interface SessionTranscriptController {
     ResponseEntity<TranscriptResponse> getTranscript(
             @Parameter(description = "Session to get transcript for", required = true)
             @PathVariable UUID sessionId);
+
+    @Operation(
+            summary = "List transcript segments, cursor-paginated (GET /sessions/{id}/segments)",
+            description = """
+                    Returns a page of the session's FINAL transcript segments as structured records so the \
+                    frontend can rebuild the chat timeline of a past (potentially hours-long) session in \
+                    chunks — latest first, older on scroll-up. Unlike `/transcript` (one assembled string), \
+                    each segment keeps its own timing.
+
+                    **Cursor paging:** the newest `limit` finals with `sequence < beforeSequence` are \
+                    selected (omit `beforeSequence` for the newest page). To load the previous (older) \
+                    chunk, pass the `sequence` of the first returned item as the next `beforeSequence`. The \
+                    `segments` array is always ASCENDING by sequence for rendering; `hasMore` signals \
+                    whether an older chunk remains and `totalFinalSegments` is the session-wide count.
+
+                    Each item carries an absolute `occurredAt` instant: `session.startedAt + startMs` \
+                    (falling back to the segment's persisted timestamp, then `session.createdAt + startMs`). \
+                    Live partial hypotheses are excluded.""")
+    @ApiResponse(responseCode = "200", description = "A cursor page of final transcript segments (may be empty)",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    schema = @Schema(implementation = TranscriptSegmentPageResponse.class)))
+    @ApiResponseNotFound
+    @ApiStandardErrorResponses
+    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
+    @GetMapping(path = "/segments", version = ApiVersioning.V1)
+    ResponseEntity<TranscriptSegmentPageResponse> getSegments(
+            @Parameter(description = "Session to get transcript segments for", required = true)
+            @PathVariable UUID sessionId,
+            @Parameter(description = "Cursor: return only finals with sequence < this value (omit for the newest page)", example = "1200")
+            @RequestParam(required = false) Integer beforeSequence,
+            @Parameter(description = "Max segments to return (default 50, capped at 200)", example = "50")
+            @RequestParam(required = false) Integer limit);
 }
