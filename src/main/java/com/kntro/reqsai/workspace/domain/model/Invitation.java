@@ -61,6 +61,23 @@ public class Invitation extends AggregateRoot {
     @Column(name = "accepted_at")
     private @Nullable Instant acceptedAt;
 
+    /**
+     * Optional target project for a project-scoped invitation. When set (together with
+     * {@link #targetRoleId}), accepting the invitation also materializes a {@code ProjectMember}
+     * assignment in the tenant schema. {@code null} for a plain organization invitation. Stored as a
+     * plain UUID — the project lives in the tenant schema, so no cross-schema FK.
+     */
+    @Column(name = "target_project_id", columnDefinition = "uuid")
+    private @Nullable UUID targetProjectId;
+
+    /**
+     * Optional target project-role for a project-scoped invitation. Paired with
+     * {@link #targetProjectId}; {@code null} for a plain organization invitation. Stored as a plain
+     * UUID — the role lives in the tenant schema, so no cross-schema FK.
+     */
+    @Column(name = "target_role_id", columnDefinition = "uuid")
+    private @Nullable UUID targetRoleId;
+
     protected Invitation() {
         super();
     }
@@ -72,7 +89,9 @@ public class Invitation extends AggregateRoot {
             OrgRole role,
             String tokenHash,
             UUID invitedBy,
-            Instant expiresAt) {
+            Instant expiresAt,
+            @Nullable UUID targetProjectId,
+            @Nullable UUID targetRoleId) {
         super();
         this.organizationId = Assert.notNull(organizationId, "organizationId");
         this.memberId = Assert.notNull(memberId, "memberId");
@@ -82,6 +101,13 @@ public class Invitation extends AggregateRoot {
         this.status = InvitationStatus.PENDING;
         this.invitedBy = Assert.notNull(invitedBy, "invitedBy");
         this.expiresAt = Assert.notNull(expiresAt, "expiresAt");
+        this.targetProjectId = targetProjectId;
+        this.targetRoleId = targetRoleId;
+    }
+
+    /** {@code true} when this invitation also materializes a project assignment on accept. */
+    public boolean hasProjectTarget() {
+        return targetProjectId != null && targetRoleId != null;
     }
 
     /**
@@ -104,8 +130,34 @@ public class Invitation extends AggregateRoot {
             UUID invitedBy,
             @Nullable String invitedByName,
             Instant expiresAt) {
+        return issue(organizationId, organizationName, memberId, email, displayName, role, rawToken,
+                invitedBy, invitedByName, expiresAt, null, null);
+    }
+
+    /**
+     * Issues a PENDING invitation optionally scoped to a project. When {@code targetProjectId} and
+     * {@code targetRoleId} are both non-null, accepting the invitation additionally materializes a
+     * {@code ProjectMember} assignment for the invited member in that project with that role.
+     *
+     * @param targetProjectId optional project to assign the member to on accept ({@code null} for org-only)
+     * @param targetRoleId    optional project-role for that assignment ({@code null} for org-only)
+     */
+    public static Invitation issue(
+            UUID organizationId,
+            String organizationName,
+            UUID memberId,
+            String email,
+            String displayName,
+            OrgRole role,
+            String rawToken,
+            UUID invitedBy,
+            @Nullable String invitedByName,
+            Instant expiresAt,
+            @Nullable UUID targetProjectId,
+            @Nullable UUID targetRoleId) {
         Invitation invitation = new Invitation(
-                organizationId, memberId, email, role, HashUtils.sha256(rawToken), invitedBy, expiresAt);
+                organizationId, memberId, email, role, HashUtils.sha256(rawToken), invitedBy, expiresAt,
+                targetProjectId, targetRoleId);
         invitation.registerEvent(MemberInvitedEvent.of(
                 invitation.getId(), organizationId, organizationName, invitation.email,
                 displayName, role.name(), rawToken, invitedByName));
