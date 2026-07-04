@@ -11,6 +11,35 @@ follows [Semantic Versioning](https://semver.org/).
 
 _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in progress._
 
+### Added (Project access control — `feature/project-access-control`)
+
+- **Granular project permissions** — replaced the coarse `MANAGE_*` permissions with a `resource:action`
+  `Permission` catalog (`PROJECT_UPDATE/ARCHIVE/DELETE`, `MEMBER_READ/INVITE/UPDATE_ROLE/REMOVE`,
+  `ROLE_READ/CREATE/UPDATE/DELETE`, `DOCUMENT_*`, `GLOSSARY_READ/TERM_WRITE/TERM_DELETE`,
+  `CONSTRAINT_READ/WRITE`). Stored as text on `project_roles.permissions`, so no migration is needed for
+  the new values.
+- **Authorization at the edge** — every project/member/role/document/glossary/constraint endpoint is now
+  gated by Spring `@PreAuthorize` against a single `@Component("authz")` facade
+  (`orgOwner`/`orgOwnerOrAdmin`/`orgMember`/`projectAccess`/`projectPermission`). Permissions are
+  **resolved from the database per request** (the JWT only carries `sub`/`orgId`/`role`); redundant
+  handler-level authorization was removed. Project delete is gated by `PROJECT_DELETE`.
+- **Invite people directly to a project** — batch `POST /api/organizations/{orgId}/projects/{projectId}/members/invite`
+  (**owner/admin**), body `{ invitations: [{ email, displayName, roleId }] }` → `201` `MemberResponse[]`.
+  Invitations now carry an optional project target (`target_project_id`/`target_role_id`, Flyway
+  `common/V11__invitations_project_scope.sql`); on acceptance the project assignment is materialized in
+  the invited org's tenant schema (`ProjectAssignmentMaterializer`, `REQUIRES_NEW`), skipping gracefully
+  if the role was deleted.
+- **Access-notification emails** (event-driven) — three distinct templates in `SmtpEmailAdapter`:
+  org-only invite (unchanged); an invite that also names the target project and role; and a
+  notification sent when an existing active member is assigned directly to a project — published as a
+  `ProjectMemberAssignedEvent` (AFTER_COMMIT via the Modulith event-publication registry) from the
+  direct-assignment handler only, so people who accept a project invitation are not double-notified.
+- **Safe role deletion** — deleting a `ProjectRole` that members are still assigned to now returns
+  `409 PROJECT_ROLE_IN_USE` (with the assigned count) instead of a foreign-key `500`, so callers can
+  reassign first.
+- Module boundaries unchanged: cross-module email uses `iam::ports`; `architectureTest` and
+  `verifyModularity` stay green.
+
 ### Added (Organization invitations — `feature/org-invitations`)
 
 - **Invitation lifecycle** — inviting a member (single `POST /api/organizations/{orgId}/members`,
