@@ -55,6 +55,13 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
   now assembles the transcript from the session's **final** segments in ascending `sequence` order (one
   segment per line) when the stored field is blank, and returns the stored text verbatim for
   batch/processed sessions. Read-only, single ordered query; the response field/shape is unchanged.
+- **Accepting an AI suggestion could fail with a transient 500 on the first try** — `AcceptSuggestionCommandHandler`
+  called the embedding provider inline inside the accept transaction; a transient provider failure (cold model,
+  timeout, refused connection — common on the first call) aborted the whole transaction, so the analyst's
+  explicit accept was lost and only a retry succeeded. The embedding step is now best-effort: on failure the
+  story is persisted **un-indexed** (`UserStory.isIndexed() == false`, the same state as when no embedding model
+  is configured) and the accept still commits. Similarity search skips the story until it is re-indexed. The
+  accept remains idempotent/safe to retry (a failure rolls nothing forward; the suggestion stays `PENDING`).
 
 ### Changed / Removed (Discovery session control — `feature/discovery-session-control`)
 

@@ -128,9 +128,26 @@ public class AcceptSuggestionCommandHandler {
 
     // ── Utilities ─────────────────────────────────────────────────────────────
 
+    /**
+     * Best-effort embedding of an accepted story for future similarity search.
+     *
+     * <p>The analyst has explicitly accepted the suggestion, so the backlog mutation must not be lost
+     * to a transient embedding-provider failure (a cold model, a timed-out or refused connection —
+     * these frequently surface on the first call and succeed on a retry). A failure here leaves the
+     * story un-indexed ({@link UserStory#isIndexed()} {@code == false}), exactly the state produced
+     * when no embedding model is configured; it can be re-indexed later. Only the embedding is
+     * skipped — the accept itself still commits.
+     */
     private void embedIfAvailable(UserStory story) {
-        if (embeddingPort.isAvailable()) {
+        if (!embeddingPort.isAvailable()) {
+            return;
+        }
+        try {
             story.assignEmbedding(embeddingPort.embed(story.toCanonicalText()));
+        } catch (RuntimeException e) {
+            log.warn("Embedding failed while accepting a suggestion for story '{}' (project {}); "
+                    + "persisting it un-indexed, similarity search will skip it until re-indexed: {}",
+                    story.getTitle(), story.getProjectId(), e.getMessage());
         }
     }
 
