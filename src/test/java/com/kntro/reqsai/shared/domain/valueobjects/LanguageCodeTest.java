@@ -25,6 +25,14 @@ class LanguageCodeTest {
     }
 
     @Test
+    @DisplayName("should accept a UN M.49 numeric region (es-419)")
+    void should_accept_numeric_region() {
+        // Act & Assert
+        assertThat(LanguageCode.of("es-419").value()).isEqualTo("es-419");
+        assertThat(LanguageCode.of("ES-419").value()).isEqualTo("es-419");
+    }
+
+    @Test
     @DisplayName("should reject an invalid BCP-47 tag")
     void should_reject_invalid_tag() {
         // Act & Assert
