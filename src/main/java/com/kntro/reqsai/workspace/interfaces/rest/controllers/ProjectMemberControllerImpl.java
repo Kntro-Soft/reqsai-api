@@ -5,12 +5,16 @@ import com.kntro.reqsai.workspace.application.query.GetProjectMemberQuery;
 import com.kntro.reqsai.workspace.application.query.ListProjectMembersQuery;
 import com.kntro.reqsai.workspace.domain.model.ProjectMember;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.request.CreateProjectMemberRequest;
+import com.kntro.reqsai.workspace.interfaces.rest.dto.request.InviteProjectMembersRequest;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.request.UpdateProjectMemberRequest;
+import com.kntro.reqsai.workspace.interfaces.rest.dto.response.MemberResponse;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.response.ProjectMemberResponse;
 import com.kntro.reqsai.workspace.interfaces.rest.mappers.request.ProjectMemberRequestMapper;
+import com.kntro.reqsai.workspace.interfaces.rest.mappers.response.MemberResponseMapper;
 import com.kntro.reqsai.workspace.interfaces.rest.mappers.response.ProjectMemberResponseMapper;
 import com.kntro.reqsai.workspace.interfaces.rest.swagger.ProjectMemberController;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -30,6 +34,7 @@ public class ProjectMemberControllerImpl implements ProjectMemberController {
     private final GetProjectMemberQueryHandler getAssignment;
     private final UpdateProjectMemberCommandHandler updateAssignment;
     private final DeleteProjectMemberCommandHandler deleteAssignment;
+    private final InviteProjectMembersCommandHandler inviteToProject;
 
     @Override
     @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'MEMBER_INVITE', authentication)")
@@ -38,6 +43,15 @@ public class ProjectMemberControllerImpl implements ProjectMemberController {
         ProjectMember assignment = createAssignment.handle(ProjectMemberRequestMapper.toCommand(orgId, projectId, request, requestedBy));
         URI location = ServletUriComponentsBuilder.fromCurrentRequest().path("/{id}").buildAndExpand(assignment.getId()).toUri();
         return ResponseEntity.created(location).body(ProjectMemberResponseMapper.toResponse(assignment));
+    }
+
+    @Override
+    @PreAuthorize("@authz.orgOwnerOrAdmin(#orgId, authentication)")
+    public ResponseEntity<List<MemberResponse>> inviteToProject(UUID orgId, UUID projectId, InviteProjectMembersRequest request, Authentication authentication) {
+        UUID requestedBy = UUID.fromString(authentication.getName());
+        List<MemberResponse> created = inviteToProject.handle(ProjectMemberRequestMapper.toInviteCommand(orgId, projectId, request, requestedBy))
+                .stream().map(MemberResponseMapper::toResponse).toList();
+        return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
     @Override
