@@ -1,6 +1,7 @@
 package com.kntro.reqsai.discovery.interfaces.rest.dto.response;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import org.jspecify.annotations.Nullable;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -42,6 +43,21 @@ public record DiscoverySessionResponse(
         Instant createdAt,
 
         @Schema(description = "Timestamp of the last update", example = "2026-06-15T15:30:05Z")
-        Instant updatedAt
+        Instant updatedAt,
+
+        @Schema(description = "Recording length in seconds, derived from startedAt/endedAt; null while a session has not both started and ended", example = "5400", nullable = true)
+        @Nullable Long durationSeconds,
+
+        @Schema(description = "User stories generated from this session; null on lifecycle responses that do not compute stats", example = "12", nullable = true)
+        @Nullable Long storiesGenerated,
+
+        @Schema(description = "Of the generated stories, how many were accepted (APPROVED); null when stats are not computed", example = "9", nullable = true)
+        @Nullable Long storiesAccepted,
+
+        @Schema(description = "Suggestions still pending analyst review for this session; null when stats are not computed", example = "3", nullable = true)
+        @Nullable Long suggestionsPending,
+
+        @Schema(description = "Clarifying questions the AI raised during this session; null when stats are not computed", example = "2", nullable = true)
+        @Nullable Long questionsAsked
 ) {
 }

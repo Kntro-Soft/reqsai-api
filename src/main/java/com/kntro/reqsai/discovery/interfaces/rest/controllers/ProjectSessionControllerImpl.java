@@ -7,6 +7,7 @@ import com.kntro.reqsai.discovery.application.command.StopRecordingCommand;
 import com.kntro.reqsai.discovery.application.handler.CreateDiscoverySessionCommandHandler;
 import com.kntro.reqsai.discovery.application.handler.GetProjectSessionQueryHandler;
 import com.kntro.reqsai.discovery.application.handler.ListProjectSessionsQueryHandler;
+import com.kntro.reqsai.discovery.application.handler.SessionWithStats;
 import com.kntro.reqsai.discovery.application.handler.PauseRecordingCommandHandler;
 import com.kntro.reqsai.discovery.application.handler.ResumeRecordingCommandHandler;
 import com.kntro.reqsai.discovery.application.handler.StartRecordingCommandHandler;
@@ -57,8 +58,8 @@ public class ProjectSessionControllerImpl implements ProjectSessionController {
     @Override
     @PreAuthorize("@authz.projectPermission(#projectId, 'SESSION_READ', authentication)")
     public ResponseEntity<DiscoverySessionResponse> getById(UUID projectId, UUID sessionId) {
-        DiscoverySession session = getSession.handle(new GetProjectSessionQuery(projectId, sessionId));
-        return ResponseEntity.ok(DiscoverySessionResponseMapper.toResponse(session));
+        SessionWithStats result = getSession.handle(new GetProjectSessionQuery(projectId, sessionId));
+        return ResponseEntity.ok(DiscoverySessionResponseMapper.toResponse(result.session(), result.stats()));
     }
 
     @Override
@@ -67,7 +68,7 @@ public class ProjectSessionControllerImpl implements ProjectSessionController {
         PageResponse<DiscoverySessionResponse> response = PageResponse.of(
                 listSessions.handle(new ListProjectSessionsQuery(
                         projectId, PageCriteria.of(page, size, sortBy, sortDirection)))
-                        .map(DiscoverySessionResponseMapper::toResponse));
+                        .map(s -> DiscoverySessionResponseMapper.toResponse(s.session(), s.stats())));
         return ResponseEntity.ok(response);
     }
 
