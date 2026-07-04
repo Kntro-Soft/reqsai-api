@@ -55,8 +55,8 @@ public class SessionTranscriptControllerImpl implements SessionTranscriptControl
     @Override
     @PreAuthorize("@discoveryAuthz.sessionPermission(#sessionId, 'SESSION_READ', authentication)")
     public ResponseEntity<TranscriptResponse> getTranscript(UUID sessionId) {
-        DiscoverySession session = getTranscript.handle(new GetSessionTranscriptQuery(sessionId));
-        TranscriptResponse response = new TranscriptResponse(sessionId, session.getTranscript());
+        String transcript = getTranscript.handle(new GetSessionTranscriptQuery(sessionId));
+        TranscriptResponse response = new TranscriptResponse(sessionId, transcript);
         return ResponseEntity.ok(response);
     }
 }

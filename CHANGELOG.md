@@ -47,6 +47,15 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
   was verified (unit + integration) and preserved rather than added; the `SUGGESTION_ALREADY_RESOLVED` guard
   remains the only gate.
 
+### Fixed (Discovery session control — `feature/discovery-session-control`)
+
+- **Past sessions showed an empty conversation after reload** — `GET /api/sessions/{sessionId}/transcript`
+  returned the session's `transcript` text field, which live-captured (streaming STT) sessions never
+  populate: the conversation lives only as persisted `TranscriptSegment` rows. `GetSessionTranscriptQueryHandler`
+  now assembles the transcript from the session's **final** segments in ascending `sequence` order (one
+  segment per line) when the stored field is blank, and returns the stored text verbatim for
+  batch/processed sessions. Read-only, single ordered query; the response field/shape is unchanged.
+
 ### Changed / Removed (Discovery session control — `feature/discovery-session-control`)
 
 - **Removed the session reset capability** (`refactor(discovery)!`) — sessions are immutable once finished, so
