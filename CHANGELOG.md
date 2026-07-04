@@ -42,6 +42,23 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
 - **Project-level pending suggestions** — `GET /api/projects/{projectId}/suggestions?status=PENDING` (gated
   `SESSION_READ`, paginated, default status `PENDING`) lists a project's suggestions across all sessions, so
   the frontend can show "N pending from previous sessions". Reuses the existing suggestion response mapper.
+- **Structured transcript segments (timeline replay)** — new `GET /api/sessions/{sessionId}/segments` (gated
+  `SESSION_READ`) returns a session's **final** transcript segments as structured records for rebuilding a
+  past session's chat timeline. Each item is `{ sequence, text, speakerLabel, startMs, endMs, occurredAt }`,
+  where `occurredAt` is an **absolute** instant derived as `session.startedAt + startMs` (falling back to the
+  segment's persisted `created_at`, then `session.createdAt + startMs`). The existing string `/transcript`
+  endpoint is untouched. The endpoint is **cursor-paginated** so an hours-long session never returns thousands
+  of segments at once: query params `beforeSequence` (exclusive cursor; omit for the newest page) and `limit`
+  (default 50, capped 200) select the newest finals with `sequence < beforeSequence`; the response envelope
+  `TranscriptSegmentPageResponse` returns `segments` **ascending** by sequence for rendering plus `hasMore`
+  (older chunk remains) and `totalFinalSegments` (session-wide count). To page older, pass the first item's
+  `sequence` as the next `beforeSequence`.
+- **Session suggestions filterable by status (past decisions)** — `GET /api/sessions/{sessionId}/suggestions`
+  gains an optional `status` query param (`PENDING` | `ACCEPTED` | `DISMISSED`), defaulting to `PENDING` so the
+  live review queue stays backward-compatible. Frontends can now fetch a completed session's resolved decisions
+  to render past-decision markers. `SuggestionResponse` already carries `updatedAt` (`@LastModifiedDate`), which
+  is the resolution timestamp — the entity has no separate `resolvedAt`/`decidedAt` column, so no migration was
+  added; the frontend reads `updatedAt` as "when the decision happened".
 - **Post-stop suggestion decisions** — accept/dismiss of a `PENDING` suggestion works after the session has
   `STOPPED`/`COMPLETED` (post-meeting triage). No status coupling existed in the decision handlers, so this
   was verified (unit + integration) and preserved rather than added; the `SUGGESTION_ALREADY_RESOLVED` guard
