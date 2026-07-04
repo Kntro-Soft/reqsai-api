@@ -38,5 +38,15 @@ public enum Permission {
 
     // Constraints
     CONSTRAINT_READ,
-    CONSTRAINT_WRITE
+    CONSTRAINT_WRITE,
+
+    // Discovery sessions (elicitation lifecycle — enforced by the discovery context via @authz)
+    SESSION_READ,
+    SESSION_RUN,
+    SESSION_DECIDE,
+    SESSION_DELETE,
+
+    // User stories (backlog)
+    STORY_READ,
+    STORY_WRITE
 }
