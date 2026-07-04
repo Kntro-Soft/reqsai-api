@@ -143,7 +143,7 @@ reqsai:
     default-size: ${PAGINATION_DEFAULT_SIZE:20}
     max-size: ${PAGINATION_MAX_SIZE:100}
   websocket:
-    endpoint: ${WS_ENDPOINT:/ws}
+    endpoint: ${WS_ENDPOINT:/ws/stomp}
     allowed-origins: ${WS_ALLOWED_ORIGINS:${CORS_ALLOWED_ORIGINS:http://localhost:4200}}
     enable-sock-js: ${WS_ENABLE_SOCKJS:false}
     broker:
@@ -155,9 +155,7 @@ reqsai:
 
 discovery:
   realtime:
-    # Generate suggestions once this many new (post-watermark) transcript chars have accrued.
     min-transcript-chars: ${DISCOVERY_REALTIME_MIN_TRANSCRIPT_CHARS:300}
-    # Top-K project context snippets injected into the generation prompt (RAG).
     context-top-k: ${DISCOVERY_REALTIME_CONTEXT_TOP_K:5}
 
 server:
