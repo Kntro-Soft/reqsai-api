@@ -1,5 +1,6 @@
 package com.kntro.reqsai.discovery.interfaces.rest.swagger;
 
+import com.kntro.reqsai.discovery.domain.model.SuggestionStatus;
 import com.kntro.reqsai.discovery.interfaces.rest.dto.request.AcceptSuggestionRequest;
 import com.kntro.reqsai.discovery.interfaces.rest.dto.response.SuggestionResponse;
 import com.kntro.reqsai.shared.infrastructure.configuration.ApiVersioning;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.List;
 import java.util.UUID;
@@ -38,10 +40,14 @@ import java.util.UUID;
 public interface SessionSuggestionController {
 
     @Operation(
-            summary = "List pending suggestions",
-            description = "Returns all PENDING suggestions for the session. Accepted and dismissed suggestions are excluded.")
+            summary = "List a session's suggestions by status",
+            description = """
+                    Returns the session's suggestions filtered by review `status` (defaults to **PENDING**, \
+                    so the live review queue stays backward-compatible). Pass `ACCEPTED` or `DISMISSED` to \
+                    fetch past decisions when replaying a completed session — each `SuggestionResponse` \
+                    carries `updatedAt`, the moment the decision was recorded.""")
     @ApiResponse(responseCode = "200",
-            description = "List of pending suggestions (may be empty)",
+            description = "List of suggestions in the requested status (may be empty)",
             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                     schema = @Schema(type = "array", implementation = SuggestionResponse.class)))
     @ApiResponseNotFound
@@ -50,7 +56,9 @@ public interface SessionSuggestionController {
     @GetMapping
     ResponseEntity<List<SuggestionResponse>> listPending(
             @Parameter(description = "Session identifier", required = true)
-            @PathVariable UUID sessionId);
+            @PathVariable UUID sessionId,
+            @Parameter(description = "Review status filter (default PENDING)", example = "PENDING")
+            @RequestParam(required = false) SuggestionStatus status);
 
     @Operation(
             summary = "Accept a suggestion",

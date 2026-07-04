@@ -6,6 +6,7 @@ import com.kntro.reqsai.discovery.application.handler.AcceptSuggestionCommandHan
 import com.kntro.reqsai.discovery.application.handler.DismissSuggestionCommandHandler;
 import com.kntro.reqsai.discovery.application.handler.ListPendingSuggestionsQueryHandler;
 import com.kntro.reqsai.discovery.application.query.ListPendingSuggestionsQuery;
+import com.kntro.reqsai.discovery.domain.model.SuggestionStatus;
 import com.kntro.reqsai.discovery.interfaces.rest.dto.request.AcceptSuggestionRequest;
 import com.kntro.reqsai.discovery.interfaces.rest.dto.response.SuggestionResponse;
 import com.kntro.reqsai.discovery.interfaces.rest.mappers.response.SuggestionResponseMapper;
@@ -29,8 +30,8 @@ public class SessionSuggestionControllerImpl implements SessionSuggestionControl
 
     @Override
     @PreAuthorize("@discoveryAuthz.sessionPermission(#sessionId, 'SESSION_READ', authentication)")
-    public ResponseEntity<List<SuggestionResponse>> listPending(UUID sessionId) {
-        List<SuggestionResponse> body = listPending.handle(new ListPendingSuggestionsQuery(sessionId))
+    public ResponseEntity<List<SuggestionResponse>> listPending(UUID sessionId, @Nullable SuggestionStatus status) {
+        List<SuggestionResponse> body = listPending.handle(new ListPendingSuggestionsQuery(sessionId, status))
                 .stream()
                 .map(SuggestionResponseMapper::toResponse)
                 .toList();
