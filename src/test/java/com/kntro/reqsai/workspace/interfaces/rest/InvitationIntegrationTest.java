@@ -17,6 +17,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -78,6 +79,72 @@ class InvitationIntegrationTest extends AbstractIntegrationTest {
         // idempotent replay
         ResponseEntity<String> replay = accept(rawToken, inviteeUserId, orgId);
         assertThat(replay.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    @DisplayName("invite-to-project then accept materializes a ProjectMember assignment")
+    void invite_to_project_then_accept_materializes_assignment() {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        String slug = "acme-" + suffix;
+        UUID orgId = createOrg(suffix);
+        String schema = "tenant_" + slug;
+        UUID projectId = createProject(orgId, slug, "Invite Project " + suffix);
+        String roleId = createRole(orgId, projectId, "Analyst", List.of("MEMBER_READ", "DOCUMENT_READ"), schema);
+
+        String inviteeEmail = "invitee-" + suffix + "@example.com";
+        ResponseEntity<String> invited = client().post()
+                .uri("/api/organizations/{orgId}/projects/{projectId}/members/invite", orgId, projectId)
+                .header("Authorization", TestJwtFactory.bearer(OWNER_USER_ID, orgId.toString(), "ROLE_USER"))
+                .header("Api-Version", "1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("invitations", List.of(
+                        Map.of("email", inviteeEmail, "displayName", "Invitee", "roleId", roleId))))
+                .exchange((req, res) -> ResponseEntity.status(res.getStatusCode()).body(res.bodyTo(String.class)));
+        assertThat(invited.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+
+        String memberId = jdbcTemplate.queryForObject(
+                "SELECT id::text FROM public.members WHERE organization_id = ?::uuid AND email = ?",
+                String.class, orgId, inviteeEmail);
+        // the pending invitation records the project target
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT target_project_id::text FROM public.invitations WHERE member_id = ?::uuid AND status = 'PENDING'",
+                String.class, memberId)).isEqualTo(projectId.toString());
+
+        String rawToken = awaitToken(inviteeEmail);
+        UUID inviteeUserId = seedUser(inviteeEmail);
+
+        ResponseEntity<String> accepted = accept(rawToken, inviteeUserId, orgId);
+        assertThat(accepted.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(memberStatus(memberId)).isEqualTo("ACTIVE");
+
+        // a ProjectMember assignment now exists for that member + project + role
+        Integer assignments = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM \"" + schema + "\".project_members "
+                        + "WHERE project_id = ?::uuid AND member_id = ?::uuid AND role_id = ?::uuid",
+                Integer.class, projectId, UUID.fromString(memberId), UUID.fromString(roleId));
+        assertThat(assignments).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("invite-to-project with a role from another project is rejected")
+    void invite_to_project_rejects_foreign_role() {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        String slug = "acme-" + suffix;
+        UUID orgId = createOrg(suffix);
+        String schema = "tenant_" + slug;
+        UUID projectId = createProject(orgId, slug, "Target Project " + suffix);
+        UUID otherProjectId = createProject(orgId, slug, "Other Project " + suffix);
+        String foreignRoleId = createRole(orgId, otherProjectId, "Analyst", List.of("MEMBER_READ"), schema);
+
+        ResponseEntity<String> res = client().post()
+                .uri("/api/organizations/{orgId}/projects/{projectId}/members/invite", orgId, projectId)
+                .header("Authorization", TestJwtFactory.bearer(OWNER_USER_ID, orgId.toString(), "ROLE_USER"))
+                .header("Api-Version", "1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("invitations", List.of(
+                        Map.of("email", "x-" + suffix + "@example.com", "displayName", "X", "roleId", foreignRoleId))))
+                .exchange((req, r) -> ResponseEntity.status(r.getStatusCode()).body(r.bodyTo(String.class)));
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
     @Test
@@ -167,6 +234,40 @@ class InvitationIntegrationTest extends AbstractIntegrationTest {
         assertThat(orgRes.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         return UUID.fromString(jdbcTemplate.queryForObject(
                 "SELECT id::text FROM public.organizations WHERE slug = ?", String.class, "acme-" + suffix));
+    }
+
+    private UUID createProject(UUID orgId, String slug, String projectName) {
+        ResponseEntity<String> res = client().post().uri("/api/organizations/{orgId}/projects", orgId)
+                .header("Authorization", TestJwtFactory.bearer(OWNER_USER_ID, orgId.toString(), "ROLE_USER"))
+                .header("Api-Version", "1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of(
+                        "name", projectName,
+                        "description", "Project description",
+                        "programmingLanguages", List.of("Java"),
+                        "frameworks", List.of("Spring Boot"),
+                        "clientPlatforms", List.of("Web"),
+                        "databases", List.of("PostgreSQL"),
+                        "architecture", "Clean Architecture",
+                        "domain", "Fintech"))
+                .exchange((req, resSpec) -> ResponseEntity.status(resSpec.getStatusCode()).body(resSpec.bodyTo(String.class)));
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        return UUID.fromString(jdbcTemplate.queryForObject(
+                "SELECT id::text FROM \"tenant_" + slug + "\".projects WHERE organization_id = ?::uuid AND name = ?",
+                String.class, orgId.toString(), projectName));
+    }
+
+    private String createRole(UUID orgId, UUID projectId, String name, List<String> permissions, String schema) {
+        ResponseEntity<String> response = client().post().uri("/api/organizations/{orgId}/projects/{projectId}/roles", orgId, projectId)
+                .header("Authorization", TestJwtFactory.bearer(OWNER_USER_ID, orgId.toString(), "ROLE_USER"))
+                .header("Api-Version", "1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("name", name, "permissions", permissions))
+                .exchange((req, res) -> ResponseEntity.status(res.getStatusCode()).body(res.bodyTo(String.class)));
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        return jdbcTemplate.queryForObject(
+                "SELECT id::text FROM \"" + schema + "\".project_roles WHERE project_id = ?::uuid AND name = ?",
+                String.class, projectId, name);
     }
 
     private ResponseEntity<String> invite(UUID orgId, String email, String displayName) {
