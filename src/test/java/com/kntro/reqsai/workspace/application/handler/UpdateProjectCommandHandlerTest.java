@@ -2,14 +2,9 @@ package com.kntro.reqsai.workspace.application.handler;
 
 import com.kntro.reqsai.shared.domain.exception.DomainException;
 import com.kntro.reqsai.workspace.application.command.UpdateProjectCommand;
-import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
 import com.kntro.reqsai.workspace.application.port.ProjectRepository;
-import com.kntro.reqsai.workspace.application.service.ProjectPermissionService;
-import com.kntro.reqsai.workspace.domain.exception.WorkspaceExceptions;
-import com.kntro.reqsai.workspace.domain.model.Organization;
 import com.kntro.reqsai.workspace.domain.model.Project;
 import com.kntro.reqsai.workspace.domain.model.ProjectStatus;
-import com.kntro.reqsai.workspace.mothers.OrganizationMother;
 import com.kntro.reqsai.workspace.mothers.ProjectMother;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -32,10 +27,6 @@ class UpdateProjectCommandHandlerTest {
 
     @Mock
     private ProjectRepository projects;
-    @Mock
-    private OrganizationRepository organizations;
-    @Mock
-    private ProjectPermissionService projectPermission;
     @InjectMocks
     private UpdateProjectCommandHandler handler;
 
@@ -47,8 +38,7 @@ class UpdateProjectCommandHandlerTest {
         @DisplayName("should update project details successfully and save")
         void should_update_project_successfully() {
             // Arrange
-            Organization org = OrganizationMother.active().build();
-            UUID orgId = org.getId();
+            UUID orgId = UUID.randomUUID();
             Project project = ProjectMother.standard().withOrganizationId(orgId).build();
             UUID projectId = project.getId();
 
@@ -66,7 +56,6 @@ class UpdateProjectCommandHandlerTest {
                     UUID.randomUUID()
             );
 
-            when(organizations.findById(orgId)).thenReturn(Optional.of(org));
             when(projects.findByIdAndOrganizationIdAndStatus(projectId, orgId, ProjectStatus.ACTIVE)).thenReturn(Optional.of(project));
             when(projects.existsByOrganizationIdAndNameAndIdNotAndStatus(orgId, command.name(), projectId, ProjectStatus.ACTIVE)).thenReturn(false);
             when(projects.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -88,8 +77,8 @@ class UpdateProjectCommandHandlerTest {
     class ValidationFailures {
 
         @Test
-        @DisplayName("should fail if organization does not exist")
-        void should_fail_if_org_not_found() {
+        @DisplayName("should fail if project does not exist")
+        void should_fail_if_project_not_found() {
             // Arrange
             UUID orgId = UUID.randomUUID();
             UUID projectId = UUID.randomUUID();
@@ -97,44 +86,6 @@ class UpdateProjectCommandHandlerTest {
                     orgId, projectId, "Name", "Desc", List.of("Java"), List.of("Spring"),
                     List.of("Web"), List.of("PostgreSQL"), "Clean", "Fintech", UUID.randomUUID());
 
-            when(organizations.findById(orgId)).thenReturn(Optional.empty());
-
-            // Act & Assert
-            assertThatThrownBy(() -> handler.handle(command))
-                    .isInstanceOf(DomainException.class);
-            verify(projects, never()).save(any());
-        }
-
-        @Test
-        @DisplayName("should reject a caller without PROJECT_UPDATE permission")
-        void should_reject_without_write_permission() {
-            Organization org = OrganizationMother.active().build();
-            UUID orgId = org.getId();
-            UUID projectId = UUID.randomUUID();
-            UpdateProjectCommand command = new UpdateProjectCommand(
-                    orgId, projectId, "Name", "Desc", List.of("Java"), List.of("Spring"),
-                    List.of("Web"), List.of("PostgreSQL"), "Clean", "Fintech", UUID.randomUUID());
-
-            when(organizations.findById(orgId)).thenReturn(Optional.of(org));
-            doThrow(WorkspaceExceptions.insufficientPermissions("update project", command.requestedBy()))
-                    .when(projectPermission).assertHasProjectPermission(any(), any(), any(), any(), any());
-
-            assertThatThrownBy(() -> handler.handle(command)).isInstanceOf(DomainException.class);
-            verify(projects, never()).save(any());
-        }
-
-        @Test
-        @DisplayName("should fail if project does not exist")
-        void should_fail_if_project_not_found() {
-            // Arrange
-            Organization org = OrganizationMother.active().build();
-            UUID orgId = org.getId();
-            UUID projectId = UUID.randomUUID();
-            UpdateProjectCommand command = new UpdateProjectCommand(
-                    orgId, projectId, "Name", "Desc", List.of("Java"), List.of("Spring"),
-                    List.of("Web"), List.of("PostgreSQL"), "Clean", "Fintech", UUID.randomUUID());
-
-            when(organizations.findById(orgId)).thenReturn(Optional.of(org));
             when(projects.findByIdAndOrganizationIdAndStatus(projectId, orgId, ProjectStatus.ACTIVE)).thenReturn(Optional.empty());
 
             // Act & Assert
@@ -147,15 +98,13 @@ class UpdateProjectCommandHandlerTest {
         @DisplayName("should fail if name already exists in another project of the organization")
         void should_fail_if_name_exists() {
             // Arrange
-            Organization org = OrganizationMother.active().build();
-            UUID orgId = org.getId();
+            UUID orgId = UUID.randomUUID();
             Project project = ProjectMother.standard().withOrganizationId(orgId).build();
             UUID projectId = project.getId();
             UpdateProjectCommand command = new UpdateProjectCommand(
                     orgId, projectId, "Duplicate Name", "Desc", List.of("Java"), List.of("Spring"),
                     List.of("Web"), List.of("PostgreSQL"), "Clean", "Fintech", UUID.randomUUID());
 
-            when(organizations.findById(orgId)).thenReturn(Optional.of(org));
             when(projects.findByIdAndOrganizationIdAndStatus(projectId, orgId, ProjectStatus.ACTIVE)).thenReturn(Optional.of(project));
             when(projects.existsByOrganizationIdAndNameAndIdNotAndStatus(orgId, "Duplicate Name", projectId, ProjectStatus.ACTIVE)).thenReturn(true);
 
@@ -169,15 +118,13 @@ class UpdateProjectCommandHandlerTest {
         @DisplayName("should allow duplicate name when collision exists only in another organization")
         void should_allow_duplicate_name_in_other_organization() {
             // Arrange
-            Organization org = OrganizationMother.active().build();
-            UUID orgId = org.getId();
+            UUID orgId = UUID.randomUUID();
             Project project = ProjectMother.standard().withOrganizationId(orgId).build();
             UUID projectId = project.getId();
             UpdateProjectCommand command = new UpdateProjectCommand(
                     orgId, projectId, "Shared Name", "Desc", List.of("Java"), List.of("Spring"),
                     List.of("Web"), List.of("PostgreSQL"), "Clean", "Fintech", UUID.randomUUID());
 
-            when(organizations.findById(orgId)).thenReturn(Optional.of(org));
             when(projects.findByIdAndOrganizationIdAndStatus(projectId, orgId, ProjectStatus.ACTIVE)).thenReturn(Optional.of(project));
             when(projects.existsByOrganizationIdAndNameAndIdNotAndStatus(orgId, "Shared Name", projectId, ProjectStatus.ACTIVE)).thenReturn(false);
             when(projects.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));

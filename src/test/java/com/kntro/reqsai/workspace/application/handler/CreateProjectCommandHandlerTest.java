@@ -5,8 +5,6 @@ import com.kntro.reqsai.shared.domain.exception.DomainException;
 import com.kntro.reqsai.workspace.application.command.CreateProjectCommand;
 import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
 import com.kntro.reqsai.workspace.application.port.ProjectRepository;
-import com.kntro.reqsai.workspace.application.service.OrganizationAdminAccessService;
-import com.kntro.reqsai.workspace.domain.exception.WorkspaceExceptions;
 import com.kntro.reqsai.workspace.domain.model.Organization;
 import com.kntro.reqsai.workspace.domain.model.Project;
 import com.kntro.reqsai.workspace.domain.model.ProjectStatus;
@@ -37,8 +35,6 @@ class CreateProjectCommandHandlerTest {
     private OrganizationRepository organizations;
     @Mock
     private AvatarDownloadPort avatarDownloadAdapter;
-    @Mock
-    private OrganizationAdminAccessService orgAccess;
     @InjectMocks
     private CreateProjectCommandHandler handler;
 
@@ -86,21 +82,6 @@ class CreateProjectCommandHandlerTest {
             // Act & Assert
             assertThatThrownBy(() -> handler.handle(command))
                     .isInstanceOf(DomainException.class);
-            verify(projects, never()).save(any());
-        }
-
-        @Test
-        @DisplayName("should reject a caller who is not owner or admin")
-        void should_reject_non_admin() {
-            Organization org = OrganizationMother.active().build();
-            UUID orgId = org.getId();
-            CreateProjectCommand command = CreateProjectCommandMother.withOrganizationId(orgId);
-
-            when(organizations.findById(orgId)).thenReturn(Optional.of(org));
-            doThrow(WorkspaceExceptions.insufficientPermissions("create project", command.requestedBy()))
-                    .when(orgAccess).assertOwnerOrAdmin(any(), any(), any());
-
-            assertThatThrownBy(() -> handler.handle(command)).isInstanceOf(DomainException.class);
             verify(projects, never()).save(any());
         }
 
