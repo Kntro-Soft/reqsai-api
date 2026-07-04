@@ -102,7 +102,7 @@ public class ProjectControllerImpl implements ProjectController {
     }
 
     @Override
-    @PreAuthorize("@authz.orgOwnerOrAdmin(#orgId, authentication)")
+    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'PROJECT_DELETE', authentication)")
     public ResponseEntity<Void> delete(UUID orgId, UUID projectId, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         deleteProject.handle(new DeleteProjectCommand(orgId, projectId, requestedBy));
