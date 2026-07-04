@@ -1,5 +1,6 @@
 package com.kntro.reqsai.workspace.interfaces.rest.security;
 
+import com.kntro.reqsai.workspace.api.WorkspaceModuleApi;
 import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
 import com.kntro.reqsai.workspace.application.service.OrganizationAdminAccessService;
 import com.kntro.reqsai.workspace.application.service.ProjectAccessService;
@@ -36,6 +37,7 @@ public class WorkspaceAuthorization {
     private final OrganizationAdminAccessService orgAccess;
     private final ProjectPermissionService projectPermission;
     private final ProjectAccessService projectAccess;
+    private final WorkspaceModuleApi moduleApi;
 
     /** Caller is the organization owner. */
     public boolean orgOwner(UUID orgId, Authentication authentication) {
@@ -64,6 +66,18 @@ public class WorkspaceAuthorization {
         Permission required = Permission.valueOf(permission);
         return onOrg(orgId, authentication,
                 (org, userId) -> projectPermission.hasPermission(org, projectId, userId, required));
+    }
+
+    /**
+     * Caller holds the named {@link Permission} on the given project of the <em>current tenant</em>
+     * (the JWT {@code orgId} bound by the authentication filter). For routes that carry no
+     * {@code orgId} path variable, e.g. the discovery module's {@code /api/projects/{projectId}/...}.
+     * Owner/admin bypass is identical to {@link #projectPermission(UUID, UUID, String, Authentication)};
+     * denies when no tenant is bound to the request.
+     */
+    public boolean projectPermission(UUID projectId, String permission, Authentication authentication) {
+        UUID userId = callerId(authentication);
+        return userId != null && moduleApi.callerHasProjectPermission(projectId, userId, permission);
     }
 
     private boolean onOrg(UUID orgId, Authentication authentication, BiPredicate<Organization, UUID> check) {

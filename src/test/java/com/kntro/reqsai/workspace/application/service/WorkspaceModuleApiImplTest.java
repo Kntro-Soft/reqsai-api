@@ -1,12 +1,18 @@
 package com.kntro.reqsai.workspace.application.service;
 
+import com.kntro.reqsai.shared.infrastructure.persistence.multitenancy.TenantContext;
 import com.kntro.reqsai.workspace.api.ProjectSnapshot;
 import com.kntro.reqsai.workspace.application.port.GlossaryRepository;
+import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
 import com.kntro.reqsai.workspace.application.port.ProjectRepository;
 import com.kntro.reqsai.workspace.domain.model.Glossary;
+import com.kntro.reqsai.workspace.domain.model.Organization;
+import com.kntro.reqsai.workspace.domain.model.Permission;
 import com.kntro.reqsai.workspace.domain.model.Project;
 import com.kntro.reqsai.workspace.mothers.GlossaryBuilder;
+import com.kntro.reqsai.workspace.mothers.OrganizationMother;
 import com.kntro.reqsai.workspace.mothers.ProjectMother;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -19,6 +25,9 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 @DisplayName("Application: WorkspaceModuleApi")
@@ -30,6 +39,12 @@ class WorkspaceModuleApiImplTest {
 
     @Mock
     private GlossaryRepository glossaries;
+
+    @Mock
+    private OrganizationRepository organizations;
+
+    @Mock
+    private ProjectPermissionService projectPermissions;
 
     @InjectMocks
     private WorkspaceModuleApiImpl api;
@@ -93,6 +108,72 @@ class WorkspaceModuleApiImplTest {
             Optional<ProjectSnapshot> result = api.findProjectSnapshot(unknownId);
 
             assertThat(result).isEmpty();
+        }
+    }
+
+    @Nested
+    @DisplayName("callerHasProjectPermission (tenant-resolved)")
+    class CallerHasProjectPermission {
+
+        private final UUID projectId = UUID.randomUUID();
+        private final UUID userId = UUID.randomUUID();
+
+        @AfterEach
+        void clearTenant() {
+            TenantContext.clear();
+        }
+
+        @Test
+        @DisplayName("should delegate to ProjectPermissionService with the organization of the bound tenant")
+        void should_delegate_with_current_tenant_org() {
+            Organization org = OrganizationMother.active().build();
+            TenantContext.setCurrentTenant(org.getId().toString());
+            when(organizations.findById(org.getId())).thenReturn(Optional.of(org));
+            when(projectPermissions.hasPermission(org, projectId, userId, Permission.SESSION_RUN)).thenReturn(true);
+
+            assertThat(api.callerHasProjectPermission(projectId, userId, "SESSION_RUN")).isTrue();
+        }
+
+        @Test
+        @DisplayName("should deny when the permission is not granted")
+        void should_deny_without_permission() {
+            Organization org = OrganizationMother.active().build();
+            TenantContext.setCurrentTenant(org.getId().toString());
+            when(organizations.findById(org.getId())).thenReturn(Optional.of(org));
+            when(projectPermissions.hasPermission(eq(org), eq(projectId), eq(userId), any())).thenReturn(false);
+
+            assertThat(api.callerHasProjectPermission(projectId, userId, "SESSION_READ")).isFalse();
+        }
+
+        @Test
+        @DisplayName("should deny when no tenant is bound to the thread")
+        void should_deny_without_tenant() {
+            assertThat(api.callerHasProjectPermission(projectId, userId, "SESSION_READ")).isFalse();
+        }
+
+        @Test
+        @DisplayName("should deny when the bound tenant is not a UUID")
+        void should_deny_on_malformed_tenant() {
+            TenantContext.setCurrentTenant("not-a-uuid");
+
+            assertThat(api.callerHasProjectPermission(projectId, userId, "SESSION_READ")).isFalse();
+        }
+
+        @Test
+        @DisplayName("should deny when the tenant organization does not exist")
+        void should_deny_on_unknown_org() {
+            UUID orgId = UUID.randomUUID();
+            TenantContext.setCurrentTenant(orgId.toString());
+            when(organizations.findById(orgId)).thenReturn(Optional.empty());
+
+            assertThat(api.callerHasProjectPermission(projectId, userId, "SESSION_DECIDE")).isFalse();
+        }
+
+        @Test
+        @DisplayName("should reject unknown permission names")
+        void should_reject_unknown_permission() {
+            assertThatThrownBy(() -> api.callerHasProjectPermission(projectId, userId, "NOT_A_PERMISSION"))
+                    .isInstanceOf(IllegalArgumentException.class);
         }
     }
 }
