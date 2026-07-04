@@ -169,22 +169,6 @@ public class DiscoverySession extends AggregateRoot {
         registerEvent(DiscoverySessionRecordingStoppedEvent.of(getId(), projectId));
     }
 
-    /** Resets back to {@code DRAFT}: {@code COMPLETED}, {@code FAILED}, or {@code STOPPED → DRAFT}. Clears all session data. */
-    public void reset() {
-        Assert.isTrue(this.status == SessionStatus.COMPLETED || this.status == SessionStatus.FAILED || this.status == SessionStatus.STOPPED,
-                "status", "reset requires COMPLETED, FAILED, or STOPPED but was " + this.status,
-                DiscoveryError.INVALID_SESSION_STATUS);
-        this.status = SessionStatus.DRAFT;
-        this.transcript = null;
-        this.startedAt = null;
-        this.endedAt = null;
-        this.processingError = null;
-        this.audioDurationMs = 0;
-        this.lastSequence = 0;
-        this.lastSuggestedSequence = 0;
-        registerEvent(DiscoverySessionResetEvent.of(getId(), projectId));
-    }
-
     /** Advances the realtime-suggestion watermark; never moves it backwards. */
     public void advanceSuggestedSequence(int sequence) {
         if (sequence > this.lastSuggestedSequence) {

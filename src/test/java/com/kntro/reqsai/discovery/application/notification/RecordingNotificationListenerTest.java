@@ -4,7 +4,6 @@ import com.kntro.reqsai.discovery.domain.event.DiscoverySessionRecordingPausedEv
 import com.kntro.reqsai.discovery.domain.event.DiscoverySessionRecordingResumedEvent;
 import com.kntro.reqsai.discovery.domain.event.DiscoverySessionRecordingStartedEvent;
 import com.kntro.reqsai.discovery.domain.event.DiscoverySessionRecordingStoppedEvent;
-import com.kntro.reqsai.discovery.domain.event.DiscoverySessionResetEvent;
 import com.kntro.reqsai.discovery.interfaces.notification.SessionEventType;
 import com.kntro.reqsai.discovery.interfaces.notification.messages.SessionRealtimeMessage;
 import com.kntro.reqsai.shared.application.notification.RealtimeNotifier;
@@ -80,15 +79,6 @@ class RecordingNotificationListenerTest {
         assertThat(captureType()).isEqualTo(SessionEventType.RECORDING_STOPPED);
     }
 
-    @Test
-    @DisplayName("should broadcast SESSION_RESET")
-    void should_notify_session_reset() {
-        // Act
-        listener.onSessionReset(DiscoverySessionResetEvent.of(sessionId, projectId));
-
-        // Assert
-        assertThat(captureType()).isEqualTo(SessionEventType.SESSION_RESET);
-    }
 
     /** Verifies the broadcast went to the canonical session topic and returns the message discriminator. */
     private SessionEventType captureType() {

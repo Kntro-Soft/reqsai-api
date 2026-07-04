@@ -7,7 +7,6 @@ import com.kntro.reqsai.discovery.domain.event.DiscoverySessionRecordingPausedEv
 import com.kntro.reqsai.discovery.domain.event.DiscoverySessionRecordingResumedEvent;
 import com.kntro.reqsai.discovery.domain.event.DiscoverySessionRecordingStartedEvent;
 import com.kntro.reqsai.discovery.domain.event.DiscoverySessionRecordingStoppedEvent;
-import com.kntro.reqsai.discovery.domain.event.DiscoverySessionResetEvent;
 import com.kntro.reqsai.discovery.domain.event.DiscoverySessionTranscriptUploadedEvent;
 import com.kntro.reqsai.discovery.interfaces.notification.SessionEventType;
 import com.kntro.reqsai.discovery.interfaces.notification.messages.SessionProcessingFailedMessage;
@@ -41,11 +40,6 @@ public final class DiscoverySessionNotificationMapper {
     /** {@link SessionEventType#RECORDING_STOPPED} — {@code RECORDING/PAUSED → STOPPED}. */
     public static SessionStatusChangedMessage toMessage(DiscoverySessionRecordingStoppedEvent event) {
         return SessionStatusChangedMessage.of(event.sessionId(), SessionEventType.RECORDING_STOPPED, event.occurredAt());
-    }
-
-    /** {@link SessionEventType#SESSION_RESET} — {@code COMPLETED/FAILED/STOPPED → DRAFT}. */
-    public static SessionStatusChangedMessage toMessage(DiscoverySessionResetEvent event) {
-        return SessionStatusChangedMessage.of(event.sessionId(), SessionEventType.SESSION_RESET, event.occurredAt());
     }
 
     /** {@link SessionEventType#TRANSCRIPT_UPLOADED} — transcript attached via file upload ({@code DRAFT → STOPPED}). */

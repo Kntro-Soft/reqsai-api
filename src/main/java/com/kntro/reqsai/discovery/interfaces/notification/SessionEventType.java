@@ -25,9 +25,6 @@ public enum SessionEventType {
     /** Live recording stopped ({@code RECORDING/PAUSED → STOPPED}). */
     RECORDING_STOPPED,
 
-    /** Session reset to DRAFT ({@code COMPLETED/FAILED/STOPPED → DRAFT}). */
-    SESSION_RESET,
-
     // Live streaming capture
 
     /** A finalized transcript segment was appended during {@code RECORDING} (transcript-out). */

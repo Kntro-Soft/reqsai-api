@@ -1,7 +1,6 @@
 package com.kntro.reqsai.discovery.interfaces.rest.controllers;
 
 import com.kntro.reqsai.discovery.application.command.PauseRecordingCommand;
-import com.kntro.reqsai.discovery.application.command.ResetDiscoverySessionCommand;
 import com.kntro.reqsai.discovery.application.command.ResumeRecordingCommand;
 import com.kntro.reqsai.discovery.application.command.StartRecordingCommand;
 import com.kntro.reqsai.discovery.application.command.StopRecordingCommand;
@@ -9,7 +8,6 @@ import com.kntro.reqsai.discovery.application.handler.CreateDiscoverySessionComm
 import com.kntro.reqsai.discovery.application.handler.GetProjectSessionQueryHandler;
 import com.kntro.reqsai.discovery.application.handler.ListProjectSessionsQueryHandler;
 import com.kntro.reqsai.discovery.application.handler.PauseRecordingCommandHandler;
-import com.kntro.reqsai.discovery.application.handler.ResetDiscoverySessionCommandHandler;
 import com.kntro.reqsai.discovery.application.handler.ResumeRecordingCommandHandler;
 import com.kntro.reqsai.discovery.application.handler.StartRecordingCommandHandler;
 import com.kntro.reqsai.discovery.application.handler.StopRecordingCommandHandler;
@@ -44,7 +42,6 @@ public class ProjectSessionControllerImpl implements ProjectSessionController {
     private final PauseRecordingCommandHandler pauseRecording;
     private final ResumeRecordingCommandHandler resumeRecording;
     private final StopRecordingCommandHandler stopRecording;
-    private final ResetDiscoverySessionCommandHandler resetSession;
 
     @Override
     @PreAuthorize("@authz.projectPermission(#projectId, 'SESSION_RUN', authentication)")
@@ -99,13 +96,6 @@ public class ProjectSessionControllerImpl implements ProjectSessionController {
     @PreAuthorize("@authz.projectPermission(#projectId, 'SESSION_RUN', authentication)")
     public ResponseEntity<DiscoverySessionResponse> stop(UUID projectId, UUID sessionId) {
         DiscoverySession session = stopRecording.handle(new StopRecordingCommand(projectId, sessionId));
-        return ResponseEntity.ok(DiscoverySessionResponseMapper.toResponse(session));
-    }
-
-    @Override
-    @PreAuthorize("@authz.projectPermission(#projectId, 'SESSION_RUN', authentication)")
-    public ResponseEntity<DiscoverySessionResponse> reset(UUID projectId, UUID sessionId) {
-        DiscoverySession session = resetSession.handle(new ResetDiscoverySessionCommand(projectId, sessionId));
         return ResponseEntity.ok(DiscoverySessionResponseMapper.toResponse(session));
     }
 }

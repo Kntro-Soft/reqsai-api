@@ -11,7 +11,7 @@ import java.util.UUID;
  * <p>
  * Covers: {@link SessionEventType#RECORDING_STARTED}, {@link SessionEventType#RECORDING_PAUSED},
  * {@link SessionEventType#RECORDING_RESUMED}, {@link SessionEventType#RECORDING_STOPPED},
- * {@link SessionEventType#SESSION_RESET}, {@link SessionEventType#TRANSCRIPT_UPLOADED},
+ * {@link SessionEventType#TRANSCRIPT_UPLOADED},
  * {@link SessionEventType#PROCESSING}, {@link SessionEventType#COMPLETED}.
  * <p>
  */
