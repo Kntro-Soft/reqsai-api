@@ -13,6 +13,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import org.springframework.context.ApplicationEventPublisher;
+
+import java.lang.reflect.Field;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -83,5 +86,20 @@ class ProjectAssignmentMaterializerTest {
         materializer.assign(projectId, roleId, memberId);
 
         verify(projectMembers, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("does not depend on an event publisher -> the accept path never emits the direct-assignment notification")
+    void materializer_holds_no_event_publisher() {
+        boolean hasPublisher = false;
+        for (Field field : ProjectAssignmentMaterializer.class.getDeclaredFields()) {
+            if (ApplicationEventPublisher.class.isAssignableFrom(field.getType())) {
+                hasPublisher = true;
+            }
+        }
+        assertThat(hasPublisher)
+                .as("ProjectAssignmentMaterializer must not publish ProjectMemberAssignedEvent; only the "
+                        + "direct-assignment handler does, so accepted project invitations get no duplicate email")
+                .isFalse();
     }
 }
