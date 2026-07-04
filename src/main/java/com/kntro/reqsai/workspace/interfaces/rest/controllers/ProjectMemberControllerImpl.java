@@ -32,7 +32,7 @@ public class ProjectMemberControllerImpl implements ProjectMemberController {
     private final DeleteProjectMemberCommandHandler deleteAssignment;
 
     @Override
-    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'MANAGE_MEMBERS', authentication)")
+    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'MEMBER_INVITE', authentication)")
     public ResponseEntity<ProjectMemberResponse> createAssignment(UUID orgId, UUID projectId, CreateProjectMemberRequest request, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         ProjectMember assignment = createAssignment.handle(ProjectMemberRequestMapper.toCommand(orgId, projectId, request, requestedBy));
@@ -41,7 +41,7 @@ public class ProjectMemberControllerImpl implements ProjectMemberController {
     }
 
     @Override
-    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'MANAGE_MEMBERS', authentication)")
+    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'MEMBER_READ', authentication)")
     public ResponseEntity<List<ProjectMemberResponse>> listAssignments(UUID orgId, UUID projectId, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         return ResponseEntity.ok(listAssignments.handle(new ListProjectMembersQuery(orgId, projectId, requestedBy)).stream()
@@ -49,14 +49,14 @@ public class ProjectMemberControllerImpl implements ProjectMemberController {
     }
 
     @Override
-    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'MANAGE_MEMBERS', authentication)")
+    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'MEMBER_READ', authentication)")
     public ResponseEntity<ProjectMemberResponse> getAssignment(UUID orgId, UUID projectId, UUID assignmentId, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         return ResponseEntity.ok(ProjectMemberResponseMapper.toResponse(getAssignment.handle(new GetProjectMemberQuery(orgId, projectId, assignmentId, requestedBy))));
     }
 
     @Override
-    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'MANAGE_MEMBERS', authentication)")
+    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'MEMBER_UPDATE_ROLE', authentication)")
     public ResponseEntity<ProjectMemberResponse> updateAssignment(UUID orgId, UUID projectId, UUID assignmentId, UpdateProjectMemberRequest request, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         ProjectMember assignment = updateAssignment.handle(ProjectMemberRequestMapper.toCommand(orgId, projectId, assignmentId, request, requestedBy));
@@ -64,7 +64,7 @@ public class ProjectMemberControllerImpl implements ProjectMemberController {
     }
 
     @Override
-    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'MANAGE_MEMBERS', authentication)")
+    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'MEMBER_REMOVE', authentication)")
     public ResponseEntity<Void> deleteAssignment(UUID orgId, UUID projectId, UUID assignmentId, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         deleteAssignment.handle(ProjectMemberRequestMapper.toDeleteCommand(orgId, projectId, assignmentId, requestedBy));

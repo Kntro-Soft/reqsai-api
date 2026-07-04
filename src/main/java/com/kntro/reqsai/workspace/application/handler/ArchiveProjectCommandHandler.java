@@ -26,7 +26,7 @@ public class ArchiveProjectCommandHandler {
         Organization organization = organizations.findById(command.organizationId())
                 .orElseThrow(() -> WorkspaceExceptions.organizationNotFound(command.organizationId()));
         projectPermission.assertHasProjectPermission(
-                organization, command.projectId(), command.requestedBy(), Permission.WRITE_PROJECT, "archive project");
+                organization, command.projectId(), command.requestedBy(), Permission.PROJECT_ARCHIVE, "archive project");
 
         Project project = projects.findByIdAndOrganizationIdAndStatus(
                         command.projectId(), command.organizationId(), ProjectStatus.ACTIVE)

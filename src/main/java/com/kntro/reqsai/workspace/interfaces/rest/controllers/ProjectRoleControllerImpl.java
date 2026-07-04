@@ -32,7 +32,7 @@ public class ProjectRoleControllerImpl implements ProjectRoleController {
     private final DeleteProjectRoleCommandHandler deleteRole;
 
     @Override
-    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'MANAGE_ROLES', authentication)")
+    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'ROLE_CREATE', authentication)")
     public ResponseEntity<ProjectRoleResponse> createRole(UUID orgId, UUID projectId, CreateProjectRoleRequest request, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         ProjectRole role = createRole.handle(ProjectRoleRequestMapper.toCommand(orgId, projectId, request, requestedBy));
@@ -41,7 +41,7 @@ public class ProjectRoleControllerImpl implements ProjectRoleController {
     }
 
     @Override
-    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'MANAGE_ROLES', authentication)")
+    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'ROLE_READ', authentication)")
     public ResponseEntity<List<ProjectRoleResponse>> listRoles(UUID orgId, UUID projectId, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         return ResponseEntity.ok(listRoles.handle(new ListProjectRolesQuery(orgId, projectId, requestedBy)).stream()
@@ -49,14 +49,14 @@ public class ProjectRoleControllerImpl implements ProjectRoleController {
     }
 
     @Override
-    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'MANAGE_ROLES', authentication)")
+    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'ROLE_READ', authentication)")
     public ResponseEntity<ProjectRoleResponse> getRole(UUID orgId, UUID projectId, UUID roleId, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         return ResponseEntity.ok(ProjectRoleResponseMapper.toResponse(getRole.handle(new GetProjectRoleQuery(orgId, projectId, roleId, requestedBy))));
     }
 
     @Override
-    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'MANAGE_ROLES', authentication)")
+    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'ROLE_UPDATE', authentication)")
     public ResponseEntity<ProjectRoleResponse> updateRole(UUID orgId, UUID projectId, UUID roleId, UpdateProjectRoleRequest request, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         ProjectRole role = updateRole.handle(ProjectRoleRequestMapper.toCommand(orgId, projectId, roleId, request, requestedBy));
@@ -64,7 +64,7 @@ public class ProjectRoleControllerImpl implements ProjectRoleController {
     }
 
     @Override
-    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'MANAGE_ROLES', authentication)")
+    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'ROLE_DELETE', authentication)")
     public ResponseEntity<Void> deleteRole(UUID orgId, UUID projectId, UUID roleId, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         deleteRole.handle(ProjectRoleRequestMapper.toDeleteCommand(orgId, projectId, roleId, requestedBy));
