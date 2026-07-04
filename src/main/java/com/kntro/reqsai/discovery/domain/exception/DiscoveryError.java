@@ -18,7 +18,8 @@ public enum DiscoveryError implements ErrorCatalog {
     ACCEPTANCE_CRITERION_NOT_FOUND(HttpStatus.NOT_FOUND),
     SUGGESTION_NOT_FOUND(HttpStatus.NOT_FOUND),
     SUGGESTION_ALREADY_RESOLVED(HttpStatus.CONFLICT),
-    SESSION_ACCESS_DENIED(HttpStatus.FORBIDDEN);
+    SESSION_ACCESS_DENIED(HttpStatus.FORBIDDEN),
+    SESSION_ALREADY_ACTIVE(HttpStatus.CONFLICT);
 
     private final HttpStatus status;
 

@@ -53,4 +53,10 @@ public final class DiscoveryExceptions {
         return new DomainException(DiscoveryError.SESSION_ACCESS_DENIED,
                 "User '%s' may not stream audio into session '%s'".formatted(userId, sessionId));
     }
+
+    public static DomainException sessionAlreadyActive(java.util.UUID projectId, java.util.UUID activeSessionId) {
+        return new DomainException(DiscoveryError.SESSION_ALREADY_ACTIVE,
+                "Project '%s' already has an active session '%s' (RECORDING or PAUSED); stop it before starting another"
+                        .formatted(projectId, activeSessionId));
+    }
 }

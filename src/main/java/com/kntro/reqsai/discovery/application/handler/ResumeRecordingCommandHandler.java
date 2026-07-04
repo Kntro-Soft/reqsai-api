@@ -11,6 +11,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Handles resuming a paused recording back to RECORDING.
+ *
+ * <p>Enforces the single-active-session rule: a resume is rejected when a <em>different</em> session
+ * of the same project is already live ({@code RECORDING} or {@code PAUSED}). The resuming session is
+ * itself PAUSED (hence "active"), so it is excluded from the check.
  */
 @Component
 @RequiredArgsConstructor
@@ -24,6 +28,12 @@ public class ResumeRecordingCommandHandler {
         DiscoverySession session = sessions.findById(command.sessionId())
                 .filter(s -> s.getProjectId().equals(command.projectId()))
                 .orElseThrow(() -> DiscoveryExceptions.sessionNotFound(command.sessionId()));
+
+        sessions.findActiveByProjectId(command.projectId())
+                .filter(active -> !active.getId().equals(session.getId()))
+                .ifPresent(active -> {
+                    throw DiscoveryExceptions.sessionAlreadyActive(command.projectId(), active.getId());
+                });
 
         session.resumeRecording();
         DiscoverySession saved = sessions.save(session);
