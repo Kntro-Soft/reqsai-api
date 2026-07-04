@@ -71,7 +71,7 @@ class CreateProjectMemberCommandHandlerTest {
                     .thenReturn(Optional.of(new Member(orgId, UUID.randomUUID(), "member@example.com", "Member", OrgRole.MEMBER,
                             MemberStatus.ACTIVE, requestedBy, Instant.now())));
             when(roles.findByIdAndProjectId(roleId, projectId))
-                    .thenReturn(Optional.of(new ProjectRole(projectId, "Analyst", Set.of(Permission.READ_PROJECT))));
+                    .thenReturn(Optional.of(new ProjectRole(projectId, "Analyst", Set.of(Permission.MEMBER_READ))));
             when(assignments.existsByProjectIdAndMemberId(projectId, memberId)).thenReturn(false);
             when(assignments.save(any(ProjectMember.class))).thenAnswer(invocation -> invocation.getArgument(0));
 

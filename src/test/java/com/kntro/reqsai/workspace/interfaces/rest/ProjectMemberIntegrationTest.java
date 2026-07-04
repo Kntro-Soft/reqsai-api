@@ -57,9 +57,9 @@ class ProjectMemberIntegrationTest extends AbstractIntegrationTest {
                 String.class, orgId, "member@example.com");
 
         String roleAId = createRoleAndReturnId(orgId, projectId, ADMIN_USER_ID, "Analyst",
-                List.of("READ_PROJECT", "RUN_DISCOVERY"), schema);
+                List.of("MEMBER_READ", "DOCUMENT_READ"), schema);
         String roleBId = createRoleAndReturnId(orgId, projectId, ADMIN_USER_ID, "Lead Analyst",
-                List.of("READ_PROJECT", "MANAGE_MEMBERS"), schema);
+                List.of("MEMBER_READ", "MEMBER_INVITE"), schema);
 
         ResponseEntity<String> created = client().post().uri("/api/organizations/{orgId}/projects/{projectId}/members", orgId, projectId)
                 .header("Authorization", TestJwtFactory.bearer(ADMIN_USER_ID, orgId.toString(), "ROLE_USER"))
@@ -128,7 +128,7 @@ class ProjectMemberIntegrationTest extends AbstractIntegrationTest {
         String memberId = jdbcTemplate.queryForObject(
                 "SELECT id::text FROM public.members WHERE organization_id = ?::uuid AND email = ?",
                 String.class, orgId, "member@example.com");
-        String roleId = createRoleAndReturnId(orgId, projectId, OWNER_USER_ID, "Analyst", List.of("READ_PROJECT"), schema);
+        String roleId = createRoleAndReturnId(orgId, projectId, OWNER_USER_ID, "Analyst", List.of("MEMBER_READ"), schema);
 
         ResponseEntity<String> forbidden = client().post().uri("/api/organizations/{orgId}/projects/{projectId}/members", orgId, projectId)
                 .header("Authorization", TestJwtFactory.bearer(MEMBER_USER_ID, orgId.toString(), "ROLE_USER"))

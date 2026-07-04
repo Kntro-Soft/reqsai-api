@@ -75,7 +75,7 @@ class RestoreProjectCommandHandlerTest {
     class ValidationFailures {
 
         @Test
-        @DisplayName("should reject a caller without WRITE_PROJECT permission")
+        @DisplayName("should reject a caller without PROJECT_ARCHIVE permission")
         void should_reject_without_write_permission() {
             Organization org = OrganizationMother.active().build();
             UUID orgId = org.getId();
