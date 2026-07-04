@@ -12,6 +12,7 @@ import com.kntro.reqsai.shared.interfaces.pagination.PageCriteria;
 import com.kntro.reqsai.shared.interfaces.pagination.PageResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
@@ -25,12 +26,14 @@ public class SessionStoryControllerImpl implements SessionStoryController {
     private final ListSessionStoriesQueryHandler listSessionStories;
 
     @Override
+    @PreAuthorize("@discoveryAuthz.sessionPermission(#sessionId, 'STORY_READ', authentication)")
     public ResponseEntity<UserStoryResponse> getById(UUID sessionId, UUID storyId) {
         UserStory story = getSessionStory.handle(new GetSessionStoryQuery(sessionId, storyId));
         return ResponseEntity.ok(UserStoryResponseMapper.toResponse(story));
     }
 
     @Override
+    @PreAuthorize("@discoveryAuthz.sessionPermission(#sessionId, 'STORY_READ', authentication)")
     public ResponseEntity<PageResponse<UserStoryResponse>> list(
             UUID sessionId, Integer page, Integer size, String sortBy, String sortDirection) {
         PageResponse<UserStoryResponse> response = PageResponse.of(

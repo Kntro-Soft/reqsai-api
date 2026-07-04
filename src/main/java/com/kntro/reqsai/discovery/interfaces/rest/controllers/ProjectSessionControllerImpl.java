@@ -25,6 +25,7 @@ import com.kntro.reqsai.shared.interfaces.pagination.PageCriteria;
 import com.kntro.reqsai.shared.interfaces.pagination.PageResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
@@ -46,6 +47,7 @@ public class ProjectSessionControllerImpl implements ProjectSessionController {
     private final ResetDiscoverySessionCommandHandler resetSession;
 
     @Override
+    @PreAuthorize("@authz.projectPermission(#projectId, 'SESSION_RUN', authentication)")
     public ResponseEntity<DiscoverySessionResponse> create(UUID projectId, CreateDiscoverySessionRequest request) {
         DiscoverySession session = createSession.handle(DiscoverySessionRequestMapper.toCommand(projectId, request));
         URI location = ServletUriComponentsBuilder.fromCurrentRequest()
@@ -56,12 +58,14 @@ public class ProjectSessionControllerImpl implements ProjectSessionController {
     }
 
     @Override
+    @PreAuthorize("@authz.projectPermission(#projectId, 'SESSION_READ', authentication)")
     public ResponseEntity<DiscoverySessionResponse> getById(UUID projectId, UUID sessionId) {
         DiscoverySession session = getSession.handle(new GetProjectSessionQuery(projectId, sessionId));
         return ResponseEntity.ok(DiscoverySessionResponseMapper.toResponse(session));
     }
 
     @Override
+    @PreAuthorize("@authz.projectPermission(#projectId, 'SESSION_READ', authentication)")
     public ResponseEntity<PageResponse<DiscoverySessionResponse>> list(UUID projectId, Integer page, Integer size, String sortBy, String sortDirection) {
         PageResponse<DiscoverySessionResponse> response = PageResponse.of(
                 listSessions.handle(new ListProjectSessionsQuery(
@@ -71,30 +75,35 @@ public class ProjectSessionControllerImpl implements ProjectSessionController {
     }
 
     @Override
+    @PreAuthorize("@authz.projectPermission(#projectId, 'SESSION_RUN', authentication)")
     public ResponseEntity<DiscoverySessionResponse> start(UUID projectId, UUID sessionId) {
         DiscoverySession session = startRecording.handle(new StartRecordingCommand(projectId, sessionId));
         return ResponseEntity.ok(DiscoverySessionResponseMapper.toResponse(session));
     }
 
     @Override
+    @PreAuthorize("@authz.projectPermission(#projectId, 'SESSION_RUN', authentication)")
     public ResponseEntity<DiscoverySessionResponse> pause(UUID projectId, UUID sessionId) {
         DiscoverySession session = pauseRecording.handle(new PauseRecordingCommand(projectId, sessionId));
         return ResponseEntity.ok(DiscoverySessionResponseMapper.toResponse(session));
     }
 
     @Override
+    @PreAuthorize("@authz.projectPermission(#projectId, 'SESSION_RUN', authentication)")
     public ResponseEntity<DiscoverySessionResponse> resume(UUID projectId, UUID sessionId) {
         DiscoverySession session = resumeRecording.handle(new ResumeRecordingCommand(projectId, sessionId));
         return ResponseEntity.ok(DiscoverySessionResponseMapper.toResponse(session));
     }
 
     @Override
+    @PreAuthorize("@authz.projectPermission(#projectId, 'SESSION_RUN', authentication)")
     public ResponseEntity<DiscoverySessionResponse> stop(UUID projectId, UUID sessionId) {
         DiscoverySession session = stopRecording.handle(new StopRecordingCommand(projectId, sessionId));
         return ResponseEntity.ok(DiscoverySessionResponseMapper.toResponse(session));
     }
 
     @Override
+    @PreAuthorize("@authz.projectPermission(#projectId, 'SESSION_RUN', authentication)")
     public ResponseEntity<DiscoverySessionResponse> reset(UUID projectId, UUID sessionId) {
         DiscoverySession session = resetSession.handle(new ResetDiscoverySessionCommand(projectId, sessionId));
         return ResponseEntity.ok(DiscoverySessionResponseMapper.toResponse(session));

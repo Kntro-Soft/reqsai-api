@@ -13,6 +13,7 @@ import com.kntro.reqsai.discovery.interfaces.rest.swagger.SessionSuggestionContr
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -27,6 +28,7 @@ public class SessionSuggestionControllerImpl implements SessionSuggestionControl
     private final DismissSuggestionCommandHandler dismissSuggestion;
 
     @Override
+    @PreAuthorize("@discoveryAuthz.sessionPermission(#sessionId, 'SESSION_READ', authentication)")
     public ResponseEntity<List<SuggestionResponse>> listPending(UUID sessionId) {
         List<SuggestionResponse> body = listPending.handle(new ListPendingSuggestionsQuery(sessionId))
                 .stream()
@@ -36,6 +38,7 @@ public class SessionSuggestionControllerImpl implements SessionSuggestionControl
     }
 
     @Override
+    @PreAuthorize("@discoveryAuthz.sessionPermission(#sessionId, 'SESSION_DECIDE', authentication)")
     public ResponseEntity<SuggestionResponse> accept(UUID sessionId, UUID suggestionId,
                                                      @Nullable AcceptSuggestionRequest request) {
         AcceptSuggestionRequest r = request != null ? request : new AcceptSuggestionRequest(
@@ -48,6 +51,7 @@ public class SessionSuggestionControllerImpl implements SessionSuggestionControl
     }
 
     @Override
+    @PreAuthorize("@discoveryAuthz.sessionPermission(#sessionId, 'SESSION_DECIDE', authentication)")
     public ResponseEntity<SuggestionResponse> dismiss(UUID sessionId, UUID suggestionId) {
         var suggestion = dismissSuggestion.handle(new DismissSuggestionCommand(sessionId, suggestionId));
         return ResponseEntity.ok(SuggestionResponseMapper.toResponse(suggestion));

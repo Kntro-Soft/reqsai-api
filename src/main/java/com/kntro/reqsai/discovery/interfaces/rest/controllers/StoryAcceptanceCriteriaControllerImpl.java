@@ -15,6 +15,7 @@ import com.kntro.reqsai.discovery.interfaces.rest.swagger.StoryAcceptanceCriteri
 import com.kntro.reqsai.shared.infrastructure.configuration.ApiVersioning;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
@@ -30,6 +31,7 @@ public class StoryAcceptanceCriteriaControllerImpl implements StoryAcceptanceCri
     private final DeleteAcceptanceCriterionCommandHandler deleteCriterion;
 
     @Override
+    @PreAuthorize("@authz.projectPermission(#projectId, 'STORY_WRITE', authentication)")
     public ResponseEntity<AcceptanceCriterionResponse> add(UUID projectId, UUID storyId, AddAcceptanceCriterionRequest request) {
         AcceptanceCriterion criterion = addCriterion.handle(
                 new AddAcceptanceCriterionCommand(projectId, storyId, request.scenario(), request.given(), request.when(), request.then()));
@@ -41,6 +43,7 @@ public class StoryAcceptanceCriteriaControllerImpl implements StoryAcceptanceCri
     }
 
     @Override
+    @PreAuthorize("@authz.projectPermission(#projectId, 'STORY_WRITE', authentication)")
     public ResponseEntity<AcceptanceCriterionResponse> update(
             UUID projectId, UUID storyId, UUID criterionId, UpdateAcceptanceCriterionRequest request) {
         AcceptanceCriterion criterion = updateCriterion.handle(
@@ -51,6 +54,7 @@ public class StoryAcceptanceCriteriaControllerImpl implements StoryAcceptanceCri
     }
 
     @Override
+    @PreAuthorize("@authz.projectPermission(#projectId, 'STORY_WRITE', authentication)")
     public ResponseEntity<Void> delete(UUID projectId, UUID storyId, UUID criterionId) {
         deleteCriterion.handle(new DeleteAcceptanceCriterionCommand(projectId, storyId, criterionId));
         return ResponseEntity.noContent().build();

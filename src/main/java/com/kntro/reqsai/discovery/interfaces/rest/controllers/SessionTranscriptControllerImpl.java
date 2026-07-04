@@ -17,6 +17,7 @@ import com.kntro.reqsai.discovery.interfaces.rest.mappers.response.UserStoryResp
 import com.kntro.reqsai.discovery.interfaces.rest.swagger.SessionTranscriptController;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -33,6 +34,7 @@ public class SessionTranscriptControllerImpl implements SessionTranscriptControl
     private final GetSessionTranscriptQueryHandler getTranscript;
 
     @Override
+    @PreAuthorize("@discoveryAuthz.sessionPermission(#sessionId, 'SESSION_RUN', authentication)")
     public ResponseEntity<DiscoverySessionResponse> upload(UUID sessionId, MultipartFile file) {
         byte[] audioBytes = FileUploadUtils.readBytes(file);
         DiscoverySession session = uploadTranscript.handle(new UploadTranscriptCommand(sessionId, audioBytes, file.getOriginalFilename()));
@@ -41,6 +43,7 @@ public class SessionTranscriptControllerImpl implements SessionTranscriptControl
     }
 
     @Override
+    @PreAuthorize("@discoveryAuthz.sessionPermission(#sessionId, 'SESSION_RUN', authentication)")
     public ResponseEntity<ProcessTranscriptResponse> process(UUID sessionId) {
         StartDiscoveryProcessingCommandHandler.ProcessingResult result = processTranscript.handle(new StartDiscoveryProcessingCommand(sessionId));
         List<UserStoryResponse> storyResponses = result.stories().stream()
@@ -50,6 +53,7 @@ public class SessionTranscriptControllerImpl implements SessionTranscriptControl
     }
 
     @Override
+    @PreAuthorize("@discoveryAuthz.sessionPermission(#sessionId, 'SESSION_READ', authentication)")
     public ResponseEntity<TranscriptResponse> getTranscript(UUID sessionId) {
         DiscoverySession session = getTranscript.handle(new GetSessionTranscriptQuery(sessionId));
         TranscriptResponse response = new TranscriptResponse(sessionId, session.getTranscript());

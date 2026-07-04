@@ -15,6 +15,7 @@ import com.kntro.reqsai.shared.interfaces.pagination.PageCriteria;
 import com.kntro.reqsai.shared.interfaces.pagination.PageResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
@@ -31,6 +32,7 @@ public class ProjectStoryControllerImpl implements ProjectStoryController {
     private final ListProjectStoriesQueryHandler listUserStories;
 
     @Override
+    @PreAuthorize("@authz.projectPermission(#projectId, 'STORY_WRITE', authentication)")
     public ResponseEntity<UserStoryResponse> create(UUID projectId, CreateUserStoryRequest request) {
         UserStory story = createUserStory.handle(UserStoryRequestMapper.toCommand(projectId, request));
         URI location = ServletUriComponentsBuilder.fromCurrentRequest()
@@ -41,12 +43,14 @@ public class ProjectStoryControllerImpl implements ProjectStoryController {
     }
 
     @Override
+    @PreAuthorize("@authz.projectPermission(#projectId, 'STORY_READ', authentication)")
     public ResponseEntity<UserStoryResponse> getById(UUID projectId, UUID storyId) {
         UserStory story = getUserStory.handle(new GetProjectStoryQuery(projectId, storyId));
         return ResponseEntity.ok(UserStoryResponseMapper.toResponse(story));
     }
 
     @Override
+    @PreAuthorize("@authz.projectPermission(#projectId, 'STORY_READ', authentication)")
     public ResponseEntity<PageResponse<UserStoryResponse>> list(
             UUID projectId, Integer page, Integer size, String sortBy, String sortDirection) {
         PageResponse<UserStoryResponse> response = PageResponse.of(
