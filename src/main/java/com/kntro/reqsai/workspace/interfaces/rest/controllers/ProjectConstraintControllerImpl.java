@@ -16,6 +16,7 @@ import com.kntro.reqsai.workspace.interfaces.rest.mappers.response.ProjectConstr
 import com.kntro.reqsai.workspace.interfaces.rest.swagger.ProjectConstraintController;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
@@ -35,6 +36,7 @@ public class ProjectConstraintControllerImpl implements ProjectConstraintControl
     private final DeleteProjectConstraintCommandHandler deleteProjectConstraint;
 
     @Override
+    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'CONSTRAINT_WRITE', authentication)")
     public ResponseEntity<ProjectConstraintResponse> addConstraint(
             UUID orgId,
             UUID projectId,
@@ -54,6 +56,7 @@ public class ProjectConstraintControllerImpl implements ProjectConstraintControl
     }
 
     @Override
+    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'CONSTRAINT_READ', authentication)")
     public ResponseEntity<List<ProjectConstraintResponse>> listConstraints(UUID orgId, UUID projectId, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         List<ProjectConstraintResponse> response = listProjectConstraints.handle(
@@ -65,6 +68,7 @@ public class ProjectConstraintControllerImpl implements ProjectConstraintControl
     }
 
     @Override
+    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'CONSTRAINT_READ', authentication)")
     public ResponseEntity<ProjectConstraintResponse> getConstraint(UUID orgId, UUID projectId, UUID constraintId, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         ProjectConstraint constraint = getProjectConstraint.handle(
@@ -73,6 +77,7 @@ public class ProjectConstraintControllerImpl implements ProjectConstraintControl
     }
 
     @Override
+    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'CONSTRAINT_WRITE', authentication)")
     public ResponseEntity<ProjectConstraintResponse> updateConstraint(
             UUID orgId,
             UUID projectId,
@@ -86,6 +91,7 @@ public class ProjectConstraintControllerImpl implements ProjectConstraintControl
     }
 
     @Override
+    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'CONSTRAINT_WRITE', authentication)")
     public ResponseEntity<Void> deleteConstraint(UUID orgId, UUID projectId, UUID constraintId, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         deleteProjectConstraint.handle(

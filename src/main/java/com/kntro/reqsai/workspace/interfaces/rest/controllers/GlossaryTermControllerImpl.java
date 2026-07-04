@@ -8,6 +8,7 @@ import com.kntro.reqsai.workspace.interfaces.rest.mappers.response.GlossaryTermR
 import com.kntro.reqsai.workspace.interfaces.rest.swagger.GlossaryTermController;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
@@ -21,6 +22,7 @@ public class GlossaryTermControllerImpl implements GlossaryTermController {
     private final AddGlossaryTermCommandHandler addTerm;
 
     @Override
+    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'GLOSSARY_TERM_WRITE', authentication)")
     public ResponseEntity<GlossaryTermResponse> add(UUID orgId, UUID projectId,
                                                      AddGlossaryTermRequest request,
                                                      Authentication authentication) {

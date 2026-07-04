@@ -16,6 +16,7 @@ import com.kntro.reqsai.workspace.interfaces.rest.mappers.response.ProjectDocume
 import com.kntro.reqsai.workspace.interfaces.rest.swagger.ProjectDocumentController;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
@@ -35,6 +36,7 @@ public class ProjectDocumentControllerImpl implements ProjectDocumentController 
     private final DeleteProjectDocumentCommandHandler deleteProjectDocument;
 
     @Override
+    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'DOCUMENT_CREATE', authentication)")
     public ResponseEntity<ProjectDocumentResponse> createDocument(
             UUID orgId,
             UUID projectId,
@@ -54,6 +56,7 @@ public class ProjectDocumentControllerImpl implements ProjectDocumentController 
     }
 
     @Override
+    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'DOCUMENT_READ', authentication)")
     public ResponseEntity<List<ProjectDocumentResponse>> listDocuments(UUID orgId, UUID projectId, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         List<ProjectDocumentResponse> response = listProjectDocuments.handle(
@@ -65,6 +68,7 @@ public class ProjectDocumentControllerImpl implements ProjectDocumentController 
     }
 
     @Override
+    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'DOCUMENT_READ', authentication)")
     public ResponseEntity<ProjectDocumentResponse> getDocument(UUID orgId, UUID projectId, UUID documentId, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         ProjectDocument document = getProjectDocument.handle(
@@ -73,6 +77,7 @@ public class ProjectDocumentControllerImpl implements ProjectDocumentController 
     }
 
     @Override
+    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'DOCUMENT_UPDATE', authentication)")
     public ResponseEntity<ProjectDocumentResponse> updateDocument(
             UUID orgId,
             UUID projectId,
@@ -86,6 +91,7 @@ public class ProjectDocumentControllerImpl implements ProjectDocumentController 
     }
 
     @Override
+    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'DOCUMENT_DELETE', authentication)")
     public ResponseEntity<Void> deleteDocument(UUID orgId, UUID projectId, UUID documentId, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         deleteProjectDocument.handle(
