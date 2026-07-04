@@ -2,11 +2,14 @@ package com.kntro.reqsai.workspace.application.handler;
 
 import com.kntro.reqsai.iam.application.port.AccountLookupPort;
 import com.kntro.reqsai.shared.domain.support.HashUtils;
+import com.kntro.reqsai.shared.infrastructure.persistence.multitenancy.TenantContext;
+import com.kntro.reqsai.shared.infrastructure.persistence.multitenancy.TenantSchemaResolver;
 import com.kntro.reqsai.workspace.application.command.AcceptInvitationCommand;
 import com.kntro.reqsai.workspace.application.port.InvitationRepository;
 import com.kntro.reqsai.workspace.application.port.MemberRepository;
 import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
 import com.kntro.reqsai.workspace.application.result.AcceptInvitationResult;
+import com.kntro.reqsai.workspace.application.service.ProjectAssignmentMaterializer;
 import com.kntro.reqsai.workspace.domain.exception.WorkspaceExceptions;
 import com.kntro.reqsai.workspace.domain.model.Invitation;
 import com.kntro.reqsai.workspace.domain.model.Member;
@@ -19,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Accepts an organization invitation. Two trust anchors are required: possession of the raw token AND
@@ -39,6 +43,8 @@ public class AcceptInvitationCommandHandler {
     private final MemberRepository members;
     private final OrganizationRepository organizations;
     private final AccountLookupPort accountLookup;
+    private final ProjectAssignmentMaterializer projectAssignmentMaterializer;
+    private final TenantSchemaResolver tenantSchemaResolver;
 
     @Transactional
     public AcceptInvitationResult handle(AcceptInvitationCommand command) {
@@ -79,9 +85,32 @@ public class AcceptInvitationCommandHandler {
         invitation.markAccepted(now);
         invitations.save(invitation);
 
+        materializeProjectAssignment(invitation, member);
+
         log.info("Invitation {} accepted by user {} (org {})",
                 invitation.getId(), command.callerId(), invitation.getOrganizationId());
         return toResult(organization, invitation);
+    }
+
+    /**
+     * For a project-scoped invitation, assigns the now-ACTIVE member to the target project with the
+     * target role. The project's {@code project_roles}/{@code project_members} live in the invited org's
+     * tenant schema, so this resolves that schema and runs the assignment under that tenant context (in a
+     * fresh REQUIRES_NEW transaction inside {@link ProjectAssignmentMaterializer}) regardless of the
+     * caller's current JWT context. If the role was deleted since the invite it is skipped gracefully —
+     * the member still joins the organization; a pre-existing assignment is left untouched (idempotent).
+     */
+    private void materializeProjectAssignment(Invitation invitation, Member member) {
+        if (!invitation.hasProjectTarget()) {
+            return;
+        }
+        UUID projectId = invitation.getTargetProjectId();
+        UUID roleId = invitation.getTargetRoleId();
+        String schema = tenantSchemaResolver.resolveTenantSchema(invitation.getOrganizationId().toString());
+
+        TenantContext.runWith(
+                new TenantContext.TenantSnapshot(invitation.getOrganizationId().toString(), schema),
+                () -> projectAssignmentMaterializer.assign(projectId, roleId, member.getId()));
     }
 
     private AcceptInvitationResult toResult(Organization organization, Invitation invitation) {
