@@ -48,4 +48,9 @@ public final class DiscoveryExceptions {
         return new DomainException(DiscoveryError.SUGGESTION_ALREADY_RESOLVED,
                 "Suggestion '%s' is already %s".formatted(id, status));
     }
+
+    public static DomainException sessionAccessDenied(java.util.UUID sessionId, java.util.UUID userId) {
+        return new DomainException(DiscoveryError.SESSION_ACCESS_DENIED,
+                "User '%s' may not stream audio into session '%s'".formatted(userId, sessionId));
+    }
 }

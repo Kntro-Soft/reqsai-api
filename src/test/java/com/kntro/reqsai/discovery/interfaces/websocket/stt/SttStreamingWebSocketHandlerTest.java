@@ -9,6 +9,7 @@ import com.kntro.reqsai.discovery.domain.model.DiscoverySession;
 import com.kntro.reqsai.discovery.domain.model.SessionStatus;
 import com.kntro.reqsai.shared.infrastructure.persistence.multitenancy.TenantContext;
 import com.kntro.reqsai.shared.infrastructure.web.websocket.TenantAwareBinaryWebSocketHandler;
+import com.kntro.reqsai.workspace.api.WorkspaceModuleApi;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -23,6 +24,7 @@ import java.util.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /**
@@ -36,8 +38,9 @@ class SttStreamingWebSocketHandlerTest {
 
     private final FakeStreaming streaming = new FakeStreaming();
     private final DiscoverySessionRepository sessions = mock(DiscoverySessionRepository.class);
+    private final WorkspaceModuleApi workspace = mock(WorkspaceModuleApi.class);
     private final StartSttStreamCommandHandler startStream =
-            new StartSttStreamCommandHandler(sessions, streaming);
+            new StartSttStreamCommandHandler(sessions, streaming, workspace);
     private final AppendTranscriptSegmentCommandHandler appendHandler =
             mock(AppendTranscriptSegmentCommandHandler.class);
     private final SttSessionRegistry registry = new SttSessionRegistry();
@@ -45,6 +48,7 @@ class SttStreamingWebSocketHandlerTest {
             new SttStreamingWebSocketHandler(startStream, appendHandler, registry);
 
     private final UUID sessionId = UUID.randomUUID();
+    private final UUID userId = UUID.randomUUID();
 
     @AfterEach
     void clearTenant() {
@@ -116,6 +120,7 @@ class SttStreamingWebSocketHandlerTest {
         DiscoverySession session = mock(DiscoverySession.class);
         when(session.getStatus()).thenReturn(SessionStatus.DRAFT);
         when(sessions.findById(sessionId)).thenReturn(Optional.of(session));
+        when(workspace.callerHasProjectPermission(any(), eq(userId), eq("SESSION_RUN"))).thenReturn(true);
         WebSocketSession ws = wsSession("ws-5", "session=" + sessionId, "org-1", "tenant_acme");
 
         handler.afterConnectionEstablished(ws);
@@ -137,12 +142,39 @@ class SttStreamingWebSocketHandlerTest {
         verify(ws).close(CloseStatus.NORMAL);
     }
 
+    @Test
+    @DisplayName("should reject connection when the caller lacks SESSION_RUN on the session's project")
+    void should_reject_without_project_permission() throws Exception {
+        DiscoverySession session = mock(DiscoverySession.class);
+        when(sessions.findById(sessionId)).thenReturn(Optional.of(session));
+        when(workspace.callerHasProjectPermission(any(), eq(userId), eq("SESSION_RUN"))).thenReturn(false);
+        WebSocketSession ws = wsSession("ws-7", "session=" + sessionId, "org-1", "tenant_acme");
+
+        handler.afterConnectionEstablished(ws);
+
+        verify(ws).close(any(CloseStatus.class));
+        assertThat(streaming.openCount).isZero();
+    }
+
+    @Test
+    @DisplayName("should reject connection when the handshake stored no authenticated user")
+    void should_reject_without_authenticated_user() throws Exception {
+        WebSocketSession ws = wsSession("ws-8", "session=" + sessionId, "org-1", "tenant_acme");
+        ws.getAttributes().remove(TenantAwareBinaryWebSocketHandler.ATTR_USER);
+
+        handler.afterConnectionEstablished(ws);
+
+        verify(ws).close(any(CloseStatus.class));
+        assertThat(streaming.openCount).isZero();
+    }
+
     // ----- helpers -----
 
     private void stubRecording(UUID sessionId) {
         DiscoverySession session = mock(DiscoverySession.class);
         when(session.getStatus()).thenReturn(SessionStatus.RECORDING);
         when(sessions.findById(sessionId)).thenReturn(Optional.of(session));
+        when(workspace.callerHasProjectPermission(any(), eq(userId), eq("SESSION_RUN"))).thenReturn(true);
     }
 
     private WebSocketSession wsSession(String id, String query, String orgId, String schema) {
@@ -150,6 +182,7 @@ class SttStreamingWebSocketHandlerTest {
         when(ws.getId()).thenReturn(id);
         when(ws.getUri()).thenReturn(URI.create("ws://localhost/ws/stt?" + query));
         Map<String, Object> attrs = new HashMap<>();
+        attrs.put(TenantAwareBinaryWebSocketHandler.ATTR_USER, userId.toString());
         attrs.put(TenantAwareBinaryWebSocketHandler.ATTR_ORG, orgId);
         attrs.put(TenantAwareBinaryWebSocketHandler.ATTR_SCHEMA, schema);
         when(ws.getAttributes()).thenReturn(attrs);

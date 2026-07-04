@@ -67,8 +67,9 @@ public class SttStreamingWebSocketHandler extends TenantAwareBinaryWebSocketHand
      * Opens the upstream STT session via {@link StartSttStreamCommandHandler}.
      *
      * <p>Rejects with {@link CloseStatus#BAD_DATA} (1007) if the {@code session} query param is
-     * absent or malformed; with {@link CloseStatus#POLICY_VIOLATION} (1008) if the session is not
-     * in {@code RECORDING} status or does not exist.
+     * absent or malformed; with {@link CloseStatus#POLICY_VIOLATION} (1008) if the caller lacks the
+     * {@code SESSION_RUN} permission on the session's project, if the session is not in
+     * {@code RECORDING} status, or if it does not exist.
      */
     @Override
     public void afterConnectionEstablished(@NonNull WebSocketSession ws) {
@@ -77,9 +78,14 @@ public class SttStreamingWebSocketHandler extends TenantAwareBinaryWebSocketHand
             close(ws, CloseStatus.BAD_DATA.withReason("missing or invalid 'session' query param"));
             return;
         }
+        UUID userId = authenticatedUser(ws);
+        if (userId == null) {
+            close(ws, CloseStatus.POLICY_VIOLATION.withReason("unauthenticated"));
+            return;
+        }
         try {
             StreamingTranscriptionPort.Session recognizer = runWithTenantAndReturn(ws, () ->
-                    startStream.handle(new StartSttStreamCommand(sessionId), event -> runWithTenant(ws, () -> onTranscript(sessionId, event))));
+                    startStream.handle(new StartSttStreamCommand(sessionId, userId), event -> runWithTenant(ws, () -> onTranscript(sessionId, event))));
             recognizers.put(ws.getId(), recognizer);
             wsToSession.put(ws.getId(), sessionId);
             registry.register(sessionId, ws);
@@ -108,6 +114,19 @@ public class SttStreamingWebSocketHandler extends TenantAwareBinaryWebSocketHand
         UUID sessionId = wsToSession.remove(ws.getId());
         if (sessionId != null) registry.unregister(sessionId);
         log.debug("STT stream closed (ws {}, {})", ws.getId(), status);
+    }
+
+    /** The user id stored by the handshake interceptor, or {@code null} when absent/malformed. */
+    private UUID authenticatedUser(WebSocketSession ws) {
+        Object user = ws.getAttributes().get(ATTR_USER);
+        if (!(user instanceof String s)) {
+            return null;
+        }
+        try {
+            return UUID.fromString(s);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     private void onTranscript(UUID sessionId, StreamingTranscriptionPort.TranscriptEvent event) {
