@@ -24,7 +24,9 @@ public final class SuggestionNotificationMapper {
         return new SessionSuggestionMessage(
                 e.sessionId(), e.suggestionId(),
                 SessionEventType.SUGGESTION_ACCEPTED, e.type(), SuggestionStatus.ACCEPTED,
-                null, null, null, null, null, null, null, null, null,
+                e.draftTitle(), e.draftRole(), e.draftAction(), e.draftBenefit(),
+                e.draftPriority(), e.draftStoryPoints(), e.relatedTopic(),
+                e.targetStoryId(), e.question(),
                 e.resolvedStoryId(), e.occurredAt());
     }
 
@@ -32,7 +34,9 @@ public final class SuggestionNotificationMapper {
         return new SessionSuggestionMessage(
                 e.sessionId(), e.suggestionId(),
                 SessionEventType.SUGGESTION_DISMISSED, e.type(), SuggestionStatus.DISMISSED,
-                null, null, null, null, null, null, null, null, null,
+                e.draftTitle(), e.draftRole(), e.draftAction(), e.draftBenefit(),
+                e.draftPriority(), e.draftStoryPoints(), e.relatedTopic(),
+                e.targetStoryId(), e.question(),
                 null, e.occurredAt());
     }
 }
