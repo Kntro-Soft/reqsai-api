@@ -1,5 +1,6 @@
 package com.kntro.reqsai.discovery.application.port;
 
+import com.kntro.reqsai.discovery.application.query.StoryFilter;
 import com.kntro.reqsai.discovery.domain.model.UserStory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -25,6 +26,14 @@ public interface UserStoryRepository {
     Optional<UserStory> findByIdAndProjectId(UUID storyId, UUID projectId);
 
     Page<UserStory> findAllByProjectId(UUID projectId, Pageable pageable);
+
+    /**
+     * Paginated project backlog with optional server-side {@link StoryFilter filters} (text search over
+     * title/role/action, status, priority, {@code createdAt} range). An empty filter behaves exactly
+     * like {@link #findAllByProjectId(UUID, Pageable)}. Filtering runs in the database, never in memory,
+     * so total counts and paging stay correct across large backlogs.
+     */
+    Page<UserStory> findAllByProjectId(UUID projectId, StoryFilter filter, Pageable pageable);
 
     Page<UserStory> findAllBySessionId(UUID sessionId, Pageable pageable);
 

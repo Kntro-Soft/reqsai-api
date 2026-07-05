@@ -1,8 +1,10 @@
 package com.kntro.reqsai.discovery.infrastructure.persistence.adapters;
 
 import com.kntro.reqsai.discovery.application.port.UserStoryRepository;
+import com.kntro.reqsai.discovery.application.query.StoryFilter;
 import com.kntro.reqsai.discovery.domain.model.UserStory;
 import com.kntro.reqsai.discovery.infrastructure.persistence.repositories.UserStoryJpaRepository;
+import com.kntro.reqsai.discovery.infrastructure.persistence.specifications.UserStorySpecifications;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -40,6 +42,11 @@ public class UserStoryRepositoryAdapter implements UserStoryRepository {
     @Override
     public Page<UserStory> findAllByProjectId(UUID projectId, Pageable pageable) {
         return jpa.findAllByProjectId(projectId, pageable);
+    }
+
+    @Override
+    public Page<UserStory> findAllByProjectId(UUID projectId, StoryFilter filter, Pageable pageable) {
+        return jpa.findAll(UserStorySpecifications.forProject(projectId, filter), pageable);
     }
 
     @Override

@@ -4,6 +4,7 @@ import com.kntro.reqsai.discovery.domain.model.UserStory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -11,8 +12,13 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-/** Spring Data repository for {@link UserStory} (tenant-scoped table {@code user_stories}). */
-public interface UserStoryJpaRepository extends JpaRepository<UserStory, UUID> {
+/**
+ * Spring Data repository for {@link UserStory} (tenant-scoped table {@code user_stories}).
+ * Extends {@link JpaSpecificationExecutor} so the backlog listing can compose optional server-side
+ * filters via the Criteria API — predicates are added only for non-null filters, which sidesteps the
+ * untyped-null-parameter problem of guarded HQL and keeps filtering + paging in the database.
+ */
+public interface UserStoryJpaRepository extends JpaRepository<UserStory, UUID>, JpaSpecificationExecutor<UserStory> {
 
     Page<UserStory> findAllByProjectId(UUID projectId, Pageable pageable);
 

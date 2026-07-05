@@ -1,7 +1,9 @@
 package com.kntro.reqsai.discovery.interfaces.rest.mappers.request;
 
 import com.kntro.reqsai.discovery.application.command.CreateUserStoryCommand;
+import com.kntro.reqsai.discovery.application.command.UpdateUserStoryCommand;
 import com.kntro.reqsai.discovery.interfaces.rest.dto.request.CreateUserStoryRequest;
+import com.kntro.reqsai.discovery.interfaces.rest.dto.request.UpdateUserStoryRequest;
 
 import java.util.UUID;
 
@@ -14,5 +16,9 @@ public final class UserStoryRequestMapper {
 
     public static CreateUserStoryCommand toCommand(UUID projectId, CreateUserStoryRequest request) {
         return new CreateUserStoryCommand(projectId, request.title(), request.role(), request.action(), request.benefit(), request.priority(), request.storyPoints());
+    }
+
+    public static UpdateUserStoryCommand toUpdateCommand(UUID projectId, UUID storyId, UpdateUserStoryRequest request) {
+        return new UpdateUserStoryCommand(projectId, storyId, request.title(), request.role(), request.action(), request.benefit(), request.priority(), request.storyPoints());
     }
 }

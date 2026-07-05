@@ -171,6 +171,25 @@ public class UserStory extends AggregateRoot {
     }
 
     /**
+     * Full manual edit of the core story fields. Unlike {@link #updateFrom}, every value is applied
+     * unconditionally (the required fields are always supplied and {@code storyPoints} may be set to
+     * {@code null} to clear an estimate). Enforces the same invariants as construction. This is a
+     * straight field update: it neither runs duplicate detection nor recomputes the embedding, so a
+     * manual edit leaves the story's indexed/deduplicated state untouched.
+     */
+    public void update(String title, String role, String action, String benefit, Priority priority, @Nullable Integer storyPoints) {
+        this.title = Assert.maxLength(Assert.notBlank(title, "title"), "title", TITLE_MAX);
+        this.role = Assert.maxLength(Assert.notBlank(role, "role"), "role", FIELD_MAX);
+        this.action = Assert.maxLength(Assert.notBlank(action, "action"), "action", FIELD_MAX);
+        this.benefit = Assert.maxLength(Assert.notBlank(benefit, "benefit"), "benefit", FIELD_MAX);
+        this.priority = Assert.notNull(priority, "priority");
+        if (storyPoints != null) {
+            Assert.isTrue(storyPoints >= 0, "storyPoints", "must be >= 0");
+        }
+        this.storyPoints = storyPoints;
+    }
+
+    /**
      * Updates the core story fields from an analyst-reviewed suggestion.
      * Only non-null values from the caller are applied; null means "keep existing".
      */
