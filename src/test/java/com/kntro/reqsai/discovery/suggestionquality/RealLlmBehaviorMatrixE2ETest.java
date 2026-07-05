@@ -55,7 +55,9 @@ import static org.springframework.util.StringUtils.hasText;
 /**
  * REAL-LLM behavioral <b>MATRIX</b> probe for the discovery suggestion core — a wide, data-driven map of
  * how the REAL pipeline (REAL OpenAI generation + REAL OpenAI embeddings + REAL pgvector) behaves across
- * ~90 hand-authored Spanish cases, run under ONE Spring context boot.
+ * ~200 hand-authored Spanish cases, run under ONE Spring context boot. The base A..O block (~90 cases)
+ * is followed by the P..AB expansion (~115 cases) that widens the probe into banca, salud, logística,
+ * RRHH and e-commerce, stressing regional Spanish, STT typos, filler speech, thresholds and compliance.
  *
  * <h2>Relationship to the sibling probes</h2>
  * <ul>
@@ -101,7 +103,7 @@ import static org.springframework.util.StringUtils.hasText;
  * Real OpenAI generation + embeddings via the same property flips as the sibling probes; real pgvector
  * via {@link AbstractIntegrationTest}. Tagged {@code @Tag("llm")} and skipped (never failed) without a key
  * via {@link EnabledIfEnvironmentVariable} + an in-body {@code assumeTrue}. Runs under the existing
- * {@code llmTest} Gradle task. One OpenAI generation call per case (~90 total) plus the embeddings for
+ * {@code llmTest} Gradle task. One OpenAI generation call per case (~200 total) plus the embeddings for
  * seeding + raw-cosine capture.
  * <pre>./gradlew llmTest --max-workers=1</pre>
  *
@@ -195,8 +197,8 @@ class RealLlmBehaviorMatrixE2ETest extends AbstractIntegrationTest {
     /**
      * One matrix case.
      *
-     * @param id        stable, greppable id (e.g. {@code A1})
-     * @param category  one-letter category (A..O)
+     * @param id        stable, greppable id (e.g. {@code A1}, {@code P01}, {@code AB3})
+     * @param category  category tag (A..O base, P..AB expansion)
      * @param seeds     backlog to seed (may be empty)
      * @param utterances one or more final transcript segments (Spanish)
      * @param force     whether to call {@code suggest(force=true)} (all but the cadence-hold cases)
@@ -412,7 +414,7 @@ class RealLlmBehaviorMatrixE2ETest extends AbstractIntegrationTest {
 
     private enum Outcome { PASS, FAIL, OBSERVE }
 
-    // ── The matrix: ~90 hand-authored Spanish cases across categories A..O ────────────────────────────────
+    // ── The matrix: ~200 hand-authored Spanish cases across categories A..O (base) + P..AB (expansion) ────
 
     private static final SeedStory EXPORT_PDF =
             new SeedStory("Exportar reportes a PDF", "usuario", "exportar mis reportes a PDF",
@@ -435,6 +437,38 @@ class RealLlmBehaviorMatrixE2ETest extends AbstractIntegrationTest {
     private static final SeedStory PRODUCT_SEARCH =
             new SeedStory("Buscar productos", "cliente", "buscar productos por nombre",
                     "encontrar rápido lo que quiero comprar");
+
+    // ── Domain seeds for the P..Z expansion (banca, salud, logística, RRHH, e-commerce) ───────────────────
+    private static final SeedStory TRANSFER_MONEY =
+            new SeedStory("Transferir dinero", "cliente del banco",
+                    "transferir dinero a otra cuenta desde mi banca en línea", "mover mis fondos sin ir a la sucursal");
+    private static final SeedStory ACCOUNT_BALANCE =
+            new SeedStory("Consultar saldo", "cliente del banco",
+                    "consultar el saldo de mi cuenta en cualquier momento", "saber cuánto dinero tengo disponible");
+    private static final SeedStory BOOK_APPOINTMENT =
+            new SeedStory("Agendar cita médica", "paciente",
+                    "agendar una cita médica con el especialista que necesito", "ser atendido sin hacer cola");
+    private static final SeedStory MEDICAL_HISTORY =
+            new SeedStory("Ver historia clínica", "paciente",
+                    "ver mi historia clínica y mis resultados de laboratorio", "hacer seguimiento a mi salud");
+    private static final SeedStory TRACK_SHIPMENT =
+            new SeedStory("Rastrear envío", "cliente",
+                    "rastrear el estado de mi envío en tiempo real", "saber cuándo llegará mi pedido");
+    private static final SeedStory ASSIGN_DRIVER =
+            new SeedStory("Asignar conductor", "operador de logística",
+                    "asignar un conductor disponible a cada ruta de reparto", "optimizar las entregas del día");
+    private static final SeedStory REQUEST_VACATION =
+            new SeedStory("Solicitar vacaciones", "empleado",
+                    "solicitar mis días de vacaciones desde el portal de RRHH", "gestionar mis descansos sin papeleo");
+    private static final SeedStory VIEW_PAYSLIP =
+            new SeedStory("Ver boleta de pago", "empleado",
+                    "ver y descargar mi boleta de pago de cada mes", "revisar mis ingresos y descuentos");
+    private static final SeedStory ADD_TO_CART =
+            new SeedStory("Agregar al carrito", "cliente",
+                    "agregar productos a mi carrito de compras", "reunir lo que quiero comprar antes de pagar");
+    private static final SeedStory ORDER_HISTORY =
+            new SeedStory("Ver historial de pedidos", "cliente",
+                    "ver el historial de mis pedidos anteriores", "revisar qué he comprado y volver a pedirlo");
 
     static List<Case> matrix() {
         List<Case> m = new ArrayList<>();
@@ -705,6 +739,304 @@ class RealLlmBehaviorMatrixE2ETest extends AbstractIntegrationTest {
                 "Estaría bueno ver mis tareas separando las que ya terminé de las que aún no, para ubicarlas rapidísimo.")); // near bar
         m.add(Case.of("O5", "O", List.of(LOGIN), Expectation.DEDUP_OR_UPDATE,
                 "Quiero cerrar sesión de forma segura desde cualquier pantalla, distinto a iniciar sesión.")); // below bar
+
+        // ══════════════════════════════════════════════════════════════════════════════════════════════════
+        //  EXPANSION P..Z (~100 additional cases). Ids are P##/Q##/… so they never collide with A..O above.
+        //  Same style, same helpers, same one-generation-pass-per-case budget. Domains widened to banca,
+        //  salud, logística, RRHH and e-commerce so the synonym/paraphrase dedup is stressed across vocab.
+        // ══════════════════════════════════════════════════════════════════════════════════════════════════
+
+        // ── P. Synonym/paraphrase dedup across domains (11) → DEDUP_OR_UPDATE ─────────────────────────────
+        m.add(Case.of("P01", "P", List.of(TRANSFER_MONEY), Expectation.DEDUP_OR_UPDATE,
+                "El cliente realiza un giro de fondos hacia otra cuenta desde la banca por internet para movilizar su dinero."));
+        m.add(Case.of("P02", "P", List.of(TRANSFER_MONEY), Expectation.DEDUP_OR_UPDATE,
+                "Quiero enviar plata a la cuenta de otra persona usando la app del banco, sin tener que ir al local."));
+        m.add(Case.of("P03", "P", List.of(ACCOUNT_BALANCE), Expectation.DEDUP_OR_UPDATE,
+                "Deseo revisar cuánto dinero me queda disponible en mi cuenta cuando yo lo necesite."));
+        m.add(Case.of("P04", "P", List.of(BOOK_APPOINTMENT), Expectation.DEDUP_OR_UPDATE,
+                "El paciente reserva una hora con el médico especialista que requiere para ser atendido sin esperar."));
+        m.add(Case.of("P05", "P", List.of(MEDICAL_HISTORY), Expectation.DEDUP_OR_UPDATE,
+                "Quiero consultar mi expediente clínico y mis análisis de laboratorio para dar seguimiento a mi salud."));
+        m.add(Case.of("P06", "P", List.of(TRACK_SHIPMENT), Expectation.DEDUP_OR_UPDATE,
+                "El cliente hace el seguimiento de su paquete al instante para conocer cuándo le llegará su pedido."));
+        m.add(Case.of("P07", "P", List.of(ASSIGN_DRIVER), Expectation.DEDUP_OR_UPDATE,
+                "El operador designa un chofer libre a cada recorrido de entrega para mejorar los repartos del día."));
+        m.add(Case.of("P08", "P", List.of(REQUEST_VACATION), Expectation.DEDUP_OR_UPDATE,
+                "El trabajador tramita sus días libres de descanso desde el portal de recursos humanos sin papeleos."));
+        m.add(Case.of("P09", "P", List.of(VIEW_PAYSLIP), Expectation.DEDUP_OR_UPDATE,
+                "Quiero visualizar y bajar mi recibo de sueldo de cada mes para checar mis haberes y mis deducciones."));
+        m.add(Case.of("P10", "P", List.of(ADD_TO_CART), Expectation.DEDUP_OR_UPDATE,
+                "El comprador añade artículos a su cesta de la compra para juntar lo que va a adquirir antes de abonar."));
+        m.add(Case.of("P11", "P", List.of(ORDER_HISTORY), Expectation.DEDUP_OR_UPDATE,
+                "Deseo revisar el registro de mis compras pasadas para ver qué adquirí y volver a solicitarlo."));
+
+        // ── Q. Add-a-detail → UPDATE across domains (12) ─────────────────────────────────────────────────
+        m.add(Case.of("Q01", "Q", List.of(TRANSFER_MONEY), Expectation.UPDATE,
+                "Sobre la transferencia de dinero que ya tenemos: además hay que pedir una confirmación con un código "
+                        + "que llegue por SMS antes de ejecutar el giro, como validación de seguridad."));
+        m.add(Case.of("Q02", "Q", List.of(TRANSFER_MONEY), Expectation.UPDATE,
+                "Sobre la transferencia: además hay que topar el monto diario, no se puede transferir más de diez mil "
+                        + "soles por día por cliente."));
+        m.add(Case.of("Q03", "Q", List.of(ACCOUNT_BALANCE), Expectation.UPDATE,
+                "Sobre consultar el saldo: además quiero que se muestre también un campo con la fecha y hora de la "
+                        + "última actualización del saldo."));
+        m.add(Case.of("Q04", "Q", List.of(BOOK_APPOINTMENT), Expectation.UPDATE,
+                "Sobre agendar la cita médica: además el paciente debe poder elegir el estado de la cita, si es "
+                        + "confirmada, pendiente o reprogramada, para dar seguimiento."));
+        m.add(Case.of("Q05", "Q", List.of(BOOK_APPOINTMENT), Expectation.UPDATE,
+                "Sobre agendar la cita: además hay que enviar un recordatorio por correo al paciente veinticuatro horas "
+                        + "antes de la cita como notificación."));
+        m.add(Case.of("Q06", "Q", List.of(TRACK_SHIPMENT), Expectation.UPDATE,
+                "Sobre rastrear el envío: además quiero poder filtrar mis envíos por estado, en tránsito, entregado o "
+                        + "devuelto, para ubicarlos rápido."));
+        m.add(Case.of("Q07", "Q", List.of(ASSIGN_DRIVER), Expectation.UPDATE,
+                "Sobre asignar el conductor: además hay que validar que el conductor tenga la licencia vigente antes "
+                        + "de permitir asignarlo a una ruta."));
+        m.add(Case.of("Q08", "Q", List.of(REQUEST_VACATION), Expectation.UPDATE,
+                "Sobre solicitar vacaciones: además debe existir el rol de aprobador, el jefe directo aprueba o "
+                        + "rechaza la solicitud antes de que quede registrada."));
+        m.add(Case.of("Q09", "Q", List.of(VIEW_PAYSLIP), Expectation.UPDATE,
+                "Sobre ver la boleta de pago: además quiero poder ordenar mis boletas por fecha, de la más reciente a "
+                        + "la más antigua."));
+        m.add(Case.of("Q10", "Q", List.of(ADD_TO_CART), Expectation.UPDATE,
+                "Sobre agregar al carrito: además hay que impedir agregar más unidades de las que hay en stock, con un "
+                        + "aviso cuando se llega al máximo disponible."));
+        m.add(Case.of("Q11", "Q", List.of(ORDER_HISTORY), Expectation.UPDATE,
+                "Sobre el historial de pedidos: además quiero un canal de notificación push que me avise cuando cambia "
+                        + "el estado de uno de mis pedidos."));
+        m.add(Case.of("Q12", "Q", List.of(MEDICAL_HISTORY), Expectation.UPDATE,
+                "Sobre ver la historia clínica: además solo el médico tratante y el propio paciente tienen permiso de "
+                        + "lectura; nadie más puede verla."));
+
+        // ── R. Regional Spanish stress (es-PE/es-MX/es-AR/es-ES) vs a seed (10) → DEDUP_OR_UPDATE ─────────
+        m.add(Case.of("R01", "R", List.of(ADD_TO_CART), Expectation.DEDUP_OR_UPDATE,
+                "El cliente mete productos a su carrito de compras para juntar lo que va a llevar.")); // es-MX 'carrito'
+        m.add(Case.of("R02", "R", List.of(ADD_TO_CART), Expectation.DEDUP_OR_UPDATE,
+                "El comprador agrega cosas a su canasta para reunir lo que desea comprar.")); // es-419 'canasta'
+        m.add(Case.of("R03", "R", List.of(ADD_TO_CART), Expectation.DEDUP_OR_UPDATE,
+                "El usuario añade artículos a la cesta antes de pasar por caja.")); // es-ES 'cesta'
+        m.add(Case.of("R04", "R", List.of(VIEW_PAYSLIP), Expectation.DEDUP_OR_UPDATE,
+                "El empleado consulta su recibo de la nómina de cada mes para revisar su sueldo.")); // es-ES 'nómina'
+        m.add(Case.of("R05", "R", List.of(VIEW_PAYSLIP), Expectation.DEDUP_OR_UPDATE,
+                "El trabajador revisa su planilla de pago mensual para ver cuánto cobra.")); // es-PE 'planilla'
+        m.add(Case.of("R06", "R", List.of(BOOK_APPOINTMENT), Expectation.DEDUP_OR_UPDATE,
+                "El paciente saca un turno con el doctor para que lo atiendan.")); // es-AR 'turno'
+        m.add(Case.of("R07", "R", List.of(TRANSFER_MONEY), Expectation.DEDUP_OR_UPDATE,
+                "El cliente manda una transferencia de guita a otra cuenta por el homebanking.")); // es-AR 'guita/homebanking'
+        m.add(Case.of("R08", "R", List.of(ACCOUNT_BALANCE), Expectation.DEDUP_OR_UPDATE,
+                "El cuentahabiente checa el saldo de su cuenta desde el celular cuando quiere.")); // es-MX 'checar/celular'
+        m.add(Case.of("R09", "R", List.of(TRACK_SHIPMENT), Expectation.DEDUP_OR_UPDATE,
+                "El cliente ve por dónde va su encomienda en tiempo real para saber cuándo llega.")); // es-419 'encomienda'
+        m.add(Case.of("R10", "R", List.of(REQUEST_VACATION), Expectation.DEDUP_OR_UPDATE,
+                "El laburante pide sus días de vacaciones desde el sistema de RRHH sin tanto trámite.")); // es-AR 'laburante'
+
+        // ── S. Numbers / units / thresholds in requirements (10) → OBSERVE how they're captured ───────────
+        m.add(Case.of("S01", "S", List.of(LOGIN), Expectation.OBSERVE,
+                "Sobre el inicio de sesión: bloquear la cuenta tras 5 intentos fallidos seguidos por 15 minutos."));
+        m.add(Case.of("S02", "S", List.of(RESET_LINK), Expectation.OBSERVE,
+                "Sobre restablecer la contraseña: el enlace de recuperación expira en 30 minutos desde que se envía."));
+        m.add(Case.of("S03", "S", List.of(PROFILE_FORM), Expectation.OBSERVE,
+                "Sobre editar el perfil: la foto de perfil no puede pesar más de 10 MB y debe ser JPG o PNG."));
+        m.add(Case.of("S04", "S", List.of(TRANSFER_MONEY), Expectation.OBSERVE,
+                "Sobre la transferencia: el máximo por operación es de 5000 soles y máximo 3 transferencias por hora."));
+        m.add(Case.of("S05", "S", List.of(), Expectation.OBSERVE,
+                "La API debe soportar hasta 1000 peticiones por minuto por cliente antes de aplicar un límite de tasa."));
+        m.add(Case.of("S06", "S", List.of(), Expectation.OBSERVE,
+                "El sistema debe responder cada búsqueda en menos de 2 segundos para el 95% de las consultas."));
+        m.add(Case.of("S07", "S", List.of(BOOK_APPOINTMENT), Expectation.OBSERVE,
+                "Sobre la cita médica: solo se puede reservar con un máximo de 60 días de anticipación y mínimo 2 horas antes."));
+        m.add(Case.of("S08", "S", List.of(ADD_TO_CART), Expectation.OBSERVE,
+                "Sobre el carrito: no se pueden agregar más de 99 unidades del mismo producto en un solo pedido."));
+        m.add(Case.of("S09", "S", List.of(), Expectation.OBSERVE,
+                "La sesión del usuario debe cerrarse automáticamente tras 20 minutos de inactividad."));
+        m.add(Case.of("S10", "S", List.of(EXPORT_PDF), Expectation.OBSERVE,
+                "Sobre exportar a PDF: un reporte no puede exceder las 500 páginas ni los 25 MB de tamaño final."));
+
+        // ── T. STT-style mistranscriptions / typos that STILL carry a real capability (10) → OBSERVE/dedup ─
+        m.add(Case.of("T01", "T", List.of(LOGIN), Expectation.DEDUP_OR_UPDATE,
+                "Quiero iniciar seción con mi correro y contraceña para entrar a la platafforma.")); // typos, same as LOGIN
+        m.add(Case.of("T02", "T", List.of(LOGIN), Expectation.DEDUP_OR_UPDATE,
+                "el usuario ingresa con berificación de correo y clabe para acceder alsistema.")); // run-on + typos
+        m.add(Case.of("T03", "T", List.of(RESET_LINK), Expectation.DEDUP_OR_UPDATE,
+                "Necesito restablezer mi contraseña con un enlaze que me yege por correo para recuperar el acseso."));
+        m.add(Case.of("T04", "T", List.of(EXPORT_PDF), Expectation.DEDUP_OR_UPDATE,
+                "quiero esportar mis reportez a pedeefe paraarchivarlos y compartirloscon el equipo."));
+        m.add(Case.of("T05", "T", List.of(TRACK_SHIPMENT), Expectation.DEDUP_OR_UPDATE,
+                "el cliente qiere rastriar suenvio entiempo real para saver cuando yega supedido."));
+        m.add(Case.of("T06", "T", List.of(BOOK_APPOINTMENT), Expectation.OBSERVE,
+                "el pasiente quiere ajendar una sita medica con el espesialista paraser atendido rapido."));
+        m.add(Case.of("T07", "T", List.of(ADD_TO_CART), Expectation.OBSERVE,
+                "el compradoragrega productosal carritode compras para juntarlo que va a comprar."));
+        m.add(Case.of("T08", "T", List.of(PRODUCT_SEARCH), Expectation.DEDUP_OR_UPDATE,
+                "quiero vuscar productos por nonbre para encontrarrapido lo ke kiero comprar."));
+        m.add(Case.of("T09", "T", List.of(VIEW_PAYSLIP), Expectation.OBSERVE,
+                "el enpleado kiere ber y descargar su boletade pago de cadames para rebisar sus ingresos."));
+        m.add(Case.of("T10", "T", List.of(ACCOUNT_BALANCE), Expectation.OBSERVE,
+                "el clientequiere konsultar elsaldo desu cuenta enkualquier momento para saber cuantotiene."));
+
+        // ── U. Filler-heavy real speech wrapping a real requirement (9) → extract the requirement ─────────
+        m.add(Case.of("U01", "U", List.of(LOGIN), Expectation.DEDUP_OR_UPDATE,
+                "O sea, este, digamos que, no sé, ¿me explico?, básicamente el usuario tiene que poder iniciar sesión con "
+                        + "su correo y su contraseña, ¿va?, para entrar a la plataforma, ¿sí me entiendes?"));
+        m.add(Case.of("U02", "U", List.of(TRANSFER_MONEY), Expectation.DEDUP_OR_UPDATE,
+                "A ver, este, cómo te explico, o sea la idea es que el cliente pueda, digamos, transferir dinero a otra "
+                        + "cuenta desde la banca en línea, ¿no?, para no ir a la sucursal, ¿me sigues?"));
+        m.add(Case.of("U03", "U", List.of(TRACK_SHIPMENT), Expectation.DEDUP_OR_UPDATE,
+                "Eh, mira, este, lo que queremos, o sea, es que el cliente pueda rastrear su envío en tiempo real, ¿sí?, "
+                        + "para saber cuándo le llega el pedido, pues, ¿me explico o no?"));
+        m.add(Case.of("U04", "U", List.of(BOOK_APPOINTMENT), Expectation.DEDUP_OR_UPDATE,
+                "Bueno, este, a ver, digamos, lo importante acá es que el paciente pueda agendar una cita médica con el "
+                        + "especialista, ¿ya?, para que lo atiendan sin hacer cola, ¿va?"));
+        m.add(Case.of("U05", "U", List.of(PRODUCT_SEARCH), Expectation.DEDUP_OR_UPDATE,
+                "Este, o sea, no sé cómo decirlo, pero básicamente el cliente quiere, digamos, buscar productos por su "
+                        + "nombre, ¿me explico?, para encontrar rápido lo que quiere comprar, ajá."));
+        m.add(Case.of("U06", "U", List.of(VIEW_PAYSLIP), Expectation.DEDUP_OR_UPDATE,
+                "A ver cómo lo pongo, este, o sea, digamos que el empleado necesita, ¿no?, poder ver y descargar su "
+                        + "boleta de pago del mes, para revisar su sueldo, ¿sí me sigues?"));
+        m.add(Case.of("U07", "U", List.of(REQUEST_VACATION), Expectation.DEDUP_OR_UPDATE,
+                "Eh, digamos, o sea, este, la cosa es que el empleado pueda, ¿va?, solicitar sus vacaciones desde el "
+                        + "portal de RRHH, para no andar con papeleo, ¿me explico?"));
+        m.add(Case.of("U08", "U", List.of(ACCOUNT_BALANCE), Expectation.DEDUP_OR_UPDATE,
+                "Este, mira, o sea, básicamente, no sé, el cliente quiere consultar el saldo de su cuenta cuando sea, "
+                        + "¿ya?, para saber cuánto tiene disponible, pues."));
+        m.add(Case.of("U09", "U", List.of(ADD_TO_CART), Expectation.DEDUP_OR_UPDATE,
+                "O sea, este, ¿cómo era?, digamos que el cliente agrega productos a su carrito, ¿no?, este, para juntar "
+                        + "todo lo que va a comprar antes de pagar, ¿me explico o me explico?"));
+
+        // ── V. Contradiction / negation (8) → OBSERVE ────────────────────────────────────────────────────
+        m.add(Case.of("V01", "V", List.of(), Expectation.OBSERVE,
+                "Antes queríamos pago con tarjeta de crédito, pero eso cámbialo: ahora solo aceptaremos transferencia bancaria."));
+        m.add(Case.of("V02", "V", List.of(TRANSFER_MONEY), Expectation.OBSERVE,
+                "Sobre la transferencia: ya no queremos el tope diario de diez mil, quítenlo, que no haya límite de monto."));
+        m.add(Case.of("V03", "V", List.of(), Expectation.OBSERVE,
+                "El sistema no debe permitir eliminar una cuenta de usuario; bajo ninguna circunstancia se borra, solo se desactiva."));
+        m.add(Case.of("V04", "V", List.of(BOOK_APPOINTMENT), Expectation.OBSERVE,
+                "Sobre la cita médica: eso del recordatorio por SMS cámbialo por un recordatorio por correo, ya no SMS."));
+        m.add(Case.of("V05", "V", List.of(), Expectation.OBSERVE,
+                "Ya no queremos el modo oscuro que habíamos pedido; olvídenlo, no lo vamos a implementar."));
+        m.add(Case.of("V06", "V", List.of(TRACK_SHIPMENT), Expectation.OBSERVE,
+                "Sobre el rastreo: no muestres la ubicación exacta del repartidor, eso quítalo, solo el estado del envío."));
+        m.add(Case.of("V07", "V", List.of(REQUEST_VACATION), Expectation.OBSERVE,
+                "Sobre solicitar vacaciones: el empleado ya no aprueba solo; cambia eso, ahora siempre lo aprueba el jefe."));
+        m.add(Case.of("V08", "V", List.of(ADD_TO_CART), Expectation.OBSERVE,
+                "No queremos que se pueda comprar sin iniciar sesión; eso ya no, ahora es obligatorio estar logueado."));
+
+        // ── W. Ambiguity / conflict → CLARIFY (9) ────────────────────────────────────────────────────────
+        m.add(Case.of("W01", "W", List.of(), Expectation.CLARIFY,
+                "Necesitamos que el módulo de pagos sea flexible y se adapte a lo que venga; ustedes ya saben cómo, ¿no?"));
+        m.add(Case.of("W02", "W", List.of(), Expectation.CLARIFY,
+                "Que el reporte muestre la información relevante para cada quien; lo relevante depende, pero eso vean ustedes."));
+        m.add(Case.of("W03", "W", List.of(), Expectation.CLARIFY,
+                "Alguien debe poder aprobar los gastos, pero no hemos definido quién ni con qué monto se necesita aprobación."));
+        m.add(Case.of("W04", "W", List.of(), Expectation.CLARIFY,
+                "Queremos que la cita se confirme automáticamente, pero también que alguien la revise antes; que sea automático y revisado."));
+        m.add(Case.of("W05", "W", List.of(), Expectation.CLARIFY,
+                "El envío debe ser gratis, pero también queremos cobrar el flete; a ver cómo lo cuadran ustedes."));
+        m.add(Case.of("W06", "W", List.of(), Expectation.CLARIFY,
+                "Hay que mejorar la experiencia del usuario en general, que se sienta más moderno y ágil todo, ya me entienden."));
+        m.add(Case.of("W07", "W", List.of(), Expectation.CLARIFY,
+                "Se debe poder gestionar los permisos, pero no está claro qué roles existen ni quién administra a quién."));
+        m.add(Case.of("W08", "W", List.of(), Expectation.CLARIFY,
+                "Queremos notificaciones, pero no sabemos si por correo, SMS o push, ni en qué momentos; eso lo definimos luego."));
+        m.add(Case.of("W09", "W", List.of(), Expectation.CLARIFY,
+                "El sistema debe ser seguro y cumplir con las normas; ya saben, lo que corresponda, sin entrar en detalles ahora."));
+
+        // ── X. Multi-capability single transcripts, 4-6 distinct (9) → MULTI_DISTINCT ─────────────────────
+        m.add(Case.of("X01", "X", List.of(), Expectation.MULTI_DISTINCT,
+                "En la banca en línea el cliente quiere: consultar su saldo; transferir dinero a otra cuenta; pagar sus "
+                        + "servicios; y ver el historial de sus movimientos. Todo eso son cosas distintas entre sí."));
+        m.add(Case.of("X02", "X", List.of(), Expectation.MULTI_DISTINCT,
+                "En la clínica el paciente quiere: agendar una cita; ver su historia clínica; descargar sus resultados de "
+                        + "laboratorio; y solicitar una receta médica. Cada una es una capacidad diferente."));
+        m.add(Case.of("X03", "X", List.of(), Expectation.MULTI_DISTINCT,
+                "En logística queremos: rastrear el envío en tiempo real; asignar conductores a rutas; registrar la "
+                        + "entrega con firma; y generar la guía de remisión. Son funciones distintas."));
+        m.add(Case.of("X04", "X", List.of(), Expectation.MULTI_DISTINCT,
+                "En RRHH el empleado quiere: solicitar vacaciones; ver su boleta de pago; actualizar sus datos personales; "
+                        + "y registrar su asistencia diaria. Cuatro cosas separadas."));
+        m.add(Case.of("X05", "X", List.of(), Expectation.MULTI_DISTINCT,
+                "En la tienda el cliente quiere: buscar productos; agregarlos al carrito; pagar con tarjeta; ver el "
+                        + "historial de pedidos; y calificar los productos que compró. Todas distintas."));
+        m.add(Case.of("X06", "X", List.of(), Expectation.MULTI_DISTINCT,
+                "El administrador quiere: crear usuarios; asignarles roles; ver un log de auditoría; suspender cuentas; "
+                        + "y exportar la lista a CSV. Cinco capacidades diferentes."));
+        m.add(Case.of("X07", "X", List.of(), Expectation.MULTI_DISTINCT,
+                "En el banco: abrir una cuenta nueva; solicitar una tarjeta; bloquear una tarjeta robada; pagar la tarjeta "
+                        + "de crédito; y programar un pago recurrente. Cosas distintas cada una."));
+        m.add(Case.of("X08", "X", List.of(), Expectation.MULTI_DISTINCT,
+                "En la app de salud: agendar cita; cancelar cita; recibir recordatorios; teleconsulta por video; y "
+                        + "descargar la receta. Cinco funciones separadas."));
+        m.add(Case.of("X09", "X", List.of(), Expectation.MULTI_DISTINCT,
+                "En logística: cotizar un envío; programar el recojo; rastrear el paquete; reportar un daño; y solicitar "
+                        + "la devolución. Todas diferentes entre sí."));
+
+        // ── Y. Near-threshold boundary pairs to map 0.84 (8) → DEDUP_OR_UPDATE, rely on raw-cosine logging ─
+        m.add(Case.of("Y01", "Y", List.of(TRANSFER_MONEY), Expectation.DEDUP_OR_UPDATE,
+                "Quiero transferir dinero a otra cuenta desde mi banca en línea para mover mis fondos.")); // ~ near/above bar
+        m.add(Case.of("Y02", "Y", List.of(TRANSFER_MONEY), Expectation.DEDUP_OR_UPDATE,
+                "Quiero pagar mis servicios como luz y agua desde la banca en línea, distinto a transferir a una cuenta.")); // below bar
+        m.add(Case.of("Y03", "Y", List.of(BOOK_APPOINTMENT), Expectation.DEDUP_OR_UPDATE,
+                "El paciente agenda una cita médica con el especialista que necesita para ser atendido sin cola.")); // above bar
+        m.add(Case.of("Y04", "Y", List.of(BOOK_APPOINTMENT), Expectation.DEDUP_OR_UPDATE,
+                "El paciente quiere cancelar una cita ya reservada, algo distinto a agendarla.")); // below bar
+        m.add(Case.of("Y05", "Y", List.of(TRACK_SHIPMENT), Expectation.DEDUP_OR_UPDATE,
+                "El cliente sigue el estado de su envío en tiempo real para saber cuándo llegará el pedido.")); // above bar
+        m.add(Case.of("Y06", "Y", List.of(TRACK_SHIPMENT), Expectation.DEDUP_OR_UPDATE,
+                "El cliente quiere calificar al repartidor tras la entrega, distinto a rastrear el envío.")); // below bar
+        m.add(Case.of("Y07", "Y", List.of(VIEW_PAYSLIP), Expectation.DEDUP_OR_UPDATE,
+                "El empleado desea ver y descargar su boleta de pago mensual para revisar ingresos y descuentos.")); // near bar
+        m.add(Case.of("Y08", "Y", List.of(VIEW_PAYSLIP), Expectation.DEDUP_OR_UPDATE,
+                "El empleado quiere ver su certificado de renta anual para su declaración, distinto a la boleta mensual.")); // below bar
+
+        // ── Z. Off-language transcript in an es session (7) → SESSION_LANGUAGE (Spanish output) ───────────
+        m.add(Case.of("Z01", "Z", List.of(), Expectation.SESSION_LANGUAGE,
+                "The customer wants to transfer money to another account from online banking to move funds without visiting a branch."));
+        m.add(Case.of("Z02", "Z", List.of(), Expectation.SESSION_LANGUAGE,
+                "The patient wants to book a medical appointment with a specialist and view their lab results online."));
+        m.add(Case.of("Z03", "Z", List.of(), Expectation.SESSION_LANGUAGE,
+                "O cliente quer rastrear o status do seu envio em tempo real para saber quando o pedido vai chegar."));
+        m.add(Case.of("Z04", "Z", List.of(), Expectation.SESSION_LANGUAGE,
+                "O funcionário quer solicitar suas férias pelo portal de RH e visualizar o seu contracheque mensal."));
+        m.add(Case.of("Z05", "Z", List.of(), Expectation.SESSION_LANGUAGE,
+                "El cliente quiere hacer checkout con su credit card y ver el order tracking of his last shipment."));
+        m.add(Case.of("Z06", "Z", List.of(), Expectation.SESSION_LANGUAGE,
+                "The employee wants to request vacation days and download their monthly payslip from the HR portal."));
+        m.add(Case.of("Z07", "Z", List.of(), Expectation.SESSION_LANGUAGE,
+                "O usuário quer adicionar produtos ao carrinho e pagar com cartão para finalizar a compra na loja."));
+
+        // ── AA. Idempotent restatement across two passes / duplicate (6) → dedup ─────────────────────────
+        m.add(Case.of("AA1", "AA", List.of(), Expectation.EXACT_DUP,
+                "El cliente quiere transferir dinero a otra cuenta desde la banca en línea para mover sus fondos.",
+                "El cliente quiere transferir dinero a otra cuenta desde la banca en línea para mover sus fondos."));
+        m.add(Case.of("AA2", "AA", List.of(), Expectation.EXACT_DUP,
+                "El paciente quiere agendar una cita médica con el especialista para ser atendido sin hacer cola.",
+                "Repito lo mismo: el paciente quiere agendar una cita médica con el especialista para ser atendido sin cola."));
+        m.add(Case.of("AA3", "AA", List.of(TRACK_SHIPMENT), Expectation.DEDUP_OR_UPDATE,
+                "El cliente quiere rastrear el estado de su envío en tiempo real para saber cuándo llegará su pedido.",
+                "Lo mismo de nuevo: rastrear el envío en tiempo real para saber cuándo llega el pedido."));
+        m.add(Case.of("AA4", "AA", List.of(), Expectation.EXACT_DUP,
+                "El empleado quiere solicitar sus vacaciones desde el portal de RRHH sin papeleo.",
+                "Insisto en lo mismo: el empleado quiere solicitar sus vacaciones desde el portal de RRHH sin papeleo."));
+        m.add(Case.of("AA5", "AA", List.of(ADD_TO_CART), Expectation.DEDUP_OR_UPDATE,
+                "El cliente quiere agregar productos a su carrito de compras para reunir lo que va a comprar.",
+                "Otra vez lo mismo: agregar productos al carrito para juntar lo que se va a comprar."));
+        m.add(Case.of("AA6", "AA", List.of(), Expectation.EXACT_DUP,
+                "El cliente quiere consultar el saldo de su cuenta en cualquier momento para saber cuánto tiene.",
+                "De nuevo, igualito: consultar el saldo de la cuenta en cualquier momento para saber cuánto se tiene."));
+
+        // ── AB. Security / compliance phrasings (6) → OBSERVE (typically NFR, not a plain story) ──────────
+        m.add(Case.of("AB1", "AB", List.of(), Expectation.OBSERVE,
+                "El sistema debe cumplir con GDPR: el usuario puede solicitar la eliminación de todos sus datos personales."));
+        m.add(Case.of("AB2", "AB", List.of(), Expectation.OBSERVE,
+                "Hay que cifrar los datos sensibles en reposo y en tránsito usando estándares actuales de la industria."));
+        m.add(Case.of("AB3", "AB", List.of(TRANSFER_MONEY), Expectation.OBSERVE,
+                "Las transferencias deben registrarse en un log de auditoría inmutable para cumplir con normativa bancaria."));
+        m.add(Case.of("AB4", "AB", List.of(MEDICAL_HISTORY), Expectation.OBSERVE,
+                "El acceso a la historia clínica debe cumplir con la ley de protección de datos de salud y quedar auditado."));
+        m.add(Case.of("AB5", "AB", List.of(), Expectation.OBSERVE,
+                "Las contraseñas deben almacenarse con hashing seguro y nunca en texto plano, cumpliendo buenas prácticas."));
+        m.add(Case.of("AB6", "AB", List.of(), Expectation.OBSERVE,
+                "El sistema debe exigir consentimiento explícito de cookies y llevar registro de ese consentimiento por usuario."));
 
         return m;
     }
