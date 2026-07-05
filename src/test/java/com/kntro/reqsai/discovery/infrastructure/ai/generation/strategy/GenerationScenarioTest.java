@@ -93,10 +93,17 @@ class GenerationScenarioTest {
             assertThat(prompt).contains("UPDATE_STORY");
             assertThat(prompt).contains("volviendo a");          // revisit cue few-shot
             assertThat(prompt).contains("QUALITY BAR");           // garbled → nothing
-            assertThat(prompt).contains("LANGUAGE CONSISTENCY");  // off-language fragment → omit
             assertThat(prompt).contains("GRANULARITY");           // facets → EDGE_CASE/UPDATE
             assertThat(prompt).contains("mantener la sesión activa"); // granularity example
             assertThat(prompt).contains("Given / When / Then");   // criteria instruction
+            // Retrieval-augmented dedup/UPDATE + the quality fixes.
+            assertThat(prompt).contains("candidate matches");     // candidate-existing-story framing
+            assertThat(prompt).contains("SAME capability");       // synonym-paraphrase → UPDATE rule
+            assertThat(prompt).contains("Output language")        // session-language enforcement
+                    .contains("es-PE");                            // the session language is injected
+            assertThat(prompt).contains("IGNORE GARBAGE");        // pure noise → nothing
+            assertThat(prompt).contains("AMBIGUITY");             // vague → CLARIFYING_QUESTION
+            assertThat(prompt).contains("DISTINCT CAPABILITIES"); // distinct asks → separate stories
         }
     }
 
