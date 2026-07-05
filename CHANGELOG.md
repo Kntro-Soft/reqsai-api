@@ -11,6 +11,47 @@ follows [Semantic Versioning](https://semver.org/).
 
 _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in progress._
 
+### Added (Realtime suggestion grounding — `feature/discovery-session-control`)
+
+- **Backlog-grounded generation context** — the realtime suggestion prompt previously carried only project
+  metadata and glossary terms; the LLM never saw a single existing story, so every requirement came out as
+  `NEW_STORY` and near-duplicates flooded the backlog. `GenerationContext` now always includes an
+  `existingStories` slice (id + title + role/action/benefit): preferred source is pgvector top-K stories
+  nearest to the recent transcript, merged with the newest project stories (so stories accepted seconds ago
+  are visible even before they rank), capped at 15; when the embedding provider is unavailable/failing or
+  nothing is indexed, a plain most-recent query keeps the backlog visible (embedding-independent fallback).
+  The context also lists the session's own `PENDING` suggestions (`alreadySuggested`) so the model does not
+  re-suggest what the analyst has not reviewed yet — the root cause of several same-capability variants
+  being suggested within one session. The retrieved context (story ids/titles, pending suggestions) is
+  logged at debug level per generation pass for diagnosability.
+- **LLM classifies against the backlog (`UPDATE_STORY` in the prompt)** — the contextual extraction prompt
+  never offered `UPDATE_STORY` as a type and had no story ids, so the model could not point at an existing
+  story; the only path to `UPDATE_STORY` was the post-hoc embedding upgrade at cosine ≥ 0.85, which misses
+  paraphrased or partially-overlapping requirements. The prompt now instructs: on overlap with an existing
+  story, emit `UPDATE_STORY` (or `EDGE_CASE` for boundary scenarios) with that story's `targetStoryId`;
+  `NEW_STORY` only for genuinely new capabilities. The returned target is validated server-side (must be a
+  story of the same project; hallucinated ids are dropped) and, when valid, wins over embedding search —
+  and now also works when no embedding model is configured. The embedding near-duplicate upgrade is kept as
+  a backstop. Prompts remain bilingual-safe (all text fields mirror the transcript language).
+- **Lazy re-indexing of un-indexed stories** — a story persisted while the embedding provider hiccupped
+  (e.g. the best-effort embed inside accept) stayed invisible to similarity search forever. New
+  `UserStoryReindexService` embeds up to 10 un-indexed stories (oldest first) in a lazy, batched,
+  best-effort pass invoked by the realtime pipeline right before each vector search; a failing provider
+  aborts the pass and the next generation trigger retries. No scheduler, no new failure mode.
+- **Project-level session lifecycle topic** — realtime messages only flowed on per-session topics
+  (`/topic/sessions/{id}`), so a viewer on the project's discovery page could never learn that someone else
+  created or started a session. New topic `/topic/projects/{projectId}/sessions` broadcasts
+  `SESSION_CREATED`, `RECORDING_STARTED/PAUSED/RESUMED/STOPPED` with a self-describing payload
+  `{ sessionId, projectId, type, status, title, language, startedAt, occurredAt }` — including the meeting
+  language so other viewers' UIs can show it without a fetch. Subscription auth mirrors the per-session
+  topics (JWT-authenticated STOMP CONNECT via `StompAuthChannelInterceptor`; no per-destination gate exists
+  for either family). The five session lifecycle domain events now carry `title`/`language`/`startedAt`.
+- **Suggestion resolution events carry the draft payload** — `SUGGESTION_ACCEPTED`/`SUGGESTION_DISMISSED`
+  WebSocket messages sent every draft field as `null`, so a viewer whose feed received the push before (or
+  instead of) a REST response rendered a blank decision entry — which read as a duplicate/corrupted history
+  item. The events and messages now carry the full draft payload (title, role, action, benefit, priority,
+  points, relatedTopic, targetStoryId, question).
+
 ### Added (Discovery session control — `feature/discovery-session-control`)
 
 - **Discovery authorization at the edge** — every discovery REST endpoint (6 controllers) is now gated by
