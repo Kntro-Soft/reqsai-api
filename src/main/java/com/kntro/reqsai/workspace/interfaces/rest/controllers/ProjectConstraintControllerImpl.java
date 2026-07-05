@@ -14,6 +14,8 @@ import com.kntro.reqsai.workspace.interfaces.rest.dto.response.ProjectConstraint
 import com.kntro.reqsai.workspace.interfaces.rest.mappers.request.ProjectConstraintRequestMapper;
 import com.kntro.reqsai.workspace.interfaces.rest.mappers.response.ProjectConstraintResponseMapper;
 import com.kntro.reqsai.workspace.interfaces.rest.swagger.ProjectConstraintController;
+import com.kntro.reqsai.shared.interfaces.pagination.PageCriteria;
+import com.kntro.reqsai.shared.interfaces.pagination.PageResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -22,7 +24,6 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.net.URI;
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -57,13 +58,13 @@ public class ProjectConstraintControllerImpl implements ProjectConstraintControl
 
     @Override
     @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'CONSTRAINT_READ', authentication)")
-    public ResponseEntity<List<ProjectConstraintResponse>> listConstraints(UUID orgId, UUID projectId, Authentication authentication) {
+    public ResponseEntity<PageResponse<ProjectConstraintResponse>> listConstraints(
+            UUID orgId, UUID projectId, Integer page, Integer size, String search, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
-        List<ProjectConstraintResponse> response = listProjectConstraints.handle(
-                        new ListProjectConstraintsQuery(orgId, projectId, requestedBy))
-                .stream()
-                .map(ProjectConstraintResponseMapper::toResponse)
-                .toList();
+        PageResponse<ProjectConstraintResponse> response = PageResponse.of(
+                listProjectConstraints.handle(new ListProjectConstraintsQuery(
+                                orgId, projectId, requestedBy, PageCriteria.of(page, size, null, null), search))
+                        .map(ProjectConstraintResponseMapper::toResponse));
         return ResponseEntity.ok(response);
     }
 

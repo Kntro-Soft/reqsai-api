@@ -95,6 +95,41 @@ class ProjectConstraintIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("should return a paginated, searchable constraints page")
+    void should_return_paginated_searchable_constraints() {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        String expectedSlug = "acme-" + suffix;
+        UUID orgId = createOrganizationAndReturnId(suffix, expectedSlug);
+        UUID projectId = createProjectAndReturnId(orgId, expectedSlug, "Paginated Constraints Project");
+
+        assertThat(addProjectConstraint(orgId, projectId,
+                Map.of("description", "Must integrate with SAP")).getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(addProjectConstraint(orgId, projectId,
+                Map.of("description", "Must comply with PCI-DSS")).getStatusCode()).isEqualTo(HttpStatus.CREATED);
+
+        ResponseEntity<String> all = client().get().uri("/api/organizations/{orgId}/projects/{projectId}/constraints", orgId, projectId)
+                .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId.toString(), "ROLE_USER"))
+                .header("Api-Version", "1")
+                .exchange((req, responseSpec) -> ResponseEntity.status(responseSpec.getStatusCode())
+                        .body(responseSpec.bodyTo(String.class)));
+        assertThat(all.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(all.getBody()).contains("\"content\":");
+        assertThat(all.getBody()).contains("\"totalElements\":2");
+        assertThat(all.getBody()).contains("Must integrate with SAP");
+        assertThat(all.getBody()).contains("Must comply with PCI-DSS");
+
+        ResponseEntity<String> searched = client().get().uri("/api/organizations/{orgId}/projects/{projectId}/constraints?search=pci", orgId, projectId)
+                .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId.toString(), "ROLE_USER"))
+                .header("Api-Version", "1")
+                .exchange((req, responseSpec) -> ResponseEntity.status(responseSpec.getStatusCode())
+                        .body(responseSpec.bodyTo(String.class)));
+        assertThat(searched.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(searched.getBody()).contains("\"totalElements\":1");
+        assertThat(searched.getBody()).contains("Must comply with PCI-DSS");
+        assertThat(searched.getBody()).doesNotContain("Must integrate with SAP");
+    }
+
+    @Test
     @DisplayName("should reject duplicate constraint ignoring case")
     void should_reject_duplicate_constraint_ignoring_case() {
         String suffix = UUID.randomUUID().toString().substring(0, 8);

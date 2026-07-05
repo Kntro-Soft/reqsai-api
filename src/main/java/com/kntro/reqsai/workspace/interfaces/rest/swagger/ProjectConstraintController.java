@@ -5,6 +5,7 @@ import com.kntro.reqsai.shared.infrastructure.documentation.openapi.OpenApiConfi
 import com.kntro.reqsai.shared.infrastructure.documentation.openapi.annotations.ApiResponseBadRequest;
 import com.kntro.reqsai.shared.infrastructure.documentation.openapi.annotations.ApiResponseNotFound;
 import com.kntro.reqsai.shared.infrastructure.documentation.openapi.annotations.ApiStandardErrorResponses;
+import com.kntro.reqsai.shared.interfaces.pagination.PageResponse;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.request.AddProjectConstraintRequest;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.request.UpdateProjectConstraintRequest;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.response.ProjectConstraintResponse;
@@ -27,8 +28,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 
-import java.util.List;
 import java.util.UUID;
 
 @RequestMapping(
@@ -68,16 +69,26 @@ public interface ProjectConstraintController {
             @Valid @RequestBody AddProjectConstraintRequest request,
             Authentication authentication);
 
-    @Operation(summary = "List project constraints", description = "Returns the constraints currently stored for the project.")
-    @ApiResponse(responseCode = "200", description = "Project constraints retrieved successfully",
-            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ProjectConstraintResponse.class)))
+    @Operation(summary = "List project constraints (paginated)",
+            description = """
+                    Returns a paginated page of the project's constraints, newest first by default. \
+                    Supports an optional case-insensitive substring search over description. Pagination \
+                    and search run server-side.""")
+    @ApiResponse(responseCode = "200", description = "Paginated project constraints",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE))
     @ApiResponseNotFound
     @ApiStandardErrorResponses
     @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
     @GetMapping(version = ApiVersioning.V1)
-    ResponseEntity<List<ProjectConstraintResponse>> listConstraints(
+    ResponseEntity<PageResponse<ProjectConstraintResponse>> listConstraints(
             @Parameter(description = "Organization context UUID") @PathVariable UUID orgId,
             @Parameter(description = "Project UUID") @PathVariable UUID projectId,
+            @Parameter(description = "Zero-based page index", example = "0")
+            @RequestParam(required = false) Integer page,
+            @Parameter(description = "Page size (max 100)", example = "20")
+            @RequestParam(required = false) Integer size,
+            @Parameter(description = "Case-insensitive substring matched across description", example = "SAP")
+            @RequestParam(required = false) String search,
             Authentication authentication);
 
     @Operation(summary = "Get a project constraint", description = "Returns one project constraint from the project.")
