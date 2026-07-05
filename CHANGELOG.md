@@ -105,6 +105,16 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
   was verified (unit + integration) and preserved rather than added; the `SUGGESTION_ALREADY_RESOLVED` guard
   remains the only gate.
 
+### Fixed (Realtime suggestion grounding — `feature/discovery-session-control`)
+
+- **Accepting an `EDGE_CASE` with a near-max-length title failed server-side** — `acceptAsEdgeCase` prefixes
+  the draft title with `"Edge case: "` before using it as the acceptance-criterion scenario, but both the
+  title and the scenario column cap at 200 chars, so a title over 189 chars overflowed the scenario and the
+  whole accept failed with a validation error the analyst could not fix. The composed label is now truncated
+  to the column limit.
+- **Realtime notification integration test dialed the old STOMP path** — the endpoint was namespaced under
+  `/ws/stomp` (`fc01ae0`) but the test still connected to `/ws`, failing every HTTP upgrade with 404.
+
 ### Fixed (Discovery session control — `feature/discovery-session-control`)
 
 - **Past sessions showed an empty conversation after reload** — `GET /api/sessions/{sessionId}/transcript`
