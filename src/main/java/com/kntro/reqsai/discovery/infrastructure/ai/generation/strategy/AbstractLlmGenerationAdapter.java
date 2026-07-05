@@ -225,6 +225,26 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
 
             NEW_STORY: 2-4 acceptance criteria. EDGE_CASE: exactly one (the boundary rule).
 
+            %s
+
+            DEDUP DECISION (do this FIRST, before writing any story): for EACH capability in the RECENT
+            CONVERSATION below, scan the CANDIDATE EXISTING STORIES list directly above.
+            - If the capability is the SAME as a candidate — even in different words, synonyms, a regional
+              variant, or another language — you MUST output "type":"UPDATE_STORY" with "targetStoryId"
+              set to that candidate's id, COPIED VERBATIM from the list. Do NOT output NEW_STORY for it.
+            - If it ADDS a detail/criterion/constraint to a candidate, you MUST output "UPDATE_STORY" (or
+              "EDGE_CASE" for a boundary rule) with "targetStoryId" set to that candidate's id.
+            - Output "NEW_STORY" (with "targetStoryId": null) ONLY when NO candidate matches.
+            Worked example — if CANDIDATE EXISTING STORIES contains
+              "11111111-1111-1111-1111-111111111111 | Exportar reportes a PDF"
+            and the conversation says "necesito descargar mis informes en formato PDF para el equipo",
+            you MUST return:
+              {"stories":[{"type":"UPDATE_STORY","targetStoryId":"11111111-1111-1111-1111-111111111111",
+                "title":"Exportar reportes a PDF","role":"usuario","action":"descargar mis informes en PDF",
+                "benefit":"compartirlos con el equipo","priority":"HIGH","storyPoints":3,
+                "acceptanceCriteria":[]}],"questions":[]}
+            (targetStoryId is the candidate id echoed verbatim — that is the whole point.)
+
             Recent conversation:
             %s
             """;
@@ -251,12 +271,26 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
     public GenerationResult generate(String transcript, String language, @Nullable GenerationContext context) {
         if (context == null) return generate(transcript, language);
         String contextBlock = buildContextBlock(context, language);
+        // Render the ID-bearing candidate list AGAIN, immediately before the transcript/task, so the ids
+        // sit next to the DEDUP DECISION step instead of ~130 lines up in the project context (where the
+        // model reliably ignored them: 98/98 targetStoryId=null). Placement + an imperative "you MUST
+        // copy the id" is the fix — the field and the ids were already present but too far from the task.
+        String candidatesBlock = buildCandidatesBlock(context);
         log.debug("Sending contextual extraction prompt to {} ({} chars)", modelName(), transcript.length());
-        return callAndParse(CONTEXTUAL_EXTRACTION_PROMPT.formatted(contextBlock, transcript));
+        return callAndParse(CONTEXTUAL_EXTRACTION_PROMPT.formatted(contextBlock, candidatesBlock, transcript));
     }
 
     private GenerationResult callAndParse(String promptText) {
+        // TEMP-DEBUG(matrix-wiring): dump the EXACT prompt sent + raw response so we can verify with our
+        // own eyes that candidate ids reach the model and whether the model echoes a targetStoryId. TRACE
+        // so it is off by default; enabled only when hunting the null-target root cause. REMOVE/keep-trace.
+        if (log.isTraceEnabled()) {
+            log.trace("=== PROMPT SENT TO {} ===\n{}\n=== END PROMPT ===", modelName(), promptText);
+        }
         String json = stripMarkdown(callModel(promptText));
+        if (log.isTraceEnabled()) {
+            log.trace("=== RAW {} RESPONSE ===\n{}\n=== END RESPONSE ===", modelName(), json);
+        }
         log.debug("{} response ({} chars)", modelName(), json.length());
         return parseJsonResponse(json);
     }
@@ -316,6 +350,36 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
                     .append(" | ").append(p.summary()).append("\n"));
         }
         return sb.toString().strip();
+    }
+
+    /**
+     * An explicit, compact, ID-bearing candidate list rendered immediately before the transcript so the
+     * ids are adjacent to the DEDUP DECISION instruction. Each line is {@code <uuid> | <title>} so the
+     * model can copy the id verbatim into {@code targetStoryId}. Backlog stories AND still-pending
+     * suggestions are both listed (both are legal {@code targetStoryId} targets). Titles are truncated
+     * to keep the block small on a large backlog.
+     */
+    private static String buildCandidatesBlock(GenerationContext ctx) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("CANDIDATE EXISTING STORIES (copy an id verbatim into \"targetStoryId\" when the")
+          .append(" conversation matches or extends one; format: <id> | <title>):\n");
+        if (ctx.existingStories().isEmpty() && ctx.alreadySuggested().isEmpty()) {
+            sb.append("- (none — the backlog is empty; every capability is a NEW_STORY)\n");
+            return sb.toString().strip();
+        }
+        ctx.existingStories().forEach(s ->
+                sb.append("- ").append(s.id()).append(" | ").append(truncate(s.title())).append("\n"));
+        ctx.alreadySuggested().forEach(p ->
+                sb.append("- ").append(p.id()).append(" | ").append(truncate(p.summary()))
+                  .append(" (pending)\n"));
+        return sb.toString().strip();
+    }
+
+    /** Caps a candidate title/summary so the CANDIDATES block stays small on a large backlog. */
+    private static String truncate(@Nullable String value) {
+        if (value == null) return "";
+        String v = value.strip();
+        return v.length() <= 120 ? v : v.substring(0, 117) + "...";
     }
 
     protected String callAndExtractText(ChatModel model, String promptText) {
