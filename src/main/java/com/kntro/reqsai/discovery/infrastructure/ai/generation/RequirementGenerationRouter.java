@@ -1,10 +1,12 @@
 package com.kntro.reqsai.discovery.infrastructure.ai.generation;
 
+import com.kntro.reqsai.discovery.application.port.GenerationContext;
 import com.kntro.reqsai.discovery.application.port.GenerationResult;
 import com.kntro.reqsai.discovery.application.port.RequirementGenerationPort;
 import com.kntro.reqsai.discovery.infrastructure.ai.generation.strategy.GeminiRequirementGenerationAdapter;
 import com.kntro.reqsai.discovery.infrastructure.ai.generation.strategy.OpenAiRequirementGenerationAdapter;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.Nullable;
 
 /**
  * The single {@link RequirementGenerationPort} registered in the application context.
@@ -41,6 +43,18 @@ public class RequirementGenerationRouter implements RequirementGenerationPort {
     public GenerationResult generate(String transcript, String language) {
         log.debug("Routing requirement generation to provider '{}'", provider);
         return activeAdapter().generate(transcript, language);
+    }
+
+    /**
+     * Forwards the CONTEXTUAL overload (with the backlog/candidate context) to the active adapter so its
+     * contextual prompt — the one that offers UPDATE_STORY and the candidate ids for semantic dedup — is
+     * actually reached. Without this override the interface default silently drops {@code context} and
+     * falls back to the context-free 2-arg prompt, so UPDATE_STORY/targetStoryId could never be produced.
+     */
+    @Override
+    public GenerationResult generate(String transcript, String language, @Nullable GenerationContext context) {
+        log.debug("Routing contextual requirement generation to provider '{}'", provider);
+        return activeAdapter().generate(transcript, language, context);
     }
 
     private RequirementGenerationPort activeAdapter() {
