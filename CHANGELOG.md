@@ -11,6 +11,42 @@ follows [Semantic Versioning](https://semver.org/).
 
 _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in progress._
 
+### Added (Backlog / Glossary / Constraints listing — `feature/discovery-session-control`)
+
+- **User-story backlog list filters + search** — `GET /projects/{projectId}/stories` now accepts five
+  new optional query params on top of the existing `page`/`size`/`sortBy`/`sortDirection`
+  (`STORY_READ`, unchanged): `search` (case-insensitive substring across `title` + `role` + `action`),
+  `status` (`DRAFT|APPROVED|REJECTED|MERGED|EXPORTED`), `priority` (`LOW|MEDIUM|HIGH|CRITICAL`),
+  `createdAfter` (ISO-8601 instant, **inclusive** lower bound on `createdAt`) and `createdBefore`
+  (ISO-8601 instant, **exclusive** upper bound). Every param is optional — absent means "no filter", so
+  the previous unfiltered behavior is preserved exactly. Filtering runs **server-side** via a JPA
+  Criteria `Specification` (no in-memory filtering) so paging and total counts stay correct on large
+  backlogs. An unrecognized `status`/`priority` value is rejected with `400`.
+- **Update a user story (manual edit)** — new `PUT /projects/{projectId}/stories/{storyId}`
+  (`STORY_WRITE`) editing `title`/`role`/`action`/`benefit`/`priority`/`storyPoints` with the same
+  shape and validation as create (`UpdateUserStoryRequest`), returning the updated `UserStoryResponse`.
+  Returns `404` (`USER_STORY_NOT_FOUND`) when the story does not belong to the project. Deliberately a
+  **straight field update**: it does NOT run duplicate detection or recompute the similarity embedding,
+  so a manual edit never changes the story's indexed/deduplicated state.
+
+### Changed — BREAKING (list-response contract — `feature/discovery-session-control`)
+
+- **Glossary list is now paginated** — `GET /organizations/{orgId}/projects/{projectId}/glossary`
+  (`GLOSSARY_READ`) now returns a `PageResponse<GlossaryTermResponse>` envelope
+  (`{ content: [...], page: { number, size, totalElements, ... } }`) instead of a flat
+  `List<GlossaryTermResponse>`. Adds optional `page`, `size` and `search` (case-insensitive substring
+  over term + definition) query params; default sort is `term` ascending. Pagination + search are
+  server-side. **Frontend action:** the Glosario page and side-panel callers must read `content` from
+  the paged envelope instead of treating the body as a bare array.
+- **Constraints list is now paginated** — `GET /organizations/{orgId}/projects/{projectId}/constraints`
+  (`CONSTRAINT_READ`) now returns a `PageResponse<ProjectConstraintResponse>` envelope instead of a flat
+  `List<ProjectConstraintResponse>`. Adds optional `page`, `size` and `search` (case-insensitive
+  substring over description) query params; default sort is newest-first (`createdAt` descending).
+  Pagination + search are server-side. **Frontend action:** the Restricciones page callers must read
+  `content` from the paged envelope instead of treating the body as a bare array.
+- Create/get/update/delete for glossary terms and constraints, and the story create/get endpoints, are
+  unchanged.
+
 ### Fixed (Suggestion quality — `feature/discovery-session-control`)
 
 - **Retrieval-augmented LLM dedup/UPDATE for semantic paraphrases** — the embedding-cosine dedup
