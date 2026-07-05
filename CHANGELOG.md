@@ -13,6 +13,32 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
 
 ### Fixed (Suggestion quality — `feature/discovery-session-control`)
 
+- **Retrieval-augmented LLM dedup/UPDATE for semantic paraphrases** — the embedding-cosine dedup
+  (0.84) provably cannot catch synonym paraphrases (measured cosine 0.55–0.82) or add-a-detail
+  mentions (0.55–0.69): the "same capability, different words" band overlaps the "genuinely distinct"
+  band, so no threshold separates them and paraphrases were persisted as duplicate `NEW_STORY`s (matrix
+  category C) while added details spawned new stories instead of updates (category E). The fix combines
+  loose-recall retrieval with an LLM precision judge: `RealtimeSuggestionService` now retrieves up to
+  `discovery.realtime.candidate-top-k` (8) backlog stories above a loose
+  `discovery.realtime.candidate-recall-threshold` (0.50 cosine, far below the auto-dedup bar) via a new
+  `UserStoryRepository.findSimilarCandidates`, and surfaces them at the head of the prompt's backlog
+  slice. The contextual prompt now instructs the model to emit `UPDATE_STORY` (targeting the candidate's
+  id) whenever the transcript describes the SAME capability — even in different words, synonyms, a
+  regional variant, or another language — or adds a detail to one, and to emit `NEW_STORY` only for a
+  genuinely new capability, with inline examples. The LLM's `targetStoryId` is still validated against
+  the project and the embedding auto-dedup (≥0.84) is kept as a near-verbatim backstop; the candidate
+  list is bounded so the prompt stays small on a large backlog.
+- **Session-language output enforced** — an off-language transcript (e.g. English in an `es` session)
+  could yield off-language stories. The session language is now injected into the context block as an
+  explicit "Output language", and the prompt requires every text field to be written in it, translating
+  the intent when the transcript uses another language (never mixing languages within a story).
+- **Ambiguity now asks instead of guessing** — the prompt now emits a `CLARIFYING_QUESTION` for vague,
+  underspecified, or internally conflicting requirements ("que sea rápido y seguro", "gestionar
+  usuarios", auto+manual conflict) rather than a confident vague `NEW_STORY`.
+- **Pure noise ignored** — the prompt now produces nothing for gibberish, filler-only, or bare
+  numbers/IDs transcripts, while still extracting a real capability embedded in noise.
+- **Distinct capabilities kept separate** — the prompt now emits a separate story per genuinely distinct
+  capability instead of merging two distinct asks (e.g. export-PDF + export-Excel) into one.
 - **Accepted-twin duplicates now converge to `UPDATE_STORY`** — a `NEW_STORY` draft that
   near-duplicated an already-accepted, indexed story was persisted as a standalone duplicate: the
   server deduped only against still-`PENDING` suggestions and only upgraded to `UPDATE_STORY` at the
@@ -122,12 +148,18 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
   paraphrase incl. regional es-PE/es-419/es-ES variants, D distinct-but-related false-positive guards,
   E update-a-detail, F edge cases, G clarifying questions, H cadence/timing — the only non-`force`
   cases, I multi-story transcripts, J mistranscription/garbage, K language, L incremental refinement,
-  M contradiction/negation, N long 6+-capability transcripts, O threshold-boundary pairs). Because the
-  LLM is non-deterministic almost every case is `OBSERVE` (logged, never failing) so the whole matrix
-  always completes; hard assertions fire only for the unambiguous invariants (exact duplicate ⇒ ≤1
-  story draft; genuinely-distinct capabilities ⇒ ≥2 story drafts; no two persisted stories exceed
-  cosine ~0.97). Same OpenAI/pgvector wiring, `@EnabledIfEnvironmentVariable("OPENAI_API_KEY")` +
-  in-body `assumeTrue` skip, and `llmTest` lane as the sibling probes; ~one generation call per case.
+  M contradiction/negation, N long 6+-capability transcripts, O threshold-boundary pairs). Every case
+  still prints its `[MATRIX]` map line (with the raw cosine) first, so a failure never loses the map,
+  but after the retrieval-augmented dedup/UPDATE fix the behavioral categories now carry TOLERANT
+  assertions so a green matrix means CORRECT behavior, not merely that it ran: A exact-dup ⇒ ≤1 story
+  draft and D distinct ⇒ ≥2 drafts stay HARD; C/E/F ⇒ converge onto the seed (deduped, or UPDATE/EDGE
+  targeting it) rather than a standalone NEW duplicate; G ⇒ a `CLARIFYING_QUESTION` (or at least not a
+  confident NEW); J pure-noise (J1/J3/J4) ⇒ no story draft; K off-language ⇒ Spanish stories via a
+  tolerant heuristic; no two persisted stories exceed cosine ~0.97. Assertions allow dedup-or-update as
+  success and assert the invariant not the wording to survive LLM non-determinism; genuinely
+  model-dependent cases (L/M/N, embedded-noise J2, truncated J5) stay `OBSERVE`. Same OpenAI/pgvector
+  wiring, `@EnabledIfEnvironmentVariable("OPENAI_API_KEY")` + in-body `assumeTrue` skip, and `llmTest`
+  lane as the sibling probes; ~one generation call per case.
 
 ### Fixed (Test infrastructure — `feature/discovery-session-control`)
 
