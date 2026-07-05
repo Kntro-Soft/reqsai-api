@@ -1,6 +1,8 @@
 package com.kntro.reqsai.workspace.infrastructure.persistence.repositories;
 
 import com.kntro.reqsai.workspace.domain.model.GlossaryTerm;
+import org.jspecify.annotations.Nullable;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -43,5 +45,24 @@ public interface GlossaryTermSearchJpaRepository extends JpaRepository<GlossaryT
     List<Object[]> searchInProjects(
             @Param("projectIds") Collection<UUID> projectIds,
             @Param("term") String term,
+            Pageable pageable);
+
+    /**
+     * Paginated glossary terms of a single project (scoped through the {@code glossary} relation) with
+     * an optional case-insensitive substring {@code search} over term + definition. The {@code :search}
+     * is null-guarded so a {@code null}/blank argument disables the text filter and returns the whole
+     * (paginated) glossary. Sorting/paging come from the {@link Pageable}. JPQL (not native) so it
+     * returns a proper {@code Page<GlossaryTerm>} with an accurate total count.
+     */
+    @Query("""
+            select t from GlossaryTerm t
+            where t.glossary.projectId = :projectId
+              and (cast(:search as string) is null
+                   or lower(t.term) like lower(concat('%', cast(:search as string), '%'))
+                   or lower(t.definition) like lower(concat('%', cast(:search as string), '%')))
+            """)
+    Page<GlossaryTerm> findPageByProjectId(
+            @Param("projectId") UUID projectId,
+            @Param("search") @Nullable String search,
             Pageable pageable);
 }

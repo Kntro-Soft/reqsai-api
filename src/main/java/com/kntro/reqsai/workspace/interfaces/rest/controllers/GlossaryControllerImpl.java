@@ -14,6 +14,8 @@ import com.kntro.reqsai.workspace.interfaces.rest.dto.response.GlossaryTermRespo
 import com.kntro.reqsai.workspace.interfaces.rest.mappers.request.GlossaryRequestMapper;
 import com.kntro.reqsai.workspace.interfaces.rest.mappers.response.GlossaryResponseMapper;
 import com.kntro.reqsai.workspace.interfaces.rest.swagger.GlossaryController;
+import com.kntro.reqsai.shared.interfaces.pagination.PageCriteria;
+import com.kntro.reqsai.shared.interfaces.pagination.PageResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -22,7 +24,6 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.net.URI;
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -37,13 +38,13 @@ public class GlossaryControllerImpl implements GlossaryController {
 
     @Override
     @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'GLOSSARY_READ', authentication)")
-    public ResponseEntity<List<GlossaryTermResponse>> listTerms(UUID orgId, UUID projectId, Authentication authentication) {
+    public ResponseEntity<PageResponse<GlossaryTermResponse>> listTerms(
+            UUID orgId, UUID projectId, Integer page, Integer size, String search, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
-        List<GlossaryTermResponse> response = listGlossaryTerms.handle(
-                        new ListGlossaryTermsQuery(orgId, projectId, requestedBy))
-                .stream()
-                .map(GlossaryResponseMapper::toResponse)
-                .toList();
+        PageResponse<GlossaryTermResponse> response = PageResponse.of(
+                listGlossaryTerms.handle(new ListGlossaryTermsQuery(
+                                orgId, projectId, requestedBy, PageCriteria.of(page, size, null, null), search))
+                        .map(GlossaryResponseMapper::toResponse));
         return ResponseEntity.ok(response);
     }
 

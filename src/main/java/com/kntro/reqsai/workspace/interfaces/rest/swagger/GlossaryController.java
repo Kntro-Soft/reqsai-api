@@ -5,6 +5,7 @@ import com.kntro.reqsai.shared.infrastructure.documentation.openapi.OpenApiConfi
 import com.kntro.reqsai.shared.infrastructure.documentation.openapi.annotations.ApiResponseBadRequest;
 import com.kntro.reqsai.shared.infrastructure.documentation.openapi.annotations.ApiResponseNotFound;
 import com.kntro.reqsai.shared.infrastructure.documentation.openapi.annotations.ApiStandardErrorResponses;
+import com.kntro.reqsai.shared.interfaces.pagination.PageResponse;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.request.AddGlossaryTermRequest;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.request.UpdateGlossaryTermRequest;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.response.GlossaryTermResponse;
@@ -26,24 +27,34 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 
-import java.util.List;
 import java.util.UUID;
 
 @RequestMapping(path = ApiVersioning.BASE + "/organizations/{orgId}/projects/{projectId}/glossary", produces = MediaType.APPLICATION_JSON_VALUE)
 @Tag(name = "Glossary", description = "Project glossary maintenance operations")
 public interface GlossaryController {
 
-    @Operation(summary = "List glossary terms", description = "Returns the manual glossary terms currently stored for the project's glossary.")
-    @ApiResponse(responseCode = "200", description = "Glossary terms retrieved successfully",
-            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = GlossaryTermResponse.class)))
+    @Operation(summary = "List glossary terms (paginated)",
+            description = """
+                    Returns a paginated page of the project's glossary terms, sorted by term ascending \
+                    by default. Supports an optional case-insensitive substring search over term + \
+                    definition. Pagination and search run server-side.""")
+    @ApiResponse(responseCode = "200", description = "Paginated glossary terms",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE))
     @ApiResponseNotFound
     @ApiStandardErrorResponses
     @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
     @GetMapping(version = ApiVersioning.V1)
-    ResponseEntity<List<GlossaryTermResponse>> listTerms(
+    ResponseEntity<PageResponse<GlossaryTermResponse>> listTerms(
             @Parameter(description = "Organization context UUID") @PathVariable UUID orgId,
             @Parameter(description = "Project UUID") @PathVariable UUID projectId,
+            @Parameter(description = "Zero-based page index", example = "0")
+            @RequestParam(required = false) Integer page,
+            @Parameter(description = "Page size (max 100)", example = "20")
+            @RequestParam(required = false) Integer size,
+            @Parameter(description = "Case-insensitive substring matched across term and definition", example = "lead")
+            @RequestParam(required = false) String search,
             Authentication authentication
     );
 
