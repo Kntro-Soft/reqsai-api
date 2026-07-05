@@ -11,6 +11,32 @@ follows [Semantic Versioning](https://semver.org/).
 
 _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in progress._
 
+### Added (Suggestion acceptance model — `feature/discovery-session-control`)
+
+- **Scenario labels on every generated criterion** — the extraction prompt now asks the model for a
+  concise `scenario` label (in the transcript language) for each Given/When/Then it proposes, for the
+  NEW_STORY criteria list AND the single EDGE_CASE criterion. It stays optional (dropped, never
+  fabricated, when the model omits it) and round-trips through `DraftCriterion.scenario` onto the
+  accepted story / criterion.
+- **EDGE_CASE carries a real Given/When/Then criterion** — an EDGE_CASE suggestion previously reused
+  the NEW_STORY draft fields and `acceptAsEdgeCase` twisted them into a criterion (`given = "the user
+  is <role>"`, `when = action`, `then = benefit`, `scenario = "Edge case: <title>"`). It now carries a
+  proper single `DraftCriterion { scenario, given, when, then }` (stored as the sole entry of the
+  existing `draft_criteria` JSONB list — no migration) plus its `targetStoryId` and `relatedTopic`;
+  the prompt asks the model for the boundary rule as one Given/When/Then entry and which existing story
+  it belongs to. On accept the criterion is added verbatim via `UserStory.addAcceptanceCriterion`; the
+  no-target fallback now builds a genuine standalone story from the story fields instead of the twisted
+  mapping. The criterion is exposed on `SuggestionResponse.draftAcceptanceCriteria` (a 1-element list)
+  and on the `SUGGESTION_GENERATED` / `SUGGESTION_ACCEPTED` WebSocket messages.
+- **Full edit-before-accept** — `AcceptSuggestionRequest` / `AcceptSuggestionCommand` now optionally
+  carry the whole edited payload applied on accept: `editedTitle/editedRole/editedAction/editedBenefit/
+  editedPriority/editedStoryPoints` plus `editedAcceptanceCriteria` (a list of `{ scenario?, given,
+  when, then }`). For NEW_STORY the edited criteria REPLACE the draft when sent; for EDGE_CASE the first
+  edited criterion replaces the draft criterion added to the (unchanged) target story; for UPDATE_STORY
+  the edited story fields are applied to the target. Edited fields carry the same `@Size`/`@NotBlank`
+  constraints as creation (a criterion missing given/when/then is rejected with 400 via cascaded
+  validation). Backward-compatible: an empty body (`{}`) accepts the raw draft exactly as before.
+
 ### Added (Realtime suggestion quality iteration — `feature/discovery-session-control`)
 
 - **Char-or-time streaming cadence** — realtime suggestions only fired once the accrued past-watermark
