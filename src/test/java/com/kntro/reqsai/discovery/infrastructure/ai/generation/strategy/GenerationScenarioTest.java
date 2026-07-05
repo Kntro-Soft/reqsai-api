@@ -104,6 +104,23 @@ class GenerationScenarioTest {
             assertThat(prompt).contains("IGNORE GARBAGE");        // pure noise → nothing
             assertThat(prompt).contains("AMBIGUITY");             // vague → CLARIFYING_QUESTION
             assertThat(prompt).contains("DISTINCT CAPABILITIES"); // distinct asks → separate stories
+            // The ID-bearing CANDIDATES block + imperative DEDUP DECISION sit next to the transcript
+            // (after the schema), and the login id is repeated there so the model can copy it verbatim.
+            assertThat(prompt).contains("CANDIDATE EXISTING STORIES");
+            assertThat(prompt).contains("DEDUP DECISION");
+            int schemaAt = prompt.indexOf("Return ONLY this JSON structure");
+            int candidatesAt = prompt.indexOf("CANDIDATE EXISTING STORIES", schemaAt);
+            int dedupAt = prompt.indexOf("DEDUP DECISION");
+            int transcriptAt = prompt.indexOf("Recent conversation:");
+            assertThat(candidatesAt)
+                    .as("the ID-bearing candidates block must sit AFTER the JSON schema, next to the transcript")
+                    .isGreaterThan(schemaAt);
+            assertThat(dedupAt)
+                    .as("the imperative DEDUP DECISION step must sit between the candidates block and the transcript")
+                    .isGreaterThan(candidatesAt).isLessThan(transcriptAt);
+            assertThat(prompt.lastIndexOf(loginId.toString()))
+                    .as("the login id must be repeated in the near-transcript CANDIDATES block (after the schema)")
+                    .isGreaterThan(schemaAt);
         }
     }
 
