@@ -343,10 +343,13 @@ public class SuggestionCreationService {
                     yield newStoryOf(gen, sessionId, projectId);
                 }
                 case EDGE_CASE -> {
+                    // Resolve the target: the LLM's validated pick, else the closest story BUT only when
+                    // it clears the dedup floor. Without a floor a weak nearest-neighbor (0.4) got
+                    // attached, and — worse — a targetless edge case became a standalone story on accept,
+                    // violating granularity. Leaving targetStoryId null lets the accept handler surface a
+                    // clear "no target" error instead of minting a spurious story.
                     UUID targetStoryId = llmTarget != null ? llmTarget
-                            : stories.findMostSimilar(projectId, embedding)
-                                    .map(UserStoryRepository.SimilarStory::storyId)
-                                    .orElse(null);
+                            : resolveEdgeCaseTargetByEmbedding(projectId, embedding);
                     yield edgeCaseOf(gen, sessionId, projectId, targetStoryId);
                 }
                 case UPDATE_STORY -> {
@@ -383,6 +386,19 @@ public class SuggestionCreationService {
             }
             default -> newStoryOf(gen, sessionId, projectId);
         };
+    }
+
+    /**
+     * The closest story to {@code embedding} for an EDGE_CASE fallback, but only when it clears the
+     * dedup floor — a weak nearest neighbor is not a real "belongs to this story" match, so return null
+     * and let the accept handler surface a no-target error rather than attach the edge case to (or, on
+     * accept, mint a standalone story from) a story it does not belong to.
+     */
+    private @Nullable UUID resolveEdgeCaseTargetByEmbedding(UUID projectId, float[] embedding) {
+        return stories.findMostSimilar(projectId, embedding)
+                .filter(s -> s.similarity() >= dedupSimilarityThreshold)
+                .map(UserStoryRepository.SimilarStory::storyId)
+                .orElse(null);
     }
 
     /** The LLM-returned target id when it denotes a real story of this project; {@code null} otherwise. */

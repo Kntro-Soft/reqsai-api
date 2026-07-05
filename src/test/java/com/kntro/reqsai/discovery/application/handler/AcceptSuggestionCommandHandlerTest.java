@@ -168,6 +168,27 @@ class AcceptSuggestionCommandHandlerTest {
         assertThat(criterion.getThen()).isEqualTo("edited then");
     }
 
+    @Test
+    @DisplayName("EDGE_CASE accept without a resolvable target is rejected, not minted as a standalone story")
+    void should_reject_edge_case_without_target() {
+        UUID projectId = UUID.randomUUID();
+        // No targetStoryId → resolveTarget returns null.
+        Suggestion suggestion = Suggestion.edgeCase(UUID.randomUUID(), projectId,
+                "Cuenta bloqueada", "usuario", "iniciar sesión", "acceder",
+                Priority.MEDIUM, 2, "inicio de sesión", null,
+                new Suggestion.DraftCriterion("Bloqueo por intentos",
+                        "el usuario falló 5 intentos", "reintenta", "el sistema bloquea la cuenta"));
+        when(suggestions.findByIdAndSessionIdForUpdate(any(), any())).thenReturn(Optional.of(suggestion));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> handler.handle(accept(suggestion)))
+                .isInstanceOf(com.kntro.reqsai.shared.domain.exception.DomainException.class)
+                .hasMessageContaining("no resolvable target story");
+
+        // No standalone story minted and the suggestion is left PENDING (not accepted).
+        org.mockito.Mockito.verify(storyRepo, org.mockito.Mockito.never()).save(any());
+        assertThat(suggestion.getStatus()).isEqualTo(SuggestionStatus.PENDING);
+    }
+
     private static AcceptSuggestionCommand accept(Suggestion s) {
         return new AcceptSuggestionCommand(s.getSessionId(), s.getId(),
                 null, null, null, null, null, null, null);

@@ -27,7 +27,8 @@ import java.util.UUID;
  *       draft (or edited) acceptance criteria.</li>
  *   <li>{@code UPDATE_STORY} — updates the target story's fields with the draft (or analyst edits).</li>
  *   <li>{@code EDGE_CASE}  — adds the draft (or edited) Given/When/Then criterion to the target story
- *       verbatim.</li>
+ *       verbatim; when no target story is resolvable it is rejected with a domain error (kept PENDING)
+ *       rather than minted as a granularity-violating standalone story.</li>
  *   <li>{@code CLARIFYING_QUESTION} — marks accepted with no story produced ({@code resolvedStoryId=null}).</li>
  * </ul>
  *
@@ -103,10 +104,13 @@ public class AcceptSuggestionCommandHandler {
         Suggestion.DraftCriterion criterion = s.getDraftAcceptanceCriteria().stream().findFirst().orElse(null);
         UserStory target = resolveTarget(s);
         if (target == null) {
-            // No target found at accept time — persist the edge case as a real standalone story so the
-            // criterion is not lost. Build a genuine story from the story fields (no field twisting).
-            log.warn("EDGE_CASE suggestion {} has no usable target story; creating as a standalone story", s.getId());
-            return acceptAsNewStory(s, cmd);
+            // No target resolvable at accept time. An edge case is a boundary/validation rule OF an
+            // existing capability, so silently minting a standalone story from it would violate
+            // granularity (the very thing the EDGE_CASE classification avoids). Surface a clear domain
+            // error instead and leave the suggestion PENDING, so the analyst assigns a target (edit) or
+            // explicitly reclassifies it rather than getting a spurious one-criterion story.
+            log.warn("EDGE_CASE suggestion {} has no usable target story; rejecting accept (kept PENDING)", s.getId());
+            throw DiscoveryExceptions.edgeCaseWithoutTarget(s.getId());
         }
         if (criterion == null) {
             // Nothing concrete to attach (the LLM omitted a usable Given/When/Then and the analyst sent

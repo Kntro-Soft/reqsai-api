@@ -113,6 +113,43 @@ class SuggestionCreationServiceTest {
     }
 
     @Test
+    @DisplayName("EDGE_CASE with no LLM target and only a weak embedding match leaves the target null")
+    void edge_case_below_floor_has_no_target() {
+        when(embeddingPort.isAvailable()).thenReturn(true);
+        when(embeddingPort.embed(any())).thenReturn(new float[]{0.1f});
+        // Nearest story is only 0.5 similar — below the 0.84 dedup floor, so it is NOT attached.
+        when(stories.findMostSimilar(any(), any()))
+                .thenReturn(Optional.of(new UserStoryRepository.SimilarStory(UUID.randomUUID(), 0.5)));
+        when(suggestions.findAllBySessionIdAndStatus(any(), any())).thenReturn(List.of());
+        when(suggestions.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        List<Suggestion> created = service.createSuggestions(
+                resultOf(generated(SuggestionType.EDGE_CASE, null)), sessionId, projectId);
+
+        assertThat(created).hasSize(1);
+        assertThat(created.getFirst().getType()).isEqualTo(SuggestionType.EDGE_CASE);
+        assertThat(created.getFirst().getTargetStoryId()).isNull();
+    }
+
+    @Test
+    @DisplayName("EDGE_CASE with no LLM target and a strong embedding match attaches that story")
+    void edge_case_above_floor_attaches_target() {
+        UUID nearId = UUID.randomUUID();
+        when(embeddingPort.isAvailable()).thenReturn(true);
+        when(embeddingPort.embed(any())).thenReturn(new float[]{0.1f});
+        when(stories.findMostSimilar(any(), any()))
+                .thenReturn(Optional.of(new UserStoryRepository.SimilarStory(nearId, 0.9)));
+        when(suggestions.findAllBySessionIdAndStatus(any(), any())).thenReturn(List.of());
+        when(suggestions.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        List<Suggestion> created = service.createSuggestions(
+                resultOf(generated(SuggestionType.EDGE_CASE, null)), sessionId, projectId);
+
+        assertThat(created).hasSize(1);
+        assertThat(created.getFirst().getTargetStoryId()).isEqualTo(nearId);
+    }
+
+    @Test
     @DisplayName("EDGE_CASE carries the LLM's single Given/When/Then criterion (scenario label round-trips)")
     void edge_case_carries_the_criterion() {
         UserStory target = UserStoryMother.draft().withProjectId(projectId).build();
