@@ -105,6 +105,29 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
   `/topic/sessions/{id}` discriminated by the `type` field — not `/topic/discovery/sessions/{id}/segments`
   as `docs/WEBSOCKET_STT.md` states. Same wiring/skip/run rules; also runs under `./gradlew llmTest
   --max-workers=1`.
+- **Real-LLM behavioral MATRIX probe (~90 data-driven cases)** — a third `llm`-tagged suite
+  `RealLlmBehaviorMatrixE2ETest` widens the in-process probe into a `@ParameterizedTest` over ~88
+  hand-authored Spanish cases run under ONE Spring context boot (`@TestInstance(PER_CLASS)` provisions
+  the tenant once). It calls `RealtimeSuggestionService.suggest()` directly (not the WS — behavior is
+  identical and this must stay fast/cheap for ~90 real-generation calls) against REAL OpenAI generation
+  + REAL OpenAI embeddings + REAL pgvector. Each case seeds its own `Project` (so backlogs never
+  cross-contaminate), optionally seeds accepted+indexed backlog stories, persists the transcript as
+  final segments, runs one pass, and — crucially — for every case with a seeded backlog re-embeds each
+  produced `NEW_STORY`/`UPDATE_STORY`/`EDGE_CASE` draft via the REAL `EmbeddingPort` and computes the
+  cosine directly against each seeded story's stored embedding, so the report shows the ACTUAL number
+  vs the 0.84 dedup bar (never `null`) — mapping exactly where dedup catches vs misses. Every case
+  prints one greppable, stable line
+  `[MATRIX][<category>][<id>] seeded=… input=… => produced=… rawTopCosineToSeed=0.xx converged=… expectation=… outcome=PASS|FAIL|OBSERVE`.
+  Coverage spans 15 categories (A exact/near-exact duplicate, B mild paraphrase, C synonym-heavy
+  paraphrase incl. regional es-PE/es-419/es-ES variants, D distinct-but-related false-positive guards,
+  E update-a-detail, F edge cases, G clarifying questions, H cadence/timing — the only non-`force`
+  cases, I multi-story transcripts, J mistranscription/garbage, K language, L incremental refinement,
+  M contradiction/negation, N long 6+-capability transcripts, O threshold-boundary pairs). Because the
+  LLM is non-deterministic almost every case is `OBSERVE` (logged, never failing) so the whole matrix
+  always completes; hard assertions fire only for the unambiguous invariants (exact duplicate ⇒ ≤1
+  story draft; genuinely-distinct capabilities ⇒ ≥2 story drafts; no two persisted stories exceed
+  cosine ~0.97). Same OpenAI/pgvector wiring, `@EnabledIfEnvironmentVariable("OPENAI_API_KEY")` +
+  in-body `assumeTrue` skip, and `llmTest` lane as the sibling probes; ~one generation call per case.
 
 ### Added (Suggestion acceptance model — `feature/discovery-session-control`)
 
