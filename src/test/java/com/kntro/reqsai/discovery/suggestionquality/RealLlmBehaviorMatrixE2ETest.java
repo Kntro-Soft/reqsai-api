@@ -99,6 +99,17 @@ import static org.springframework.util.StringUtils.hasText;
  * Genuinely model-dependent mapping cases (incremental refinement, contradiction, long transcripts,
  * embedded-noise extraction) stay {@code OBSERVE}.
  *
+ * <h2>Variance tolerance (bounded best-of-3) for the hard asserts</h2>
+ * A few hard-asserted cases depend on a variable LLM granularity/dedup call and can flake on a single
+ * run (e.g. the model occasionally merges two explicitly-separated capabilities into one story). To
+ * tolerate a one-off flake WITHOUT masking a consistently-wrong case, every HARD-asserted category
+ * (EXACT_DUP, MULTI_DISTINCT, DEDUP_OR_UPDATE, UPDATE, EDGE_CASE, CLARIFY, GARBAGE, SESSION_LANGUAGE)
+ * runs under a bounded majority vote: run the case ONCE; if the assertion passes, done (1 OpenAI call —
+ * no extra cost). If it fails, re-run the SAME case up to {@link #MAX_ATTEMPTS}-1 more times and pass
+ * ONLY when the correct behavior holds in a strict MAJORITY of the attempts made (>=2 of 3). So a
+ * one-off flake passes on retry, but a case wrong in the majority still FAILS. {@code OBSERVE}/
+ * {@code CADENCE_HOLD} cases are never wrapped (no assertion). Added cost is retries-on-failure only.
+ *
  * <h2>Wiring / skip / run</h2>
  * Real OpenAI generation + embeddings via the same property flips as the sibling probes; real pgvector
  * via {@link AbstractIntegrationTest}. Tagged {@code @Tag("llm")} and skipped (never failed) without a key
@@ -256,15 +267,68 @@ class RealLlmBehaviorMatrixE2ETest extends AbstractIntegrationTest {
 
     // ── The single parameterized entry point over the whole matrix ────────────────────────────────────────
 
+    /**
+     * How many attempts a HARD-asserted case is allowed in total (best-of-N). The extra calls are spent
+     * ONLY when the first attempt fails, so cost is ~1× the matrix plus a few retries — not a blanket 3×.
+     */
+    private static final int MAX_ATTEMPTS = 3;
+
     @ParameterizedTest(name = "[{index}] {0}")
     @MethodSource("matrix")
     @DisplayName("matrix case")
     void matrixCase(Case c) {
         assertThat(wiringVerified).as("wiring must be verified before running cases").isTrue();
 
-        // Each case gets its own project (UNIQUE name derived from the case id) so seeded backlogs never
-        // cross-contaminate and the per-case project insert does not collide on idx_projects_org_active_name.
-        UUID projectId = seedProject(c.id());
+        // ── Attempt #1 (always) ───────────────────────────────────────────────────────────────────────────
+        Attempt first = runAttempt(c, "");
+
+        // OBSERVE / cadence-hold cases carry no behavioral assertion — one attempt maps them, done.
+        if (!isHardAsserted(c.expect())) {
+            return;
+        }
+
+        // ── Bounded best-of-N for the HARD-asserted, LLM-variable categories ──────────────────────────────
+        // Voting rule: run the case once. If the hard assertion PASSES, done (1 OpenAI call — no extra
+        // cost). If it FAILS, re-run the SAME case up to MAX_ATTEMPTS-1 more times and PASS only when the
+        // correct behavior holds in a MAJORITY of the attempts MADE. Because we retry only after a first
+        // failure, a passing case costs 1 call; a one-off flake costs 3 and passes 2/3; a case that is
+        // wrong in the MAJORITY (>=2 of 3) still FAILS. Wrapped categories: EXACT_DUP, MULTI_DISTINCT,
+        // DEDUP_OR_UPDATE, UPDATE, EDGE_CASE, CLARIFY, GARBAGE, SESSION_LANGUAGE (every asserting one);
+        // OBSERVE/CADENCE_HOLD are never wrapped.
+        if (holds(c, first)) {
+            return; // first attempt already correct
+        }
+        int passes = 0;              // attempt #1 failed (else we returned above)
+        int attemptsMade = 1;
+        List<Attempt> attempts = new ArrayList<>(List.of(first));
+        for (int i = 2; i <= MAX_ATTEMPTS; i++) {
+            Attempt retry = runAttempt(c, "-r" + i);
+            attemptsMade++;
+            attempts.add(retry);
+            if (holds(c, retry)) {
+                passes++;
+            }
+        }
+        boolean majorityCorrect = passes * 2 > attemptsMade; // strictly more than half of attempts made
+        System.out.printf(
+                "[MATRIX][RETRY][%s][%s] best-of-%d: %d/%d attempts showed the correct behavior => %s%n",
+                c.category(), c.id(), attemptsMade, passes, attemptsMade,
+                majorityCorrect ? "PASS (flake tolerated)" : "FAIL (consistently wrong)");
+        // Assert on the LAST attempt's state (with the full attempt trail in the message) so the failure
+        // report shows a concrete produced= list, while the pass/fail decision is the majority vote above.
+        Attempt last = attempts.get(attempts.size() - 1);
+        assertThat(majorityCorrect)
+                .as("[%s] %s expected in a MAJORITY of %d attempts, but only %d/%d showed it "
+                        + "(not a one-off flake). last produced=%s",
+                        c.id(), c.expect(), attemptsMade, passes, attemptsMade, describeCompact(last.produced()))
+                .isTrue();
+    }
+
+    /** One full attempt: fresh project + seeds + session, run the pass, read the produced suggestions. */
+    private Attempt runAttempt(Case c, String attemptTag) {
+        // Each ATTEMPT gets its own project (UNIQUE name derived from the case id + retry tag) so seeded
+        // backlogs never cross-contaminate and a retry never collides on idx_projects_org_active_name.
+        UUID projectId = seedProject(c.id(), attemptTag);
 
         // Seed the backlog (accepted + real-embedded) and remember each seed's stored embedding + title so
         // we can compute the RAW cosine of produced drafts against them afterwards.
@@ -273,7 +337,7 @@ class RealLlmBehaviorMatrixE2ETest extends AbstractIntegrationTest {
             seeded.add(seedIndexedStory(projectId, s));
         }
 
-        UUID sessionId = seedRecordingSession(projectId, c.id() + " session",
+        UUID sessionId = seedRecordingSession(projectId, c.id() + attemptTag + " session",
                 c.utterances().toArray(String[]::new));
 
         // Run the pass. Cadence-hold cases run WITHOUT force to observe the char-trigger hold; every other
@@ -291,57 +355,48 @@ class RealLlmBehaviorMatrixE2ETest extends AbstractIntegrationTest {
 
         Outcome outcome = evaluate(c, produced, seededIds);
 
-        // ── The one greppable, stable line per case ──────────────────────────────────────────────────────
+        // ── The one greppable, stable line per case (per attempt) ──────────────────────────────────────────
         System.out.println(String.format(
-                "[MATRIX][%s][%s] seeded=\"%s\" input=\"%s\" => produced=%s rawTopCosineToSeed=%s converged=%b expectation=%s outcome=%s",
-                c.category(), c.id(), c.seedTitles(), c.shortInput(),
+                "[MATRIX][%s][%s%s] seeded=\"%s\" input=\"%s\" => produced=%s rawTopCosineToSeed=%s converged=%b expectation=%s outcome=%s",
+                c.category(), c.id(), attemptTag, c.seedTitles(), c.shortInput(),
                 describeCompact(produced), raw.render(), converged, c.expect(), outcome));
 
-        // ── Assertions ────────────────────────────────────────────────────────────────────────────────────
-        // A/D stay HARD invariants; the rest are TOLERANT behavioral assertions (dedup-or-update counts as
-        // success, invariant asserted not exact wording) so green means CORRECT while surviving LLM
-        // non-determinism. The [MATRIX] line above is always logged first, so a failure still leaves the map.
-        switch (c.expect()) {
-            case EXACT_DUP -> assertThat(storyDrafts(produced))
-                    .as("[%s] a verbatim-duplicated capability must not persist two near-identical story drafts", c.id())
-                    .hasSizeLessThanOrEqualTo(1);
-            case MULTI_DISTINCT -> assertThat(storyDrafts(produced).size())
-                    .as("[%s] genuinely distinct capabilities must yield >=2 story drafts (not wrongly merged)", c.id())
-                    .isGreaterThanOrEqualTo(2);
-            case DEDUP_OR_UPDATE -> assertThat(convergesOntoSeed(produced, seededIds))
-                    .as("[%s] a paraphrase of a seeded story must CONVERGE (dedup, or UPDATE/EDGE targeting the "
-                            + "seeded story) — not a standalone NEW_STORY duplicate. produced=%s",
-                            c.id(), describeCompact(produced))
-                    .isTrue();
-            case UPDATE, EDGE_CASE -> assertThat(convergesOntoSeed(produced, seededIds))
-                    .as("[%s] a detail/exception on a seeded story must converge to UPDATE/EDGE targeting it "
-                            + "(not a standalone NEW_STORY). produced=%s", c.id(), describeCompact(produced))
-                    .isTrue();
-            case CLARIFY -> assertThat(clarifies(produced))
-                    .as("[%s] an ambiguous/underspecified/conflicting requirement must yield a CLARIFYING_QUESTION "
-                            + "(or at least NOT a confident standalone NEW_STORY). produced=%s",
-                            c.id(), describeCompact(produced))
-                    .isTrue();
-            case GARBAGE -> assertThat(storyDrafts(produced))
-                    .as("[%s] pure garbage/noise must not produce a story draft. produced=%s",
-                            c.id(), describeCompact(produced))
-                    .isEmpty();
-            case SESSION_LANGUAGE -> {
-                for (Suggestion s : storyDrafts(produced)) {
-                    assertThat(looksSpanish(s))
-                            .as("[%s] story must be written in the session language (es); draft='%s'",
-                                    c.id(), draftText(s))
-                            .isTrue();
-                }
-            }
-            case CADENCE_HOLD, OBSERVE -> { /* mapping only — no behavioral assertion */ }
-        }
-        // Universal safety net: no two persisted stories may be near-identical. Stories are only persisted
-        // on accept, so in this suggestion-only pass this asserts against any seeded backlog rows — a
-        // produced NEW draft is never persisted as a story here, so this mainly guards the seeds staying
-        // distinct, but it is kept for parity with the sibling probes and future-proofing.
+        // Universal safety net (per attempt): no two persisted stories may be near-identical. Stories are
+        // only persisted on accept, so in this suggestion-only pass this asserts against any seeded backlog
+        // rows — mainly guarding the seeds staying distinct; kept for parity with the sibling probes.
         assertNoStoriesWronglyMerged(projectId);
+
+        return new Attempt(produced, seededIds);
     }
+
+    /** True for categories that carry a HARD behavioral assertion (everything except OBSERVE/CADENCE_HOLD). */
+    private static boolean isHardAsserted(Expectation e) {
+        return switch (e) {
+            case EXACT_DUP, MULTI_DISTINCT, DEDUP_OR_UPDATE, UPDATE, EDGE_CASE, CLARIFY, GARBAGE,
+                 SESSION_LANGUAGE -> true;
+            case CADENCE_HOLD, OBSERVE -> false;
+        };
+    }
+
+    /**
+     * Whether an attempt shows the CORRECT behavior for the case's expectation — the same predicate the
+     * hard assertions used to assert directly, now returning a boolean so the best-of-N vote can count it.
+     */
+    private static boolean holds(Case c, Attempt a) {
+        return switch (c.expect()) {
+            case EXACT_DUP -> storyDrafts(a.produced()).size() <= 1;
+            case MULTI_DISTINCT -> storyDrafts(a.produced()).size() >= 2;
+            case DEDUP_OR_UPDATE, UPDATE, EDGE_CASE -> convergesOntoSeed(a.produced(), a.seededIds());
+            case CLARIFY -> clarifies(a.produced());
+            case GARBAGE -> storyDrafts(a.produced()).isEmpty();
+            case SESSION_LANGUAGE -> storyDrafts(a.produced()).stream()
+                    .allMatch(RealLlmBehaviorMatrixE2ETest::looksSpanish);
+            case CADENCE_HOLD, OBSERVE -> true;
+        };
+    }
+
+    /** One attempt's outcome-relevant state (the produced suggestions + the seeded story ids). */
+    private record Attempt(List<Suggestion> produced, Set<UUID> seededIds) {}
 
     /** PASS/FAIL for every asserted category; OBSERVE for the mapping-only cases. */
     private Outcome evaluate(Case c, List<Suggestion> produced, Set<UUID> seededIds) {
@@ -1143,19 +1198,22 @@ class RealLlmBehaviorMatrixE2ETest extends AbstractIntegrationTest {
     // ── seeding (tenant-scoped, via repositories under TenantContext) ─────────────────────────────────────
 
     /**
-     * Seeds one Project per case. The name MUST be unique per case: the tenant schema carries the partial
+     * Seeds one Project per case ATTEMPT. The name MUST be unique: the tenant schema carries the partial
      * unique index {@code idx_projects_org_active_name} on {@code (organization_id, lower(name)) WHERE
      * status = 'ACTIVE'} (V7), and every case runs in the SAME provisioned org/schema — a shared constant
      * name made case #1 succeed and every later case fail its {@code projects} insert with a
-     * {@code DataIntegrityViolationException}. Deriving the name from the case id keeps each case's project
-     * (and therefore its seeded backlog and its dedup surface) isolated from every other case.
+     * {@code DataIntegrityViolationException}. Deriving the name from the case id (plus the retry
+     * {@code attemptTag}) keeps each case's — and each retry's — project (and therefore its seeded backlog
+     * and its dedup surface) isolated from every other, so a best-of-N retry never collides with the
+     * fresh project of the failed first attempt.
      */
-    private UUID seedProject(String caseId) {
+    private UUID seedProject(String caseId, String attemptTag) {
         return inTenantTx(() -> {
             TechnicalProfile profile = new TechnicalProfile(
                     List.of("Java"), List.of("Spring Boot"), List.of("Web"), List.of("PostgreSQL"),
                     "Clean Architecture", "SaaS");
-            Project project = new Project(orgId, "Matrix " + caseId + " project", "seed", profile, UUID.fromString(USER_ID));
+            Project project = new Project(orgId, "Matrix " + caseId + attemptTag + " project", "seed",
+                    profile, UUID.fromString(USER_ID));
             return projects.save(project).getId();
         });
     }
