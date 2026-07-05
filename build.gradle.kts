@@ -147,13 +147,17 @@ dependencyManagement {
 }
 
 tasks.withType<Test> {
-    useJUnitPlatform {
-        // The 'llm' tag runs a real-OpenAI behavioral probe (real tokens); keep it out of the default
-        // `test` lane. It is opted into only by the dedicated `llmTest` task below.
-        excludeTags("llm")
-    }
+    useJUnitPlatform()
     maxParallelForks = (Runtime.getRuntime().availableProcessors() / 2).coerceAtLeast(1)
     jvmArgs("-javaagent:${mockitoAgent.asPath}")
+}
+
+// Keep the real-OpenAI 'llm' probe (real tokens, non-deterministic) out of the default `test` lane
+// (which `build`/`check` run). It is opted into ONLY by the dedicated `llmTest` task below. Applied to
+// the `test` task by name so it does not leak into `llmTest` (a global withType exclude would be merged
+// with llmTest's include and — since exclude wins — silently deselect the very tests it must run).
+tasks.named<Test>("test") {
+    useJUnitPlatform { excludeTags("llm") }
 }
 
 // Fast feedback loop: unit/slice tests only — skips Testcontainers integration,
