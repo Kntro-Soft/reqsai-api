@@ -18,6 +18,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -29,11 +31,15 @@ import java.util.stream.Collectors;
 /**
  * Orchestrates realtime AI suggestions for a live discovery session.
  *
- * <p>Triggered by {@code RealtimeSuggestionListener} after every N finalized transcript segments.
- * Retrieves the most recent segments, enriches the prompt with semantically relevant project
- * context from the Workspace module, and routes the LLM output through
- * {@link SuggestionCreationService} — which applies embedding-based postprocessing and persists
- * each suggestion in its own transaction so the client receives one WebSocket push per suggestion.
+ * <p>Triggered by {@code RealtimeSuggestionListener} on every finalized transcript segment. To
+ * stream rather than batch, a pass runs when EITHER enough new characters have accrued past the
+ * watermark ({@code discovery.realtime.min-transcript-chars}) OR enough seconds have elapsed since
+ * the last pass with new transcript waiting ({@code discovery.realtime.max-transcript-age-seconds})
+ * — whichever comes first, and never with zero new content. It retrieves the tail segments, enriches
+ * the prompt with semantically relevant project context from the Workspace module, and routes the
+ * LLM output through {@link SuggestionCreationService} — which applies embedding-based postprocessing
+ * and persists each suggestion in its own transaction so the client receives one WebSocket push per
+ * suggestion the moment it is persisted, not after the whole pass.
  *
  * <h2>Backlog grounding</h2>
  * The generation context always includes a slice of the project's existing stories (ids included)
@@ -73,8 +79,16 @@ public class RealtimeSuggestionService {
     @Value("${discovery.realtime.context-top-k:5}")
     private int contextTopK;
 
-    @Value("${discovery.realtime.min-transcript-chars:300}")
+    @Value("${discovery.realtime.min-transcript-chars:180}")
     private int minTranscriptChars;
+
+    /**
+     * Time-based cadence fallback: once this many seconds have elapsed since the last pass with new
+     * final transcript waiting, generate even if fewer than {@link #minTranscriptChars} have accrued —
+     * so short back-and-forth exchanges stream out instead of arriving as one late batch.
+     */
+    @Value("${discovery.realtime.max-transcript-age-seconds:22}")
+    private int maxTranscriptAgeSeconds;
 
     /** Incremental pass: generate only when enough new transcripts have accrued past the watermark. */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -110,13 +124,15 @@ public class RealtimeSuggestionService {
                 .collect(Collectors.joining(" "))
                 .strip();
 
-        if (!force && text.length() < minTranscriptChars) {
-            log.debug("Accrued {} chars (< {} min) past watermark for session {}; waiting for more",
-                    text.length(), minTranscriptChars, sessionId);
-            return;
-        }
         if (text.isBlank() || !generation.isAvailable()) {
             log.debug("Nothing to generate (blank or generation unavailable) for session {}", sessionId);
+            return;
+        }
+
+        // Cadence: stream, don't batch. Fire when enough NEW text has accrued OR enough time has
+        // elapsed since the last pass with transcript still waiting — whichever comes first — never
+        // with zero new content (guarded by the empty check above). `force` (stop flush) bypasses both.
+        if (!force && !shouldGenerate(session, text.length())) {
             return;
         }
 
@@ -127,9 +143,38 @@ public class RealtimeSuggestionService {
         List<Suggestion> created = suggestionCreation.createSuggestions(result, sessionId, session.getProjectId());
 
         session.advanceSuggestedSequence(maxSequence);
+        session.markSuggestedAt(Instant.now());
         sessions.save(session);
 
         log.info("Realtime suggestion for session {}: {} suggestions from {} segments (watermark {} -> {}, force={})", sessionId, created.size(), pending.size(), watermark, maxSequence, force);
+    }
+
+    /**
+     * Cadence decision for an incremental pass with {@code accruedChars} of new (past-watermark)
+     * transcript already confirmed non-blank: generate when either the char threshold is reached or
+     * the time-since-last-pass threshold has elapsed — whichever first. The very first pass of a
+     * session ({@code lastSuggestedAt == null}) waits for the char threshold so a single opening word
+     * does not trigger a pass; thereafter the elapsed-time fallback keeps short exchanges streaming.
+     */
+    private boolean shouldGenerate(DiscoverySession session, int accruedChars) {
+        if (accruedChars >= minTranscriptChars) {
+            return true;
+        }
+        Instant lastAt = session.getLastSuggestedAt();
+        if (lastAt == null) {
+            log.debug("Accrued {} chars (< {} min), no prior pass for session {}; waiting for more",
+                    accruedChars, minTranscriptChars, session.getId());
+            return false;
+        }
+        long elapsedSeconds = Duration.between(lastAt, Instant.now()).getSeconds();
+        if (elapsedSeconds >= maxTranscriptAgeSeconds) {
+            log.debug("Accrued {} chars (< {} min) but {}s elapsed (>= {}s) for session {}; generating",
+                    accruedChars, minTranscriptChars, elapsedSeconds, maxTranscriptAgeSeconds, session.getId());
+            return true;
+        }
+        log.debug("Accrued {} chars (< {} min) and only {}s elapsed (< {}s) for session {}; waiting",
+                accruedChars, minTranscriptChars, elapsedSeconds, maxTranscriptAgeSeconds, session.getId());
+        return false;
     }
 
     // ── Context building ──────────────────────────────────────────────────────

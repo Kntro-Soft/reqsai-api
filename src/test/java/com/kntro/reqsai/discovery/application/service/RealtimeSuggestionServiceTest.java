@@ -54,6 +54,7 @@ class RealtimeSuggestionServiceTest {
     void setUp() {
         ReflectionTestUtils.setField(service, "contextTopK", 5);
         ReflectionTestUtils.setField(service, "minTranscriptChars", 0);
+        ReflectionTestUtils.setField(service, "maxTranscriptAgeSeconds", 22);
     }
 
     private DiscoverySession buildSession(UUID projectId) {
@@ -341,6 +342,108 @@ class RealtimeSuggestionServiceTest {
 
             verify(generation, never()).generate(any(), any());
             verifyNoInteractions(suggestionCreation);
+        }
+    }
+
+    @Nested
+    @DisplayName("Cadence")
+    class Cadence {
+
+        /** A short segment whose text is below the char threshold on its own. */
+        private TranscriptSegment shortSegment(UUID sessionId, int sequence) {
+            return finalSegment(sessionId, sequence, "sí"); // 2 chars
+        }
+
+        @Test
+        @DisplayName("should wait when below the char threshold and no prior pass has run")
+        void should_wait_below_char_threshold_without_prior_pass() {
+            ReflectionTestUtils.setField(service, "minTranscriptChars", 180);
+            DiscoverySession session = buildSession(UUID.randomUUID());
+            when(sessions.findById(session.getId())).thenReturn(Optional.of(session));
+            when(segments.findFinalBySessionIdAfter(session.getId(), 0)).thenReturn(
+                    List.of(shortSegment(session.getId(), 1)));
+            when(generation.isAvailable()).thenReturn(true);
+
+            service.suggest(session.getId());
+
+            verify(generation, never()).generate(any(), any(), any());
+            verifyNoInteractions(suggestionCreation);
+        }
+
+        @Test
+        @DisplayName("should generate below the char threshold once the time fallback has elapsed")
+        void should_generate_when_time_fallback_elapsed() {
+            ReflectionTestUtils.setField(service, "minTranscriptChars", 180);
+            DiscoverySession session = buildSession(UUID.randomUUID());
+            // Prior pass ran a minute ago → the 22s time fallback has elapsed.
+            ReflectionTestUtils.setField(session, "lastSuggestedAt", java.time.Instant.now().minusSeconds(60));
+
+            when(sessions.findById(session.getId())).thenReturn(Optional.of(session));
+            when(segments.findFinalBySessionIdAfter(session.getId(), 0)).thenReturn(
+                    List.of(shortSegment(session.getId(), 7)));
+            when(generation.isAvailable()).thenReturn(true);
+            when(embeddingPort.isAvailable()).thenReturn(false);
+            when(workspaceApi.findProjectSnapshot(any())).thenReturn(Optional.empty());
+            when(generation.generate(any(), any(), any())).thenReturn(new GenerationResult(List.of()));
+
+            service.suggest(session.getId());
+
+            verify(generation).generate(any(), any(), any());
+            assertThat(session.getLastSuggestedSequence()).isEqualTo(7);
+        }
+
+        @Test
+        @DisplayName("should wait below the char threshold when the time fallback has not elapsed")
+        void should_wait_when_time_fallback_not_elapsed() {
+            ReflectionTestUtils.setField(service, "minTranscriptChars", 180);
+            DiscoverySession session = buildSession(UUID.randomUUID());
+            ReflectionTestUtils.setField(session, "lastSuggestedAt", java.time.Instant.now().minusSeconds(3));
+
+            when(sessions.findById(session.getId())).thenReturn(Optional.of(session));
+            when(segments.findFinalBySessionIdAfter(session.getId(), 0)).thenReturn(
+                    List.of(shortSegment(session.getId(), 8)));
+            when(generation.isAvailable()).thenReturn(true);
+
+            service.suggest(session.getId());
+
+            verify(generation, never()).generate(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("should generate immediately once the char threshold is crossed regardless of timing")
+        void should_generate_when_char_threshold_crossed() {
+            ReflectionTestUtils.setField(service, "minTranscriptChars", 10);
+            DiscoverySession session = buildSession(UUID.randomUUID());
+            when(sessions.findById(session.getId())).thenReturn(Optional.of(session));
+            when(segments.findFinalBySessionIdAfter(session.getId(), 0)).thenReturn(
+                    List.of(finalSegment(session.getId(), 3, "un texto suficientemente largo")));
+            when(generation.isAvailable()).thenReturn(true);
+            when(embeddingPort.isAvailable()).thenReturn(false);
+            when(workspaceApi.findProjectSnapshot(any())).thenReturn(Optional.empty());
+            when(generation.generate(any(), any(), any())).thenReturn(new GenerationResult(List.of()));
+
+            service.suggest(session.getId());
+
+            verify(generation).generate(any(), any(), any());
+            assertThat(session.getLastSuggestedAt()).isNotNull();
+        }
+
+        @Test
+        @DisplayName("force (stop flush) generates below the char threshold even without a prior pass")
+        void should_force_below_threshold() {
+            ReflectionTestUtils.setField(service, "minTranscriptChars", 180);
+            DiscoverySession session = buildSession(UUID.randomUUID());
+            when(sessions.findById(session.getId())).thenReturn(Optional.of(session));
+            when(segments.findFinalBySessionIdAfter(session.getId(), 0)).thenReturn(
+                    List.of(shortSegment(session.getId(), 9)));
+            when(generation.isAvailable()).thenReturn(true);
+            when(embeddingPort.isAvailable()).thenReturn(false);
+            when(workspaceApi.findProjectSnapshot(any())).thenReturn(Optional.empty());
+            when(generation.generate(any(), any(), any())).thenReturn(new GenerationResult(List.of()));
+
+            service.suggest(session.getId(), true);
+
+            verify(generation).generate(any(), any(), any());
         }
     }
 }

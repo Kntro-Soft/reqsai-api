@@ -63,6 +63,15 @@ public class DiscoverySession extends AggregateRoot {
     @Column(name = "last_suggested_sequence", nullable = false)
     private int lastSuggestedSequence = 0;
 
+    /**
+     * Wall-clock instant of the last realtime suggestion pass that actually ran generation.
+     * Drives the time-based cadence fallback: a pass fires once enough seconds have elapsed with
+     * new transcript even if the char threshold has not been reached, so short back-and-forth
+     * exchanges stream instead of arriving as one late batch. {@code null} until the first pass.
+     */
+    @Column(name = "last_suggested_at")
+    private @Nullable Instant lastSuggestedAt;
+
     @Column(name = "processing_error", length = PROCESSING_ERROR_MAX)
     private String processingError;
 
@@ -174,5 +183,10 @@ public class DiscoverySession extends AggregateRoot {
         if (sequence > this.lastSuggestedSequence) {
             this.lastSuggestedSequence = sequence;
         }
+    }
+
+    /** Records when the last realtime suggestion pass ran (drives the time-based cadence fallback). */
+    public void markSuggestedAt(Instant when) {
+        this.lastSuggestedAt = Assert.notNull(when, "when");
     }
 }
