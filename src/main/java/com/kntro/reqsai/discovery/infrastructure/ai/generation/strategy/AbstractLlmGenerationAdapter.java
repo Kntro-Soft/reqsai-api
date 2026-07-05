@@ -92,21 +92,40 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
             - Apply domain glossary terms where they match the conversation.
             - Use the SAME LANGUAGE as the transcript for all text fields.
             - CRITICAL: check the EXISTING USER STORIES list before emitting anything. If the
-              conversation overlaps, refines, extends or modifies one of those stories (even with
-              different wording or in another language), do NOT create a NEW_STORY — emit
+              conversation revisits, refines, extends, changes or duplicates one of those stories
+              (even with different wording or in another language), do NOT create a NEW_STORY — emit
               UPDATE_STORY (or EDGE_CASE for a boundary scenario) with that story's id as
               "targetStoryId". Only emit NEW_STORY for a capability no existing story covers.
-            - Do NOT re-suggest anything equivalent to an item in ALREADY SUGGESTED THIS SESSION;
-              those are pending analyst review and repeating them floods the queue.
+              Verbal cues that almost always mean UPDATE_STORY of an existing story (bilingual):
+              "volviendo a…", "sobre lo de…", "además … debe…", "también quiero que … soporte…",
+              "cambiar…", "en realidad…"; "going back to…", "also it should…", "actually…",
+              "on top of that…", "let's change…". Match them to the story they refer to by meaning.
+            - QUALITY BAR: if a transcript fragment is garbled, truncated, contradictory or you
+              cannot form a coherent, complete user story from it, do NOT emit a suggestion. Speech
+              recognition mishears words (e.g. "inicio de sesión" → "inicio de decisión"); never
+              invent a requirement around an obvious mistranscription. Prefer emitting nothing over a
+              nonsensical story.
+            - GRANULARITY: session maintenance (keeping a user logged in), error/validation messages,
+              input validations, and security constraints (encryption, rate limits, password policy)
+              OF an existing capability are NOT separate stories. Emit them as EDGE_CASE (acceptance
+              criterion) or UPDATE_STORY on the capability they belong to, never as a standalone
+              NEW_STORY. Examples:
+                · "mantener la sesión activa" → EDGE_CASE / UPDATE_STORY of the login story, not new.
+                · "mostrar un mensaje de error si la contraseña es inválida" → EDGE_CASE of login.
+                · "the export must be encrypted" → EDGE_CASE / UPDATE_STORY of the export story.
+            - Do NOT re-suggest anything equivalent (same meaning, any wording or language) to an item
+              in ALREADY SUGGESTED THIS SESSION; those are pending analyst review and repeating them
+              floods the queue. This is a hard constraint, not a preference.
             - CRITICAL: Return ONLY valid JSON — no markdown, no code fences, no explanation.
 
             Classify each item with a "type":
             - "NEW_STORY"    — a new, standalone user story not covered by any existing story in the context.
                                "targetStoryId" must be null.
-            - "UPDATE_STORY" — the conversation refines, extends, changes or duplicates an EXISTING user
-                               story from the list; set "targetStoryId" to that story's id and write the
-                               full updated story fields.
-            - "EDGE_CASE"    — a boundary or exceptional scenario that belongs as an acceptance criterion
+            - "UPDATE_STORY" — the conversation revisits, refines, extends, changes or duplicates an
+                               EXISTING user story from the list; set "targetStoryId" to that story's id
+                               and write the full updated story fields.
+            - "EDGE_CASE"    — a boundary, exceptional scenario, or a session-maintenance / error /
+                               validation / security constraint that belongs as an acceptance criterion
                                on an existing story rather than as a new standalone story; set
                                "targetStoryId" to that story's id when you can identify it, and include a
                                "relatedTopic" hint (a glossary term or a concept already mentioned in the
@@ -227,7 +246,9 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
                     .append("\n"));
         }
         if (!ctx.alreadySuggested().isEmpty()) {
-            sb.append("\nALREADY SUGGESTED THIS SESSION (pending review — do NOT repeat):\n");
+            sb.append("\nALREADY SUGGESTED THIS SESSION — pending analyst review. Do NOT emit anything")
+              .append(" equivalent to these (same meaning in any wording or language); they are already")
+              .append(" in the queue:\n");
             ctx.alreadySuggested().forEach(t -> sb.append("- ").append(t).append("\n"));
         }
         return sb.toString().strip();

@@ -95,7 +95,21 @@ public class SuggestionCreationService {
         int skippedDuplicate = 0;
         int failed = 0;
 
+        int skippedIncoherent = 0;
+
         for (GenerationResult.GeneratedStory gen : result.stories()) {
+            // Quality bar: the prompt asks the model to emit nothing for garbled fragments, but a
+            // missing core field still slips through occasionally. A draft cannot become a valid
+            // story without title/role/action/benefit, so drop it here rather than let the factory
+            // throw and log it as a "failure" (that read like a real bug). Deliberately minimal —
+            // only a clearly-safe structural check, no language- or content-specific heuristics.
+            if (isIncoherent(gen)) {
+                skippedIncoherent++;
+                log.debug("Skipping incoherent story suggestion (missing core field) title='{}' (session={})",
+                        gen.title(), sessionId);
+                continue;
+            }
+
             String key = normalize(gen.title());
             if (key != null && !seenTitles.add(key)) {
                 skippedDuplicate++;
@@ -145,11 +159,20 @@ public class SuggestionCreationService {
             }
         }
 
-        log.info("Suggestions created for session {}: {} created, {} duplicate-skipped, {} failed "
-                        + "(from {} stories + {} questions)",
-                sessionId, created.size(), skippedDuplicate, failed,
+        log.info("Suggestions created for session {}: {} created, {} duplicate-skipped, {} incoherent-skipped, "
+                        + "{} failed (from {} stories + {} questions)",
+                sessionId, created.size(), skippedDuplicate, skippedIncoherent, failed,
                 result.stories().size(), result.questions().size());
         return created;
+    }
+
+    /** A draft that cannot become a valid story: any of title/role/action/benefit blank. */
+    private static boolean isIncoherent(GenerationResult.GeneratedStory gen) {
+        return isBlank(gen.title()) || isBlank(gen.role()) || isBlank(gen.action()) || isBlank(gen.benefit());
+    }
+
+    private static boolean isBlank(@Nullable String s) {
+        return s == null || s.isBlank();
     }
 
     /** Canonical draft text fed to the embedding model (title + full user-story sentence). */

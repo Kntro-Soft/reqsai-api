@@ -222,4 +222,26 @@ class SuggestionCreationServiceTest {
                 .isEqualTo(SuggestionCreationService.normalize("iniciar sesion"));
         assertThat(SuggestionCreationService.normalize("   ")).isNull();
     }
+
+    // ── Quality bar ────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("should skip an incoherent draft with a blank core field without failing the pass")
+    void should_skip_incoherent_draft() {
+        when(suggestions.findAllBySessionIdAndStatus(any(), any())).thenReturn(List.of());
+        when(suggestions.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(embeddingPort.isAvailable()).thenReturn(false);
+
+        GenerationResult result = new GenerationResult(List.of(
+                new GenerationResult.GeneratedStory(SuggestionType.NEW_STORY,
+                        "Secure Decision Start", "", "", "debe ser seguro",
+                        Priority.MEDIUM, 3, List.of(), null, null),
+                story("Iniciar sesión en el sistema", "autenticarme")
+        ), List.of());
+
+        List<Suggestion> created = service.createSuggestions(result, sessionId, projectId);
+
+        assertThat(created).hasSize(1);
+        assertThat(created.getFirst().getDraftTitle()).isEqualTo("Iniciar sesión en el sistema");
+    }
 }
