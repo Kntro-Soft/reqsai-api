@@ -90,6 +90,32 @@ class AcceptSuggestionCommandHandlerTest {
         assertThat(result.getResolvedStoryId()).isNotNull();
     }
 
+    @Test
+    @DisplayName("should cap the composed edge-case scenario label so a max-length title cannot fail the accept")
+    void should_cap_edge_case_scenario_label() {
+        // Arrange — an EDGE_CASE whose draft title is at the 200-char column limit
+        String maxTitle = "x".repeat(200);
+        UUID projectId = UUID.randomUUID();
+        UserStory target = new UserStory(UUID.randomUUID(), projectId,
+                "Login", "user", "log in", "access the app", Priority.HIGH, 3);
+        Suggestion suggestion = Suggestion.edgeCase(UUID.randomUUID(), projectId,
+                maxTitle, "user", "handle unverified accounts", "avoid lockouts",
+                Priority.MEDIUM, 2, null, target.getId());
+        when(suggestions.findByIdAndSessionIdForUpdate(any(), any())).thenReturn(Optional.of(suggestion));
+        when(storyRepo.findById(target.getId())).thenReturn(Optional.of(target));
+        when(storyRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        // Act — must not throw a length validation error
+        Suggestion result = handler.handle(command(suggestion));
+
+        // Assert — criterion added with a capped scenario label
+        assertThat(result.getStatus()).isEqualTo(SuggestionStatus.ACCEPTED);
+        assertThat(target.getAcceptanceCriteria()).hasSize(1);
+        assertThat(target.getAcceptanceCriteria().getFirst().getScenario())
+                .hasSize(200)
+                .startsWith("Edge case: ");
+    }
+
     private static AcceptSuggestionCommand command(Suggestion s) {
         return new AcceptSuggestionCommand(s.getSessionId(), s.getId(), null, null, null, null, null, null);
     }

@@ -37,6 +37,9 @@ import java.util.UUID;
 @Slf4j
 public class AcceptSuggestionCommandHandler {
 
+    /** Max length of an acceptance-criterion scenario label (see {@code AcceptanceCriterion}). */
+    private static final int SCENARIO_MAX = 200;
+
     private final SuggestionRepository suggestions;
     private final UserStoryRepository storyRepo;
     private final EmbeddingPort embeddingPort;
@@ -119,7 +122,7 @@ public class AcceptSuggestionCommandHandler {
         String effectiveTitle = coalesce(cmd.editedTitle(), s.getDraftTitle());
 
         target.addAcceptanceCriterion(
-                "Edge case: " + effectiveTitle,
+                truncate("Edge case: " + effectiveTitle, SCENARIO_MAX),
                 s.getDraftRole() != null ? "the user is " + s.getDraftRole() : "the system is in scope",
                 effectiveAction,
                 effectiveBenefit);
@@ -154,5 +157,14 @@ public class AcceptSuggestionCommandHandler {
     @Nullable
     private static String coalesce(@Nullable String override, @Nullable String fallback) {
         return override != null ? override : fallback;
+    }
+
+    /**
+     * Caps a server-composed label to {@code max} chars. The "Edge case: " prefix added to a
+     * max-length draft title would otherwise overflow the scenario column and fail the whole
+     * accept with a validation error the analyst cannot fix.
+     */
+    private static String truncate(String value, int max) {
+        return value.length() <= max ? value : value.substring(0, max);
     }
 }
