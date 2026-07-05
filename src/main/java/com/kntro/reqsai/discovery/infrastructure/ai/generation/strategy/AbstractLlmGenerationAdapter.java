@@ -265,10 +265,13 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
                     .append("\n"));
         }
         if (!ctx.alreadySuggested().isEmpty()) {
-            sb.append("\nALREADY SUGGESTED THIS SESSION — pending analyst review. Do NOT emit anything")
-              .append(" equivalent to these (same meaning in any wording or language); they are already")
-              .append(" in the queue:\n");
-            ctx.alreadySuggested().forEach(t -> sb.append("- ").append(t).append("\n"));
+            sb.append("\nALREADY SUGGESTED THIS SESSION (format: id | summary) — pending analyst review. Do")
+              .append(" NOT emit anything equivalent to these (same meaning in any wording or language); they")
+              .append(" are already in the queue. If the conversation REFINES or EXTENDS one of these pending")
+              .append(" items, emit UPDATE_STORY (or EDGE_CASE) with that item's id as \"targetStoryId\"")
+              .append(" instead of a near-duplicate NEW_STORY:\n");
+            ctx.alreadySuggested().forEach(p -> sb.append("- ").append(p.id())
+                    .append(" | ").append(p.summary()).append("\n"));
         }
         return sb.toString().strip();
     }

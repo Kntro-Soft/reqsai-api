@@ -54,6 +54,8 @@ class GenerationScenarioTest {
         }
     }
 
+    private static final UUID PENDING_SUGGESTION_ID = UUID.randomUUID();
+
     private static GenerationContext contextWithLoginStory(UUID loginId) {
         return new GenerationContext(
                 "PayApp", "Plataforma de pagos",
@@ -64,7 +66,7 @@ class GenerationScenarioTest {
                 List.of(new GenerationContext.StorySummary(
                         loginId, "Iniciar sesión", "usuario", "iniciar sesión con email y contraseña",
                         "acceder al sistema")),
-                List.of("Recuperar contraseña"));
+                List.of(new GenerationContext.PendingSuggestion(PENDING_SUGGESTION_ID, "Recuperar contraseña")));
     }
 
     @Nested
@@ -83,8 +85,10 @@ class GenerationScenarioTest {
             String prompt = adapter.capturedPrompt;
             // Backlog grounding: the login story with its id must be visible so the model can target it.
             assertThat(prompt).contains(loginId.toString()).contains("Iniciar sesión");
-            // Already-suggested guard renders and is a hard constraint.
-            assertThat(prompt).contains("ALREADY SUGGESTED THIS SESSION").contains("Recuperar contraseña");
+            // Already-suggested guard renders (with the pending suggestion's id so the model can target it).
+            assertThat(prompt).contains("ALREADY SUGGESTED THIS SESSION")
+                    .contains("Recuperar contraseña")
+                    .contains(PENDING_SUGGESTION_ID.toString());
             // The strengthened rules are present.
             assertThat(prompt).contains("UPDATE_STORY");
             assertThat(prompt).contains("volviendo a");          // revisit cue few-shot

@@ -15,8 +15,9 @@ import java.util.UUID;
  *   <li>{@link #existingStories()} — the stories most relevant to the recent transcript (vector
  *       search when available, most-recent fallback otherwise), each with its id so the model can
  *       emit {@code UPDATE_STORY}/{@code EDGE_CASE} suggestions pointing at a real story.</li>
- *   <li>{@link #alreadySuggested()} — titles/questions of this session's suggestions still pending
- *       analyst review, so the model does not re-suggest what it just suggested.</li>
+ *   <li>{@link #alreadySuggested()} — this session's suggestions still pending analyst review, each
+ *       with its id, so the model does not re-suggest what it just suggested and CAN target a pending
+ *       item (e.g. refine an as-yet-unreviewed story draft) instead of spawning a near-duplicate.</li>
  * </ul>
  */
 public record GenerationContext(
@@ -30,7 +31,7 @@ public record GenerationContext(
         List<String> constraints,
         List<GlossaryEntry> glossaryTerms,
         List<StorySummary> existingStories,
-        List<String> alreadySuggested
+        List<PendingSuggestion> alreadySuggested
 ) {
 
     public record GlossaryEntry(String term, String definition) {}
@@ -38,13 +39,19 @@ public record GenerationContext(
     /** Compact view of an existing backlog story, id included so the LLM can target it. */
     public record StorySummary(UUID id, String title, String role, String action, String benefit) {}
 
+    /**
+     * A still-PENDING suggestion of this session, id included so the LLM can point an
+     * {@code UPDATE_STORY}/{@code EDGE_CASE} at it instead of re-emitting a near-duplicate NEW_STORY.
+     */
+    public record PendingSuggestion(UUID id, String summary) {}
+
     public static GenerationContext from(ProjectSnapshot snapshot) {
         return from(snapshot, List.of(), List.of());
     }
 
     public static GenerationContext from(ProjectSnapshot snapshot,
                                          List<StorySummary> existingStories,
-                                         List<String> alreadySuggested) {
+                                         List<PendingSuggestion> alreadySuggested) {
         return new GenerationContext(
                 snapshot.name(),
                 snapshot.description(),

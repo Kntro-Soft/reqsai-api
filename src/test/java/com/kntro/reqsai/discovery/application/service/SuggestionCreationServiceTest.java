@@ -202,6 +202,26 @@ class SuggestionCreationServiceTest {
         assertThat(created.getFirst().getType()).isEqualTo(SuggestionType.NEW_STORY);
     }
 
+    @Test
+    @DisplayName("should drop a draft that targets a still-PENDING suggestion (converge, do not duplicate)")
+    void should_drop_draft_targeting_pending_suggestion() {
+        Suggestion pending = Suggestion.newStory(sessionId, projectId,
+                "Login con 2FA", "usuario", "autenticarme con 2FA", "seguridad", Priority.HIGH, 3);
+        when(embeddingPort.isAvailable()).thenReturn(false);
+        when(suggestions.findAllBySessionIdAndStatus(any(), any())).thenReturn(List.of(pending));
+
+        // The LLM points a refinement at the PENDING suggestion's own id (shown in the prompt).
+        GenerationResult.GeneratedStory refinement = new GenerationResult.GeneratedStory(
+                SuggestionType.UPDATE_STORY, "Login con 2FA por SMS", "usuario",
+                "recibir el código por SMS", "más seguridad", Priority.HIGH, 3,
+                List.of(), null, pending.getId());
+
+        List<Suggestion> created = service.createSuggestions(
+                new GenerationResult(List.of(refinement), List.of()), sessionId, projectId);
+
+        assertThat(created).isEmpty();
+    }
+
     // ── Dedup ─────────────────────────────────────────────────────────────────
 
     private GenerationResult.GeneratedStory story(String title, String action) {

@@ -90,6 +90,14 @@ public class SuggestionCreationService {
                 .map(s -> normalize(s.getQuestion()))
                 .filter(Objects::nonNull)
                 .collect(Collectors.toCollection(HashSet::new));
+        // Ids of this session's still-PENDING suggestions. The prompt now shows these ids so the model
+        // can target a pending item; when it does, the draft refines something already awaiting review,
+        // so we drop it rather than persist a second near-identical pending suggestion (minimal sound
+        // behavior — a PENDING suggestion is not yet a story it can be merged into).
+        Set<UUID> pendingSuggestionIds = pending.stream()
+                .map(Suggestion::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(HashSet::new));
 
         // Embeddings of already-PENDING story drafts (computed once), plus the drafts accepted so far
         // in THIS pass, so a later paraphrase in the same LLM response is also caught.
@@ -110,6 +118,16 @@ public class SuggestionCreationService {
                 skippedIncoherent++;
                 log.debug("Skipping incoherent story suggestion (missing core field) title='{}' (session={})",
                         gen.title(), sessionId);
+                continue;
+            }
+
+            // The LLM was shown the PENDING suggestions with their ids and pointed this draft at one of
+            // them: it is refining an item already in the review queue, so converge onto it (drop) rather
+            // than spawn a near-duplicate NEW/UPDATE pending suggestion.
+            if (gen.targetStoryId() != null && pendingSuggestionIds.contains(gen.targetStoryId())) {
+                skippedDuplicate++;
+                log.debug("Skipping story suggestion '{}' targeting PENDING suggestion {} (session={})",
+                        gen.title(), gen.targetStoryId(), sessionId);
                 continue;
             }
 

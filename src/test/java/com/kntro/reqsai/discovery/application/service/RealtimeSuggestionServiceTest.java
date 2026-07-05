@@ -297,7 +297,11 @@ class RealtimeSuggestionServiceTest {
             GenerationContext context = contextFor(session);
 
             assertThat(context.alreadySuggested())
+                    .extracting(GenerationContext.PendingSuggestion::summary)
                     .containsExactly("Login con 2FA", "¿Qué roles existen?");
+            assertThat(context.alreadySuggested())
+                    .extracting(GenerationContext.PendingSuggestion::id)
+                    .containsExactly(pendingStory.getId(), pendingQuestion.getId());
         }
     }
 

@@ -187,13 +187,14 @@ public class RealtimeSuggestionService {
                 .map(s -> new GenerationContext.StorySummary(
                         s.getId(), s.getTitle(), s.getRole(), s.getAction(), s.getBenefit()))
                 .toList();
-        List<String> alreadySuggested = pendingSuggestionSummaries(session.getId());
+        List<GenerationContext.PendingSuggestion> alreadySuggested = pendingSuggestionSummaries(session.getId());
 
         if (log.isDebugEnabled()) {
             log.debug("Generation context for session {}: {} backlog stories {}; {} pending suggestions {}",
                     session.getId(), backlog.size(),
                     backlog.stream().map(s -> s.id() + ":'" + s.title() + "'").toList(),
-                    alreadySuggested.size(), alreadySuggested);
+                    alreadySuggested.size(),
+                    alreadySuggested.stream().map(s -> s.id() + ":'" + s.summary() + "'").toList());
         }
 
         Optional<ProjectSnapshot> snapshot = queryEmbedding != null
@@ -230,14 +231,18 @@ public class RealtimeSuggestionService {
         return merged.values().stream().limit(MAX_CONTEXT_STORIES).toList();
     }
 
-    /** One line per PENDING suggestion of this session (story title or clarifying question). */
-    private List<String> pendingSuggestionSummaries(UUID sessionId) {
+    /**
+     * One entry per PENDING suggestion of this session (id + story title or clarifying question). The
+     * id lets the LLM target a still-pending story draft with {@code UPDATE_STORY}/{@code EDGE_CASE}
+     * rather than re-emitting a near-duplicate NEW_STORY.
+     */
+    private List<GenerationContext.PendingSuggestion> pendingSuggestionSummaries(UUID sessionId) {
         List<Suggestion> pending = suggestions.findAllBySessionIdAndStatus(sessionId, SuggestionStatus.PENDING);
-        List<String> summaries = new ArrayList<>(pending.size());
+        List<GenerationContext.PendingSuggestion> summaries = new ArrayList<>(pending.size());
         for (Suggestion s : pending) {
             String summary = s.getType() == SuggestionType.CLARIFYING_QUESTION ? s.getQuestion() : s.getDraftTitle();
             if (summary != null && !summary.isBlank()) {
-                summaries.add(summary);
+                summaries.add(new GenerationContext.PendingSuggestion(s.getId(), summary));
             }
         }
         return summaries;
