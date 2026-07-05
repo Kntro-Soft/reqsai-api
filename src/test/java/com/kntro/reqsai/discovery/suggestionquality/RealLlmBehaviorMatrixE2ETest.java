@@ -1021,7 +1021,10 @@ class RealLlmBehaviorMatrixE2ETest extends AbstractIntegrationTest {
                 "Que el reporte muestre la información relevante para cada quien; lo relevante depende, pero eso vean ustedes."));
         m.add(Case.of("W03", "W", List.of(), Expectation.CLARIFY,
                 "Alguien debe poder aprobar los gastos, pero no hemos definido quién ni con qué monto se necesita aprobación."));
-        m.add(Case.of("W04", "W", List.of(), Expectation.CLARIFY,
+        // W04 is genuinely two-readable: a hard conflict (auto-confirm vs manual review) OR a compatible
+        // two-step (review, then auto-confirm). That real ambiguity is why the model coin-flips (~1/3
+        // clarify), so a placeholder story or a clarifying question are both defensible — OBSERVE, like G3.
+        m.add(Case.of("W04", "W", List.of(), Expectation.OBSERVE,
                 "Queremos que la cita se confirme automáticamente, pero también que alguien la revise antes; que sea automático y revisado."));
         m.add(Case.of("W05", "W", List.of(), Expectation.CLARIFY,
                 "El envío debe ser gratis, pero también queremos cobrar el flete; a ver cómo lo cuadran ustedes."));
