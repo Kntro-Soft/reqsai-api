@@ -75,6 +75,7 @@ public class RealtimeSuggestionService {
     private final UserStoryRepository stories;
     private final SuggestionRepository suggestions;
     private final UserStoryReindexService reindexService;
+    private final SessionLockPort sessionLock;
 
     @Value("${discovery.realtime.context-top-k:5}")
     private int contextTopK;
@@ -106,6 +107,14 @@ public class RealtimeSuggestionService {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void suggest(UUID sessionId, boolean force) {
+        // Serialize passes of THIS session: overlapping REQUIRES_NEW passes (triggered ~seconds apart)
+        // must not both read the PENDING set and watermark before the earlier one commits, or the
+        // earlier pass's drafts are invisible to the later pass's dedup. Take the per-session advisory
+        // lock (released on commit) BEFORE loading the session and reading the watermark/PENDING set, so
+        // the whole critical section — watermark + dedup reads, generation, persistence, watermark
+        // advance — runs only after the previous pass has committed and is visible.
+        sessionLock.lockForSuggestion(sessionId);
+
         DiscoverySession session = sessions.findById(sessionId).orElse(null);
         if (session == null) {
             log.warn("Realtime suggestion skipped: session {} not found", sessionId);

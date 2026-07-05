@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -46,6 +47,7 @@ class RealtimeSuggestionServiceTest {
     @Mock private UserStoryRepository stories;
     @Mock private SuggestionRepository suggestions;
     @Mock private UserStoryReindexService reindexService;
+    @Mock private SessionLockPort sessionLock;
 
     @InjectMocks
     private RealtimeSuggestionService service;
@@ -302,6 +304,46 @@ class RealtimeSuggestionServiceTest {
             assertThat(context.alreadySuggested())
                     .extracting(GenerationContext.PendingSuggestion::id)
                     .containsExactly(pendingStory.getId(), pendingQuestion.getId());
+        }
+    }
+
+    @Nested
+    @DisplayName("Per-session serialization")
+    class Serialization {
+
+        @Test
+        @DisplayName("should take the session lock before reading the watermark/PENDING set")
+        void should_lock_before_reading_watermark() {
+            DiscoverySession session = buildSession(UUID.randomUUID());
+            UUID sessionId = session.getId();
+            when(sessions.findById(sessionId)).thenReturn(Optional.of(session));
+            when(segments.findFinalBySessionIdAfter(sessionId, 0)).thenReturn(
+                    List.of(finalSegment(sessionId, 1, "El cliente quiere reportes.")));
+            when(generation.isAvailable()).thenReturn(true);
+            when(embeddingPort.isAvailable()).thenReturn(false);
+            when(workspaceApi.findProjectSnapshot(any())).thenReturn(Optional.empty());
+            when(generation.generate(any(), any(), any())).thenReturn(new GenerationResult(List.of()));
+
+            service.suggest(sessionId);
+
+            // The lock is the first thing the pass does — before it loads the session or the segments —
+            // so the critical section (watermark + dedup reads through persistence) is serialized.
+            InOrder inOrder = inOrder(sessionLock, sessions, segments);
+            inOrder.verify(sessionLock).lockForSuggestion(sessionId);
+            inOrder.verify(sessions).findById(sessionId);
+            inOrder.verify(segments).findFinalBySessionIdAfter(sessionId, 0);
+        }
+
+        @Test
+        @DisplayName("should still take the lock even when the session is missing (nothing else runs)")
+        void should_lock_even_when_session_missing() {
+            UUID sessionId = UUID.randomUUID();
+            when(sessions.findById(sessionId)).thenReturn(Optional.empty());
+
+            service.suggest(sessionId);
+
+            verify(sessionLock).lockForSuggestion(sessionId);
+            verifyNoInteractions(segments, generation, suggestionCreation);
         }
     }
 
