@@ -5,6 +5,7 @@ import com.kntro.reqsai.discovery.domain.model.SuggestionType;
 import org.jspecify.annotations.Nullable;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Value object returned by {@link RequirementGenerationPort} after AI extraction.
@@ -14,8 +15,10 @@ import java.util.List;
  * {@link SuggestionType} so the realtime path can classify it without a second LLM call:
  * <ul>
  *   <li>{@code NEW_STORY} — new requirement (server may upgrade to {@code UPDATE_STORY} via embedding).</li>
- *   <li>{@code EDGE_CASE} — boundary scenario; the {@code relatedTopic} hint helps the server locate
- *       the target story by embedding search.</li>
+ *   <li>{@code UPDATE_STORY} — refines/extends an existing backlog story shown in the prompt context;
+ *       {@code targetStoryId} carries the story id the LLM picked (validated server-side).</li>
+ *   <li>{@code EDGE_CASE} — boundary scenario; {@code targetStoryId} (when the LLM picked one) or the
+ *       {@code relatedTopic} hint helps the server locate the target story.</li>
  *   <li>{@code CLARIFYING_QUESTION} — surfaced via {@code questions}, not {@code stories}.</li>
  * </ul>
  * The batch path ignores {@code type} and {@code questions}; it only processes {@code stories}.
@@ -35,14 +38,15 @@ public record GenerationResult(List<GeneratedStory> stories, List<GeneratedQuest
             Priority priority,
             @Nullable Integer storyPoints,
             List<GeneratedCriterion> acceptanceCriteria,
-            @Nullable String relatedTopic
+            @Nullable String relatedTopic,
+            @Nullable UUID targetStoryId
     ) {
-        /** Convenience constructor for the batch path (always NEW_STORY, no relatedTopic). */
+        /** Convenience constructor for the batch path (always NEW_STORY, no relatedTopic/target). */
         public GeneratedStory(String title, String role, String action, String benefit,
                               Priority priority, @Nullable Integer storyPoints,
                               List<GeneratedCriterion> acceptanceCriteria) {
             this(SuggestionType.NEW_STORY, title, role, action, benefit,
-                 priority, storyPoints, acceptanceCriteria, null);
+                 priority, storyPoints, acceptanceCriteria, null, null);
         }
     }
 

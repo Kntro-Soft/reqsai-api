@@ -10,6 +10,7 @@ import com.kntro.reqsai.discovery.domain.model.UserStory;
 import com.kntro.reqsai.shared.application.port.EmbeddingPort;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,10 +29,13 @@ import java.util.stream.Collectors;
  *
  * <h2>Classification rules</h2>
  * <ol>
+ *   <li>The LLM sees the backlog (with story ids) in its prompt and may return a {@code targetStoryId}
+ *       for {@code UPDATE_STORY}/{@code EDGE_CASE}. A returned target is validated against the project
+ *       (hallucinated/foreign ids are discarded) and, when valid, wins over embedding search.</li>
  *   <li>LLM emits {@code NEW_STORY}: embed candidate text → similarity ≥ {@link UserStory#DUPLICATE_THRESHOLD}?
  *       → downgrade to {@code UPDATE_STORY}; otherwise keep as {@code NEW_STORY}.</li>
- *   <li>LLM emits {@code EDGE_CASE}: embed → find the closest existing story → set {@code targetStoryId}
- *       (even if similarity is low; the LLM already decided it's an edge case).</li>
+ *   <li>LLM emits {@code UPDATE_STORY}/{@code EDGE_CASE} without a usable target: resolve it by
+ *       embedding search; an {@code UPDATE_STORY} that still has no target degrades to {@code NEW_STORY}.</li>
  *   <li>LLM emits {@code CLARIFYING_QUESTION}: forward as-is (no embedding needed).</li>
  * </ol>
  *
@@ -128,6 +132,8 @@ public class SuggestionCreationService {
 
     private Suggestion classifyAndCreate(GenerationResult.GeneratedStory gen, UUID sessionId, UUID projectId) {
         SuggestionType llmType = gen.type() != null ? gen.type() : SuggestionType.NEW_STORY;
+        // The LLM saw the backlog with ids; validate what it returned before trusting it.
+        UUID llmTarget = validatedTarget(gen.targetStoryId(), projectId);
 
         if (embeddingPort.isAvailable()) {
             String candidateText = "%s. As %s, I want to %s, so that %s.".formatted(
@@ -149,17 +155,19 @@ public class SuggestionCreationService {
                             gen.priority(), gen.storyPoints());
                 }
                 case EDGE_CASE -> {
-                    UUID targetStoryId = stories.findMostSimilar(projectId, embedding)
-                            .map(UserStoryRepository.SimilarStory::storyId)
-                            .orElse(null);
+                    UUID targetStoryId = llmTarget != null ? llmTarget
+                            : stories.findMostSimilar(projectId, embedding)
+                                    .map(UserStoryRepository.SimilarStory::storyId)
+                                    .orElse(null);
                     yield Suggestion.edgeCase(sessionId, projectId,
                             gen.title(), gen.role(), gen.action(), gen.benefit(),
                             gen.priority(), gen.storyPoints(), gen.relatedTopic(), targetStoryId);
                 }
                 case UPDATE_STORY -> {
-                    UUID targetStoryId = stories.findMostSimilar(projectId, embedding)
-                            .map(UserStoryRepository.SimilarStory::storyId)
-                            .orElse(null);
+                    UUID targetStoryId = llmTarget != null ? llmTarget
+                            : stories.findMostSimilar(projectId, embedding)
+                                    .map(UserStoryRepository.SimilarStory::storyId)
+                                    .orElse(null);
                     if (targetStoryId == null) {
                         log.debug("LLM UPDATE_STORY has no target (no similar story), creating as NEW_STORY");
                         yield Suggestion.newStory(sessionId, projectId,
@@ -176,14 +184,36 @@ public class SuggestionCreationService {
             };
         }
 
-        // No embedding available — trust the LLM classification without target resolution
+        // No embedding available — trust the LLM classification, using its (validated) target
         return switch (llmType) {
             case EDGE_CASE -> Suggestion.edgeCase(sessionId, projectId,
                     gen.title(), gen.role(), gen.action(), gen.benefit(),
-                    gen.priority(), gen.storyPoints(), gen.relatedTopic(), null);
+                    gen.priority(), gen.storyPoints(), gen.relatedTopic(), llmTarget);
+            case UPDATE_STORY -> {
+                if (llmTarget == null) {
+                    log.debug("LLM UPDATE_STORY has no usable target and no embedding model; creating as NEW_STORY");
+                    yield Suggestion.newStory(sessionId, projectId,
+                            gen.title(), gen.role(), gen.action(), gen.benefit(),
+                            gen.priority(), gen.storyPoints());
+                }
+                yield Suggestion.updateStory(sessionId, projectId,
+                        gen.title(), gen.role(), gen.action(), gen.benefit(),
+                        gen.priority(), gen.storyPoints(), llmTarget);
+            }
             default -> Suggestion.newStory(sessionId, projectId,
                     gen.title(), gen.role(), gen.action(), gen.benefit(),
                     gen.priority(), gen.storyPoints());
         };
+    }
+
+    /** The LLM-returned target id when it denotes a real story of this project; {@code null} otherwise. */
+    private @Nullable UUID validatedTarget(@Nullable UUID targetStoryId, UUID projectId) {
+        if (targetStoryId == null) return null;
+        if (stories.findByIdAndProjectId(targetStoryId, projectId).isPresent()) {
+            return targetStoryId;
+        }
+        log.debug("LLM returned targetStoryId {} that is not a story of project {}; ignoring it",
+                targetStoryId, projectId);
+        return null;
     }
 }

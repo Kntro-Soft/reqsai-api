@@ -91,14 +91,26 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
             - Group related mentions into a single story (avoid duplicates).
             - Apply domain glossary terms where they match the conversation.
             - Use the SAME LANGUAGE as the transcript for all text fields.
+            - CRITICAL: check the EXISTING USER STORIES list before emitting anything. If the
+              conversation overlaps, refines, extends or modifies one of those stories (even with
+              different wording or in another language), do NOT create a NEW_STORY — emit
+              UPDATE_STORY (or EDGE_CASE for a boundary scenario) with that story's id as
+              "targetStoryId". Only emit NEW_STORY for a capability no existing story covers.
+            - Do NOT re-suggest anything equivalent to an item in ALREADY SUGGESTED THIS SESSION;
+              those are pending analyst review and repeating them floods the queue.
             - CRITICAL: Return ONLY valid JSON — no markdown, no code fences, no explanation.
 
             Classify each item with a "type":
-            - "NEW_STORY"   — a new, standalone user story not covered by any existing story in the context.
-            - "EDGE_CASE"   — a boundary or exceptional scenario that belongs as an acceptance criterion
-                              on an existing story rather than as a new standalone story; include a
-                              "relatedTopic" hint (one of the domain glossary terms or a concept already
-                              mentioned in the context) to help locate the target story.
+            - "NEW_STORY"    — a new, standalone user story not covered by any existing story in the context.
+                               "targetStoryId" must be null.
+            - "UPDATE_STORY" — the conversation refines, extends, changes or duplicates an EXISTING user
+                               story from the list; set "targetStoryId" to that story's id and write the
+                               full updated story fields.
+            - "EDGE_CASE"    — a boundary or exceptional scenario that belongs as an acceptance criterion
+                               on an existing story rather than as a new standalone story; set
+                               "targetStoryId" to that story's id when you can identify it, and include a
+                               "relatedTopic" hint (a glossary term or a concept already mentioned in the
+                               context).
             - "CLARIFYING_QUESTION" — the transcript is ambiguous; ask a question instead of guessing.
                                       Use the "questions" array, NOT the "stories" array.
 
@@ -116,7 +128,8 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
             {
               "stories": [
                 {
-                  "type": "NEW_STORY | EDGE_CASE",
+                  "type": "NEW_STORY | UPDATE_STORY | EDGE_CASE",
+                  "targetStoryId": "id of the existing story for UPDATE_STORY / EDGE_CASE, or null",
                   "title": "Short descriptive title (max 200 chars)",
                   "role": "User role / actor (max 500 chars)",
                   "action": "What they want to do (max 500 chars)",
@@ -202,6 +215,21 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
             sb.append("Domain glossary:\n");
             ctx.glossaryTerms().forEach(g -> sb.append("- ").append(g.term()).append(": ").append(g.definition()).append("\n"));
         }
+        sb.append("\nEXISTING USER STORIES (current backlog; format: id | title | as <role> I want <action> so that <benefit>):\n");
+        if (ctx.existingStories().isEmpty()) {
+            sb.append("- none yet\n");
+        } else {
+            ctx.existingStories().forEach(s -> sb.append("- ").append(s.id())
+                    .append(" | ").append(s.title())
+                    .append(" | as ").append(s.role())
+                    .append(" I want ").append(s.action())
+                    .append(" so that ").append(s.benefit())
+                    .append("\n"));
+        }
+        if (!ctx.alreadySuggested().isEmpty()) {
+            sb.append("\nALREADY SUGGESTED THIS SESSION (pending review — do NOT repeat):\n");
+            ctx.alreadySuggested().forEach(t -> sb.append("- ").append(t).append("\n"));
+        }
         return sb.toString().strip();
     }
 
@@ -261,7 +289,7 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
                 type,
                 story.title(), story.role(), story.action(), story.benefit(),
                 parsePriority(story.priority()), story.storyPoints(),
-                criteria, story.relatedTopic());
+                criteria, story.relatedTopic(), parseUuid(story.targetStoryId()));
     }
 
     private GenerationResult.GeneratedCriterion toGeneratedCriterion(LlmCriterion criterion) {
@@ -286,6 +314,16 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
         }
     }
 
+    /** Parses a UUID the LLM echoed back, tolerating null/blank/hallucinated values. */
+    protected static java.util.@Nullable UUID parseUuid(@Nullable String value) {
+        if (value == null || value.isBlank()) return null;
+        try {
+            return java.util.UUID.fromString(value.strip());
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
     // Shared Jackson records for all LLM adapters
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -294,7 +332,8 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
     @JsonIgnoreProperties(ignoreUnknown = true)
     protected record LlmStory(@Nullable String type, String title, String role, String action, String benefit,
                                String priority, @Nullable Integer storyPoints,
-                               @Nullable String relatedTopic, @Nullable List<LlmCriterion> acceptanceCriteria) {}
+                               @Nullable String relatedTopic, @Nullable String targetStoryId,
+                               @Nullable List<LlmCriterion> acceptanceCriteria) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     protected record LlmCriterion(@Nullable String scenario, String given, String when, String then) {}
