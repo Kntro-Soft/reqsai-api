@@ -36,9 +36,14 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
             Classify each item with a "type":
             - "NEW_STORY"   — a new, standalone user story.
             - "EDGE_CASE"   — a boundary or exceptional scenario that belongs as an acceptance criterion
-                              on an existing story (not a new story); include a "relatedTopic" hint.
+                              on an existing story (not a new story); include a "relatedTopic" hint and
+                              put the boundary rule as EXACTLY ONE Given/When/Then entry in
+                              "acceptanceCriteria".
             - "CLARIFYING_QUESTION" — the transcript is ambiguous; ask a question instead of guessing.
                                       Use the "questions" array, NOT the "stories" array.
+
+            For EACH acceptance criterion give a concise "scenario" label (max 200 chars) in the
+            transcript language; use null only if you truly cannot.
 
             Priority mapping (based on context and language cues):
             - CRITICAL: explicit musts, "debe", "necesita", "es imprescindible", "must", "need", "required"
@@ -64,7 +69,7 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
                   "relatedTopic": "Only for EDGE_CASE: brief topic hint (max 200 chars) or null",
                   "acceptanceCriteria": [
                     {
-                      "scenario": "Brief label for this criterion (max 200 chars)",
+                      "scenario": "Brief label for this criterion in the transcript language (max 200 chars); null only if impossible",
                       "given": "Given context / precondition (max 1000 chars)",
                       "when": "When this action is performed (max 1000 chars)",
                       "then": "Then this outcome should occur (max 1000 chars)"
@@ -120,6 +125,13 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
               Given / When / Then triple in the SAME LANGUAGE as the transcript. Base them on what was
               actually said; do not fabricate. If you cannot form at least one complete Given/When/Then
               triple, return an empty "acceptanceCriteria" array rather than inventing one.
+            - For every EDGE_CASE, provide EXACTLY ONE acceptance criterion in "acceptanceCriteria":
+              the boundary/exceptional/validation/security rule itself, as an explicit
+              Given / When / Then triple, plus the existing story it belongs to in "targetStoryId".
+              Do NOT restate the parent story as an edge case.
+            - For EACH acceptance criterion (NEW_STORY list and the single EDGE_CASE one), also give a
+              concise "scenario" label (max 200 chars) in the SAME LANGUAGE as the transcript. Omit it
+              (null) only if you truly cannot; never fabricate one.
             - CRITICAL: Return ONLY valid JSON — no markdown, no code fences, no explanation.
 
             Classify each item with a "type":
@@ -131,9 +143,10 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
             - "EDGE_CASE"    — a boundary, exceptional scenario, or a session-maintenance / error /
                                validation / security constraint that belongs as an acceptance criterion
                                on an existing story rather than as a new standalone story; set
-                               "targetStoryId" to that story's id when you can identify it, and include a
+                               "targetStoryId" to that story's id when you can identify it, include a
                                "relatedTopic" hint (a glossary term or a concept already mentioned in the
-                               context).
+                               context), and put the boundary rule itself as EXACTLY ONE Given/When/Then
+                               entry in "acceptanceCriteria".
             - "CLARIFYING_QUESTION" — the transcript is ambiguous; ask a question instead of guessing.
                                       Use the "questions" array, NOT the "stories" array.
 
@@ -162,7 +175,7 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
                   "relatedTopic": "Only for EDGE_CASE: glossary term or concept the edge case belongs to, or null",
                   "acceptanceCriteria": [
                     {
-                      "scenario": "Brief label for this criterion (max 200 chars)",
+                      "scenario": "Brief label for this criterion in the transcript language (max 200 chars); null only if impossible",
                       "given": "Given context / precondition (max 1000 chars)",
                       "when": "When this action is performed (max 1000 chars)",
                       "then": "Then this outcome should occur (max 1000 chars)"
@@ -174,6 +187,8 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
                 { "question": "Clarifying question text (max 1000 chars)" }
               ]
             }
+
+            NEW_STORY: 2-4 acceptance criteria. EDGE_CASE: exactly one (the boundary rule).
 
             Recent conversation:
             %s
