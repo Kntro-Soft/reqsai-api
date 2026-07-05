@@ -42,6 +42,11 @@ class SuggestionCreationServiceTest {
     @InjectMocks
     private SuggestionCreationService service;
 
+    @org.junit.jupiter.api.BeforeEach
+    void setUp() {
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "dedupSimilarityThreshold", 0.84);
+    }
+
     private final UUID sessionId = UUID.randomUUID();
     private final UUID projectId = UUID.randomUUID();
 
@@ -124,5 +129,97 @@ class SuggestionCreationServiceTest {
         assertThat(created).hasSize(1);
         assertThat(created.getFirst().getType()).isEqualTo(SuggestionType.UPDATE_STORY);
         assertThat(created.getFirst().getTargetStoryId()).isEqualTo(existingId);
+    }
+
+    // ── Dedup ─────────────────────────────────────────────────────────────────
+
+    private GenerationResult.GeneratedStory story(String title, String action) {
+        return new GenerationResult.GeneratedStory(SuggestionType.NEW_STORY,
+                title, "usuario", action, "beneficio", Priority.MEDIUM, 3, List.of(), null, null);
+    }
+
+    @Test
+    @DisplayName("should drop a same-pass exact title duplicate before persisting (accent-insensitive)")
+    void should_drop_same_pass_title_duplicate() {
+        when(embeddingPort.isAvailable()).thenReturn(false); // isolate the string-dedup layer
+        when(suggestions.findAllBySessionIdAndStatus(any(), any())).thenReturn(List.of());
+        when(suggestions.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        GenerationResult result = new GenerationResult(List.of(
+                story("Recuperar contraseña", "restablecer mi clave"),
+                story("Recuperar contrasena", "restablecer la clave")   // same idea, no accent
+        ), List.of());
+
+        List<Suggestion> created = service.createSuggestions(result, sessionId, projectId);
+
+        assertThat(created).hasSize(1);
+        assertThat(created.getFirst().getDraftTitle()).isEqualTo("Recuperar contraseña");
+    }
+
+    @Test
+    @DisplayName("should drop a cross-pass paraphrase via embedding similarity even when titles differ")
+    void should_drop_cross_pass_embedding_duplicate() {
+        // A pending suggestion from an earlier pass; the new draft paraphrases it.
+        Suggestion pending = Suggestion.newStory(sessionId, projectId,
+                "Autenticación de dos factores", "usuario", "usar 2FO", "seguridad", Priority.HIGH, 3);
+        float[] twoFactorVec = new float[]{1f, 0f, 0f};
+
+        when(embeddingPort.isAvailable()).thenReturn(true);
+        // Everything 2FA-ish embeds to the same vector → cosine 1.0 ≥ 0.84.
+        when(embeddingPort.embed(any())).thenReturn(twoFactorVec);
+        when(suggestions.findAllBySessionIdAndStatus(any(), any())).thenReturn(List.of(pending));
+
+        GenerationResult result = new GenerationResult(List.of(
+                story("Soporte para autenticación de dos factores en inicio de sesión", "habilitar 2FA al iniciar sesión")
+        ), List.of());
+
+        List<Suggestion> created = service.createSuggestions(result, sessionId, projectId);
+
+        assertThat(created).isEmpty(); // paraphrase suppressed
+    }
+
+    @Test
+    @DisplayName("should keep a genuinely different draft even when a pending suggestion exists")
+    void should_keep_distinct_draft() {
+        Suggestion pending = Suggestion.newStory(sessionId, projectId,
+                "Autenticación de dos factores", "usuario", "usar 2FA", "seguridad", Priority.HIGH, 3);
+
+        when(embeddingPort.isAvailable()).thenReturn(true);
+        // Pending 2FA embeds to one axis; the new export story to an orthogonal axis → cosine 0.
+        when(embeddingPort.embed(any())).thenAnswer(inv -> {
+            String text = inv.getArgument(0);
+            return text.toLowerCase().contains("export")
+                    ? new float[]{0f, 1f, 0f}
+                    : new float[]{1f, 0f, 0f};
+        });
+        when(stories.findMostSimilar(any(), any())).thenReturn(Optional.empty());
+        when(suggestions.findAllBySessionIdAndStatus(any(), any())).thenReturn(List.of(pending));
+        when(suggestions.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        GenerationResult result = new GenerationResult(List.of(
+                story("Exportar reportes a PDF", "exportar reportes en PDF")
+        ), List.of());
+
+        List<Suggestion> created = service.createSuggestions(result, sessionId, projectId);
+
+        assertThat(created).hasSize(1);
+        assertThat(created.getFirst().getDraftTitle()).isEqualTo("Exportar reportes a PDF");
+    }
+
+    @Test
+    @DisplayName("cosineSimilarity: identical vectors → 1, orthogonal → 0")
+    void cosine_similarity_math() {
+        assertThat(SuggestionCreationService.cosineSimilarity(new float[]{1f, 2f, 3f}, new float[]{1f, 2f, 3f}))
+                .isCloseTo(1.0, org.assertj.core.data.Offset.offset(1e-9));
+        assertThat(SuggestionCreationService.cosineSimilarity(new float[]{1f, 0f}, new float[]{0f, 1f}))
+                .isCloseTo(0.0, org.assertj.core.data.Offset.offset(1e-9));
+    }
+
+    @Test
+    @DisplayName("normalize: folds accents, punctuation and case for duplicate keys")
+    void normalize_folds_accents_and_punctuation() {
+        assertThat(SuggestionCreationService.normalize("  Iniciar Sesión!! "))
+                .isEqualTo(SuggestionCreationService.normalize("iniciar sesion"));
+        assertThat(SuggestionCreationService.normalize("   ")).isNull();
     }
 }
