@@ -68,4 +68,25 @@ public interface UserStoryJpaRepository extends JpaRepository<UserStory, UUID> {
     List<UserStory> findTopSimilar(@Param("projectId") UUID projectId,
                                    @Param("embedding") String embedding,
                                    @Param("limit") int limit);
+
+    /**
+     * The {@code (id, distance)} pairs for up to {@code limit} stories whose cosine <em>distance</em>
+     * to the given vector is within {@code maxDistance} (i.e. cosine similarity {@code >= 1 - maxDistance}),
+     * nearest first. Used to surface loose-recall paraphrase candidates for the LLM dedup/UPDATE judge:
+     * the recall threshold is deliberately loose (well below the auto-dedup bar) so synonym paraphrases
+     * that sit at cosine 0.55–0.82 are still offered as candidate matches the model can converge onto.
+     */
+    @SuppressWarnings("SqlResolve")
+    @Query(value = """
+            select id, (embedding <=> cast(:embedding as vector)) as dist
+            from user_stories
+            where project_id = :projectId and embedding is not null
+              and (embedding <=> cast(:embedding as vector)) <= :maxDistance
+            order by dist
+            limit :limit
+            """, nativeQuery = true)
+    List<Object[]> findSimilarWithin(@Param("projectId") UUID projectId,
+                                     @Param("embedding") String embedding,
+                                     @Param("maxDistance") double maxDistance,
+                                     @Param("limit") int limit);
 }

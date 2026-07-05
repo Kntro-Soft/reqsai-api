@@ -76,6 +76,21 @@ public class UserStoryRepositoryAdapter implements UserStoryRepository {
     }
 
     @Override
+    public List<SimilarStory> findSimilarCandidates(UUID projectId, float[] embedding,
+                                                    double minSimilarity, int limit) {
+        // pgvector <=> is cosine distance in [0,2]; similarity = 1 - distance, so a similarity floor of
+        // minSimilarity is a distance ceiling of (1 - minSimilarity).
+        double maxDistance = 1.0 - minSimilarity;
+        return jpa.findSimilarWithin(projectId, toVectorLiteral(embedding), maxDistance, limit).stream()
+                .map(row -> {
+                    UUID storyId = UUID.fromString(row[0].toString());
+                    double similarity = 1.0 - ((Number) row[1]).doubleValue();
+                    return new SimilarStory(storyId, similarity);
+                })
+                .toList();
+    }
+
+    @Override
     public List<UserStory> findRecentByProjectId(UUID projectId, int limit) {
         return jpa.findAllByProjectId(projectId,
                         PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "createdAt")))

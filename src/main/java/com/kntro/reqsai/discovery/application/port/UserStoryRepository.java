@@ -51,6 +51,16 @@ public interface UserStoryRepository {
     List<UserStory> findTopSimilar(UUID projectId, float[] embedding, int limit);
 
     /**
+     * Returns up to {@code limit} of the project's stories whose cosine similarity to {@code embedding}
+     * is at least {@code minSimilarity}, nearest first, each paired with its similarity score. The
+     * threshold is intended to be LOOSE (a recall floor well below the auto-dedup bar) so paraphrase
+     * candidates that sit at cosine 0.55–0.82 are surfaced to the LLM as candidate existing stories to
+     * update/dedup against, rather than being silently missed by the strict embedding gate. Empty when
+     * the project has no indexed story within the floor.
+     */
+    List<SimilarStory> findSimilarCandidates(UUID projectId, float[] embedding, double minSimilarity, int limit);
+
+    /**
      * Returns up to {@code limit} stories of the project, newest first. Embedding-independent
      * fallback (and in-session recency complement) for the generation context, so the LLM always
      * sees the backlog even when vector search is unavailable or empty.
