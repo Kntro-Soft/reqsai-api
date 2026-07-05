@@ -11,6 +11,44 @@ follows [Semantic Versioning](https://semver.org/).
 
 _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in progress._
 
+### Fixed (Suggestion quality — `feature/discovery-session-control`)
+
+- **Accepted-twin duplicates now converge to `UPDATE_STORY`** — a `NEW_STORY` draft that
+  near-duplicated an already-accepted, indexed story was persisted as a standalone duplicate: the
+  server deduped only against still-`PENDING` suggestions and only upgraded to `UPDATE_STORY` at the
+  strict 0.85 duplicate-story gate. It now runs `findMostSimilar` against the accepted backlog for
+  every `NEW_STORY` draft and downgrades to `UPDATE_STORY` at the dedup threshold
+  (`discovery.realtime.dedup-similarity-threshold`, 0.84) applied consistently, recording the match
+  similarity (previously always null) so accepted-twin paraphrases become the update the analyst wants.
+- **`UPDATE_STORY` reachable for still-`PENDING` twins** — the prompt listed pending suggestions by
+  title only, so the model could not target one and overlapping mentions spawned near-duplicate
+  `NEW_STORY`s. `GenerationContext.alreadySuggested` now carries each pending suggestion's id
+  (`PendingSuggestion(id, summary)`), rendered as `id | summary` with an instruction to target a
+  pending item by id when the conversation refines it. When the model targets a still-`PENDING`
+  suggestion, the draft is dropped (converges onto the queued item) instead of persisting a second
+  near-identical suggestion.
+- **Realtime passes serialized per session** — overlapping `REQUIRES_NEW` passes (~2 s apart) both
+  read the `PENDING` set and watermark before the earlier pass committed (read-committed), so the
+  earlier draft was invisible to the later pass's dedup and both burst out near-duplicates. A new
+  `SessionLockPort` backed by a Postgres `pg_advisory_xact_lock` keyed on the session is taken at the
+  start of the pass (before the watermark/`PENDING` reads, released on commit), so the later pass sees
+  the previous pass's committed suggestions and advanced watermark. Chosen over an in-JVM lock because
+  the passes commit in separate transactions (and it holds across app instances).
+- **Targetless `EDGE_CASE` no longer minted as a standalone story** — an `EDGE_CASE` whose target
+  could not be resolved had no similarity floor on the embedding fallback (it attached to the nearest
+  story however weak) and, worse, `acceptAsEdgeCase` fell back to creating a granularity-violating
+  one-criterion standalone story. The embedding fallback now applies the 0.84 dedup floor, and accept
+  with no resolvable target is rejected with a clear `EDGE_CASE_WITHOUT_TARGET` error (422, suggestion
+  kept `PENDING`) so the analyst assigns a target or reclassifies it.
+- **Over-long edge-case scenario capped, not fatal** — a refactor dropped the 200-char cap on the
+  criterion `scenario`, so a long LLM label failed the whole accept on `AcceptanceCriterion`'s
+  `maxLength(scenario, 200)`. `Suggestion.sanitizeCriteria` now truncates the scenario to 200 on both
+  creation and the analyst's edit-on-accept.
+- **Prompt language-consistency rule** — a mistranscribed off-language fragment could become a garbage
+  story. Both extraction prompts now instruct the model to omit any fragment in a clearly different
+  language than the transcript and never mix languages within a story (prompt-only: no clearly-safe
+  lightweight server-side language detector is available).
+
 ### Added (Suggestion acceptance model — `feature/discovery-session-control`)
 
 - **Scenario labels on every generated criterion** — the extraction prompt now asks the model for a
