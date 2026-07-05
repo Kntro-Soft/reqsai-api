@@ -33,8 +33,11 @@ import java.util.stream.Collectors;
  *   <li>The LLM sees the backlog (with story ids) in its prompt and may return a {@code targetStoryId}
  *       for {@code UPDATE_STORY}/{@code EDGE_CASE}. A returned target is validated against the project
  *       (hallucinated/foreign ids are discarded) and, when valid, wins over embedding search.</li>
- *   <li>LLM emits {@code NEW_STORY}: embed candidate text → similarity ≥ {@link UserStory#DUPLICATE_THRESHOLD}?
- *       → downgrade to {@code UPDATE_STORY}; otherwise keep as {@code NEW_STORY}.</li>
+ *   <li>LLM emits {@code NEW_STORY}: embed candidate text → similarity ≥ the dedup threshold
+ *       ({@code discovery.realtime.dedup-similarity-threshold}, a touch below
+ *       {@link UserStory#DUPLICATE_THRESHOLD})? → downgrade to {@code UPDATE_STORY} against the closest
+ *       accepted+indexed story (recording the similarity), so accepted-twin paraphrases converge into an
+ *       update instead of a duplicate; otherwise keep as {@code NEW_STORY}.</li>
  *   <li>LLM emits {@code UPDATE_STORY}/{@code EDGE_CASE} without a usable target: resolve it by
  *       embedding search; an {@code UPDATE_STORY} that still has no target degrades to {@code NEW_STORY}.</li>
  *   <li>LLM emits {@code CLARIFYING_QUESTION}: forward as-is (no embedding needed).</li>
@@ -303,13 +306,21 @@ public class SuggestionCreationService {
 
             return switch (llmType) {
                 case NEW_STORY -> {
+                    // Dedup a NEW draft against the ACCEPTED backlog too, not just still-PENDING
+                    // suggestions: a fresh draft that near-duplicates an already-accepted+indexed story
+                    // must not be persisted as a standalone NEW_STORY. Apply the dedup threshold (0.84)
+                    // CONSISTENTLY here — the same bar used for the PENDING in-session dedup — rather than
+                    // the stricter 0.85 duplicate-story gate, so accepted-twin paraphrases are caught and
+                    // converge into the UPDATE the analyst wants. Record the similarity so it is visible.
                     UserStoryRepository.SimilarStory closest = stories.findMostSimilar(projectId, embedding).orElse(null);
-                    if (closest != null && closest.similarity() >= UserStory.DUPLICATE_THRESHOLD) {
-                        log.debug("LLM NEW_STORY upgraded to UPDATE_STORY (sim={}, target={})",
+                    if (closest != null && closest.similarity() >= dedupSimilarityThreshold) {
+                        log.debug("LLM NEW_STORY downgraded to UPDATE_STORY against accepted backlog (sim={}, target={})",
                                 closest.similarity(), closest.storyId());
-                        yield Suggestion.updateStory(sessionId, projectId,
+                        Suggestion update = Suggestion.updateStory(sessionId, projectId,
                                 gen.title(), gen.role(), gen.action(), gen.benefit(),
                                 gen.priority(), gen.storyPoints(), closest.storyId());
+                        update.recordSimilarity(closest.similarity());
+                        yield update;
                     }
                     yield newStoryOf(gen, sessionId, projectId);
                 }

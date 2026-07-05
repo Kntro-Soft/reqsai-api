@@ -161,6 +161,47 @@ class SuggestionCreationServiceTest {
         assertThat(created.getFirst().getTargetStoryId()).isEqualTo(existingId);
     }
 
+    @Test
+    @DisplayName("should downgrade a NEW_STORY that near-duplicates an ACCEPTED story to UPDATE at the dedup bar")
+    void should_downgrade_accepted_twin_to_update_at_dedup_threshold() {
+        UUID acceptedId = UUID.randomUUID();
+        when(embeddingPort.isAvailable()).thenReturn(true);
+        when(embeddingPort.embed(any())).thenReturn(new float[]{0.1f});
+        // 0.845 is below the strict 0.85 duplicate-story gate but at/above the 0.84 dedup bar:
+        // the accepted-twin paraphrase that previously slipped through as a duplicate NEW is now caught.
+        when(stories.findMostSimilar(any(), any()))
+                .thenReturn(Optional.of(new UserStoryRepository.SimilarStory(acceptedId, 0.845)));
+        when(suggestions.findAllBySessionIdAndStatus(any(), any())).thenReturn(List.of());
+        when(suggestions.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        List<Suggestion> created = service.createSuggestions(
+                resultOf(generated(SuggestionType.NEW_STORY, null)), sessionId, projectId);
+
+        assertThat(created).hasSize(1);
+        Suggestion s = created.getFirst();
+        assertThat(s.getType()).isEqualTo(SuggestionType.UPDATE_STORY);
+        assertThat(s.getTargetStoryId()).isEqualTo(acceptedId);
+        // recordSimilarity fixes the "similarity always null" gap.
+        assertThat(s.getSimilarity()).isEqualTo(0.845);
+    }
+
+    @Test
+    @DisplayName("should keep a NEW_STORY when the closest accepted story is below the dedup bar")
+    void should_keep_new_story_below_dedup_threshold() {
+        when(embeddingPort.isAvailable()).thenReturn(true);
+        when(embeddingPort.embed(any())).thenReturn(new float[]{0.1f});
+        when(stories.findMostSimilar(any(), any()))
+                .thenReturn(Optional.of(new UserStoryRepository.SimilarStory(UUID.randomUUID(), 0.80)));
+        when(suggestions.findAllBySessionIdAndStatus(any(), any())).thenReturn(List.of());
+        when(suggestions.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        List<Suggestion> created = service.createSuggestions(
+                resultOf(generated(SuggestionType.NEW_STORY, null)), sessionId, projectId);
+
+        assertThat(created).hasSize(1);
+        assertThat(created.getFirst().getType()).isEqualTo(SuggestionType.NEW_STORY);
+    }
+
     // ── Dedup ─────────────────────────────────────────────────────────────────
 
     private GenerationResult.GeneratedStory story(String title, String action) {
