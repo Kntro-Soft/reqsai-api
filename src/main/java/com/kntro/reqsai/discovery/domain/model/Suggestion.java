@@ -48,6 +48,12 @@ public class Suggestion extends AggregateRoot {
     private static final int FIELD_MAX = 500;
     private static final int QUESTION_MAX = 1000;
     private static final int ENUM_MAX = 32;
+    /**
+     * Max length of a criterion {@code scenario} label, mirroring {@link AcceptanceCriterion}'s own
+     * {@code SCENARIO_MAX}. An over-long LLM-emitted scenario is truncated here so accept never fails
+     * the whole suggestion on the criterion's {@code maxLength} assertion.
+     */
+    private static final int SCENARIO_MAX = 200;
 
     @Column(name = "session_id", columnDefinition = "uuid", nullable = false, updatable = false)
     private UUID sessionId;
@@ -285,7 +291,9 @@ public class Suggestion extends AggregateRoot {
     /**
      * Keeps only criteria with all three of given/when/then present — a criterion missing any of them
      * could not build a valid {@link AcceptanceCriterion} on accept, so it is dropped rather than
-     * fabricated. Strips fields and normalizes a blank scenario to null.
+     * fabricated. Strips fields, normalizes a blank scenario to null, and truncates an over-long
+     * scenario to {@link #SCENARIO_MAX} so a long LLM label caps the criterion instead of failing the
+     * whole accept on {@link AcceptanceCriterion}'s length assertion.
      */
     private static List<DraftCriterion> sanitizeCriteria(@Nullable List<DraftCriterion> criteria) {
         List<DraftCriterion> out = new ArrayList<>();
@@ -296,10 +304,18 @@ public class Suggestion extends AggregateRoot {
             if (c == null || blank(c.given()) || blank(c.when()) || blank(c.then())) {
                 continue;
             }
-            String scenario = blank(c.scenario()) ? null : c.scenario().strip();
+            String scenario = blank(c.scenario()) ? null : truncate(c.scenario().strip(), SCENARIO_MAX);
             out.add(new DraftCriterion(scenario, c.given().strip(), c.when().strip(), c.then().strip()));
         }
         return out;
+    }
+
+    /** Caps {@code value} at {@code max} characters (null-safe); shorter/blank values pass through. */
+    private static @Nullable String truncate(@Nullable String value, int max) {
+        if (value == null || value.length() <= max) {
+            return value;
+        }
+        return value.substring(0, max);
     }
 
     private static boolean blank(@Nullable String s) {

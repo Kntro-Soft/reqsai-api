@@ -62,6 +62,18 @@ class SuggestionTest {
     }
 
     @Test
+    @DisplayName("should truncate an over-long scenario to 200 chars so accept is not fatal")
+    void should_truncate_over_long_scenario() {
+        String longScenario = "x".repeat(250);
+        Suggestion s = newStoryWith(List.of(
+                new Suggestion.DraftCriterion(longScenario, "tiene cuenta", "ingresa", "accede")));
+
+        Suggestion.DraftCriterion c = s.getDraftAcceptanceCriteria().getFirst();
+        assertThat(c.scenario()).hasSize(200);
+        assertThat(c.scenario()).isEqualTo("x".repeat(200));
+    }
+
+    @Test
     @DisplayName("should carry no criteria for the no-criteria factory")
     void should_be_empty_without_criteria() {
         Suggestion s = Suggestion.newStory(sessionId, projectId,
