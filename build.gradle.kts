@@ -147,7 +147,11 @@ dependencyManagement {
 }
 
 tasks.withType<Test> {
-    useJUnitPlatform()
+    useJUnitPlatform {
+        // The 'llm' tag runs a real-OpenAI behavioral probe (real tokens); keep it out of the default
+        // `test` lane. It is opted into only by the dedicated `llmTest` task below.
+        excludeTags("llm")
+    }
     maxParallelForks = (Runtime.getRuntime().availableProcessors() / 2).coerceAtLeast(1)
     jvmArgs("-javaagent:${mockitoAgent.asPath}")
 }
@@ -160,7 +164,25 @@ val unitTest by tasks.registering(Test::class) {
     group = "verification"
     testClassesDirs = sourceSets.test.get().output.classesDirs
     classpath = sourceSets.test.get().runtimeClasspath
-    useJUnitPlatform { excludeTags("integration", "architecture", "modularity") }
+    useJUnitPlatform { excludeTags("integration", "architecture", "modularity", "llm") }
+}
+
+// Real-LLM behavioral probe — boots the app against REAL OpenAI (generation + embeddings) + pgvector.
+// Costs real tokens and is non-deterministic, so it is NOT part of any other lane. It SKIPS gracefully
+// when OPENAI_API_KEY is unset. Run ONLY this suite, single-forked to keep token usage bounded, with:
+//   ./gradlew llmTest --max-workers=1
+val llmTest by tasks.registering(Test::class) {
+    description = "Runs the real-OpenAI behavioral suggestion probe (tag 'llm'); skips without OPENAI_API_KEY"
+    group = "verification"
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    useJUnitPlatform { includeTags("llm") }
+    // One fork: the probe is deliberately serial so total OpenAI calls stay bounded.
+    maxParallelForks = 1
+    testLogging {
+        events("passed", "skipped", "failed")
+        showStandardStreams = true // surface the [LLM-E2E] report blocks in the console
+    }
 }
 
 // Testcontainers-backed integration / slice tests (need Docker + the Spring context).
