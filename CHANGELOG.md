@@ -86,6 +86,25 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
   `test`/`unitTest` lanes); `@EnabledIfEnvironmentVariable("OPENAI_API_KEY")` plus an in-body
   `assumeTrue` make it SKIP (never FAIL) when no key is present. Run with
   `./gradlew llmTest --max-workers=1`.
+- **Real-LLM behavioral E2E probe through the streaming `/ws/stt` WebSocket** — a second `llm`-tagged
+  suite `RealLlmStreamingWsSuggestionE2ETest` drives the ACTUAL streaming path (the real product
+  target), not the direct `suggest()` call: JWT `?token=` handshake → tenant resolution → binary handler
+  → `AppendTranscriptSegmentCommandHandler` → `TranscriptSegmentAppendedEvent` →
+  `RealtimeSuggestionListener` → `RealtimeSuggestionService` → REAL OpenAI generation + embeddings →
+  persistence → STOMP broadcast. Only the STT vendor is faked: `EchoStreamingSttConfig` (a `@Primary`
+  `StreamingTranscriptionPort` overriding the `@ConditionalOnMissingBean` `StreamingSttRouter`) decodes
+  each binary frame as UTF-8 and echoes it back as a FINAL `TranscriptEvent`, so the WS client sends the
+  transcript sentence AS the frame bytes and controls content exactly (matching how
+  `handleBinaryMessage` hands frames to `recognizer.sendAudio(byte[])`). A `StandardWebSocketClient`
+  streams utterances as binary frames; a STOMP client on `/topic/sessions/{id}` asserts live segment
+  broadcasts. Same tolerant-invariant + rich-log matrix as the in-process probe (short-utterance cadence
+  where `POST /stop` flushes; exact duplicate; near-0.84 paraphrase; distinct-but-related; UPDATE on an
+  indexed capability; four types; hard cases) plus a streaming-only lifecycle scenario: segment
+  broadcast, `POST /pause` closes the WS, `POST /resume` lets a new WS connect, `POST /stop` closes and
+  flushes. Note: the code publishes both segments and suggestions on the single per-session topic
+  `/topic/sessions/{id}` discriminated by the `type` field — not `/topic/discovery/sessions/{id}/segments`
+  as `docs/WEBSOCKET_STT.md` states. Same wiring/skip/run rules; also runs under `./gradlew llmTest
+  --max-workers=1`.
 
 ### Added (Suggestion acceptance model — `feature/discovery-session-control`)
 
