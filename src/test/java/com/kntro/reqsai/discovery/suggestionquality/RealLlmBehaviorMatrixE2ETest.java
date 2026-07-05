@@ -241,8 +241,9 @@ class RealLlmBehaviorMatrixE2ETest extends AbstractIntegrationTest {
     void matrixCase(Case c) {
         assertThat(wiringVerified).as("wiring must be verified before running cases").isTrue();
 
-        // Each case gets its own project so seeded backlogs never cross-contaminate.
-        UUID projectId = seedProject();
+        // Each case gets its own project (UNIQUE name derived from the case id) so seeded backlogs never
+        // cross-contaminate and the per-case project insert does not collide on idx_projects_org_active_name.
+        UUID projectId = seedProject(c.id());
 
         // Seed the backlog (accepted + real-embedded) and remember each seed's stored embedding + title so
         // we can compute the RAW cosine of produced drafts against them afterwards.
@@ -648,12 +649,20 @@ class RealLlmBehaviorMatrixE2ETest extends AbstractIntegrationTest {
 
     // ── seeding (tenant-scoped, via repositories under TenantContext) ─────────────────────────────────────
 
-    private UUID seedProject() {
+    /**
+     * Seeds one Project per case. The name MUST be unique per case: the tenant schema carries the partial
+     * unique index {@code idx_projects_org_active_name} on {@code (organization_id, lower(name)) WHERE
+     * status = 'ACTIVE'} (V7), and every case runs in the SAME provisioned org/schema — a shared constant
+     * name made case #1 succeed and every later case fail its {@code projects} insert with a
+     * {@code DataIntegrityViolationException}. Deriving the name from the case id keeps each case's project
+     * (and therefore its seeded backlog and its dedup surface) isolated from every other case.
+     */
+    private UUID seedProject(String caseId) {
         return inTenantTx(() -> {
             TechnicalProfile profile = new TechnicalProfile(
                     List.of("Java"), List.of("Spring Boot"), List.of("Web"), List.of("PostgreSQL"),
                     "Clean Architecture", "SaaS");
-            Project project = new Project(orgId, "Discovery project", "seed", profile, UUID.fromString(USER_ID));
+            Project project = new Project(orgId, "Matrix " + caseId + " project", "seed", profile, UUID.fromString(USER_ID));
             return projects.save(project).getId();
         });
     }
