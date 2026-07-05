@@ -260,13 +260,30 @@ public class SuggestionCreationService {
 
     /** Builds a NEW_STORY suggestion, carrying the LLM's proposed acceptance criteria on the draft. */
     private static Suggestion newStoryOf(GenerationResult.GeneratedStory gen, UUID sessionId, UUID projectId) {
-        List<Suggestion.DraftCriterion> criteria = gen.acceptanceCriteria() == null ? List.of()
+        return Suggestion.newStory(sessionId, projectId,
+                gen.title(), gen.role(), gen.action(), gen.benefit(),
+                gen.priority(), gen.storyPoints(), draftCriteriaOf(gen));
+    }
+
+    /**
+     * Builds an EDGE_CASE suggestion carrying the single boundary criterion the LLM proposed (its
+     * first acceptance criterion, when present) to add to the target story on accept.
+     */
+    private static Suggestion edgeCaseOf(GenerationResult.GeneratedStory gen, UUID sessionId, UUID projectId,
+                                         @Nullable UUID targetStoryId) {
+        List<Suggestion.DraftCriterion> criteria = draftCriteriaOf(gen);
+        Suggestion.DraftCriterion criterion = criteria.isEmpty() ? null : criteria.getFirst();
+        return Suggestion.edgeCase(sessionId, projectId,
+                gen.title(), gen.role(), gen.action(), gen.benefit(),
+                gen.priority(), gen.storyPoints(), gen.relatedTopic(), targetStoryId, criterion);
+    }
+
+    /** Maps the LLM's proposed acceptance criteria to draft criteria (empty when none). */
+    private static List<Suggestion.DraftCriterion> draftCriteriaOf(GenerationResult.GeneratedStory gen) {
+        return gen.acceptanceCriteria() == null ? List.of()
                 : gen.acceptanceCriteria().stream()
                         .map(c -> new Suggestion.DraftCriterion(c.scenario(), c.given(), c.when(), c.then()))
                         .toList();
-        return Suggestion.newStory(sessionId, projectId,
-                gen.title(), gen.role(), gen.action(), gen.benefit(),
-                gen.priority(), gen.storyPoints(), criteria);
     }
 
     private Suggestion classifyAndCreate(GenerationResult.GeneratedStory gen, UUID sessionId, UUID projectId,
@@ -301,9 +318,7 @@ public class SuggestionCreationService {
                             : stories.findMostSimilar(projectId, embedding)
                                     .map(UserStoryRepository.SimilarStory::storyId)
                                     .orElse(null);
-                    yield Suggestion.edgeCase(sessionId, projectId,
-                            gen.title(), gen.role(), gen.action(), gen.benefit(),
-                            gen.priority(), gen.storyPoints(), gen.relatedTopic(), targetStoryId);
+                    yield edgeCaseOf(gen, sessionId, projectId, targetStoryId);
                 }
                 case UPDATE_STORY -> {
                     // The model explicitly said "this refines an existing story". Honor that intent:
@@ -327,9 +342,7 @@ public class SuggestionCreationService {
 
         // No embedding available — trust the LLM classification, using its (validated) target
         return switch (llmType) {
-            case EDGE_CASE -> Suggestion.edgeCase(sessionId, projectId,
-                    gen.title(), gen.role(), gen.action(), gen.benefit(),
-                    gen.priority(), gen.storyPoints(), gen.relatedTopic(), llmTarget);
+            case EDGE_CASE -> edgeCaseOf(gen, sessionId, projectId, llmTarget);
             case UPDATE_STORY -> {
                 if (llmTarget == null) {
                     log.debug("LLM UPDATE_STORY has no usable target and no embedding model; creating as NEW_STORY");

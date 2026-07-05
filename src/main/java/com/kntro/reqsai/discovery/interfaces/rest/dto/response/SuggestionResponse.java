@@ -56,7 +56,8 @@ public record SuggestionResponse(
         @Schema(description = "Clarifying question text (only for CLARIFYING_QUESTION)", nullable = true)
         @Nullable String question,
 
-        @Schema(description = "Proposed acceptance criteria for a NEW_STORY draft (empty for other types)")
+        @Schema(description = "Proposed acceptance criteria: 2-4 for a NEW_STORY draft, exactly one for "
+                + "an EDGE_CASE (the boundary criterion added to the target story); empty for other types")
         List<DraftCriterionResponse> draftAcceptanceCriteria,
 
         @Schema(description = "Story created or modified on acceptance; null if not yet accepted or type is CLARIFYING_QUESTION", nullable = true)
@@ -72,7 +73,7 @@ public record SuggestionResponse(
         Instant updatedAt
 ) {
 
-    @Schema(description = "A proposed Given/When/Then acceptance criterion on a NEW_STORY draft")
+    @Schema(description = "A proposed Given/When/Then acceptance criterion (NEW_STORY draft or EDGE_CASE)")
     public record DraftCriterionResponse(
             @Schema(description = "Optional scenario label", nullable = true) @Nullable String scenario,
             @Schema(description = "Given precondition") String given,

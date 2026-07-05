@@ -113,6 +113,36 @@ class SuggestionCreationServiceTest {
     }
 
     @Test
+    @DisplayName("EDGE_CASE carries the LLM's single Given/When/Then criterion (scenario label round-trips)")
+    void edge_case_carries_the_criterion() {
+        UserStory target = UserStoryMother.draft().withProjectId(projectId).build();
+        GenerationResult.GeneratedStory gen = new GenerationResult.GeneratedStory(SuggestionType.EDGE_CASE,
+                "Cuenta bloqueada", "usuario", "iniciar sesión", "acceder",
+                Priority.MEDIUM, 2,
+                List.of(new GenerationResult.GeneratedCriterion("Bloqueo por intentos",
+                        "el usuario falló 5 intentos", "reintenta iniciar sesión",
+                        "el sistema bloquea la cuenta")),
+                "inicio de sesión", target.getId());
+        when(embeddingPort.isAvailable()).thenReturn(true);
+        when(embeddingPort.embed(any())).thenReturn(new float[]{0.1f});
+        when(stories.findByIdAndProjectId(target.getId(), projectId)).thenReturn(Optional.of(target));
+        when(suggestions.findAllBySessionIdAndStatus(any(), any())).thenReturn(List.of());
+        when(suggestions.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        List<Suggestion> created = service.createSuggestions(resultOf(gen), sessionId, projectId);
+
+        assertThat(created).hasSize(1);
+        Suggestion edge = created.getFirst();
+        assertThat(edge.getType()).isEqualTo(SuggestionType.EDGE_CASE);
+        assertThat(edge.getDraftAcceptanceCriteria()).hasSize(1);
+        var criterion = edge.getDraftAcceptanceCriteria().getFirst();
+        assertThat(criterion.scenario()).isEqualTo("Bloqueo por intentos");
+        assertThat(criterion.given()).isEqualTo("el usuario falló 5 intentos");
+        assertThat(criterion.when()).isEqualTo("reintenta iniciar sesión");
+        assertThat(criterion.then()).isEqualTo("el sistema bloquea la cuenta");
+    }
+
+    @Test
     @DisplayName("should still upgrade a near-duplicate NEW_STORY to UPDATE_STORY via embedding similarity")
     void should_upgrade_near_duplicate_new_story() {
         UUID existingId = UUID.randomUUID();

@@ -14,6 +14,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -64,13 +65,16 @@ public interface SessionSuggestionController {
             summary = "Accept a suggestion",
             description = """
                     Accepts a PENDING suggestion and commits the corresponding change to the backlog:
-                    - **NEW_STORY** → creates a new user story from the draft fields.
+                    - **NEW_STORY** → creates a new user story from the draft fields, with the draft \
+                      (or edited) acceptance criteria.
                     - **UPDATE_STORY** → updates the target story's fields.
-                    - **EDGE_CASE** → adds an acceptance criterion to the target story.
+                    - **EDGE_CASE** → adds the draft (or edited) Given/When/Then criterion to the \
+                      target story.
                     - **CLARIFYING_QUESTION** → marks accepted, no backlog change.
 
-                    All `edited*` fields in the request body are optional overrides.
-                    Omit the body (or pass `{}`) to use the draft as-is.""")
+                    The optional `edited` object fully overrides the draft before persistence \
+                    (story fields and/or the acceptance criteria). Omit the body (or pass `{}`) to \
+                    use the draft as-is.""")
     @ApiResponse(responseCode = "200",
             description = "Suggestion accepted",
             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
@@ -82,7 +86,7 @@ public interface SessionSuggestionController {
     ResponseEntity<SuggestionResponse> accept(
             @Parameter(description = "Session identifier", required = true) @PathVariable UUID sessionId,
             @Parameter(description = "Suggestion identifier", required = true) @PathVariable UUID suggestionId,
-            @RequestBody(required = false) AcceptSuggestionRequest request);
+            @Valid @RequestBody(required = false) AcceptSuggestionRequest request);
 
     @Operation(
             summary = "Dismiss a suggestion",

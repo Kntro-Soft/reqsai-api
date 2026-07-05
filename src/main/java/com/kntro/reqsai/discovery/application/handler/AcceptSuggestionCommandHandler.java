@@ -15,6 +15,7 @@ import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -22,11 +23,18 @@ import java.util.UUID;
  * mutation depending on the suggestion's {@link SuggestionType}:
  *
  * <ul>
- *   <li>{@code NEW_STORY}  — creates a new {@link UserStory} from the draft fields.</li>
+ *   <li>{@code NEW_STORY}  — creates a new {@link UserStory} from the draft (or edited) fields and its
+ *       draft (or edited) acceptance criteria.</li>
  *   <li>{@code UPDATE_STORY} — updates the target story's fields with the draft (or analyst edits).</li>
- *   <li>{@code EDGE_CASE}  — adds an acceptance criterion to the target story.</li>
+ *   <li>{@code EDGE_CASE}  — adds the draft (or edited) Given/When/Then criterion to the target story
+ *       verbatim.</li>
  *   <li>{@code CLARIFYING_QUESTION} — marks accepted with no story produced ({@code resolvedStoryId=null}).</li>
  * </ul>
+ *
+ * <p>The analyst may fully edit the draft before accepting: every {@code edited*} field on the command
+ * is an optional override (blank text is treated as absent). When
+ * {@link AcceptSuggestionCommand#editedAcceptanceCriteria()} is present it REPLACES the draft criteria
+ * on the suggestion; when absent, the draft is committed unchanged.
  *
  * <p>Unlike AI-batch creation ({@link com.kntro.reqsai.discovery.application.service.StoryExtractionService}),
  * analyst-accepted suggestions skip the duplicate-guard check — the analyst made a conscious
@@ -37,9 +45,6 @@ import java.util.UUID;
 @Slf4j
 public class AcceptSuggestionCommandHandler {
 
-    /** Max length of an acceptance-criterion scenario label (see {@code AcceptanceCriterion}). */
-    private static final int SCENARIO_MAX = 200;
-
     private final SuggestionRepository suggestions;
     private final UserStoryRepository storyRepo;
     private final EmbeddingPort embeddingPort;
@@ -48,6 +53,10 @@ public class AcceptSuggestionCommandHandler {
     public Suggestion handle(AcceptSuggestionCommand cmd) {
         Suggestion suggestion = suggestions.findByIdAndSessionIdForUpdate(cmd.suggestionId(), cmd.sessionId())
                 .orElseThrow(() -> DiscoveryExceptions.suggestionNotFound(cmd.suggestionId()));
+
+        // Apply the analyst's edited acceptance criteria (when sent) up front so every accept path —
+        // and the SuggestionAcceptedEvent — sees the committed set rather than the raw draft.
+        applyEditedCriteria(suggestion, cmd);
 
         UUID resolvedStoryId = switch (suggestion.getType()) {
             case NEW_STORY          -> acceptAsNewStory(suggestion, cmd);
@@ -66,78 +75,107 @@ public class AcceptSuggestionCommandHandler {
     // ── Type-specific acceptance logic ────────────────────────────────────────
 
     private UUID acceptAsNewStory(Suggestion s, AcceptSuggestionCommand cmd) {
-        String title  = coalesce(cmd.editedTitle(),  s.getDraftTitle());
-        String role   = coalesce(cmd.editedRole(),   s.getDraftRole());
-        String action = coalesce(cmd.editedAction(), s.getDraftAction());
-        String benefit = coalesce(cmd.editedBenefit(), s.getDraftBenefit());
-        Priority priority = cmd.editedPriority() != null ? cmd.editedPriority() : s.getDraftPriority();
-        Integer storyPoints = cmd.editedStoryPoints() != null ? cmd.editedStoryPoints() : s.getDraftStoryPoints();
-
         UserStory story = new UserStory(s.getSessionId(), s.getProjectId(),
-                title, role, action, benefit, priority, storyPoints);
-        // Carry the LLM's drafted acceptance criteria onto the story so the analyst does not have to
-        // re-type them. Each row was validated non-blank at encode time; truncate the optional label
-        // defensively (the given/when/then are already bounded by the AI field limits).
+                title(s, cmd), role(s, cmd), action(s, cmd), benefit(s, cmd),
+                priority(s, cmd), storyPoints(s, cmd));
+        // Carry the (possibly analyst-edited) acceptance criteria onto the story so the analyst does
+        // not have to re-type them. Each row was validated non-blank when stored on the suggestion.
         for (Suggestion.DraftCriterion c : s.getDraftAcceptanceCriteria()) {
-            story.addAcceptanceCriterion(
-                    c.scenario() != null ? truncate(c.scenario(), SCENARIO_MAX) : null,
-                    c.given(), c.when(), c.then());
+            story.addAcceptanceCriterion(c.scenario(), c.given(), c.when(), c.then());
         }
         embedIfAvailable(story);
         return storyRepo.save(story).getId();
     }
 
     private UUID acceptAsUpdate(Suggestion s, AcceptSuggestionCommand cmd) {
-        UUID targetId = s.getTargetStoryId();
-        if (targetId == null) {
-            // Target was not resolved at creation time — fall back to creating a new story
-            log.warn("UPDATE_STORY suggestion {} has no targetStoryId; creating as new story", s.getId());
+        UserStory target = resolveTarget(s);
+        if (target == null) {
+            log.warn("UPDATE_STORY suggestion {} has no usable target story; creating as new story", s.getId());
             return acceptAsNewStory(s, cmd);
         }
-        UserStory target = storyRepo.findById(targetId).orElse(null);
-        if (target == null || !target.getProjectId().equals(s.getProjectId())) {
-            log.warn("UPDATE_STORY suggestion {} target story {} is missing or in another project; creating as new story", s.getId(), targetId);
-            return acceptAsNewStory(s, cmd);
-        }
-
-        target.updateFrom(
-                coalesce(cmd.editedTitle(),   s.getDraftTitle()),
-                coalesce(cmd.editedRole(),    s.getDraftRole()),
-                coalesce(cmd.editedAction(),  s.getDraftAction()),
-                coalesce(cmd.editedBenefit(), s.getDraftBenefit()),
-                cmd.editedPriority() != null ? cmd.editedPriority() : s.getDraftPriority(),
-                cmd.editedStoryPoints() != null ? cmd.editedStoryPoints() : s.getDraftStoryPoints());
+        target.updateFrom(title(s, cmd), role(s, cmd), action(s, cmd), benefit(s, cmd),
+                priority(s, cmd), storyPoints(s, cmd));
         embedIfAvailable(target);
         return storyRepo.save(target).getId();
     }
 
     private UUID acceptAsEdgeCase(Suggestion s, AcceptSuggestionCommand cmd) {
-        UUID targetId = s.getTargetStoryId();
-        if (targetId == null) {
-            // No target found at suggestion time — create as a new standalone story
-            log.warn("EDGE_CASE suggestion {} has no targetStoryId; creating as new story", s.getId());
+        Suggestion.DraftCriterion criterion = s.getDraftAcceptanceCriteria().stream().findFirst().orElse(null);
+        UserStory target = resolveTarget(s);
+        if (target == null) {
+            // No target found at accept time — persist the edge case as a real standalone story so the
+            // criterion is not lost. Build a genuine story from the story fields (no field twisting).
+            log.warn("EDGE_CASE suggestion {} has no usable target story; creating as a standalone story", s.getId());
             return acceptAsNewStory(s, cmd);
         }
-        UserStory target = storyRepo.findById(targetId).orElse(null);
-        if (target == null || !target.getProjectId().equals(s.getProjectId())) {
-            log.warn("EDGE_CASE suggestion {} target story {} is missing or in another project; creating as new story", s.getId(), targetId);
-            return acceptAsNewStory(s, cmd);
+        if (criterion == null) {
+            // Nothing concrete to attach (the LLM omitted a usable Given/When/Then and the analyst sent
+            // none). Accepting must still succeed; leave the target unchanged.
+            log.warn("EDGE_CASE suggestion {} carries no acceptance criterion; target story {} left unchanged",
+                    s.getId(), target.getId());
+            return target.getId();
         }
-
-        // Use the draft as a Gherkin criterion on the target story
-        String effectiveAction = coalesce(cmd.editedAction(), s.getDraftAction());
-        String effectiveBenefit = coalesce(cmd.editedBenefit(), s.getDraftBenefit());
-        String effectiveTitle = coalesce(cmd.editedTitle(), s.getDraftTitle());
-
-        target.addAcceptanceCriterion(
-                truncate("Edge case: " + effectiveTitle, SCENARIO_MAX),
-                s.getDraftRole() != null ? "the user is " + s.getDraftRole() : "the system is in scope",
-                effectiveAction,
-                effectiveBenefit);
+        target.addAcceptanceCriterion(criterion.scenario(), criterion.given(), criterion.when(), criterion.then());
         return storyRepo.save(target).getId();
     }
 
+    // ── Field resolution (edited override → draft fallback) ───────────────────
+
+    private static String title(Suggestion s, AcceptSuggestionCommand cmd) {
+        return coalesce(cmd.editedTitle(), s.getDraftTitle());
+    }
+
+    private static String role(Suggestion s, AcceptSuggestionCommand cmd) {
+        return coalesce(cmd.editedRole(), s.getDraftRole());
+    }
+
+    private static String action(Suggestion s, AcceptSuggestionCommand cmd) {
+        return coalesce(cmd.editedAction(), s.getDraftAction());
+    }
+
+    private static String benefit(Suggestion s, AcceptSuggestionCommand cmd) {
+        return coalesce(cmd.editedBenefit(), s.getDraftBenefit());
+    }
+
+    private static Priority priority(Suggestion s, AcceptSuggestionCommand cmd) {
+        return cmd.editedPriority() != null ? cmd.editedPriority() : s.getDraftPriority();
+    }
+
+    private static Integer storyPoints(Suggestion s, AcceptSuggestionCommand cmd) {
+        return cmd.editedStoryPoints() != null ? cmd.editedStoryPoints() : s.getDraftStoryPoints();
+    }
+
+    /**
+     * Replaces the suggestion's draft criteria with the analyst-edited set when
+     * {@code editedAcceptanceCriteria} is present (non-null). Domain sanitization drops any entry
+     * missing given/when/then, mirroring how the draft criteria were validated when created (the REST
+     * layer's {@code @NotBlank} already rejects such entries before this point).
+     */
+    private static void applyEditedCriteria(Suggestion s, AcceptSuggestionCommand cmd) {
+        if (cmd.editedAcceptanceCriteria() == null) {
+            return;
+        }
+        List<Suggestion.DraftCriterion> replacement = cmd.editedAcceptanceCriteria().stream()
+                .map(c -> new Suggestion.DraftCriterion(c.scenario(), c.given(), c.when(), c.then()))
+                .toList();
+        s.replaceDraftCriteria(replacement);
+    }
+
     // ── Utilities ─────────────────────────────────────────────────────────────
+
+    /** The target story of an UPDATE_STORY / EDGE_CASE suggestion, or {@code null} when unusable. */
+    private @Nullable UserStory resolveTarget(Suggestion s) {
+        UUID targetId = s.getTargetStoryId();
+        if (targetId == null) {
+            return null;
+        }
+        UserStory target = storyRepo.findById(targetId).orElse(null);
+        if (target == null || !target.getProjectId().equals(s.getProjectId())) {
+            log.warn("Suggestion {} target story {} is missing or in another project", s.getId(), targetId);
+            return null;
+        }
+        return target;
+    }
 
     /**
      * Best-effort embedding of an accepted story for future similarity search.
@@ -162,17 +200,9 @@ public class AcceptSuggestionCommandHandler {
         }
     }
 
+    /** Prefers {@code override} when present and non-blank; otherwise the draft {@code fallback}. */
     @Nullable
     private static String coalesce(@Nullable String override, @Nullable String fallback) {
-        return override != null ? override : fallback;
-    }
-
-    /**
-     * Caps a server-composed label to {@code max} chars. The "Edge case: " prefix added to a
-     * max-length draft title would otherwise overflow the scenario column and fail the whole
-     * accept with a validation error the analyst cannot fix.
-     */
-    private static String truncate(String value, int max) {
-        return value.length() <= max ? value : value.substring(0, max);
+        return override != null && !override.isBlank() ? override : fallback;
     }
 }

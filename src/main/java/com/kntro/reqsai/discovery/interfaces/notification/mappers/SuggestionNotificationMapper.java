@@ -26,7 +26,7 @@ public final class SuggestionNotificationMapper {
                 SessionEventType.SUGGESTION_ACCEPTED, e.type(), SuggestionStatus.ACCEPTED,
                 e.draftTitle(), e.draftRole(), e.draftAction(), e.draftBenefit(),
                 e.draftPriority(), e.draftStoryPoints(), e.relatedTopic(),
-                e.targetStoryId(), e.question(), java.util.List.of(),
+                e.targetStoryId(), e.question(), e.draftAcceptanceCriteria(),
                 e.resolvedStoryId(), e.occurredAt());
     }
 
