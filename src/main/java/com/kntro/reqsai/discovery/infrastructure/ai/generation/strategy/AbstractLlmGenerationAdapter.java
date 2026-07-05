@@ -34,6 +34,16 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
             - LANGUAGE CONSISTENCY: if a fragment is in a clearly different language than the rest of the
               transcript it is almost certainly a mistranscription — omit it, do not build a story around
               it. Every story must be written in the transcript's language.
+            - AMBIGUITY → ASK, DO NOT GUESS (STRICT): a user story is valid only when TESTABLE — concrete
+              actor, concrete action, verifiable outcome. You MUST output a CLARIFYING_QUESTION (in the
+              "questions" array, NOT a NEW_STORY) whenever the requirement (a) uses hand-wavy / defer-to-you
+              language with no testable spec ("flexible", "rápido", "seguro", "moderno", "que se adapte a
+              lo que venga", "ustedes ya saben", "lo que corresponda"), (b) is missing a decision needed to
+              build it (no actor, no threshold/amount, no format/fields/channel, no roles), or (c) states a
+              CONFLICT (two mutually exclusive requirements, e.g. "automático y manual a la vez", "gratis
+              pero cobrar el flete"). Name the specific missing detail in the question. Do NOT invent a
+              plausible value and emit a NEW_STORY — asking is correct, guessing is a defect. A concrete
+              requirement (e.g. "iniciar sesión con correo y contraseña") is testable — emit the story.
             - CRITICAL: Return ONLY valid JSON — no markdown, no code fences, no explanation.
 
             Classify each item with a "type":
@@ -102,9 +112,14 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
               scenario labels, questions) in the SESSION LANGUAGE, given below as "Output language".
               This is the language of the project/session, which may differ from the language the
               speaker happened to use. If the transcript (or a fragment) is in a DIFFERENT language
-              than the session language, translate the INTENT into the session language — never emit a
-              story in a language other than the session language, and never mix languages within a
-              story. (When the transcript is already in the session language, this is a no-op.)
+              than the session language, FULLY translate the INTENT into the session language — never
+              emit a story in a language other than the session language, and never mix languages within
+              a story. This applies EVEN to closely-related languages: a Portuguese transcript in a
+              Spanish session must produce SPANISH, not Portuguese-looking text — e.g. translate
+              "rastrear o estado do envio" → "rastrear el estado del envío" (not "o estado do envio"),
+              "contracheque" → "boleta de pago", "férias" → "vacaciones". Tech loanwords Spanish uses
+              as-is (email, login, push, online, web, app) may stay. (When the transcript is already in
+              the session language, this is a no-op.)
             - CRITICAL — EXISTING BACKLOG (candidate matches): the EXISTING USER STORIES list below is a
               set of candidate existing stories retrieved as most similar to this conversation. Check it
               BEFORE emitting anything. If the transcript describes the SAME capability as one of these —
@@ -136,11 +151,33 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
               "12345 ID-9981 REF-0042 SKU-77") with no real requirement — produce NOTHING: return
               empty "stories" AND empty "questions". Do not ask a clarifying question about noise. If
               real content merely CONTAINS some noise, extract the real capability and ignore the noise.
-            - AMBIGUITY → ASK, DON'T GUESS: when a requirement is vague, underspecified, or internally
-              conflicting — e.g. "que sea rápido y seguro" (no concrete behavior), "gestionar usuarios"
-              (which operations?), "que sea automático y manual a la vez" (conflicting), or a feature
-              named with no format/fields/actor — do NOT emit a confident vague NEW_STORY. Emit a
-              CLARIFYING_QUESTION (in the "questions" array) that pins down the missing decision.
+            - AMBIGUITY → ASK, DO NOT GUESS (STRICT — this is a hard rule, the model tends to guess): a
+              user story is only valid when it is TESTABLE — a concrete actor, a concrete action, and a
+              verifiable outcome. Before writing a NEW_STORY, check the requirement against this bar. You
+              MUST output a CLARIFYING_QUESTION (in the "questions" array, NOT a NEW_STORY) whenever the
+              requirement:
+                (a) uses hand-wavy / defer-to-you language with no testable spec — "flexible", "rápido",
+                    "seguro", "moderno", "ágil", "que se adapte a lo que venga", "lo relevante", "ustedes
+                    ya saben", "ya me entienden", "lo que corresponda", "vean ustedes", "eso lo definimos
+                    luego"; or
+                (b) is missing a decision needed to build it — no actor ("alguien debe aprobar"), no
+                    threshold/amount ("con qué monto"), no format/fields/channel ("no sabemos si correo,
+                    SMS o push"), no roles ("qué roles existen"); or
+                (c) states a CONFLICT — two mutually exclusive requirements ("automático y manual a la
+                    vez", "gratis pero también cobrar el flete", "que se confirme automáticamente pero
+                    también que alguien la revise").
+              The clarifying question MUST NAME the specific missing detail. Do NOT invent a plausible
+              value and emit a NEW_STORY instead — asking is correct, guessing is a defect. This applies
+              even when there IS a related backlog candidate: if the new ask is itself vague, ask.
+              Examples:
+                · "Necesitamos que el módulo de pagos sea flexible; ustedes ya saben cómo" → NOT a story.
+                  questions: [{"question":"¿Qué métodos de pago debe soportar el módulo (tarjeta, Yape,
+                  transferencia) y qué significa 'flexible' en términos concretos?"}]
+                · "Alguien debe poder aprobar los gastos, pero no definimos quién ni con qué monto" → NOT
+                  a story. questions: [{"question":"¿Qué rol aprueba los gastos y a partir de qué monto se
+                  requiere aprobación?"}]
+              Counter-example (do NOT over-clarify): a concrete requirement like "el usuario inicia sesión
+              con correo y contraseña" is testable — emit the NEW_STORY, do not ask.
             - DISTINCT CAPABILITIES STAY SEPARATE: when the transcript mentions two or more genuinely
               DIFFERENT capabilities (e.g. "exportar a PDF" AND "exportar a Excel"; "iniciar sesión" AND
               "registrarse"), emit a SEPARATE story for EACH. Never merge distinct capabilities into one
@@ -281,9 +318,8 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
     }
 
     private GenerationResult callAndParse(String promptText) {
-        // TEMP-DEBUG(matrix-wiring): dump the EXACT prompt sent + raw response so we can verify with our
-        // own eyes that candidate ids reach the model and whether the model echoes a targetStoryId. TRACE
-        // so it is off by default; enabled only when hunting the null-target root cause. REMOVE/keep-trace.
+        // TRACE-gated prompt/response dump — off by default; flip Discovery generation logging to TRACE to
+        // verify end-to-end that candidate ids reach the model and whether it echoes a targetStoryId.
         if (log.isTraceEnabled()) {
             log.trace("=== PROMPT SENT TO {} ===\n{}\n=== END PROMPT ===", modelName(), promptText);
         }
