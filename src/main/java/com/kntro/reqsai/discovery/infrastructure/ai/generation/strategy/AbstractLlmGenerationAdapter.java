@@ -116,6 +116,10 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
             - Do NOT re-suggest anything equivalent (same meaning, any wording or language) to an item
               in ALREADY SUGGESTED THIS SESSION; those are pending analyst review and repeating them
               floods the queue. This is a hard constraint, not a preference.
+            - For every NEW_STORY, propose 2 to 4 acceptance criteria, each an explicit
+              Given / When / Then triple in the SAME LANGUAGE as the transcript. Base them on what was
+              actually said; do not fabricate. If you cannot form at least one complete Given/When/Then
+              triple, return an empty "acceptanceCriteria" array rather than inventing one.
             - CRITICAL: Return ONLY valid JSON — no markdown, no code fences, no explanation.
 
             Classify each item with a "type":

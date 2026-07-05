@@ -116,6 +116,30 @@ class AcceptSuggestionCommandHandlerTest {
                 .startsWith("Edge case: ");
     }
 
+    @Test
+    @DisplayName("should create the story WITH the draft acceptance criteria on accept")
+    void should_create_story_with_draft_criteria() {
+        Suggestion suggestion = Suggestion.newStory(UUID.randomUUID(), UUID.randomUUID(),
+                "Iniciar sesión", "usuario", "iniciar sesión", "acceder", Priority.HIGH, 3,
+                java.util.List.of(
+                        new Suggestion.DraftCriterion("Credenciales válidas",
+                                "el usuario tiene una cuenta", "ingresa credenciales correctas", "accede al sistema"),
+                        new Suggestion.DraftCriterion(null,
+                                "la contraseña es incorrecta", "intenta iniciar sesión", "ve un mensaje de error")));
+        when(suggestions.findByIdAndSessionIdForUpdate(any(), any())).thenReturn(Optional.of(suggestion));
+        when(embeddingPort.isAvailable()).thenReturn(false);
+        when(storyRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        handler.handle(command(suggestion));
+
+        var captor = ArgumentCaptor.forClass(UserStory.class);
+        verify(storyRepo).save(captor.capture());
+        assertThat(captor.getValue().getAcceptanceCriteria()).hasSize(2);
+        assertThat(captor.getValue().getAcceptanceCriteria().getFirst().getScenario())
+                .isEqualTo("Credenciales válidas");
+        assertThat(captor.getValue().getAcceptanceCriteria().getLast().getScenario()).isNull();
+    }
+
     private static AcceptSuggestionCommand command(Suggestion s) {
         return new AcceptSuggestionCommand(s.getSessionId(), s.getId(), null, null, null, null, null, null);
     }

@@ -1,12 +1,14 @@
 package com.kntro.reqsai.discovery.interfaces.notification.messages;
 
 import com.kntro.reqsai.discovery.domain.model.Priority;
+import com.kntro.reqsai.discovery.domain.model.Suggestion;
 import com.kntro.reqsai.discovery.domain.model.SuggestionStatus;
 import com.kntro.reqsai.discovery.domain.model.SuggestionType;
 import com.kntro.reqsai.discovery.interfaces.notification.SessionEventType;
 import org.jspecify.annotations.Nullable;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -32,6 +34,7 @@ public record SessionSuggestionMessage(
         @Nullable String relatedTopic,
         @Nullable UUID targetStoryId,
         @Nullable String question,
+        List<Suggestion.DraftCriterion> draftAcceptanceCriteria,
         @Nullable UUID resolvedStoryId,
         Instant occurredAt
 ) implements SessionRealtimeMessage {

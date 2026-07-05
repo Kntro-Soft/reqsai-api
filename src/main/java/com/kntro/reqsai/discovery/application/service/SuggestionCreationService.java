@@ -258,6 +258,17 @@ public class SuggestionCreationService {
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
+    /** Builds a NEW_STORY suggestion, carrying the LLM's proposed acceptance criteria on the draft. */
+    private static Suggestion newStoryOf(GenerationResult.GeneratedStory gen, UUID sessionId, UUID projectId) {
+        List<Suggestion.DraftCriterion> criteria = gen.acceptanceCriteria() == null ? List.of()
+                : gen.acceptanceCriteria().stream()
+                        .map(c -> new Suggestion.DraftCriterion(c.scenario(), c.given(), c.when(), c.then()))
+                        .toList();
+        return Suggestion.newStory(sessionId, projectId,
+                gen.title(), gen.role(), gen.action(), gen.benefit(),
+                gen.priority(), gen.storyPoints(), criteria);
+    }
+
     private Suggestion classifyAndCreate(GenerationResult.GeneratedStory gen, UUID sessionId, UUID projectId,
                                          float @Nullable [] precomputedEmbedding) {
         SuggestionType llmType = gen.type() != null ? gen.type() : SuggestionType.NEW_STORY;
@@ -283,9 +294,7 @@ public class SuggestionCreationService {
                                 gen.title(), gen.role(), gen.action(), gen.benefit(),
                                 gen.priority(), gen.storyPoints(), closest.storyId());
                     }
-                    yield Suggestion.newStory(sessionId, projectId,
-                            gen.title(), gen.role(), gen.action(), gen.benefit(),
-                            gen.priority(), gen.storyPoints());
+                    yield newStoryOf(gen, sessionId, projectId);
                 }
                 case EDGE_CASE -> {
                     UUID targetStoryId = llmTarget != null ? llmTarget
@@ -306,17 +315,13 @@ public class SuggestionCreationService {
                                     .orElse(null);
                     if (targetStoryId == null) {
                         log.debug("LLM UPDATE_STORY has no target (backlog empty), creating as NEW_STORY");
-                        yield Suggestion.newStory(sessionId, projectId,
-                                gen.title(), gen.role(), gen.action(), gen.benefit(),
-                                gen.priority(), gen.storyPoints());
+                        yield newStoryOf(gen, sessionId, projectId);
                     }
                     yield Suggestion.updateStory(sessionId, projectId,
                             gen.title(), gen.role(), gen.action(), gen.benefit(),
                             gen.priority(), gen.storyPoints(), targetStoryId);
                 }
-                default -> Suggestion.newStory(sessionId, projectId,
-                        gen.title(), gen.role(), gen.action(), gen.benefit(),
-                        gen.priority(), gen.storyPoints());
+                default -> newStoryOf(gen, sessionId, projectId);
             };
         }
 
@@ -328,17 +333,13 @@ public class SuggestionCreationService {
             case UPDATE_STORY -> {
                 if (llmTarget == null) {
                     log.debug("LLM UPDATE_STORY has no usable target and no embedding model; creating as NEW_STORY");
-                    yield Suggestion.newStory(sessionId, projectId,
-                            gen.title(), gen.role(), gen.action(), gen.benefit(),
-                            gen.priority(), gen.storyPoints());
+                    yield newStoryOf(gen, sessionId, projectId);
                 }
                 yield Suggestion.updateStory(sessionId, projectId,
                         gen.title(), gen.role(), gen.action(), gen.benefit(),
                         gen.priority(), gen.storyPoints(), llmTarget);
             }
-            default -> Suggestion.newStory(sessionId, projectId,
-                    gen.title(), gen.role(), gen.action(), gen.benefit(),
-                    gen.priority(), gen.storyPoints());
+            default -> newStoryOf(gen, sessionId, projectId);
         };
     }
 

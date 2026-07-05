@@ -75,6 +75,14 @@ public class AcceptSuggestionCommandHandler {
 
         UserStory story = new UserStory(s.getSessionId(), s.getProjectId(),
                 title, role, action, benefit, priority, storyPoints);
+        // Carry the LLM's drafted acceptance criteria onto the story so the analyst does not have to
+        // re-type them. Each row was validated non-blank at encode time; truncate the optional label
+        // defensively (the given/when/then are already bounded by the AI field limits).
+        for (Suggestion.DraftCriterion c : s.getDraftAcceptanceCriteria()) {
+            story.addAcceptanceCriterion(
+                    c.scenario() != null ? truncate(c.scenario(), SCENARIO_MAX) : null,
+                    c.given(), c.when(), c.then());
+        }
         embedIfAvailable(story);
         return storyRepo.save(story).getId();
     }

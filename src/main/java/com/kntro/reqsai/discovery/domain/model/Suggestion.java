@@ -12,8 +12,12 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import lombok.Getter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import org.jspecify.annotations.Nullable;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -80,6 +84,16 @@ public class Suggestion extends AggregateRoot {
     @Column(name = "draft_story_points")
     private @Nullable Integer draftStoryPoints;
 
+    /**
+     * Proposed structured acceptance criteria for a NEW_STORY draft, carried through the review gate
+     * so acceptance can create the story with real {@link AcceptanceCriterion} rows (each a
+     * Given/When/Then). Stored as JSONB (mirrors how {@link UserStory} maps its pgvector embedding
+     * with a Hibernate JDBC type code). Empty for EDGE_CASE / UPDATE_STORY / CLARIFYING_QUESTION.
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "draft_criteria", columnDefinition = "jsonb")
+    private List<DraftCriterion> draftCriteria = new ArrayList<>();
+
     // ── Related topic hint (EDGE_CASE — aids targetStoryId resolution) ────────
 
     @Column(name = "related_topic", length = FIELD_MAX)
@@ -110,11 +124,21 @@ public class Suggestion extends AggregateRoot {
 
     // ── Factory methods ───────────────────────────────────────────────────────
 
-    /** Creates a NEW_STORY or EDGE_CASE suggestion (no target). */
+    /** Creates a NEW_STORY suggestion (no target, no draft criteria). */
     public static Suggestion newStory(UUID sessionId, UUID projectId,
                                       String title, String role, String action, String benefit,
                                       Priority priority, @Nullable Integer storyPoints) {
-        return newStory(sessionId, projectId, title, role, action, benefit, priority, storyPoints, null, null);
+        return newStory(sessionId, projectId, title, role, action, benefit, priority, storyPoints, List.of());
+    }
+
+    /** Creates a NEW_STORY suggestion carrying the LLM's proposed draft acceptance criteria. */
+    public static Suggestion newStory(UUID sessionId, UUID projectId,
+                                      String title, String role, String action, String benefit,
+                                      Priority priority, @Nullable Integer storyPoints,
+                                      List<DraftCriterion> criteria) {
+        Suggestion s = newStory(sessionId, projectId, title, role, action, benefit, priority, storyPoints, null, null);
+        s.draftCriteria = sanitizeCriteria(criteria);
+        return s;
     }
 
     /** Creates an EDGE_CASE suggestion with a resolved target story. */
@@ -215,5 +239,44 @@ public class Suggestion extends AggregateRoot {
         s.targetStoryId = targetStoryId;
         s.registerEvent(SuggestionCreatedEvent.of(s));
         return s;
+    }
+
+    // ── Draft acceptance criteria (NEW_STORY) ─────────────────────────────────
+
+    /**
+     * A proposed acceptance criterion in Gherkin form. {@code scenario} is an optional label;
+     * {@code given}/{@code when}/{@code then} are required. Persisted as an element of the
+     * {@code draft_criteria} JSONB column. The no-arg-style canonical constructor keeps Jackson happy
+     * for JSON (de)serialization by Hibernate.
+     */
+    public record DraftCriterion(@Nullable String scenario, String given, String when, String then) {}
+
+    /** The structured draft acceptance criteria (empty when none), never null. */
+    public List<DraftCriterion> getDraftAcceptanceCriteria() {
+        return draftCriteria == null ? List.of() : List.copyOf(draftCriteria);
+    }
+
+    /**
+     * Keeps only criteria with all three of given/when/then present — a criterion missing any of them
+     * could not build a valid {@link AcceptanceCriterion} on accept, so it is dropped rather than
+     * fabricated. Strips fields and normalizes a blank scenario to null.
+     */
+    private static List<DraftCriterion> sanitizeCriteria(@Nullable List<DraftCriterion> criteria) {
+        List<DraftCriterion> out = new ArrayList<>();
+        if (criteria == null) {
+            return out;
+        }
+        for (DraftCriterion c : criteria) {
+            if (c == null || blank(c.given()) || blank(c.when()) || blank(c.then())) {
+                continue;
+            }
+            String scenario = blank(c.scenario()) ? null : c.scenario().strip();
+            out.add(new DraftCriterion(scenario, c.given().strip(), c.when().strip(), c.then().strip()));
+        }
+        return out;
+    }
+
+    private static boolean blank(@Nullable String s) {
+        return s == null || s.isBlank();
     }
 }
