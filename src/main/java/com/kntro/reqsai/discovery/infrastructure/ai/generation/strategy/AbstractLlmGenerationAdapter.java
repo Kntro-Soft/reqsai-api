@@ -44,6 +44,16 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
               pero cobrar el flete"). Name the specific missing detail in the question. Do NOT invent a
               plausible value and emit a NEW_STORY — asking is correct, guessing is a defect. A concrete
               requirement (e.g. "iniciar sesión con correo y contraseña") is testable — emit the story.
+            - DISTINCT CAPABILITIES STAY SEPARATE (STRICT): when the transcript mentions two or more
+              genuinely DIFFERENT capabilities, emit a SEPARATE story for EACH. When the speaker EXPLICITLY
+              SIGNALS separation — "y aparte", "por otro lado", "por separado", "distinto", "diferente",
+              "otra cosa", "algo separado"; "and separately", "on the other hand", "a different thing" —
+              you MUST emit one story per capability and NEVER collapse them into a single conjunction
+              title. E.g. "iniciar sesión … y aparte, distinto, restablecer la contraseña" → TWO stories
+              ("Iniciar sesión" + "Restablecer contraseña"), NOT one "Iniciar sesión y restablecer
+              contraseña"; "ver la lista de pedidos … y aparte, distinto, abrir el detalle de un pedido" →
+              TWO stories, NOT "Ver lista y detalle de pedidos". Do NOT over-split a SINGLE capability that
+              merely has two delivery channels (e.g. notificaciones por correo Y push is ONE story).
             - CRITICAL: Return ONLY valid JSON — no markdown, no code fences, no explanation.
 
             Classify each item with a "type":
@@ -178,10 +188,25 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
                   requiere aprobación?"}]
               Counter-example (do NOT over-clarify): a concrete requirement like "el usuario inicia sesión
               con correo y contraseña" is testable — emit the NEW_STORY, do not ask.
-            - DISTINCT CAPABILITIES STAY SEPARATE: when the transcript mentions two or more genuinely
-              DIFFERENT capabilities (e.g. "exportar a PDF" AND "exportar a Excel"; "iniciar sesión" AND
-              "registrarse"), emit a SEPARATE story for EACH. Never merge distinct capabilities into one
-              story just because they share a topic or a verb.
+            - DISTINCT CAPABILITIES STAY SEPARATE (STRICT): when the transcript mentions two or more
+              genuinely DIFFERENT capabilities (e.g. "exportar a PDF" AND "exportar a Excel"; "iniciar
+              sesión" AND "registrarse"), emit a SEPARATE story for EACH. Never merge distinct capabilities
+              into one story just because they share a topic or a verb.
+              When the speaker EXPLICITLY SIGNALS separation — "y aparte", "por otro lado", "por separado",
+              "distinto", "diferente", "otra cosa", "algo separado", "además de eso, algo distinto";
+              "and separately", "on the other hand", "a different thing", "besides that, something
+              separate" — you MUST emit one story per capability. NEVER collapse them into a single
+              conjunction title. Counter-examples of the WRONG merge you must avoid:
+                · "iniciar sesión con correo y contraseña. Y aparte, distinto, restablecer la contraseña
+                  por un enlace" → TWO stories ("Iniciar sesión" + "Restablecer contraseña"), NOT one
+                  "Iniciar sesión y restablecer contraseña".
+                · "ver la lista de todos mis pedidos. Y aparte, distinto, abrir el detalle de un pedido"
+                  → TWO stories ("Ver lista de pedidos" + "Ver detalle de un pedido"), NOT one
+                  "Ver lista y detalle de pedidos".
+              This is about SEPARATION language + genuinely different capabilities. Do NOT over-split a
+              SINGLE capability that merely has two delivery channels or options (e.g. "recibir
+              notificaciones por correo Y push" is ONE notification capability with two channels — keep it
+              as one story with a criterion per channel).
             - GRANULARITY: session maintenance (keeping a user logged in), error/validation messages,
               input validations, and security constraints (encryption, rate limits, password policy)
               OF an existing capability are NOT separate stories. Emit them as EDGE_CASE (acceptance
