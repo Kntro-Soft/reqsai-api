@@ -129,6 +129,18 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
   cosine ~0.97). Same OpenAI/pgvector wiring, `@EnabledIfEnvironmentVariable("OPENAI_API_KEY")` +
   in-body `assumeTrue` skip, and `llmTest` lane as the sibling probes; ~one generation call per case.
 
+### Fixed (Test infrastructure — `feature/discovery-session-control`)
+
+- **Test Hikari pool raised from 3 to 10** — a realtime suggestion pass takes a Postgres advisory lock
+  (`pg_advisory_xact_lock`) and HOLDS its DB connection for the whole pass, which in the real-LLM E2E
+  probes includes multi-second OpenAI generation + embedding round-trips. A high-fanout streamed
+  transcript (`RealLlmStreamingWsSuggestionE2ETest` scenario 6 streams 4 final segments) spawns several
+  overlapping async passes; with the test thread's own polling reads competing for connections, the
+  3-connection pool could starve and a newly-arriving async pass failed to open its JPA EntityManager
+  (`CannotCreateTransactionException: Could not open JPA EntityManager`). Raising
+  `spring.datasource.hikari.maximum-pool-size` to 10 (well under the Testcontainers Postgres
+  `max_connections`, test-profile only) removes the contention.
+
 ### Added (Suggestion acceptance model — `feature/discovery-session-control`)
 
 - **Scenario labels on every generated criterion** — the extraction prompt now asks the model for a
