@@ -93,6 +93,7 @@ class GenerationScenarioTest {
             assertThat(prompt).contains("UPDATE_STORY");
             assertThat(prompt).contains("volviendo a");          // revisit cue few-shot
             assertThat(prompt).contains("QUALITY BAR");           // garbled → nothing
+            assertThat(prompt).contains("LANGUAGE CONSISTENCY");  // off-language fragment → omit
             assertThat(prompt).contains("GRANULARITY");           // facets → EDGE_CASE/UPDATE
             assertThat(prompt).contains("mantener la sesión activa"); // granularity example
             assertThat(prompt).contains("Given / When / Then");   // criteria instruction

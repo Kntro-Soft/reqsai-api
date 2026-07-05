@@ -31,6 +31,9 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
             Rules:
             - Group related mentions into a single story (avoid duplicates).
             - Use the SAME LANGUAGE as the transcript for all text fields.
+            - LANGUAGE CONSISTENCY: if a fragment is in a clearly different language than the rest of the
+              transcript it is almost certainly a mistranscription — omit it, do not build a story around
+              it. Every story must be written in the transcript's language.
             - CRITICAL: Return ONLY valid JSON — no markdown, no code fences, no explanation.
 
             Classify each item with a "type":
@@ -96,6 +99,10 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
             - Group related mentions into a single story (avoid duplicates).
             - Apply domain glossary terms where they match the conversation.
             - Use the SAME LANGUAGE as the transcript for all text fields.
+            - LANGUAGE CONSISTENCY: the transcript is in ONE language. If a fragment is in a clearly
+              different language than the rest of the transcript, it is almost certainly a
+              mistranscription or noise — do NOT build a story around it. Omit it. Every emitted story
+              MUST be written in the transcript's language; never mix languages within a story.
             - CRITICAL: check the EXISTING USER STORIES list before emitting anything. If the
               conversation revisits, refines, extends, changes or duplicates one of those stories
               (even with different wording or in another language), do NOT create a NEW_STORY — emit
