@@ -98,25 +98,53 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
             Rules:
             - Group related mentions into a single story (avoid duplicates).
             - Apply domain glossary terms where they match the conversation.
-            - Use the SAME LANGUAGE as the transcript for all text fields.
-            - LANGUAGE CONSISTENCY: the transcript is in ONE language. If a fragment is in a clearly
-              different language than the rest of the transcript, it is almost certainly a
-              mistranscription or noise — do NOT build a story around it. Omit it. Every emitted story
-              MUST be written in the transcript's language; never mix languages within a story.
-            - CRITICAL: check the EXISTING USER STORIES list before emitting anything. If the
-              conversation revisits, refines, extends, changes or duplicates one of those stories
-              (even with different wording or in another language), do NOT create a NEW_STORY — emit
-              UPDATE_STORY (or EDGE_CASE for a boundary scenario) with that story's id as
-              "targetStoryId". Only emit NEW_STORY for a capability no existing story covers.
+            - OUTPUT LANGUAGE: write every text field (title, role, action, benefit, criteria,
+              scenario labels, questions) in the SESSION LANGUAGE, given below as "Output language".
+              This is the language of the project/session, which may differ from the language the
+              speaker happened to use. If the transcript (or a fragment) is in a DIFFERENT language
+              than the session language, translate the INTENT into the session language — never emit a
+              story in a language other than the session language, and never mix languages within a
+              story. (When the transcript is already in the session language, this is a no-op.)
+            - CRITICAL — EXISTING BACKLOG (candidate matches): the EXISTING USER STORIES list below is a
+              set of candidate existing stories retrieved as most similar to this conversation. Check it
+              BEFORE emitting anything. If the transcript describes the SAME capability as one of these —
+              EVEN IN DIFFERENT WORDS, SYNONYMS, A REGIONAL VARIANT, OR ANOTHER LANGUAGE (e.g. "exportar
+              reportes a PDF" ≡ "descargar informes en PDF"; "pagar el carrito" ≡ "cancelar/abonar la
+              cesta"; "iniciar sesión" ≡ "autenticarse con credenciales") — do NOT create a NEW_STORY:
+              emit UPDATE_STORY with "targetStoryId" set to that existing story's id. If the transcript
+              ADDS a new detail, criterion, constraint, or refinement to a capability already in the
+              list, ALSO emit UPDATE_STORY (or EDGE_CASE for a boundary rule) targeting that story.
+              Emit NEW_STORY ONLY for a genuinely new capability that none of the listed stories covers.
+              Examples:
+                · Backlog has "<id> | Exportar reportes a PDF"; transcript says "necesito descargar mis
+                  informes en formato PDF para remitirlos al equipo" → UPDATE_STORY, targetStoryId=<id>
+                  (same capability, only synonyms differ — NOT a new story).
+                · Backlog has "<id> | Iniciar sesión"; transcript says "sobre el login: además quiero 2FA"
+                  → UPDATE_STORY (or EDGE_CASE) targetStoryId=<id> (adds a detail to an existing story).
               Verbal cues that almost always mean UPDATE_STORY of an existing story (bilingual):
-              "volviendo a…", "sobre lo de…", "además … debe…", "también quiero que … soporte…",
-              "cambiar…", "en realidad…"; "going back to…", "also it should…", "actually…",
-              "on top of that…", "let's change…". Match them to the story they refer to by meaning.
+              "volviendo a…", "sobre lo de…", "sobre el/la … que ya tenemos", "además … debe…",
+              "también quiero que … soporte…", "cambiar…", "en realidad…"; "going back to…",
+              "also it should…", "actually…", "on top of that…", "let's change…". Match them to the
+              story they refer to by meaning.
             - QUALITY BAR: if a transcript fragment is garbled, truncated, contradictory or you
               cannot form a coherent, complete user story from it, do NOT emit a suggestion. Speech
               recognition mishears words (e.g. "inicio de sesión" → "inicio de decisión"); never
               invent a requirement around an obvious mistranscription. Prefer emitting nothing over a
               nonsensical story.
+            - IGNORE GARBAGE: if the transcript is pure noise — random/invented tokens, gibberish,
+              filler-only ("eh, este, o sea, ajá, mmm"), or bare numbers/codes/IDs (e.g.
+              "12345 ID-9981 REF-0042 SKU-77") with no real requirement — produce NOTHING: return
+              empty "stories" AND empty "questions". Do not ask a clarifying question about noise. If
+              real content merely CONTAINS some noise, extract the real capability and ignore the noise.
+            - AMBIGUITY → ASK, DON'T GUESS: when a requirement is vague, underspecified, or internally
+              conflicting — e.g. "que sea rápido y seguro" (no concrete behavior), "gestionar usuarios"
+              (which operations?), "que sea automático y manual a la vez" (conflicting), or a feature
+              named with no format/fields/actor — do NOT emit a confident vague NEW_STORY. Emit a
+              CLARIFYING_QUESTION (in the "questions" array) that pins down the missing decision.
+            - DISTINCT CAPABILITIES STAY SEPARATE: when the transcript mentions two or more genuinely
+              DIFFERENT capabilities (e.g. "exportar a PDF" AND "exportar a Excel"; "iniciar sesión" AND
+              "registrarse"), emit a SEPARATE story for EACH. Never merge distinct capabilities into one
+              story just because they share a topic or a verb.
             - GRANULARITY: session maintenance (keeping a user logged in), error/validation messages,
               input validations, and security constraints (encryption, rate limits, password policy)
               OF an existing capability are NOT separate stories. Emit them as EDGE_CASE (acceptance
@@ -222,7 +250,7 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
     @Override
     public GenerationResult generate(String transcript, String language, @Nullable GenerationContext context) {
         if (context == null) return generate(transcript, language);
-        String contextBlock = buildContextBlock(context);
+        String contextBlock = buildContextBlock(context, language);
         log.debug("Sending contextual extraction prompt to {} ({} chars)", modelName(), transcript.length());
         return callAndParse(CONTEXTUAL_EXTRACTION_PROMPT.formatted(contextBlock, transcript));
     }
@@ -233,8 +261,12 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
         return parseJsonResponse(json);
     }
 
-    private static String buildContextBlock(GenerationContext ctx) {
+    private static String buildContextBlock(GenerationContext ctx, @Nullable String outputLanguage) {
         StringBuilder sb = new StringBuilder();
+        if (outputLanguage != null && !outputLanguage.isBlank()) {
+            sb.append("Output language (write EVERY text field in this language, translating the intent")
+              .append(" when the transcript uses another language): ").append(outputLanguage).append("\n");
+        }
         sb.append("PROJECT: ").append(ctx.projectName()).append("\n");
         if (ctx.projectDescription() != null) {
             sb.append("Description: ").append(ctx.projectDescription()).append("\n");
@@ -260,7 +292,10 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
             sb.append("Domain glossary:\n");
             ctx.glossaryTerms().forEach(g -> sb.append("- ").append(g.term()).append(": ").append(g.definition()).append("\n"));
         }
-        sb.append("\nEXISTING USER STORIES (current backlog; format: id | title | as <role> I want <action> so that <benefit>):\n");
+        sb.append("\nEXISTING USER STORIES (candidate matches from the current backlog, most similar first;")
+          .append(" format: id | title | as <role> I want <action> so that <benefit>). If the transcript")
+          .append(" describes the SAME capability as one of these — even in different words — emit")
+          .append(" UPDATE_STORY targeting its id, do NOT create a NEW_STORY:\n");
         if (ctx.existingStories().isEmpty()) {
             sb.append("- none yet\n");
         } else {
