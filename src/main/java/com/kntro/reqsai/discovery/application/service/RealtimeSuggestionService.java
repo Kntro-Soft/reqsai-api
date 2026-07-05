@@ -80,6 +80,23 @@ public class RealtimeSuggestionService {
     @Value("${discovery.realtime.context-top-k:5}")
     private int contextTopK;
 
+    /**
+     * How many loose-recall paraphrase candidates to surface to the LLM dedup/UPDATE judge, in
+     * addition to the vector/recent backlog slice. Bounded so the prompt stays small even on a large
+     * backlog.
+     */
+    @Value("${discovery.realtime.candidate-top-k:8}")
+    private int candidateTopK;
+
+    /**
+     * Cosine-similarity recall floor for {@link #candidateTopK} candidate retrieval. Deliberately far
+     * below the auto-dedup bar (0.84): the embedding gate cannot separate "same capability, different
+     * words" (measured 0.55–0.82) from "genuinely distinct", so we recall generously at this floor and
+     * let the LLM make the precise same-capability judgement per candidate.
+     */
+    @Value("${discovery.realtime.candidate-recall-threshold:0.50}")
+    private double candidateRecallThreshold;
+
     @Value("${discovery.realtime.min-transcript-chars:180}")
     private int minTranscriptChars;
 
@@ -215,17 +232,26 @@ public class RealtimeSuggestionService {
     }
 
     /**
-     * Backlog slice for the prompt: vector top-K nearest to the recent transcript merged with the
-     * newest project stories (dedup by id, nearest/newest first, capped), or the newest stories
-     * alone when vector search is unavailable or empty.
+     * Backlog slice for the prompt, nearest-first, capped at {@link #MAX_CONTEXT_STORIES}:
+     * <ol>
+     *   <li><em>Loose-recall paraphrase candidates</em> — up to {@link #candidateTopK} stories within
+     *       the {@link #candidateRecallThreshold} similarity floor. These lead the list precisely so a
+     *       synonym paraphrase of an existing story (cosine 0.55–0.82, below the auto-dedup bar) is
+     *       always visible to the LLM as a candidate to UPDATE rather than duplicate.</li>
+     *   <li><em>Vector top-K</em> nearest to the recent transcript (unthresholded, for domain grounding).</li>
+     *   <li><em>Newest project stories</em> — in-session recency complement / fallback when vector
+     *       search is unavailable or empty, so the backlog is never invisible to the model.</li>
+     * </ol>
      */
     private List<UserStory> retrieveBacklog(UUID projectId, float @Nullable [] queryEmbedding) {
+        List<UserStory> candidates = List.of();
         List<UserStory> similar = List.of();
         if (queryEmbedding != null) {
             // The provider just embedded the transcript successfully — give stories that missed
             // their embedding at write time a second chance before searching the vector index.
             reindexService.reindexPending(projectId);
             try {
+                candidates = retrieveLooseRecallCandidates(projectId, queryEmbedding);
                 similar = stories.findTopSimilar(projectId, queryEmbedding, contextTopK);
             } catch (RuntimeException e) {
                 log.warn("Vector backlog retrieval failed for project {}; using recent stories only: {}",
@@ -234,10 +260,26 @@ public class RealtimeSuggestionService {
         }
         List<UserStory> recent = stories.findRecentByProjectId(projectId, RECENT_STORIES);
 
+        // Candidates lead (highest UPDATE/dedup relevance), then vector top-K, then newest — dedup by id.
         Map<UUID, UserStory> merged = new LinkedHashMap<>();
+        for (UserStory s : candidates) merged.putIfAbsent(s.getId(), s);
         for (UserStory s : similar) merged.putIfAbsent(s.getId(), s);
         for (UserStory s : recent) merged.putIfAbsent(s.getId(), s);
         return merged.values().stream().limit(MAX_CONTEXT_STORIES).toList();
+    }
+
+    /**
+     * The loose-recall paraphrase candidates (id + similarity → full story), nearest first, best-effort:
+     * a candidate whose story row can no longer be loaded (deleted between calls) is skipped.
+     */
+    private List<UserStory> retrieveLooseRecallCandidates(UUID projectId, float[] queryEmbedding) {
+        List<UserStoryRepository.SimilarStory> hits =
+                stories.findSimilarCandidates(projectId, queryEmbedding, candidateRecallThreshold, candidateTopK);
+        List<UserStory> resolved = new ArrayList<>(hits.size());
+        for (UserStoryRepository.SimilarStory hit : hits) {
+            stories.findByIdAndProjectId(hit.storyId(), projectId).ifPresent(resolved::add);
+        }
+        return resolved;
     }
 
     /**
