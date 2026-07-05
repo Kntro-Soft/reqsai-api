@@ -45,6 +45,7 @@ class RealtimeSuggestionServiceTest {
     @Mock private EmbeddingPort embeddingPort;
     @Mock private UserStoryRepository stories;
     @Mock private SuggestionRepository suggestions;
+    @Mock private UserStoryReindexService reindexService;
 
     @InjectMocks
     private RealtimeSuggestionService service;

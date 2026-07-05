@@ -57,5 +57,12 @@ public interface UserStoryRepository {
      */
     List<UserStory> findRecentByProjectId(UUID projectId, int limit);
 
+    /**
+     * Returns up to {@code limit} stories of the project persisted without an embedding (the
+     * provider was down or failed at write time). Feeds the lazy re-index pass that gives those
+     * stories a second chance to enter the vector index.
+     */
+    List<UserStory> findUnindexedByProjectId(UUID projectId, int limit);
+
     record SimilarStory(UUID storyId, double similarity) {}
 }

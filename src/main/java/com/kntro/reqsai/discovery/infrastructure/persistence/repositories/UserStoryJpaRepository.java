@@ -20,6 +20,9 @@ public interface UserStoryJpaRepository extends JpaRepository<UserStory, UUID> {
 
     Optional<UserStory> findByIdAndProjectId(UUID id, UUID projectId);
 
+    /** Stories persisted without an embedding (provider down/failed at write time), oldest first. */
+    List<UserStory> findAllByProjectIdAndEmbeddingIsNull(UUID projectId, Pageable pageable);
+
     void deleteAllBySessionId(UUID sessionId);
 
     /**

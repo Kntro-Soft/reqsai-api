@@ -68,6 +68,7 @@ public class RealtimeSuggestionService {
     private final EmbeddingPort embeddingPort;
     private final UserStoryRepository stories;
     private final SuggestionRepository suggestions;
+    private final UserStoryReindexService reindexService;
 
     @Value("${discovery.realtime.context-top-k:5}")
     private int contextTopK;
@@ -166,6 +167,9 @@ public class RealtimeSuggestionService {
     private List<UserStory> retrieveBacklog(UUID projectId, float @Nullable [] queryEmbedding) {
         List<UserStory> similar = List.of();
         if (queryEmbedding != null) {
+            // The provider just embedded the transcript successfully — give stories that missed
+            // their embedding at write time a second chance before searching the vector index.
+            reindexService.reindexPending(projectId);
             try {
                 similar = stories.findTopSimilar(projectId, queryEmbedding, contextTopK);
             } catch (RuntimeException e) {

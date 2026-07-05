@@ -82,6 +82,12 @@ public class UserStoryRepositoryAdapter implements UserStoryRepository {
                 .getContent();
     }
 
+    @Override
+    public List<UserStory> findUnindexedByProjectId(UUID projectId, int limit) {
+        return jpa.findAllByProjectIdAndEmbeddingIsNull(projectId,
+                PageRequest.of(0, limit, Sort.by(Sort.Direction.ASC, "createdAt")));
+    }
+
     /** Renders a float[] as a pgvector literal, e.g. {@code [0.12,0.34,...]}. */
     private static String toVectorLiteral(float[] vector) {
         StringJoiner joiner = new StringJoiner(",", "[", "]");
