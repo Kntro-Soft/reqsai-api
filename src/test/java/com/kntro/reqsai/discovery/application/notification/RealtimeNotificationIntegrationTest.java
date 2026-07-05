@@ -154,7 +154,7 @@ class RealtimeNotificationIntegrationTest extends AbstractIntegrationTest {
         connectHeaders.add("Authorization", authorization);
 
         return stompClient
-                .connectAsync("ws://localhost:" + port + "/ws",
+                .connectAsync("ws://localhost:" + port + "/ws/stomp",
                         new WebSocketHttpHeaders(),
                         connectHeaders,
                         new StompSessionHandlerAdapter() {})
