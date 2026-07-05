@@ -67,6 +67,25 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
   scenario capped at 200. A sibling `SuggestionBroadcastIntegrationTest` connects a real STOMP client to
   `/ws/stomp` (JWT CONNECT via `StompAuthChannelInterceptor`) and asserts the `SUGGESTION_GENERATED` message
   is broadcast on `/topic/sessions/{id}` with its payload intact.
+- **Real-LLM behavioral E2E probe for the suggestion core** — a new `RealLlmSuggestionBehaviorE2ETest`
+  (tag `llm`) exercises the REAL generation pipeline end to end: REAL OpenAI generation + REAL OpenAI
+  embeddings + REAL pgvector (Testcontainers via `AbstractIntegrationTest`), fed crafted transcripts at
+  the segment/text level (audio/STT bypassed) and driven through `RealtimeSuggestionService`. Because
+  the LLM is non-deterministic it is a behavioral PROBE, not a pass/fail gate: each scenario prints a
+  grep-able `[LLM-E2E]` report block (suggestion type(s), draft title(s), targetStoryId, recorded
+  similarity, outcome) and asserts only tolerant invariants (a force flush yields ≥1 suggestion; two
+  distinct capabilities yield ≥2 story drafts; no two persisted stories exceed cosine ~0.90). Scenarios
+  cover short-utterance cadence (char-trigger hold vs. force flush), exact duplicate, slight paraphrase
+  near the 0.84 bar, distinct-but-related false-positive guard (login vs. reset-password), UPDATE on an
+  accepted+indexed capability, the four suggestion types across a rich transcript, and hard cases
+  (near-threshold paraphrase, incremental refinement across two passes, ambiguous → clarifying question).
+  It wires the OpenAI adapters via `@TestPropertySource` (`spring.ai.model.chat/embedding=openai`,
+  `reqsai.ai.{generation,embedding}.provider=openai`; the key flows from `OPENAI_API_KEY` via
+  `application.yml`, never read from a file) and does NOT import the Stub/Programmable configs. Kept out
+  of every normal lane by a dedicated `llmTest` Gradle task (and `excludeTags("llm")` on the default
+  `test`/`unitTest` lanes); `@EnabledIfEnvironmentVariable("OPENAI_API_KEY")` plus an in-body
+  `assumeTrue` make it SKIP (never FAIL) when no key is present. Run with
+  `./gradlew llmTest --max-workers=1`.
 
 ### Added (Suggestion acceptance model — `feature/discovery-session-control`)
 
