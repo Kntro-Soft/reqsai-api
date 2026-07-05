@@ -4,8 +4,12 @@ import com.kntro.reqsai.discovery.application.port.*;
 import com.kntro.reqsai.discovery.domain.model.DiscoverySession;
 import com.kntro.reqsai.shared.application.port.EmbeddingPort;
 import com.kntro.reqsai.discovery.domain.model.Priority;
+import com.kntro.reqsai.discovery.domain.model.Suggestion;
+import com.kntro.reqsai.discovery.domain.model.SuggestionStatus;
 import com.kntro.reqsai.discovery.domain.model.TranscriptSegment;
+import com.kntro.reqsai.discovery.domain.model.UserStory;
 import com.kntro.reqsai.discovery.mothers.DiscoverySessionBuilder;
+import com.kntro.reqsai.discovery.mothers.UserStoryMother;
 import com.kntro.reqsai.workspace.api.GlossaryTermSnapshot;
 import com.kntro.reqsai.workspace.api.ProjectSnapshot;
 import com.kntro.reqsai.workspace.api.WorkspaceModuleApi;
@@ -39,6 +43,8 @@ class RealtimeSuggestionServiceTest {
     @Mock private RequirementGenerationPort generation;
     @Mock private SuggestionCreationService suggestionCreation;
     @Mock private EmbeddingPort embeddingPort;
+    @Mock private UserStoryRepository stories;
+    @Mock private SuggestionRepository suggestions;
 
     @InjectMocks
     private RealtimeSuggestionService service;
@@ -178,6 +184,118 @@ class RealtimeSuggestionServiceTest {
             ArgumentCaptor<String> transcriptCaptor = ArgumentCaptor.forClass(String.class);
             verify(generation).generate(transcriptCaptor.capture(), any(), any());
             assertThat(transcriptCaptor.getValue()).isEqualTo("FIRST. SECOND. THIRD.");
+        }
+    }
+
+    @Nested
+    @DisplayName("Backlog grounding")
+    class BacklogGrounding {
+
+        private final UUID projectId = UUID.randomUUID();
+
+        private GenerationContext contextFor(DiscoverySession session) {
+            when(sessions.findById(session.getId())).thenReturn(Optional.of(session));
+            when(segments.findFinalBySessionIdAfter(session.getId(), 0)).thenReturn(
+                    List.of(finalSegment(session.getId(), 1, "El cliente quiere iniciar sesión.")));
+            when(generation.isAvailable()).thenReturn(true);
+            when(generation.generate(any(), any(), any())).thenReturn(new GenerationResult(List.of()));
+
+            service.suggest(session.getId());
+
+            var captor = ArgumentCaptor.forClass(GenerationContext.class);
+            verify(generation).generate(any(), any(), captor.capture());
+            return captor.getValue();
+        }
+
+        private ProjectSnapshot snapshot() {
+            return new ProjectSnapshot(projectId, "PayApp", null,
+                    List.of(), List.of(), List.of(), List.of(), null, null, List.of(), List.of());
+        }
+
+        @Test
+        @DisplayName("should merge vector-similar and recent stories into the context, nearest first")
+        void should_merge_similar_and_recent_stories() {
+            DiscoverySession session = DiscoverySessionBuilder.aSession().withProjectId(projectId).build();
+            UserStory similar = UserStoryMother.draft().withProjectId(projectId).withTitle("Login clásico").build();
+            UserStory recent = UserStoryMother.draft().withProjectId(projectId).withTitle("Recién aceptada").build();
+            float[] vector = new float[]{0.1f};
+
+            when(embeddingPort.isAvailable()).thenReturn(true);
+            when(embeddingPort.embed(any())).thenReturn(vector);
+            when(stories.findTopSimilar(projectId, vector, 5)).thenReturn(List.of(similar));
+            when(stories.findRecentByProjectId(eq(projectId), anyInt())).thenReturn(List.of(recent, similar));
+            when(workspaceApi.findRelevantContext(eq(projectId), eq(vector), anyInt()))
+                    .thenReturn(Optional.of(snapshot()));
+
+            GenerationContext context = contextFor(session);
+
+            assertThat(context.existingStories())
+                    .extracting(GenerationContext.StorySummary::title)
+                    .containsExactly("Login clásico", "Recién aceptada"); // deduped by id, nearest first
+            assertThat(context.existingStories())
+                    .extracting(GenerationContext.StorySummary::id)
+                    .containsExactly(similar.getId(), recent.getId());
+        }
+
+        @Test
+        @DisplayName("should fall back to recent stories when the vector search finds nothing")
+        void should_fall_back_to_recent_stories_when_vector_empty() {
+            DiscoverySession session = DiscoverySessionBuilder.aSession().withProjectId(projectId).build();
+            UserStory recent = UserStoryMother.draft().withProjectId(projectId).withTitle("Historia previa").build();
+            float[] vector = new float[]{0.1f};
+
+            when(embeddingPort.isAvailable()).thenReturn(true);
+            when(embeddingPort.embed(any())).thenReturn(vector);
+            when(stories.findTopSimilar(projectId, vector, 5)).thenReturn(List.of());
+            when(stories.findRecentByProjectId(eq(projectId), anyInt())).thenReturn(List.of(recent));
+            when(workspaceApi.findRelevantContext(eq(projectId), eq(vector), anyInt()))
+                    .thenReturn(Optional.of(snapshot()));
+
+            GenerationContext context = contextFor(session);
+
+            assertThat(context.existingStories())
+                    .extracting(GenerationContext.StorySummary::title)
+                    .containsExactly("Historia previa");
+        }
+
+        @Test
+        @DisplayName("should keep the backlog visible when the embedding call fails")
+        void should_survive_embedding_failure() {
+            DiscoverySession session = DiscoverySessionBuilder.aSession().withProjectId(projectId).build();
+            UserStory recent = UserStoryMother.draft().withProjectId(projectId).withTitle("Historia previa").build();
+
+            when(embeddingPort.isAvailable()).thenReturn(true);
+            when(embeddingPort.embed(any())).thenThrow(new RuntimeException("provider timed out"));
+            when(stories.findRecentByProjectId(eq(projectId), anyInt())).thenReturn(List.of(recent));
+            when(workspaceApi.findProjectSnapshot(projectId)).thenReturn(Optional.of(snapshot()));
+
+            GenerationContext context = contextFor(session);
+
+            assertThat(context.existingStories())
+                    .extracting(GenerationContext.StorySummary::title)
+                    .containsExactly("Historia previa");
+            verify(workspaceApi, never()).findRelevantContext(any(), any(), anyInt());
+        }
+
+        @Test
+        @DisplayName("should list the session's pending suggestions so the model does not repeat them")
+        void should_list_pending_suggestions() {
+            DiscoverySession session = DiscoverySessionBuilder.aSession().withProjectId(projectId).build();
+
+            Suggestion pendingStory = Suggestion.newStory(session.getId(), projectId,
+                    "Login con 2FA", "usuario", "autenticarme con 2FA", "más seguridad", Priority.HIGH, 3);
+            Suggestion pendingQuestion = Suggestion.clarifyingQuestion(session.getId(), projectId,
+                    "¿Qué roles existen?");
+
+            when(embeddingPort.isAvailable()).thenReturn(false);
+            when(suggestions.findAllBySessionIdAndStatus(session.getId(), SuggestionStatus.PENDING))
+                    .thenReturn(List.of(pendingStory, pendingQuestion));
+            when(workspaceApi.findProjectSnapshot(projectId)).thenReturn(Optional.of(snapshot()));
+
+            GenerationContext context = contextFor(session);
+
+            assertThat(context.alreadySuggested())
+                    .containsExactly("Login con 2FA", "¿Qué roles existen?");
         }
     }
 

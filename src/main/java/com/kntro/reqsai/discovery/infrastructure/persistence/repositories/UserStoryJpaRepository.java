@@ -49,4 +49,20 @@ public interface UserStoryJpaRepository extends JpaRepository<UserStory, UUID> {
             limit 1
             """, nativeQuery = true)
     List<Object[]> findClosest(@Param("projectId") UUID projectId, @Param("embedding") String embedding);
+
+    /**
+     * The {@code limit} stories closest (smallest cosine distance) to the given vector within the
+     * project, ordered nearest-first. Feeds the realtime generation context with the slice of the
+     * backlog most relevant to the recent transcript.
+     */
+    @SuppressWarnings("SqlResolve")
+    @Query(value = """
+            select * from user_stories
+            where project_id = :projectId and embedding is not null
+            order by embedding <=> cast(:embedding as vector)
+            limit :limit
+            """, nativeQuery = true)
+    List<UserStory> findTopSimilar(@Param("projectId") UUID projectId,
+                                   @Param("embedding") String embedding,
+                                   @Param("limit") int limit);
 }

@@ -5,9 +5,12 @@ import com.kntro.reqsai.discovery.domain.model.UserStory;
 import com.kntro.reqsai.discovery.infrastructure.persistence.repositories.UserStoryJpaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.StringJoiner;
 import java.util.UUID;
@@ -65,6 +68,18 @@ public class UserStoryRepositoryAdapter implements UserStoryRepository {
                     double similarity = 1.0 - ((Number) row[1]).doubleValue();
                     return new SimilarStory(storyId, similarity);
                 });
+    }
+
+    @Override
+    public List<UserStory> findTopSimilar(UUID projectId, float[] embedding, int limit) {
+        return jpa.findTopSimilar(projectId, toVectorLiteral(embedding), limit);
+    }
+
+    @Override
+    public List<UserStory> findRecentByProjectId(UUID projectId, int limit) {
+        return jpa.findAllByProjectId(projectId,
+                        PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "createdAt")))
+                .getContent();
     }
 
     /** Renders a float[] as a pgvector literal, e.g. {@code [0.12,0.34,...]}. */

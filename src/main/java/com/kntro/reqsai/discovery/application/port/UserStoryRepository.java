@@ -4,6 +4,7 @@ import com.kntro.reqsai.discovery.domain.model.UserStory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -41,6 +42,20 @@ public interface UserStoryRepository {
      * target of an {@code UPDATE_STORY} or {@code EDGE_CASE} suggestion.
      */
     Optional<SimilarStory> findMostSimilar(UUID projectId, float[] embedding);
+
+    /**
+     * Returns up to {@code limit} indexed stories of the project ordered by ascending cosine distance
+     * to {@code embedding}. Used to ground the realtime generation prompt in the most relevant part
+     * of the backlog. Empty when the project has no indexed stories.
+     */
+    List<UserStory> findTopSimilar(UUID projectId, float[] embedding, int limit);
+
+    /**
+     * Returns up to {@code limit} stories of the project, newest first. Embedding-independent
+     * fallback (and in-session recency complement) for the generation context, so the LLM always
+     * sees the backlog even when vector search is unavailable or empty.
+     */
+    List<UserStory> findRecentByProjectId(UUID projectId, int limit);
 
     record SimilarStory(UUID storyId, double similarity) {}
 }
