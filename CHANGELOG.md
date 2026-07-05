@@ -49,6 +49,25 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
   language than the transcript and never mix languages within a story (prompt-only: no clearly-safe
   lightweight server-side language detector is available).
 
+### Tests (Suggestion quality — `feature/discovery-session-control`)
+
+- **End-to-end suggestion-quality integration coverage against real pgvector + advisory lock** — a new
+  `SuggestionQualityRedDefectIntegrationTest` (tag `integration`, on the singleton `pgvector/pgvector:pg16`
+  Testcontainer via `AbstractIntegrationTest`) proves the red-defect fixes against a REAL Postgres, stubbing
+  only the two non-deterministic externals: a test-programmable LLM `RequirementGenerationPort`
+  (`ProgrammableGenerationConfig`, which also captures the `GenerationContext` handed to it) and a
+  concept-tagged deterministic `EmbeddingPort` (`ProgrammableEmbeddingConfig`, `[[concept]]` markers so
+  paraphrases score cosine ≈ 0.97 ≥ 0.84 and distinct texts ≈ 0, with no OpenAI/Gemini calls). It asserts
+  real DB state and the returned suggestions for: accepted-twin `NEW_STORY` → `UPDATE_STORY` downgrade with
+  the similarity recorded and no duplicate story row; advisory-lock serialization of two overlapping
+  concurrent `REQUIRES_NEW` realtime passes (exactly one suggestion — the machine-proof the mocked unit test
+  cannot give); a pending-twin paraphrase dropped with the pending id carried into the generation context;
+  the short-utterance char-trigger hold vs. force/stop flush release; the targetless `EDGE_CASE` accept
+  rejected `EDGE_CASE_WITHOUT_TARGET` (422) with no standalone story minted; and the over-long edge-case
+  scenario capped at 200. A sibling `SuggestionBroadcastIntegrationTest` connects a real STOMP client to
+  `/ws/stomp` (JWT CONNECT via `StompAuthChannelInterceptor`) and asserts the `SUGGESTION_GENERATED` message
+  is broadcast on `/topic/sessions/{id}` with its payload intact.
+
 ### Added (Suggestion acceptance model — `feature/discovery-session-control`)
 
 - **Scenario labels on every generated criterion** — the extraction prompt now asks the model for a
