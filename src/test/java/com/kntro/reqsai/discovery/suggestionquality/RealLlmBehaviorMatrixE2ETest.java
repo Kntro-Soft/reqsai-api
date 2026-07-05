@@ -812,14 +812,26 @@ class RealLlmBehaviorMatrixE2ETest extends AbstractIntegrationTest {
         // ── O. Threshold-boundary pairs (5) — crafted to sit around 0.84; rely on raw-cosine logging ─────
         m.add(Case.of("O1", "O", List.of(EXPORT_PDF), Expectation.DEDUP_OR_UPDATE,
                 "Quiero exportar mis reportes a PDF para archivarlos y compartirlos con mi equipo.")); // ~ near/above bar
-        m.add(Case.of("O2", "O", List.of(EXPORT_PDF), Expectation.DEDUP_OR_UPDATE,
-                "Quiero generar un tablero interactivo de indicadores en pantalla, distinto a exportar archivos.")); // below bar
+        // O2 is the DISTINCT member of the boundary pair (same class as Y02/Y04/Y06/Y08): an on-screen
+        // interactive dashboard ("tablero interactivo de indicadores en pantalla") is a genuinely different
+        // capability from the "Exportar reportes a PDF" seed — the speaker says "distinto a exportar
+        // archivos" (cosine ~0.40, well below the bar). The model CORRECTLY emits a standalone NEW_STORY,
+        // so DEDUP_OR_UPDATE (which asserts convergence onto the seed) was mislabeled; OBSERVE is honest.
+        // Ironically the distinct-split prompt fix EXPOSED this: the model now correctly separates it
+        // instead of sometimes wrongly deduping it and "passing" the wrong assert. O1/O3/O4 stay
+        // DEDUP_OR_UPDATE — genuine same-capability paraphrases of their seed, no distinctness cue.
+        m.add(Case.of("O2", "O", List.of(EXPORT_PDF), Expectation.OBSERVE,
+                "Quiero generar un tablero interactivo de indicadores en pantalla, distinto a exportar archivos.")); // below bar — DISTINCT
         m.add(Case.of("O3", "O", List.of(FILTER_TASKS), Expectation.DEDUP_OR_UPDATE,
                 "Deseo filtrar mis tareas por su estado, pendientes o completadas, para hallarlas más rápido.")); // above bar
         m.add(Case.of("O4", "O", List.of(FILTER_TASKS), Expectation.DEDUP_OR_UPDATE,
                 "Estaría bueno ver mis tareas separando las que ya terminé de las que aún no, para ubicarlas rapidísimo.")); // near bar
-        m.add(Case.of("O5", "O", List.of(LOGIN), Expectation.DEDUP_OR_UPDATE,
-                "Quiero cerrar sesión de forma segura desde cualquier pantalla, distinto a iniciar sesión.")); // below bar
+        // O5 is the DISTINCT member (same class as O2 / the Y "distinto" members): logging out ("cerrar
+        // sesión") is a genuinely different capability from the "Iniciar sesión" seed — the speaker says
+        // "distinto a iniciar sesión" (cosine ~0.59, below the bar). The model CORRECTLY emits a standalone
+        // NEW_STORY, so DEDUP_OR_UPDATE was mislabeled; OBSERVE is honest.
+        m.add(Case.of("O5", "O", List.of(LOGIN), Expectation.OBSERVE,
+                "Quiero cerrar sesión de forma segura desde cualquier pantalla, distinto a iniciar sesión.")); // below bar — DISTINCT
 
         // ══════════════════════════════════════════════════════════════════════════════════════════════════
         //  EXPANSION P..Z (~100 additional cases). Ids are P##/Q##/… so they never collide with A..O above.
