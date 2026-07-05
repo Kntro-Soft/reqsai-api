@@ -11,6 +11,51 @@ follows [Semantic Versioning](https://semver.org/).
 
 _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in progress._
 
+### Added (Realtime suggestion quality iteration — `feature/discovery-session-control`)
+
+- **Char-or-time streaming cadence** — realtime suggestions only fired once the accrued past-watermark
+  transcript crossed a 300-char threshold, so a burst of short segments (a meeting's back-and-forth)
+  piled up and arrived as one late batch after the analyst had moved on. A pass now runs when EITHER
+  ~180 new chars have accrued (`discovery.realtime.min-transcript-chars`, default lowered 300 → 180)
+  OR ~22s have elapsed since the last pass with new transcript still waiting
+  (`discovery.realtime.max-transcript-age-seconds`, new, default 22) — whichever first, never with zero
+  new content; the stop-flush still bypasses both. Records `last_suggested_at` on the session (tenant
+  migration V19) to drive the elapsed-time decision; the first pass still waits for the char threshold.
+  Each suggestion is still persisted in its own `REQUIRES_NEW` transaction and pushed over WS the
+  moment it commits, so the lower trigger directly shortens time-to-first-suggestion.
+- **Two-layer near-duplicate dedup** — the guard compared only trim+lowercase titles, so identical
+  drafts differing by an accent ("Recuperar contraseña" vs "…contrasena") slipped through and
+  paraphrases across passes ("Autenticación de dos factores" vs "Soporte para 2FA en inicio de sesión")
+  were invisible. `normalize()` now accent-, punctuation- and whitespace-folds the exact-match key, and
+  each draft is embedded once and compared by cosine against the session's PENDING drafts plus drafts
+  already accepted earlier in the same pass, dropping anything at/above a configurable
+  `discovery.realtime.dedup-similarity-threshold` (0.84, just under the 0.85 strict-duplicate gate to
+  catch paraphrases). The single draft embedding is reused by classification instead of embedding twice.
+- **`UPDATE_STORY` reliably chosen** — the prompt now lists the bilingual verbal cues that signal a
+  revisit/extension of an existing story ("volviendo a…", "además … debe…", "también quiero que …
+  soporte…", "going back to…", "also it should…") and maps them to `UPDATE_STORY`; an explicit
+  `UPDATE_STORY` whose target is missing/hallucinated resolves to the closest existing story by
+  embedding, demoting to `NEW_STORY` only when the backlog is genuinely empty (was demoting too
+  eagerly). A debug log records the raw LLM type + `targetStoryId` before/after validation so "never
+  chosen" is diagnosable.
+- **Quality bar and granularity guidance** — garbled speech-to-text ("inicio de sesión" → "inicio de
+  decisión") produced nonsense like "Secure Decision Start". A QUALITY-BAR prompt rule tells the model
+  to emit nothing for garbled/truncated fragments, and a minimal, clearly-safe server check drops any
+  draft missing a core field (title/role/action/benefit) rather than letting the factory throw a false
+  "failure". A GRANULARITY rule with bilingual examples routes session-maintenance / error-message /
+  validation / security-constraint facets ("mantener la sesión activa") to `EDGE_CASE`/`UPDATE_STORY`
+  of the parent capability instead of standalone stories. The ALREADY-SUGGESTED block is now a hard
+  "do not repeat anything equivalent in any wording or language" constraint.
+- **Draft acceptance criteria carried to the accepted story** — the LLM proposes Given/When/Then
+  criteria per story but the realtime path dropped them, so the accepted story had none. `Suggestion`
+  now stores the proposed criteria as a structured `List<DraftCriterion>` (`{ scenario?, given, when,
+  then }`) in a JSONB column (tenant migration V20), mapped with `@JdbcTypeCode(SqlTypes.JSON)` mirroring
+  `UserStory`'s pgvector embedding; a criterion missing given/when/then is dropped, never fabricated.
+  The `NEW_STORY` prompt asks for 2–4 explicit Given/When/Then criteria in the transcript language. The
+  criteria flow onto `SuggestionResponse` and the `SUGGESTION_GENERATED` WebSocket message
+  (`draftAcceptanceCriteria: [{ scenario, given, when, then }]`, empty for other types); on accept the
+  `NEW_STORY` handler adds each as a real `AcceptanceCriterion` via the existing `UserStory` API.
+
 ### Added (Realtime suggestion grounding — `feature/discovery-session-control`)
 
 - **Backlog-grounded generation context** — the realtime suggestion prompt previously carried only project
