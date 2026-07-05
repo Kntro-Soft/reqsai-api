@@ -77,7 +77,7 @@ public class DiscoverySession extends AggregateRoot {
         this.language = Assert.notNull(language, "language");
         this.status = SessionStatus.DRAFT;
         this.startedAt = Instant.now();
-        registerEvent(DiscoverySessionCreatedEvent.of(getId(), projectId));
+        registerEvent(DiscoverySessionCreatedEvent.of(getId(), projectId, this.title, language.value(), this.startedAt));
     }
 
     /** Batch/demo path: saves the pre-recorded transcript and transitions {@code DRAFT → STOPPED}. */
@@ -118,7 +118,7 @@ public class DiscoverySession extends AggregateRoot {
         Assert.isTrue(this.status == SessionStatus.DRAFT, "status", "startRecording requires DRAFT but was " + this.status, DiscoveryError.INVALID_SESSION_STATUS);
         this.status = SessionStatus.RECORDING;
         this.startedAt = Assert.notNull(now, "now");
-        registerEvent(DiscoverySessionRecordingStartedEvent.of(getId(), projectId));
+        registerEvent(DiscoverySessionRecordingStartedEvent.of(getId(), projectId, title, language.value(), startedAt));
     }
 
     /** Temporarily pauses recording: {@code RECORDING → PAUSED}. */
@@ -127,7 +127,7 @@ public class DiscoverySession extends AggregateRoot {
                 "status", "pauseRecording requires RECORDING but was " + this.status,
                 DiscoveryError.INVALID_SESSION_STATUS);
         this.status = SessionStatus.PAUSED;
-        registerEvent(DiscoverySessionRecordingPausedEvent.of(getId(), projectId));
+        registerEvent(DiscoverySessionRecordingPausedEvent.of(getId(), projectId, title, language.value(), startedAt));
     }
 
     /** Resumes a paused recording: {@code PAUSED → RECORDING}. */
@@ -136,7 +136,7 @@ public class DiscoverySession extends AggregateRoot {
                 "status", "resumeRecording requires PAUSED but was " + this.status,
                 DiscoveryError.INVALID_SESSION_STATUS);
         this.status = SessionStatus.RECORDING;
-        registerEvent(DiscoverySessionRecordingResumedEvent.of(getId(), projectId));
+        registerEvent(DiscoverySessionRecordingResumedEvent.of(getId(), projectId, title, language.value(), startedAt));
     }
 
     /**
@@ -166,7 +166,7 @@ public class DiscoverySession extends AggregateRoot {
         Assert.isTrue(this.status == SessionStatus.RECORDING || this.status == SessionStatus.PAUSED, "status", "stopRecording requires RECORDING or PAUSED but was " + this.status, DiscoveryError.INVALID_SESSION_STATUS);
         this.status = SessionStatus.STOPPED;
         this.endedAt = Assert.notNull(now, "now");
-        registerEvent(DiscoverySessionRecordingStoppedEvent.of(getId(), projectId));
+        registerEvent(DiscoverySessionRecordingStoppedEvent.of(getId(), projectId, title, language.value(), startedAt));
     }
 
     /** Advances the realtime-suggestion watermark; never moves it backwards. */

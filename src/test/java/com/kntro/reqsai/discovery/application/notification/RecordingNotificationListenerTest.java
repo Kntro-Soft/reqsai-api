@@ -43,7 +43,7 @@ class RecordingNotificationListenerTest {
     @DisplayName("should broadcast RECORDING_STARTED")
     void should_notify_recording_started() {
         // Act
-        listener.onRecordingStarted(DiscoverySessionRecordingStartedEvent.of(sessionId, projectId));
+        listener.onRecordingStarted(DiscoverySessionRecordingStartedEvent.of(sessionId, projectId, "Kickoff", "es-PE", java.time.Instant.now()));
 
         // Assert
         assertThat(captureType()).isEqualTo(SessionEventType.RECORDING_STARTED);
@@ -53,7 +53,7 @@ class RecordingNotificationListenerTest {
     @DisplayName("should broadcast RECORDING_PAUSED")
     void should_notify_recording_paused() {
         // Act
-        listener.onRecordingPaused(DiscoverySessionRecordingPausedEvent.of(sessionId, projectId));
+        listener.onRecordingPaused(DiscoverySessionRecordingPausedEvent.of(sessionId, projectId, "Kickoff", "es-PE", java.time.Instant.now()));
 
         // Assert
         assertThat(captureType()).isEqualTo(SessionEventType.RECORDING_PAUSED);
@@ -63,7 +63,7 @@ class RecordingNotificationListenerTest {
     @DisplayName("should broadcast RECORDING_RESUMED")
     void should_notify_recording_resumed() {
         // Act
-        listener.onRecordingResumed(DiscoverySessionRecordingResumedEvent.of(sessionId, projectId));
+        listener.onRecordingResumed(DiscoverySessionRecordingResumedEvent.of(sessionId, projectId, "Kickoff", "es-PE", java.time.Instant.now()));
 
         // Assert
         assertThat(captureType()).isEqualTo(SessionEventType.RECORDING_RESUMED);
@@ -73,7 +73,7 @@ class RecordingNotificationListenerTest {
     @DisplayName("should broadcast RECORDING_STOPPED")
     void should_notify_recording_stopped() {
         // Act
-        listener.onRecordingStopped(DiscoverySessionRecordingStoppedEvent.of(sessionId, projectId));
+        listener.onRecordingStopped(DiscoverySessionRecordingStoppedEvent.of(sessionId, projectId, "Kickoff", "es-PE", java.time.Instant.now()));
 
         // Assert
         assertThat(captureType()).isEqualTo(SessionEventType.RECORDING_STOPPED);

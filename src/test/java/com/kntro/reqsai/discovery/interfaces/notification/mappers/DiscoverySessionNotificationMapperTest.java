@@ -35,10 +35,10 @@ class DiscoverySessionNotificationMapperTest {
     @DisplayName("should map recording lifecycle events to the matching status-changed type")
     void should_map_recording_events() {
         // Arrange
-        var started = DiscoverySessionRecordingStartedEvent.of(sessionId, projectId);
-        var paused = DiscoverySessionRecordingPausedEvent.of(sessionId, projectId);
-        var resumed = DiscoverySessionRecordingResumedEvent.of(sessionId, projectId);
-        var stopped = DiscoverySessionRecordingStoppedEvent.of(sessionId, projectId);
+        var started = DiscoverySessionRecordingStartedEvent.of(sessionId, projectId, "Kickoff", "es-PE", java.time.Instant.now());
+        var paused = DiscoverySessionRecordingPausedEvent.of(sessionId, projectId, "Kickoff", "es-PE", java.time.Instant.now());
+        var resumed = DiscoverySessionRecordingResumedEvent.of(sessionId, projectId, "Kickoff", "es-PE", java.time.Instant.now());
+        var stopped = DiscoverySessionRecordingStoppedEvent.of(sessionId, projectId, "Kickoff", "es-PE", java.time.Instant.now());
 
         // Act & Assert
         assertStatus(DiscoverySessionNotificationMapper.toMessage(started), SessionEventType.RECORDING_STARTED, started.occurredAt());
