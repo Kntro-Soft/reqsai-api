@@ -43,6 +43,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -76,15 +77,25 @@ import static org.springframework.util.StringUtils.hasText;
  * draft via the REAL {@link EmbeddingPort} and computes cosine directly against each seeded story's
  * stored embedding, logging the actual number (never {@code null}).
  *
- * <h2>Probe, not a gate</h2>
- * The LLM is non-deterministic, so nearly every case is {@code OBSERVE} (logged, never fails the build) so
- * the whole matrix always completes and produces a full map. Hard assertions fire ONLY for the few
- * unambiguous invariants:
+ * <h2>Probe AND gate</h2>
+ * Every case still emits its {@code [MATRIX]} map line (with the raw cosine) FIRST, so a failure never
+ * loses the map. After the retrieval-augmented dedup/UPDATE fix, the behavioral categories now carry
+ * TOLERANT assertions (dedup-or-update counts as success; the invariant is asserted, not the exact
+ * wording) so a green matrix means the pipeline behaves CORRECTLY, not merely that it ran:
  * <ul>
- *   <li>{@code EXACT_DUP} — a verbatim-duplicated capability yields ≤ 1 suggestion;</li>
- *   <li>{@code MULTI_DISTINCT} — two genuinely-distinct capabilities yield ≥ 2 story drafts;</li>
+ *   <li>{@code EXACT_DUP} — a verbatim-duplicated capability yields ≤ 1 suggestion (HARD);</li>
+ *   <li>{@code MULTI_DISTINCT} — two genuinely-distinct capabilities yield ≥ 2 story drafts (HARD);</li>
+ *   <li>{@code DEDUP_OR_UPDATE} / {@code UPDATE} / {@code EDGE_CASE} — a paraphrase of, or a detail on,
+ *       a seeded story must CONVERGE (deduped away, or UPDATE/EDGE targeting the seed) — never a
+ *       standalone NEW_STORY duplicate;</li>
+ *   <li>{@code CLARIFY} — an ambiguous requirement yields a CLARIFYING_QUESTION (or at least not a
+ *       confident standalone NEW_STORY);</li>
+ *   <li>{@code GARBAGE} — pure noise yields no story draft;</li>
+ *   <li>{@code SESSION_LANGUAGE} — an off-language transcript still yields Spanish stories;</li>
  *   <li>every case — no two persisted stories exceed cosine ~0.97 (wrongly merged / minted duplicate).</li>
  * </ul>
+ * Genuinely model-dependent mapping cases (incremental refinement, contradiction, long transcripts,
+ * embedded-noise extraction) stay {@code OBSERVE}.
  *
  * <h2>Wiring / skip / run</h2>
  * Real OpenAI generation + embeddings via the same property flips as the sibling probes; real pgvector
@@ -144,24 +155,32 @@ class RealLlmBehaviorMatrixE2ETest extends AbstractIntegrationTest {
     // ── Expectations ─────────────────────────────────────────────────────────────────────────────────────
 
     /**
-     * What we expect (and how strictly). All but {@code EXACT_DUP} and {@code MULTI_DISTINCT} are OBSERVE
-     * (logged, never failing) because they depend on model judgement — the point is to MAP behavior.
+     * What we expect (and how strictly). After the retrieval-augmented dedup/UPDATE fix, the categories
+     * that used to be pure {@code OBSERVE} now encode the DESIRED behavior as TOLERANT assertions
+     * (dedup-or-update counts as success; the invariant is asserted, not the exact wording), so a green
+     * matrix means the pipeline behaves correctly — not merely that it ran. Only {@code OBSERVE} and
+     * {@code CADENCE_HOLD}-adjacent mapping cases remain non-asserting.
      */
     private enum Expectation {
         /** Verbatim duplicate ⇒ ≤ 1 suggestion (HARD). */
         EXACT_DUP,
         /** ≥ 2 genuinely-distinct capabilities ⇒ ≥ 2 story drafts (HARD). */
         MULTI_DISTINCT,
-        /** Paraphrase of a seeded story ⇒ dedup or UPDATE (OBSERVE — report raw cosine vs. bar). */
+        /**
+         * Paraphrase of a seeded story ⇒ must CONVERGE: dedup (no standalone NEW draft) OR UPDATE/EDGE
+         * targeting a seeded story — NOT a confident standalone NEW_STORY duplicate. Tolerant assertion.
+         */
         DEDUP_OR_UPDATE,
-        /** A new detail on a seeded story ⇒ UPDATE/EDGE targeting it (OBSERVE). */
+        /** A new detail on a seeded story ⇒ UPDATE/EDGE (converges onto the backlog), targeting it. */
         UPDATE,
-        /** An exception of a seeded story ⇒ EDGE_CASE (OBSERVE). */
+        /** An exception of a seeded story ⇒ EDGE_CASE / UPDATE on it (converges), not a standalone NEW. */
         EDGE_CASE,
-        /** Ambiguous/underspecified ⇒ a CLARIFYING_QUESTION (OBSERVE). */
+        /** Ambiguous/underspecified ⇒ a CLARIFYING_QUESTION (or at least not a confident NEW_STORY). */
         CLARIFY,
-        /** Garbage / mistranscription ⇒ ideally nothing coherent (OBSERVE). */
+        /** Pure garbage / noise ⇒ no story draft (and, for pure noise, ideally nothing at all). */
         GARBAGE,
+        /** Off-language transcript in an es session ⇒ produced stories written in the session language. */
+        SESSION_LANGUAGE,
         /** Below the char trigger without force ⇒ nothing yet (OBSERVE the cadence hold). */
         CADENCE_HOLD,
         /** Anything else worth mapping — pure OBSERVE. */
@@ -263,11 +282,12 @@ class RealLlmBehaviorMatrixE2ETest extends AbstractIntegrationTest {
         // Raw cosine of each produced story draft to each seeded story — the whole point of the matrix.
         RawCosine raw = rawTopCosineToSeed(produced, seeded);
 
+        Set<UUID> seededIds = seeded.stream().map(SeededStory::id).collect(Collectors.toSet());
         boolean converged = produced.isEmpty()
                 || produced.stream().anyMatch(s ->
                         s.getType() == SuggestionType.UPDATE_STORY || s.getType() == SuggestionType.EDGE_CASE);
 
-        Outcome outcome = evaluate(c, produced);
+        Outcome outcome = evaluate(c, produced, seededIds);
 
         // ── The one greppable, stable line per case ──────────────────────────────────────────────────────
         System.out.println(String.format(
@@ -275,16 +295,44 @@ class RealLlmBehaviorMatrixE2ETest extends AbstractIntegrationTest {
                 c.category(), c.id(), c.seedTitles(), c.shortInput(),
                 describeCompact(produced), raw.render(), converged, c.expect(), outcome));
 
-        // ── Hard invariants ONLY (everything else is OBSERVE and already logged) ───────────────────────────
-        if (c.expect() == Expectation.EXACT_DUP) {
-            assertThat(storyDrafts(produced))
+        // ── Assertions ────────────────────────────────────────────────────────────────────────────────────
+        // A/D stay HARD invariants; the rest are TOLERANT behavioral assertions (dedup-or-update counts as
+        // success, invariant asserted not exact wording) so green means CORRECT while surviving LLM
+        // non-determinism. The [MATRIX] line above is always logged first, so a failure still leaves the map.
+        switch (c.expect()) {
+            case EXACT_DUP -> assertThat(storyDrafts(produced))
                     .as("[%s] a verbatim-duplicated capability must not persist two near-identical story drafts", c.id())
                     .hasSizeLessThanOrEqualTo(1);
-        }
-        if (c.expect() == Expectation.MULTI_DISTINCT) {
-            assertThat(storyDrafts(produced).size())
+            case MULTI_DISTINCT -> assertThat(storyDrafts(produced).size())
                     .as("[%s] genuinely distinct capabilities must yield >=2 story drafts (not wrongly merged)", c.id())
                     .isGreaterThanOrEqualTo(2);
+            case DEDUP_OR_UPDATE -> assertThat(convergesOntoSeed(produced, seededIds))
+                    .as("[%s] a paraphrase of a seeded story must CONVERGE (dedup, or UPDATE/EDGE targeting the "
+                            + "seeded story) — not a standalone NEW_STORY duplicate. produced=%s",
+                            c.id(), describeCompact(produced))
+                    .isTrue();
+            case UPDATE, EDGE_CASE -> assertThat(convergesOntoSeed(produced, seededIds))
+                    .as("[%s] a detail/exception on a seeded story must converge to UPDATE/EDGE targeting it "
+                            + "(not a standalone NEW_STORY). produced=%s", c.id(), describeCompact(produced))
+                    .isTrue();
+            case CLARIFY -> assertThat(clarifies(produced))
+                    .as("[%s] an ambiguous/underspecified/conflicting requirement must yield a CLARIFYING_QUESTION "
+                            + "(or at least NOT a confident standalone NEW_STORY). produced=%s",
+                            c.id(), describeCompact(produced))
+                    .isTrue();
+            case GARBAGE -> assertThat(storyDrafts(produced))
+                    .as("[%s] pure garbage/noise must not produce a story draft. produced=%s",
+                            c.id(), describeCompact(produced))
+                    .isEmpty();
+            case SESSION_LANGUAGE -> {
+                for (Suggestion s : storyDrafts(produced)) {
+                    assertThat(looksSpanish(s))
+                            .as("[%s] story must be written in the session language (es); draft='%s'",
+                                    c.id(), draftText(s))
+                            .isTrue();
+                }
+            }
+            case CADENCE_HOLD, OBSERVE -> { /* mapping only — no behavioral assertion */ }
         }
         // Universal safety net: no two persisted stories may be near-identical. Stories are only persisted
         // on accept, so in this suggestion-only pass this asserts against any seeded backlog rows — a
@@ -293,13 +341,73 @@ class RealLlmBehaviorMatrixE2ETest extends AbstractIntegrationTest {
         assertNoStoriesWronglyMerged(projectId);
     }
 
-    /** PASS/FAIL for the hard cases; OBSERVE for everything else. */
-    private Outcome evaluate(Case c, List<Suggestion> produced) {
+    /** PASS/FAIL for every asserted category; OBSERVE for the mapping-only cases. */
+    private Outcome evaluate(Case c, List<Suggestion> produced, Set<UUID> seededIds) {
         return switch (c.expect()) {
             case EXACT_DUP -> storyDrafts(produced).size() <= 1 ? Outcome.PASS : Outcome.FAIL;
             case MULTI_DISTINCT -> storyDrafts(produced).size() >= 2 ? Outcome.PASS : Outcome.FAIL;
-            default -> Outcome.OBSERVE;
+            case DEDUP_OR_UPDATE, UPDATE, EDGE_CASE ->
+                    convergesOntoSeed(produced, seededIds) ? Outcome.PASS : Outcome.FAIL;
+            case CLARIFY -> clarifies(produced) ? Outcome.PASS : Outcome.FAIL;
+            case GARBAGE -> storyDrafts(produced).isEmpty() ? Outcome.PASS : Outcome.FAIL;
+            case SESSION_LANGUAGE ->
+                    storyDrafts(produced).stream().allMatch(RealLlmBehaviorMatrixE2ETest::looksSpanish)
+                            ? Outcome.PASS : Outcome.FAIL;
+            case CADENCE_HOLD, OBSERVE -> Outcome.OBSERVE;
         };
+    }
+
+    // ── Tolerant behavioral predicates ──────────────────────────────────────────────────────────────────
+
+    /**
+     * True when the pass converged onto the seeded backlog rather than spawning a standalone NEW_STORY
+     * duplicate: either it produced no NEW_STORY story draft at all (the paraphrase was deduped away, or
+     * downgraded to UPDATE/EDGE), or every produced UPDATE/EDGE draft points at a seeded story. Tolerant:
+     * an empty result (fully deduped) counts as convergence; a validated UPDATE targeting a seed counts.
+     */
+    private static boolean convergesOntoSeed(List<Suggestion> produced, Set<UUID> seededIds) {
+        List<Suggestion> drafts = storyDrafts(produced);
+        boolean hasStandaloneNew = drafts.stream().anyMatch(s -> s.getType() == SuggestionType.NEW_STORY);
+        boolean hasSeedTargetedUpdate = drafts.stream().anyMatch(s ->
+                (s.getType() == SuggestionType.UPDATE_STORY || s.getType() == SuggestionType.EDGE_CASE)
+                        && s.getTargetStoryId() != null && seededIds.contains(s.getTargetStoryId()));
+        // Converged when it did NOT mint a standalone NEW duplicate, OR it explicitly updated a seed.
+        return !hasStandaloneNew || hasSeedTargetedUpdate;
+    }
+
+    /** True when the pass asked a clarifying question OR at least did not assert a confident NEW_STORY. */
+    private static boolean clarifies(List<Suggestion> produced) {
+        boolean asked = produced.stream().anyMatch(s -> s.getType() == SuggestionType.CLARIFYING_QUESTION);
+        boolean confidentNewStory = produced.stream().anyMatch(s -> s.getType() == SuggestionType.NEW_STORY);
+        return asked || !confidentNewStory;
+    }
+
+    /** The concatenated draft text of a suggestion, for language checks. */
+    private static String draftText(Suggestion s) {
+        return String.join(" ",
+                s.getDraftTitle() == null ? "" : s.getDraftTitle(),
+                s.getDraftRole() == null ? "" : s.getDraftRole(),
+                s.getDraftAction() == null ? "" : s.getDraftAction(),
+                s.getDraftBenefit() == null ? "" : s.getDraftBenefit());
+    }
+
+    /**
+     * Lightweight Spanish-language heuristic for the session-language assertion: the draft contains a
+     * Spanish function word / accent / inverted punctuation and NOT a run of common English-only markers.
+     * Tolerant by design — it catches a story wholesale written in English (the K regression) without
+     * demanding perfect grammar, and a proper noun or a stray loanword does not trip it.
+     */
+    private static boolean looksSpanish(Suggestion s) {
+        String t = " " + draftText(s).toLowerCase() + " ";
+        boolean spanishSignal = t.matches("(?s).*[áéíóúñ¿¡].*")
+                || t.contains(" el ") || t.contains(" la ") || t.contains(" los ") || t.contains(" las ")
+                || t.contains(" para ") || t.contains(" con ") || t.contains(" quiere ") || t.contains(" quiero ")
+                || t.contains(" usuario ") || t.contains(" iniciar ") || t.contains(" sesión ")
+                || t.contains(" correo ") || t.contains(" contraseña ") || t.contains(" mis ") || t.contains(" del ");
+        boolean englishSignal = t.contains(" the ") || t.contains(" user wants ") || t.contains(" i want to ")
+                || t.contains(" with ") || t.contains(" password ") || t.contains(" email ")
+                || t.contains(" so that ") || t.contains(" login ");
+        return spanishSignal && !englishSignal;
     }
 
     private enum Outcome { PASS, FAIL, OBSERVE }
@@ -512,29 +620,33 @@ class RealLlmBehaviorMatrixE2ETest extends AbstractIntegrationTest {
                         + "buscador de productos por nombre para el catálogo público."));
 
         // ── J. Mistranscription / garbage (5) ────────────────────────────────────────────────────────────
+        // J1/J3/J4 are PURE noise ⇒ hard GARBAGE (no story). J2 embeds a REAL capability (export to PDF) in
+        // noise ⇒ OBSERVE (the model should extract the real capability, not drop it). J5 is a truncated
+        // real attempt ⇒ OBSERVE (may become a vague story or a clarifying question — model's call).
         m.add(Case.of("J1", "J", List.of(), Expectation.GARBAGE,
                 "asdf qwer brrr flurbo nixmato greldun por el sistema traqueado del florbo con manzanas cuánticas."));
-        m.add(Case.of("J2", "J", List.of(), Expectation.GARBAGE,
+        m.add(Case.of("J2", "J", List.of(), Expectation.OBSERVE,
                 "Quiero exportar los reportes a and then the quick brown fox jumps over eh a PDF para el equipo."));
         m.add(Case.of("J3", "J", List.of(), Expectation.GARBAGE,
                 "Eh, este, o sea, ya, este, ajá, mmm, ya pues, este, o sea, ¿no?, ya."));
         m.add(Case.of("J4", "J", List.of(), Expectation.GARBAGE,
                 "12345 67890 ID-9981 REF-0042 0x3F 3.1416 99999 SKU-77."));
-        m.add(Case.of("J5", "J", List.of(), Expectation.GARBAGE,
+        m.add(Case.of("J5", "J", List.of(), Expectation.OBSERVE,
                 "Entonces lo que necesitamos es que el usuario pueda, este, cuando entre al sistema y quiera, o sea, para "
                         + "que"));
 
-        // ── K. Language (4) ──────────────────────────────────────────────────────────────────────────────
-        m.add(Case.of("K1", "K", List.of(), Expectation.OBSERVE,
+        // ── K. Language (4) — session is es-PE; produced stories must be in Spanish regardless of the
+        //      transcript's language (English K1, mixed K2, es-ES K3, Portuguese K4). ─────────────────────
+        m.add(Case.of("K1", "K", List.of(), Expectation.SESSION_LANGUAGE,
                 "The user wants to log in with email and password to access the platform, and also reset the password via "
                         + "an email link when it is forgotten."));
-        m.add(Case.of("K2", "K", List.of(), Expectation.OBSERVE,
+        m.add(Case.of("K2", "K", List.of(), Expectation.SESSION_LANGUAGE,
                 "El usuario quiere hacer login con su email and password, y también poder ver el order history de sus "
                         + "compras anteriores en la plataforma."));
-        m.add(Case.of("K3", "K", List.of(), Expectation.OBSERVE,
+        m.add(Case.of("K3", "K", List.of(), Expectation.SESSION_LANGUAGE,
                 "El usuario desea autenticarse con su correo electrónico y su contraseña para acceder al ordenador y "
                         + "gestionar sus ficheros, vale, tal como lo haría en España."));
-        m.add(Case.of("K4", "K", List.of(), Expectation.OBSERVE,
+        m.add(Case.of("K4", "K", List.of(), Expectation.SESSION_LANGUAGE,
                 "O usuário quer entrar no sistema com e-mail e senha para acessar a plataforma e ver o histórico de pedidos."));
 
         // ── L. Incremental refinement across passes (5) — multi-utterance in one forced pass ─────────────
