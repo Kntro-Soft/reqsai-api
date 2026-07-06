@@ -55,7 +55,7 @@ class RealtimeSuggestionListenerTest {
     void should_flush_on_stop() {
         UUID sessionId = UUID.randomUUID();
 
-        listener.onRecordingStopped(DiscoverySessionRecordingStoppedEvent.of(sessionId, UUID.randomUUID()));
+        listener.onRecordingStopped(DiscoverySessionRecordingStoppedEvent.of(sessionId, UUID.randomUUID(), "Kickoff", "es-PE", java.time.Instant.now()));
 
         verify(suggestionService).suggest(sessionId, true);
     }

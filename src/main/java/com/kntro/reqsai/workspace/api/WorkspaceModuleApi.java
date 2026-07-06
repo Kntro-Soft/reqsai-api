@@ -28,4 +28,16 @@ public interface WorkspaceModuleApi {
      * via pgvector). Falls back to {@link #findProjectSnapshot} when no embeddings are stored yet.
      */
     Optional<ProjectSnapshot> findRelevantContext(UUID projectId, float[] queryEmbedding, int topK);
+
+    /**
+     * Whether {@code userId} may exercise {@code permission} (a {@code Permission} enum name, e.g.
+     * {@code "SESSION_RUN"}) on the given project of the <em>currently bound tenant</em> (the JWT
+     * {@code orgId} resolved by the authentication filter or WebSocket handshake). Org owners and
+     * admins always pass; a regular member needs a project assignment whose role carries the
+     * permission. Returns {@code false} when no tenant is bound or the organization is unknown.
+     * <p>
+     * This is the cross-context authorization entry point for modules whose routes carry no
+     * {@code orgId} path variable (e.g. discovery's {@code /api/projects/{projectId}/...}).
+     */
+    boolean callerHasProjectPermission(UUID projectId, UUID userId, String permission);
 }

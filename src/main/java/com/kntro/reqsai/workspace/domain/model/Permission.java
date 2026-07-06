@@ -38,5 +38,15 @@ public enum Permission {
 
     // Constraints
     CONSTRAINT_READ,
-    CONSTRAINT_WRITE
+    CONSTRAINT_WRITE,
+
+    // Discovery sessions (elicitation lifecycle — enforced by the discovery context via @authz).
+    // Sessions are permanent immutable history and can never be deleted, so there is no SESSION_DELETE.
+    SESSION_READ,
+    SESSION_RUN,
+    SESSION_DECIDE,
+
+    // User stories (backlog)
+    STORY_READ,
+    STORY_WRITE
 }

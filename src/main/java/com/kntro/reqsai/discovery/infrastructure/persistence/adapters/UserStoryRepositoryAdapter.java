@@ -1,13 +1,18 @@
 package com.kntro.reqsai.discovery.infrastructure.persistence.adapters;
 
 import com.kntro.reqsai.discovery.application.port.UserStoryRepository;
+import com.kntro.reqsai.discovery.application.query.StoryFilter;
 import com.kntro.reqsai.discovery.domain.model.UserStory;
 import com.kntro.reqsai.discovery.infrastructure.persistence.repositories.UserStoryJpaRepository;
+import com.kntro.reqsai.discovery.infrastructure.persistence.specifications.UserStorySpecifications;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.StringJoiner;
 import java.util.UUID;
@@ -40,6 +45,11 @@ public class UserStoryRepositoryAdapter implements UserStoryRepository {
     }
 
     @Override
+    public Page<UserStory> findAllByProjectId(UUID projectId, StoryFilter filter, Pageable pageable) {
+        return jpa.findAll(UserStorySpecifications.forProject(projectId, filter), pageable);
+    }
+
+    @Override
     public Page<UserStory> findAllBySessionId(UUID sessionId, Pageable pageable) {
         return jpa.findAllBySessionId(sessionId, pageable);
     }
@@ -65,6 +75,39 @@ public class UserStoryRepositoryAdapter implements UserStoryRepository {
                     double similarity = 1.0 - ((Number) row[1]).doubleValue();
                     return new SimilarStory(storyId, similarity);
                 });
+    }
+
+    @Override
+    public List<UserStory> findTopSimilar(UUID projectId, float[] embedding, int limit) {
+        return jpa.findTopSimilar(projectId, toVectorLiteral(embedding), limit);
+    }
+
+    @Override
+    public List<SimilarStory> findSimilarCandidates(UUID projectId, float[] embedding,
+                                                    double minSimilarity, int limit) {
+        // pgvector <=> is cosine distance in [0,2]; similarity = 1 - distance, so a similarity floor of
+        // minSimilarity is a distance ceiling of (1 - minSimilarity).
+        double maxDistance = 1.0 - minSimilarity;
+        return jpa.findSimilarWithin(projectId, toVectorLiteral(embedding), maxDistance, limit).stream()
+                .map(row -> {
+                    UUID storyId = UUID.fromString(row[0].toString());
+                    double similarity = 1.0 - ((Number) row[1]).doubleValue();
+                    return new SimilarStory(storyId, similarity);
+                })
+                .toList();
+    }
+
+    @Override
+    public List<UserStory> findRecentByProjectId(UUID projectId, int limit) {
+        return jpa.findAllByProjectId(projectId,
+                        PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "createdAt")))
+                .getContent();
+    }
+
+    @Override
+    public List<UserStory> findUnindexedByProjectId(UUID projectId, int limit) {
+        return jpa.findAllByProjectIdAndEmbeddingIsNull(projectId,
+                PageRequest.of(0, limit, Sort.by(Sort.Direction.ASC, "createdAt")));
     }
 
     /** Renders a float[] as a pgvector literal, e.g. {@code [0.12,0.34,...]}. */

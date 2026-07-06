@@ -11,6 +11,11 @@ import com.kntro.reqsai.discovery.interfaces.notification.messages.SessionRealti
  */
 public enum SessionEventType {
 
+    // Session lifecycle (project-level topic)
+
+    /** A discovery session was created in {@code DRAFT} (broadcast on the project topic). */
+    SESSION_CREATED,
+
     // Recording lifecycle
 
     /** Live recording started ({@code DRAFT → RECORDING}). */
@@ -24,9 +29,6 @@ public enum SessionEventType {
 
     /** Live recording stopped ({@code RECORDING/PAUSED → STOPPED}). */
     RECORDING_STOPPED,
-
-    /** Session reset to DRAFT ({@code COMPLETED/FAILED/STOPPED → DRAFT}). */
-    SESSION_RESET,
 
     // Live streaming capture
 

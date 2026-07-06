@@ -152,6 +152,14 @@ tasks.withType<Test> {
     jvmArgs("-javaagent:${mockitoAgent.asPath}")
 }
 
+// Keep the real-OpenAI 'llm' probe (real tokens, non-deterministic) out of the default `test` lane
+// (which `build`/`check` run). It is opted into ONLY by the dedicated `llmTest` task below. Applied to
+// the `test` task by name so it does not leak into `llmTest` (a global withType exclude would be merged
+// with llmTest's include and — since exclude wins — silently deselect the very tests it must run).
+tasks.named<Test>("test") {
+    useJUnitPlatform { excludeTags("llm") }
+}
+
 // Fast feedback loop: unit/slice tests only — skips Testcontainers integration,
 // architecture, and modularity tests (no Docker, no app-context boot).
 // Run with: ./gradlew unitTest
@@ -160,7 +168,25 @@ val unitTest by tasks.registering(Test::class) {
     group = "verification"
     testClassesDirs = sourceSets.test.get().output.classesDirs
     classpath = sourceSets.test.get().runtimeClasspath
-    useJUnitPlatform { excludeTags("integration", "architecture", "modularity") }
+    useJUnitPlatform { excludeTags("integration", "architecture", "modularity", "llm") }
+}
+
+// Real-LLM behavioral probe — boots the app against REAL OpenAI (generation + embeddings) + pgvector.
+// Costs real tokens and is non-deterministic, so it is NOT part of any other lane. It SKIPS gracefully
+// when OPENAI_API_KEY is unset. Run ONLY this suite, single-forked to keep token usage bounded, with:
+//   ./gradlew llmTest --max-workers=1
+val llmTest by tasks.registering(Test::class) {
+    description = "Runs the real-OpenAI behavioral suggestion probe (tag 'llm'); skips without OPENAI_API_KEY"
+    group = "verification"
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    useJUnitPlatform { includeTags("llm") }
+    // One fork: the probe is deliberately serial so total OpenAI calls stay bounded.
+    maxParallelForks = 1
+    testLogging {
+        events("passed", "skipped", "failed")
+        showStandardStreams = true // surface the [LLM-E2E] report blocks in the console
+    }
 }
 
 // Testcontainers-backed integration / slice tests (need Docker + the Spring context).

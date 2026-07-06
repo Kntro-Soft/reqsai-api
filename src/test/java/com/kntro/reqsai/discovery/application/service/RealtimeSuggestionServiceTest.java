@@ -4,8 +4,12 @@ import com.kntro.reqsai.discovery.application.port.*;
 import com.kntro.reqsai.discovery.domain.model.DiscoverySession;
 import com.kntro.reqsai.shared.application.port.EmbeddingPort;
 import com.kntro.reqsai.discovery.domain.model.Priority;
+import com.kntro.reqsai.discovery.domain.model.Suggestion;
+import com.kntro.reqsai.discovery.domain.model.SuggestionStatus;
 import com.kntro.reqsai.discovery.domain.model.TranscriptSegment;
+import com.kntro.reqsai.discovery.domain.model.UserStory;
 import com.kntro.reqsai.discovery.mothers.DiscoverySessionBuilder;
+import com.kntro.reqsai.discovery.mothers.UserStoryMother;
 import com.kntro.reqsai.workspace.api.GlossaryTermSnapshot;
 import com.kntro.reqsai.workspace.api.ProjectSnapshot;
 import com.kntro.reqsai.workspace.api.WorkspaceModuleApi;
@@ -15,6 +19,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -39,6 +44,10 @@ class RealtimeSuggestionServiceTest {
     @Mock private RequirementGenerationPort generation;
     @Mock private SuggestionCreationService suggestionCreation;
     @Mock private EmbeddingPort embeddingPort;
+    @Mock private UserStoryRepository stories;
+    @Mock private SuggestionRepository suggestions;
+    @Mock private UserStoryReindexService reindexService;
+    @Mock private SessionLockPort sessionLock;
 
     @InjectMocks
     private RealtimeSuggestionService service;
@@ -47,6 +56,7 @@ class RealtimeSuggestionServiceTest {
     void setUp() {
         ReflectionTestUtils.setField(service, "contextTopK", 5);
         ReflectionTestUtils.setField(service, "minTranscriptChars", 0);
+        ReflectionTestUtils.setField(service, "maxTranscriptAgeSeconds", 22);
     }
 
     private DiscoverySession buildSession(UUID projectId) {
@@ -182,6 +192,162 @@ class RealtimeSuggestionServiceTest {
     }
 
     @Nested
+    @DisplayName("Backlog grounding")
+    class BacklogGrounding {
+
+        private final UUID projectId = UUID.randomUUID();
+
+        private GenerationContext contextFor(DiscoverySession session) {
+            when(sessions.findById(session.getId())).thenReturn(Optional.of(session));
+            when(segments.findFinalBySessionIdAfter(session.getId(), 0)).thenReturn(
+                    List.of(finalSegment(session.getId(), 1, "El cliente quiere iniciar sesión.")));
+            when(generation.isAvailable()).thenReturn(true);
+            when(generation.generate(any(), any(), any())).thenReturn(new GenerationResult(List.of()));
+
+            service.suggest(session.getId());
+
+            var captor = ArgumentCaptor.forClass(GenerationContext.class);
+            verify(generation).generate(any(), any(), captor.capture());
+            return captor.getValue();
+        }
+
+        private ProjectSnapshot snapshot() {
+            return new ProjectSnapshot(projectId, "PayApp", null,
+                    List.of(), List.of(), List.of(), List.of(), null, null, List.of(), List.of());
+        }
+
+        @Test
+        @DisplayName("should merge vector-similar and recent stories into the context, nearest first")
+        void should_merge_similar_and_recent_stories() {
+            DiscoverySession session = DiscoverySessionBuilder.aSession().withProjectId(projectId).build();
+            UserStory similar = UserStoryMother.draft().withProjectId(projectId).withTitle("Login clásico").build();
+            UserStory recent = UserStoryMother.draft().withProjectId(projectId).withTitle("Recién aceptada").build();
+            float[] vector = new float[]{0.1f};
+
+            when(embeddingPort.isAvailable()).thenReturn(true);
+            when(embeddingPort.embed(any())).thenReturn(vector);
+            when(stories.findTopSimilar(projectId, vector, 5)).thenReturn(List.of(similar));
+            when(stories.findRecentByProjectId(eq(projectId), anyInt())).thenReturn(List.of(recent, similar));
+            when(workspaceApi.findRelevantContext(eq(projectId), eq(vector), anyInt()))
+                    .thenReturn(Optional.of(snapshot()));
+
+            GenerationContext context = contextFor(session);
+
+            assertThat(context.existingStories())
+                    .extracting(GenerationContext.StorySummary::title)
+                    .containsExactly("Login clásico", "Recién aceptada"); // deduped by id, nearest first
+            assertThat(context.existingStories())
+                    .extracting(GenerationContext.StorySummary::id)
+                    .containsExactly(similar.getId(), recent.getId());
+        }
+
+        @Test
+        @DisplayName("should fall back to recent stories when the vector search finds nothing")
+        void should_fall_back_to_recent_stories_when_vector_empty() {
+            DiscoverySession session = DiscoverySessionBuilder.aSession().withProjectId(projectId).build();
+            UserStory recent = UserStoryMother.draft().withProjectId(projectId).withTitle("Historia previa").build();
+            float[] vector = new float[]{0.1f};
+
+            when(embeddingPort.isAvailable()).thenReturn(true);
+            when(embeddingPort.embed(any())).thenReturn(vector);
+            when(stories.findTopSimilar(projectId, vector, 5)).thenReturn(List.of());
+            when(stories.findRecentByProjectId(eq(projectId), anyInt())).thenReturn(List.of(recent));
+            when(workspaceApi.findRelevantContext(eq(projectId), eq(vector), anyInt()))
+                    .thenReturn(Optional.of(snapshot()));
+
+            GenerationContext context = contextFor(session);
+
+            assertThat(context.existingStories())
+                    .extracting(GenerationContext.StorySummary::title)
+                    .containsExactly("Historia previa");
+        }
+
+        @Test
+        @DisplayName("should keep the backlog visible when the embedding call fails")
+        void should_survive_embedding_failure() {
+            DiscoverySession session = DiscoverySessionBuilder.aSession().withProjectId(projectId).build();
+            UserStory recent = UserStoryMother.draft().withProjectId(projectId).withTitle("Historia previa").build();
+
+            when(embeddingPort.isAvailable()).thenReturn(true);
+            when(embeddingPort.embed(any())).thenThrow(new RuntimeException("provider timed out"));
+            when(stories.findRecentByProjectId(eq(projectId), anyInt())).thenReturn(List.of(recent));
+            when(workspaceApi.findProjectSnapshot(projectId)).thenReturn(Optional.of(snapshot()));
+
+            GenerationContext context = contextFor(session);
+
+            assertThat(context.existingStories())
+                    .extracting(GenerationContext.StorySummary::title)
+                    .containsExactly("Historia previa");
+            verify(workspaceApi, never()).findRelevantContext(any(), any(), anyInt());
+        }
+
+        @Test
+        @DisplayName("should list the session's pending suggestions so the model does not repeat them")
+        void should_list_pending_suggestions() {
+            DiscoverySession session = DiscoverySessionBuilder.aSession().withProjectId(projectId).build();
+
+            Suggestion pendingStory = Suggestion.newStory(session.getId(), projectId,
+                    "Login con 2FA", "usuario", "autenticarme con 2FA", "más seguridad", Priority.HIGH, 3);
+            Suggestion pendingQuestion = Suggestion.clarifyingQuestion(session.getId(), projectId,
+                    "¿Qué roles existen?");
+
+            when(embeddingPort.isAvailable()).thenReturn(false);
+            when(suggestions.findAllBySessionIdAndStatus(session.getId(), SuggestionStatus.PENDING))
+                    .thenReturn(List.of(pendingStory, pendingQuestion));
+            when(workspaceApi.findProjectSnapshot(projectId)).thenReturn(Optional.of(snapshot()));
+
+            GenerationContext context = contextFor(session);
+
+            assertThat(context.alreadySuggested())
+                    .extracting(GenerationContext.PendingSuggestion::summary)
+                    .containsExactly("Login con 2FA", "¿Qué roles existen?");
+            assertThat(context.alreadySuggested())
+                    .extracting(GenerationContext.PendingSuggestion::id)
+                    .containsExactly(pendingStory.getId(), pendingQuestion.getId());
+        }
+    }
+
+    @Nested
+    @DisplayName("Per-session serialization")
+    class Serialization {
+
+        @Test
+        @DisplayName("should take the session lock before reading the watermark/PENDING set")
+        void should_lock_before_reading_watermark() {
+            DiscoverySession session = buildSession(UUID.randomUUID());
+            UUID sessionId = session.getId();
+            when(sessions.findById(sessionId)).thenReturn(Optional.of(session));
+            when(segments.findFinalBySessionIdAfter(sessionId, 0)).thenReturn(
+                    List.of(finalSegment(sessionId, 1, "El cliente quiere reportes.")));
+            when(generation.isAvailable()).thenReturn(true);
+            when(embeddingPort.isAvailable()).thenReturn(false);
+            when(workspaceApi.findProjectSnapshot(any())).thenReturn(Optional.empty());
+            when(generation.generate(any(), any(), any())).thenReturn(new GenerationResult(List.of()));
+
+            service.suggest(sessionId);
+
+            // The lock is the first thing the pass does — before it loads the session or the segments —
+            // so the critical section (watermark + dedup reads through persistence) is serialized.
+            InOrder inOrder = inOrder(sessionLock, sessions, segments);
+            inOrder.verify(sessionLock).lockForSuggestion(sessionId);
+            inOrder.verify(sessions).findById(sessionId);
+            inOrder.verify(segments).findFinalBySessionIdAfter(sessionId, 0);
+        }
+
+        @Test
+        @DisplayName("should still take the lock even when the session is missing (nothing else runs)")
+        void should_lock_even_when_session_missing() {
+            UUID sessionId = UUID.randomUUID();
+            when(sessions.findById(sessionId)).thenReturn(Optional.empty());
+
+            service.suggest(sessionId);
+
+            verify(sessionLock).lockForSuggestion(sessionId);
+            verifyNoInteractions(segments, generation, suggestionCreation);
+        }
+    }
+
+    @Nested
     @DisplayName("Early exits")
     class EarlyExits {
 
@@ -222,6 +388,108 @@ class RealtimeSuggestionServiceTest {
 
             verify(generation, never()).generate(any(), any());
             verifyNoInteractions(suggestionCreation);
+        }
+    }
+
+    @Nested
+    @DisplayName("Cadence")
+    class Cadence {
+
+        /** A short segment whose text is below the char threshold on its own. */
+        private TranscriptSegment shortSegment(UUID sessionId, int sequence) {
+            return finalSegment(sessionId, sequence, "sí"); // 2 chars
+        }
+
+        @Test
+        @DisplayName("should wait when below the char threshold and no prior pass has run")
+        void should_wait_below_char_threshold_without_prior_pass() {
+            ReflectionTestUtils.setField(service, "minTranscriptChars", 180);
+            DiscoverySession session = buildSession(UUID.randomUUID());
+            when(sessions.findById(session.getId())).thenReturn(Optional.of(session));
+            when(segments.findFinalBySessionIdAfter(session.getId(), 0)).thenReturn(
+                    List.of(shortSegment(session.getId(), 1)));
+            when(generation.isAvailable()).thenReturn(true);
+
+            service.suggest(session.getId());
+
+            verify(generation, never()).generate(any(), any(), any());
+            verifyNoInteractions(suggestionCreation);
+        }
+
+        @Test
+        @DisplayName("should generate below the char threshold once the time fallback has elapsed")
+        void should_generate_when_time_fallback_elapsed() {
+            ReflectionTestUtils.setField(service, "minTranscriptChars", 180);
+            DiscoverySession session = buildSession(UUID.randomUUID());
+            // Prior pass ran a minute ago → the 22s time fallback has elapsed.
+            ReflectionTestUtils.setField(session, "lastSuggestedAt", java.time.Instant.now().minusSeconds(60));
+
+            when(sessions.findById(session.getId())).thenReturn(Optional.of(session));
+            when(segments.findFinalBySessionIdAfter(session.getId(), 0)).thenReturn(
+                    List.of(shortSegment(session.getId(), 7)));
+            when(generation.isAvailable()).thenReturn(true);
+            when(embeddingPort.isAvailable()).thenReturn(false);
+            when(workspaceApi.findProjectSnapshot(any())).thenReturn(Optional.empty());
+            when(generation.generate(any(), any(), any())).thenReturn(new GenerationResult(List.of()));
+
+            service.suggest(session.getId());
+
+            verify(generation).generate(any(), any(), any());
+            assertThat(session.getLastSuggestedSequence()).isEqualTo(7);
+        }
+
+        @Test
+        @DisplayName("should wait below the char threshold when the time fallback has not elapsed")
+        void should_wait_when_time_fallback_not_elapsed() {
+            ReflectionTestUtils.setField(service, "minTranscriptChars", 180);
+            DiscoverySession session = buildSession(UUID.randomUUID());
+            ReflectionTestUtils.setField(session, "lastSuggestedAt", java.time.Instant.now().minusSeconds(3));
+
+            when(sessions.findById(session.getId())).thenReturn(Optional.of(session));
+            when(segments.findFinalBySessionIdAfter(session.getId(), 0)).thenReturn(
+                    List.of(shortSegment(session.getId(), 8)));
+            when(generation.isAvailable()).thenReturn(true);
+
+            service.suggest(session.getId());
+
+            verify(generation, never()).generate(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("should generate immediately once the char threshold is crossed regardless of timing")
+        void should_generate_when_char_threshold_crossed() {
+            ReflectionTestUtils.setField(service, "minTranscriptChars", 10);
+            DiscoverySession session = buildSession(UUID.randomUUID());
+            when(sessions.findById(session.getId())).thenReturn(Optional.of(session));
+            when(segments.findFinalBySessionIdAfter(session.getId(), 0)).thenReturn(
+                    List.of(finalSegment(session.getId(), 3, "un texto suficientemente largo")));
+            when(generation.isAvailable()).thenReturn(true);
+            when(embeddingPort.isAvailable()).thenReturn(false);
+            when(workspaceApi.findProjectSnapshot(any())).thenReturn(Optional.empty());
+            when(generation.generate(any(), any(), any())).thenReturn(new GenerationResult(List.of()));
+
+            service.suggest(session.getId());
+
+            verify(generation).generate(any(), any(), any());
+            assertThat(session.getLastSuggestedAt()).isNotNull();
+        }
+
+        @Test
+        @DisplayName("force (stop flush) generates below the char threshold even without a prior pass")
+        void should_force_below_threshold() {
+            ReflectionTestUtils.setField(service, "minTranscriptChars", 180);
+            DiscoverySession session = buildSession(UUID.randomUUID());
+            when(sessions.findById(session.getId())).thenReturn(Optional.of(session));
+            when(segments.findFinalBySessionIdAfter(session.getId(), 0)).thenReturn(
+                    List.of(shortSegment(session.getId(), 9)));
+            when(generation.isAvailable()).thenReturn(true);
+            when(embeddingPort.isAvailable()).thenReturn(false);
+            when(workspaceApi.findProjectSnapshot(any())).thenReturn(Optional.empty());
+            when(generation.generate(any(), any(), any())).thenReturn(new GenerationResult(List.of()));
+
+            service.suggest(session.getId(), true);
+
+            verify(generation).generate(any(), any(), any());
         }
     }
 }

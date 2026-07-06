@@ -18,4 +18,11 @@ public interface DiscoverySessionRepository {
     Optional<DiscoverySession> findById(UUID id);
 
     Page<DiscoverySession> findAllByProjectId(UUID projectId, Pageable pageable);
+
+    /**
+     * The project's currently active ({@code RECORDING} or {@code PAUSED}) session, if any. Backed by the
+     * partial unique index {@code uq_sessions_project_active}, so at most one row can match — used to
+     * enforce the single-active-session rule before starting or resuming another.
+     */
+    Optional<DiscoverySession> findActiveByProjectId(UUID projectId);
 }

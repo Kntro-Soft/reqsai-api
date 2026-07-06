@@ -3,11 +3,14 @@ package com.kntro.reqsai.workspace.application.service;
 import com.kntro.reqsai.workspace.api.GlossaryTermSnapshot;
 import com.kntro.reqsai.workspace.api.ProjectSnapshot;
 import com.kntro.reqsai.workspace.api.WorkspaceModuleApi;
+import com.kntro.reqsai.shared.infrastructure.persistence.multitenancy.TenantContext;
 import com.kntro.reqsai.workspace.application.port.GlossaryRepository;
+import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
 import com.kntro.reqsai.workspace.application.port.ProjectRepository;
 import com.kntro.reqsai.workspace.application.port.WorkspaceSearchRepository;
 import com.kntro.reqsai.workspace.domain.model.Glossary;
 import com.kntro.reqsai.workspace.domain.model.GlossaryTerm;
+import com.kntro.reqsai.workspace.domain.model.Permission;
 import com.kntro.reqsai.workspace.domain.model.Project;
 import com.kntro.reqsai.workspace.domain.model.ProjectConstraint;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +28,8 @@ class WorkspaceModuleApiImpl implements WorkspaceModuleApi {
     private final ProjectRepository projects;
     private final GlossaryRepository glossaries;
     private final WorkspaceSearchRepository searchRepository;
+    private final OrganizationRepository organizations;
+    private final ProjectPermissionService projectPermissions;
 
     @Override
     @Transactional(readOnly = true)
@@ -66,6 +71,32 @@ class WorkspaceModuleApiImpl implements WorkspaceModuleApi {
                     terms
             );
         });
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean callerHasProjectPermission(UUID projectId, UUID userId, String permission) {
+        Permission required = Permission.valueOf(permission);
+        UUID orgId = currentTenantOrgId();
+        if (orgId == null) {
+            return false;
+        }
+        return organizations.findById(orgId)
+                .map(org -> projectPermissions.hasPermission(org, projectId, userId, required))
+                .orElse(false);
+    }
+
+    /** The organization bound to the current request/callback thread, or {@code null} when none is. */
+    private static UUID currentTenantOrgId() {
+        String tenant = TenantContext.getCurrentTenant();
+        if (tenant == null) {
+            return null;
+        }
+        try {
+            return UUID.fromString(tenant);
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
     }
 
     private ProjectSnapshot toSnapshot(Project project, Glossary glossary) {

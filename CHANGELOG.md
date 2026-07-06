@@ -11,6 +11,406 @@ follows [Semantic Versioning](https://semver.org/).
 
 _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in progress._
 
+### Added (Backlog / Glossary / Constraints listing — `feature/discovery-session-control`)
+
+- **User-story backlog list filters + search** — `GET /projects/{projectId}/stories` now accepts five
+  new optional query params on top of the existing `page`/`size`/`sortBy`/`sortDirection`
+  (`STORY_READ`, unchanged): `search` (case-insensitive substring across `title` + `role` + `action`),
+  `status` (`DRAFT|APPROVED|REJECTED|MERGED|EXPORTED`), `priority` (`LOW|MEDIUM|HIGH|CRITICAL`),
+  `createdAfter` (ISO-8601 instant, **inclusive** lower bound on `createdAt`) and `createdBefore`
+  (ISO-8601 instant, **exclusive** upper bound). Every param is optional — absent means "no filter", so
+  the previous unfiltered behavior is preserved exactly. Filtering runs **server-side** via a JPA
+  Criteria `Specification` (no in-memory filtering) so paging and total counts stay correct on large
+  backlogs. An unrecognized `status`/`priority` value is rejected with `400`.
+- **Update a user story (manual edit)** — new `PUT /projects/{projectId}/stories/{storyId}`
+  (`STORY_WRITE`) editing `title`/`role`/`action`/`benefit`/`priority`/`storyPoints` with the same
+  shape and validation as create (`UpdateUserStoryRequest`), returning the updated `UserStoryResponse`.
+  Returns `404` (`USER_STORY_NOT_FOUND`) when the story does not belong to the project. Deliberately a
+  **straight field update**: it does NOT run duplicate detection or recompute the similarity embedding,
+  so a manual edit never changes the story's indexed/deduplicated state.
+
+### Changed — BREAKING (list-response contract — `feature/discovery-session-control`)
+
+- **Glossary list is now paginated** — `GET /organizations/{orgId}/projects/{projectId}/glossary`
+  (`GLOSSARY_READ`) now returns a `PageResponse<GlossaryTermResponse>` envelope
+  (`{ content: [...], page: { number, size, totalElements, ... } }`) instead of a flat
+  `List<GlossaryTermResponse>`. Adds optional `page`, `size` and `search` (case-insensitive substring
+  over term + definition) query params; default sort is `term` ascending. Pagination + search are
+  server-side. **Frontend action:** the Glosario page and side-panel callers must read `content` from
+  the paged envelope instead of treating the body as a bare array.
+- **Constraints list is now paginated** — `GET /organizations/{orgId}/projects/{projectId}/constraints`
+  (`CONSTRAINT_READ`) now returns a `PageResponse<ProjectConstraintResponse>` envelope instead of a flat
+  `List<ProjectConstraintResponse>`. Adds optional `page`, `size` and `search` (case-insensitive
+  substring over description) query params; default sort is newest-first (`createdAt` descending).
+  Pagination + search are server-side. **Frontend action:** the Restricciones page callers must read
+  `content` from the paged envelope instead of treating the body as a bare array.
+- Create/get/update/delete for glossary terms and constraints, and the story create/get endpoints, are
+  unchanged.
+
+### Fixed (Suggestion quality — `feature/discovery-session-control`)
+
+- **Retrieval-augmented LLM dedup/UPDATE for semantic paraphrases** — the embedding-cosine dedup
+  (0.84) provably cannot catch synonym paraphrases (measured cosine 0.55–0.82) or add-a-detail
+  mentions (0.55–0.69): the "same capability, different words" band overlaps the "genuinely distinct"
+  band, so no threshold separates them and paraphrases were persisted as duplicate `NEW_STORY`s (matrix
+  category C) while added details spawned new stories instead of updates (category E). The fix combines
+  loose-recall retrieval with an LLM precision judge: `RealtimeSuggestionService` now retrieves up to
+  `discovery.realtime.candidate-top-k` (8) backlog stories above a loose
+  `discovery.realtime.candidate-recall-threshold` (0.50 cosine, far below the auto-dedup bar) via a new
+  `UserStoryRepository.findSimilarCandidates`, and surfaces them at the head of the prompt's backlog
+  slice. The contextual prompt now instructs the model to emit `UPDATE_STORY` (targeting the candidate's
+  id) whenever the transcript describes the SAME capability — even in different words, synonyms, a
+  regional variant, or another language — or adds a detail to one, and to emit `NEW_STORY` only for a
+  genuinely new capability, with inline examples. The LLM's `targetStoryId` is still validated against
+  the project and the embedding auto-dedup (≥0.84) is kept as a near-verbatim backstop; the candidate
+  list is bounded so the prompt stays small on a large backlog.
+- **Session-language output enforced** — an off-language transcript (e.g. English in an `es` session)
+  could yield off-language stories. The session language is now injected into the context block as an
+  explicit "Output language", and the prompt requires every text field to be written in it, translating
+  the intent when the transcript uses another language (never mixing languages within a story).
+- **Ambiguity now asks instead of guessing** — the prompt now emits a `CLARIFYING_QUESTION` for vague,
+  underspecified, or internally conflicting requirements ("que sea rápido y seguro", "gestionar
+  usuarios", auto+manual conflict) rather than a confident vague `NEW_STORY`.
+- **Pure noise ignored** — the prompt now produces nothing for gibberish, filler-only, or bare
+  numbers/IDs transcripts, while still extracting a real capability embedded in noise.
+- **Distinct capabilities kept separate** — the prompt now emits a separate story per genuinely distinct
+  capability instead of merging two distinct asks (e.g. export-PDF + export-Excel) into one.
+- **Accepted-twin duplicates now converge to `UPDATE_STORY`** — a `NEW_STORY` draft that
+  near-duplicated an already-accepted, indexed story was persisted as a standalone duplicate: the
+  server deduped only against still-`PENDING` suggestions and only upgraded to `UPDATE_STORY` at the
+  strict 0.85 duplicate-story gate. It now runs `findMostSimilar` against the accepted backlog for
+  every `NEW_STORY` draft and downgrades to `UPDATE_STORY` at the dedup threshold
+  (`discovery.realtime.dedup-similarity-threshold`, 0.84) applied consistently, recording the match
+  similarity (previously always null) so accepted-twin paraphrases become the update the analyst wants.
+- **`UPDATE_STORY` reachable for still-`PENDING` twins** — the prompt listed pending suggestions by
+  title only, so the model could not target one and overlapping mentions spawned near-duplicate
+  `NEW_STORY`s. `GenerationContext.alreadySuggested` now carries each pending suggestion's id
+  (`PendingSuggestion(id, summary)`), rendered as `id | summary` with an instruction to target a
+  pending item by id when the conversation refines it. When the model targets a still-`PENDING`
+  suggestion, the draft is dropped (converges onto the queued item) instead of persisting a second
+  near-identical suggestion.
+- **Realtime passes serialized per session** — overlapping `REQUIRES_NEW` passes (~2 s apart) both
+  read the `PENDING` set and watermark before the earlier pass committed (read-committed), so the
+  earlier draft was invisible to the later pass's dedup and both burst out near-duplicates. A new
+  `SessionLockPort` backed by a Postgres `pg_advisory_xact_lock` keyed on the session is taken at the
+  start of the pass (before the watermark/`PENDING` reads, released on commit), so the later pass sees
+  the previous pass's committed suggestions and advanced watermark. Chosen over an in-JVM lock because
+  the passes commit in separate transactions (and it holds across app instances).
+- **Targetless `EDGE_CASE` no longer minted as a standalone story** — an `EDGE_CASE` whose target
+  could not be resolved had no similarity floor on the embedding fallback (it attached to the nearest
+  story however weak) and, worse, `acceptAsEdgeCase` fell back to creating a granularity-violating
+  one-criterion standalone story. The embedding fallback now applies the 0.84 dedup floor, and accept
+  with no resolvable target is rejected with a clear `EDGE_CASE_WITHOUT_TARGET` error (422, suggestion
+  kept `PENDING`) so the analyst assigns a target or reclassifies it.
+- **Over-long edge-case scenario capped, not fatal** — a refactor dropped the 200-char cap on the
+  criterion `scenario`, so a long LLM label failed the whole accept on `AcceptanceCriterion`'s
+  `maxLength(scenario, 200)`. `Suggestion.sanitizeCriteria` now truncates the scenario to 200 on both
+  creation and the analyst's edit-on-accept.
+- **Prompt language-consistency rule** — a mistranscribed off-language fragment could become a garbage
+  story. Both extraction prompts now instruct the model to omit any fragment in a clearly different
+  language than the transcript and never mix languages within a story (prompt-only: no clearly-safe
+  lightweight server-side language detector is available).
+
+### Tests (Suggestion quality — `feature/discovery-session-control`)
+
+- **End-to-end suggestion-quality integration coverage against real pgvector + advisory lock** — a new
+  `SuggestionQualityRedDefectIntegrationTest` (tag `integration`, on the singleton `pgvector/pgvector:pg16`
+  Testcontainer via `AbstractIntegrationTest`) proves the red-defect fixes against a REAL Postgres, stubbing
+  only the two non-deterministic externals: a test-programmable LLM `RequirementGenerationPort`
+  (`ProgrammableGenerationConfig`, which also captures the `GenerationContext` handed to it) and a
+  concept-tagged deterministic `EmbeddingPort` (`ProgrammableEmbeddingConfig`, `[[concept]]` markers so
+  paraphrases score cosine ≈ 0.97 ≥ 0.84 and distinct texts ≈ 0, with no OpenAI/Gemini calls). It asserts
+  real DB state and the returned suggestions for: accepted-twin `NEW_STORY` → `UPDATE_STORY` downgrade with
+  the similarity recorded and no duplicate story row; advisory-lock serialization of two overlapping
+  concurrent `REQUIRES_NEW` realtime passes (exactly one suggestion — the machine-proof the mocked unit test
+  cannot give); a pending-twin paraphrase dropped with the pending id carried into the generation context;
+  the short-utterance char-trigger hold vs. force/stop flush release; the targetless `EDGE_CASE` accept
+  rejected `EDGE_CASE_WITHOUT_TARGET` (422) with no standalone story minted; and the over-long edge-case
+  scenario capped at 200. A sibling `SuggestionBroadcastIntegrationTest` connects a real STOMP client to
+  `/ws/stomp` (JWT CONNECT via `StompAuthChannelInterceptor`) and asserts the `SUGGESTION_GENERATED` message
+  is broadcast on `/topic/sessions/{id}` with its payload intact.
+- **Real-LLM behavioral E2E probe for the suggestion core** — a new `RealLlmSuggestionBehaviorE2ETest`
+  (tag `llm`) exercises the REAL generation pipeline end to end: REAL OpenAI generation + REAL OpenAI
+  embeddings + REAL pgvector (Testcontainers via `AbstractIntegrationTest`), fed crafted transcripts at
+  the segment/text level (audio/STT bypassed) and driven through `RealtimeSuggestionService`. Because
+  the LLM is non-deterministic it is a behavioral PROBE, not a pass/fail gate: each scenario prints a
+  grep-able `[LLM-E2E]` report block (suggestion type(s), draft title(s), targetStoryId, recorded
+  similarity, outcome) and asserts only tolerant invariants (a force flush yields ≥1 suggestion; two
+  distinct capabilities yield ≥2 story drafts; no two persisted stories exceed cosine ~0.90). Scenarios
+  cover short-utterance cadence (char-trigger hold vs. force flush), exact duplicate, slight paraphrase
+  near the 0.84 bar, distinct-but-related false-positive guard (login vs. reset-password), UPDATE on an
+  accepted+indexed capability, the four suggestion types across a rich transcript, and hard cases
+  (near-threshold paraphrase, incremental refinement across two passes, ambiguous → clarifying question).
+  It wires the OpenAI adapters via `@TestPropertySource` (`spring.ai.model.chat/embedding=openai`,
+  `reqsai.ai.{generation,embedding}.provider=openai`; the key flows from `OPENAI_API_KEY` via
+  `application.yml`, never read from a file) and does NOT import the Stub/Programmable configs. Kept out
+  of every normal lane by a dedicated `llmTest` Gradle task (and `excludeTags("llm")` on the default
+  `test`/`unitTest` lanes); `@EnabledIfEnvironmentVariable("OPENAI_API_KEY")` plus an in-body
+  `assumeTrue` make it SKIP (never FAIL) when no key is present. Run with
+  `./gradlew llmTest --max-workers=1`.
+- **Real-LLM behavioral E2E probe through the streaming `/ws/stt` WebSocket** — a second `llm`-tagged
+  suite `RealLlmStreamingWsSuggestionE2ETest` drives the ACTUAL streaming path (the real product
+  target), not the direct `suggest()` call: JWT `?token=` handshake → tenant resolution → binary handler
+  → `AppendTranscriptSegmentCommandHandler` → `TranscriptSegmentAppendedEvent` →
+  `RealtimeSuggestionListener` → `RealtimeSuggestionService` → REAL OpenAI generation + embeddings →
+  persistence → STOMP broadcast. Only the STT vendor is faked: `EchoStreamingSttConfig` (a `@Primary`
+  `StreamingTranscriptionPort` overriding the `@ConditionalOnMissingBean` `StreamingSttRouter`) decodes
+  each binary frame as UTF-8 and echoes it back as a FINAL `TranscriptEvent`, so the WS client sends the
+  transcript sentence AS the frame bytes and controls content exactly (matching how
+  `handleBinaryMessage` hands frames to `recognizer.sendAudio(byte[])`). A `StandardWebSocketClient`
+  streams utterances as binary frames; a STOMP client on `/topic/sessions/{id}` asserts live segment
+  broadcasts. Same tolerant-invariant + rich-log matrix as the in-process probe (short-utterance cadence
+  where `POST /stop` flushes; exact duplicate; near-0.84 paraphrase; distinct-but-related; UPDATE on an
+  indexed capability; four types; hard cases) plus a streaming-only lifecycle scenario: segment
+  broadcast, `POST /pause` closes the WS, `POST /resume` lets a new WS connect, `POST /stop` closes and
+  flushes. Note: the code publishes both segments and suggestions on the single per-session topic
+  `/topic/sessions/{id}` discriminated by the `type` field — not `/topic/discovery/sessions/{id}/segments`
+  as `docs/WEBSOCKET_STT.md` states. Same wiring/skip/run rules; also runs under `./gradlew llmTest
+  --max-workers=1`.
+- **Real-LLM behavioral MATRIX probe (~90 data-driven cases)** — a third `llm`-tagged suite
+  `RealLlmBehaviorMatrixE2ETest` widens the in-process probe into a `@ParameterizedTest` over ~88
+  hand-authored Spanish cases run under ONE Spring context boot (`@TestInstance(PER_CLASS)` provisions
+  the tenant once). It calls `RealtimeSuggestionService.suggest()` directly (not the WS — behavior is
+  identical and this must stay fast/cheap for ~90 real-generation calls) against REAL OpenAI generation
+  + REAL OpenAI embeddings + REAL pgvector. Each case seeds its own `Project` (so backlogs never
+  cross-contaminate), optionally seeds accepted+indexed backlog stories, persists the transcript as
+  final segments, runs one pass, and — crucially — for every case with a seeded backlog re-embeds each
+  produced `NEW_STORY`/`UPDATE_STORY`/`EDGE_CASE` draft via the REAL `EmbeddingPort` and computes the
+  cosine directly against each seeded story's stored embedding, so the report shows the ACTUAL number
+  vs the 0.84 dedup bar (never `null`) — mapping exactly where dedup catches vs misses. Every case
+  prints one greppable, stable line
+  `[MATRIX][<category>][<id>] seeded=… input=… => produced=… rawTopCosineToSeed=0.xx converged=… expectation=… outcome=PASS|FAIL|OBSERVE`.
+  Coverage spans 15 categories (A exact/near-exact duplicate, B mild paraphrase, C synonym-heavy
+  paraphrase incl. regional es-PE/es-419/es-ES variants, D distinct-but-related false-positive guards,
+  E update-a-detail, F edge cases, G clarifying questions, H cadence/timing — the only non-`force`
+  cases, I multi-story transcripts, J mistranscription/garbage, K language, L incremental refinement,
+  M contradiction/negation, N long 6+-capability transcripts, O threshold-boundary pairs). Every case
+  still prints its `[MATRIX]` map line (with the raw cosine) first, so a failure never loses the map,
+  but after the retrieval-augmented dedup/UPDATE fix the behavioral categories now carry TOLERANT
+  assertions so a green matrix means CORRECT behavior, not merely that it ran: A exact-dup ⇒ ≤1 story
+  draft and D distinct ⇒ ≥2 drafts stay HARD; C/E/F ⇒ converge onto the seed (deduped, or UPDATE/EDGE
+  targeting it) rather than a standalone NEW duplicate; G ⇒ a `CLARIFYING_QUESTION` (or at least not a
+  confident NEW); J pure-noise (J1/J3/J4) ⇒ no story draft; K off-language ⇒ Spanish stories via a
+  tolerant heuristic; no two persisted stories exceed cosine ~0.97. Assertions allow dedup-or-update as
+  success and assert the invariant not the wording to survive LLM non-determinism; genuinely
+  model-dependent cases (L/M/N, embedded-noise J2, truncated J5) stay `OBSERVE`. Same OpenAI/pgvector
+  wiring, `@EnabledIfEnvironmentVariable("OPENAI_API_KEY")` + in-body `assumeTrue` skip, and `llmTest`
+  lane as the sibling probes; ~one generation call per case.
+
+### Fixed (Test infrastructure — `feature/discovery-session-control`)
+
+- **Test Hikari pool raised from 3 to 10** — a realtime suggestion pass takes a Postgres advisory lock
+  (`pg_advisory_xact_lock`) and HOLDS its DB connection for the whole pass, which in the real-LLM E2E
+  probes includes multi-second OpenAI generation + embedding round-trips. A high-fanout streamed
+  transcript (`RealLlmStreamingWsSuggestionE2ETest` scenario 6 streams 4 final segments) spawns several
+  overlapping async passes; with the test thread's own polling reads competing for connections, the
+  3-connection pool could starve and a newly-arriving async pass failed to open its JPA EntityManager
+  (`CannotCreateTransactionException: Could not open JPA EntityManager`). Raising
+  `spring.datasource.hikari.maximum-pool-size` to 10 (well under the Testcontainers Postgres
+  `max_connections`, test-profile only) removes the contention.
+
+### Added (Suggestion acceptance model — `feature/discovery-session-control`)
+
+- **Scenario labels on every generated criterion** — the extraction prompt now asks the model for a
+  concise `scenario` label (in the transcript language) for each Given/When/Then it proposes, for the
+  NEW_STORY criteria list AND the single EDGE_CASE criterion. It stays optional (dropped, never
+  fabricated, when the model omits it) and round-trips through `DraftCriterion.scenario` onto the
+  accepted story / criterion.
+- **EDGE_CASE carries a real Given/When/Then criterion** — an EDGE_CASE suggestion previously reused
+  the NEW_STORY draft fields and `acceptAsEdgeCase` twisted them into a criterion (`given = "the user
+  is <role>"`, `when = action`, `then = benefit`, `scenario = "Edge case: <title>"`). It now carries a
+  proper single `DraftCriterion { scenario, given, when, then }` (stored as the sole entry of the
+  existing `draft_criteria` JSONB list — no migration) plus its `targetStoryId` and `relatedTopic`;
+  the prompt asks the model for the boundary rule as one Given/When/Then entry and which existing story
+  it belongs to. On accept the criterion is added verbatim via `UserStory.addAcceptanceCriterion`; the
+  no-target fallback now builds a genuine standalone story from the story fields instead of the twisted
+  mapping. The criterion is exposed on `SuggestionResponse.draftAcceptanceCriteria` (a 1-element list)
+  and on the `SUGGESTION_GENERATED` / `SUGGESTION_ACCEPTED` WebSocket messages.
+- **Full edit-before-accept** — `AcceptSuggestionRequest` / `AcceptSuggestionCommand` now optionally
+  carry the whole edited payload applied on accept: `editedTitle/editedRole/editedAction/editedBenefit/
+  editedPriority/editedStoryPoints` plus `editedAcceptanceCriteria` (a list of `{ scenario?, given,
+  when, then }`). For NEW_STORY the edited criteria REPLACE the draft when sent; for EDGE_CASE the first
+  edited criterion replaces the draft criterion added to the (unchanged) target story; for UPDATE_STORY
+  the edited story fields are applied to the target. Edited fields carry the same `@Size`/`@NotBlank`
+  constraints as creation (a criterion missing given/when/then is rejected with 400 via cascaded
+  validation). Backward-compatible: an empty body (`{}`) accepts the raw draft exactly as before.
+
+### Added (Realtime suggestion quality iteration — `feature/discovery-session-control`)
+
+- **Char-or-time streaming cadence** — realtime suggestions only fired once the accrued past-watermark
+  transcript crossed a 300-char threshold, so a burst of short segments (a meeting's back-and-forth)
+  piled up and arrived as one late batch after the analyst had moved on. A pass now runs when EITHER
+  ~180 new chars have accrued (`discovery.realtime.min-transcript-chars`, default lowered 300 → 180)
+  OR ~22s have elapsed since the last pass with new transcript still waiting
+  (`discovery.realtime.max-transcript-age-seconds`, new, default 22) — whichever first, never with zero
+  new content; the stop-flush still bypasses both. Records `last_suggested_at` on the session (tenant
+  migration V19) to drive the elapsed-time decision; the first pass still waits for the char threshold.
+  Each suggestion is still persisted in its own `REQUIRES_NEW` transaction and pushed over WS the
+  moment it commits, so the lower trigger directly shortens time-to-first-suggestion.
+- **Two-layer near-duplicate dedup** — the guard compared only trim+lowercase titles, so identical
+  drafts differing by an accent ("Recuperar contraseña" vs "…contrasena") slipped through and
+  paraphrases across passes ("Autenticación de dos factores" vs "Soporte para 2FA en inicio de sesión")
+  were invisible. `normalize()` now accent-, punctuation- and whitespace-folds the exact-match key, and
+  each draft is embedded once and compared by cosine against the session's PENDING drafts plus drafts
+  already accepted earlier in the same pass, dropping anything at/above a configurable
+  `discovery.realtime.dedup-similarity-threshold` (0.84, just under the 0.85 strict-duplicate gate to
+  catch paraphrases). The single draft embedding is reused by classification instead of embedding twice.
+- **`UPDATE_STORY` reliably chosen** — the prompt now lists the bilingual verbal cues that signal a
+  revisit/extension of an existing story ("volviendo a…", "además … debe…", "también quiero que …
+  soporte…", "going back to…", "also it should…") and maps them to `UPDATE_STORY`; an explicit
+  `UPDATE_STORY` whose target is missing/hallucinated resolves to the closest existing story by
+  embedding, demoting to `NEW_STORY` only when the backlog is genuinely empty (was demoting too
+  eagerly). A debug log records the raw LLM type + `targetStoryId` before/after validation so "never
+  chosen" is diagnosable.
+- **Quality bar and granularity guidance** — garbled speech-to-text ("inicio de sesión" → "inicio de
+  decisión") produced nonsense like "Secure Decision Start". A QUALITY-BAR prompt rule tells the model
+  to emit nothing for garbled/truncated fragments, and a minimal, clearly-safe server check drops any
+  draft missing a core field (title/role/action/benefit) rather than letting the factory throw a false
+  "failure". A GRANULARITY rule with bilingual examples routes session-maintenance / error-message /
+  validation / security-constraint facets ("mantener la sesión activa") to `EDGE_CASE`/`UPDATE_STORY`
+  of the parent capability instead of standalone stories. The ALREADY-SUGGESTED block is now a hard
+  "do not repeat anything equivalent in any wording or language" constraint.
+- **Draft acceptance criteria carried to the accepted story** — the LLM proposes Given/When/Then
+  criteria per story but the realtime path dropped them, so the accepted story had none. `Suggestion`
+  now stores the proposed criteria as a structured `List<DraftCriterion>` (`{ scenario?, given, when,
+  then }`) in a JSONB column (tenant migration V20), mapped with `@JdbcTypeCode(SqlTypes.JSON)` mirroring
+  `UserStory`'s pgvector embedding; a criterion missing given/when/then is dropped, never fabricated.
+  The `NEW_STORY` prompt asks for 2–4 explicit Given/When/Then criteria in the transcript language. The
+  criteria flow onto `SuggestionResponse` and the `SUGGESTION_GENERATED` WebSocket message
+  (`draftAcceptanceCriteria: [{ scenario, given, when, then }]`, empty for other types); on accept the
+  `NEW_STORY` handler adds each as a real `AcceptanceCriterion` via the existing `UserStory` API.
+
+### Added (Realtime suggestion grounding — `feature/discovery-session-control`)
+
+- **Backlog-grounded generation context** — the realtime suggestion prompt previously carried only project
+  metadata and glossary terms; the LLM never saw a single existing story, so every requirement came out as
+  `NEW_STORY` and near-duplicates flooded the backlog. `GenerationContext` now always includes an
+  `existingStories` slice (id + title + role/action/benefit): preferred source is pgvector top-K stories
+  nearest to the recent transcript, merged with the newest project stories (so stories accepted seconds ago
+  are visible even before they rank), capped at 15; when the embedding provider is unavailable/failing or
+  nothing is indexed, a plain most-recent query keeps the backlog visible (embedding-independent fallback).
+  The context also lists the session's own `PENDING` suggestions (`alreadySuggested`) so the model does not
+  re-suggest what the analyst has not reviewed yet — the root cause of several same-capability variants
+  being suggested within one session. The retrieved context (story ids/titles, pending suggestions) is
+  logged at debug level per generation pass for diagnosability.
+- **LLM classifies against the backlog (`UPDATE_STORY` in the prompt)** — the contextual extraction prompt
+  never offered `UPDATE_STORY` as a type and had no story ids, so the model could not point at an existing
+  story; the only path to `UPDATE_STORY` was the post-hoc embedding upgrade at cosine ≥ 0.85, which misses
+  paraphrased or partially-overlapping requirements. The prompt now instructs: on overlap with an existing
+  story, emit `UPDATE_STORY` (or `EDGE_CASE` for boundary scenarios) with that story's `targetStoryId`;
+  `NEW_STORY` only for genuinely new capabilities. The returned target is validated server-side (must be a
+  story of the same project; hallucinated ids are dropped) and, when valid, wins over embedding search —
+  and now also works when no embedding model is configured. The embedding near-duplicate upgrade is kept as
+  a backstop. Prompts remain bilingual-safe (all text fields mirror the transcript language).
+- **Lazy re-indexing of un-indexed stories** — a story persisted while the embedding provider hiccupped
+  (e.g. the best-effort embed inside accept) stayed invisible to similarity search forever. New
+  `UserStoryReindexService` embeds up to 10 un-indexed stories (oldest first) in a lazy, batched,
+  best-effort pass invoked by the realtime pipeline right before each vector search; a failing provider
+  aborts the pass and the next generation trigger retries. No scheduler, no new failure mode.
+- **Project-level session lifecycle topic** — realtime messages only flowed on per-session topics
+  (`/topic/sessions/{id}`), so a viewer on the project's discovery page could never learn that someone else
+  created or started a session. New topic `/topic/projects/{projectId}/sessions` broadcasts
+  `SESSION_CREATED`, `RECORDING_STARTED/PAUSED/RESUMED/STOPPED` with a self-describing payload
+  `{ sessionId, projectId, type, status, title, language, startedAt, occurredAt }` — including the meeting
+  language so other viewers' UIs can show it without a fetch. Subscription auth mirrors the per-session
+  topics (JWT-authenticated STOMP CONNECT via `StompAuthChannelInterceptor`; no per-destination gate exists
+  for either family). The five session lifecycle domain events now carry `title`/`language`/`startedAt`.
+- **Suggestion resolution events carry the draft payload** — `SUGGESTION_ACCEPTED`/`SUGGESTION_DISMISSED`
+  WebSocket messages sent every draft field as `null`, so a viewer whose feed received the push before (or
+  instead of) a REST response rendered a blank decision entry — which read as a duplicate/corrupted history
+  item. The events and messages now carry the full draft payload (title, role, action, benefit, priority,
+  points, relatedTopic, targetStoryId, question).
+
+### Added (Discovery session control — `feature/discovery-session-control`)
+
+- **Discovery authorization at the edge** — every discovery REST endpoint (6 controllers) is now gated by
+  Spring `@PreAuthorize`. Project-scoped routes use `@authz.projectPermission(#projectId, '…', authentication)`
+  (org resolved from the JWT tenant, since these routes carry no `orgId` path variable); session-scoped
+  routes (`/api/sessions/{sessionId}/…`) use a new `@Component("discoveryAuthz")` facade that resolves the
+  session to its project and delegates to `WorkspaceModuleApi`. Six new `Permission` values —
+  `SESSION_READ/RUN/DECIDE`, `STORY_READ/WRITE` — gate reads (`SESSION_READ`/`STORY_READ`), lifecycle and
+  transcript actions (`SESSION_RUN`), suggestion accept/dismiss (`SESSION_DECIDE`), and story/criteria
+  writes (`STORY_WRITE`). Owners/org-admins bypass, as in workspace. `project_roles.permissions` is text, so
+  no migration is needed for the new values. `WorkspaceModuleApi.callerHasProjectPermission(projectId,
+  userId, permission)` resolves the project permission from the currently-bound tenant.
+- **WebSocket STT authorization** — opening a live STT stream (`/ws/stt`) now requires `SESSION_RUN` on the
+  session's project. The handshake already authenticated the JWT and bound the tenant, but any active org
+  member could previously stream audio into any project's session. `StartSttStreamCommandHandler` resolves
+  the handshake user and checks the permission before connecting upstream; denial closes the socket with
+  `1008 POLICY_VIOLATION` (new `SESSION_ACCESS_DENIED` error).
+- **Single active session per project** — starting or resuming a session while another session of the same
+  project is `RECORDING` or `PAUSED` now returns `409 SESSION_ALREADY_ACTIVE`, whose message carries the
+  offending active session id. Checked inside the start/resume `@Transactional` handlers; a partial unique
+  index `uq_sessions_project_active` (tenant migration `V18__discovery_single_active_session.sql`) is the
+  concurrency backstop so two simultaneous starts cannot both win.
+- **Session history-table stats** — `DiscoverySessionResponse` gains `storiesGenerated`, `storiesAccepted`,
+  `suggestionsPending`, `questionsAsked` and `durationSeconds`. The four counts come from a new
+  `SessionStatsRepository` computing them with two grouped queries (stories, suggestions) over the whole
+  page of session ids — no N+1 on the list endpoint. `durationSeconds` is derived from `startedAt`/`endedAt`
+  (null until a session has both). Populated on the get/list session endpoints; lifecycle-transition
+  responses leave the counts null.
+- **Project-level pending suggestions** — `GET /api/projects/{projectId}/suggestions?status=PENDING` (gated
+  `SESSION_READ`, paginated, default status `PENDING`) lists a project's suggestions across all sessions, so
+  the frontend can show "N pending from previous sessions". Reuses the existing suggestion response mapper.
+- **Structured transcript segments (timeline replay)** — new `GET /api/sessions/{sessionId}/segments` (gated
+  `SESSION_READ`) returns a session's **final** transcript segments as structured records for rebuilding a
+  past session's chat timeline. Each item is `{ sequence, text, speakerLabel, startMs, endMs, occurredAt }`,
+  where `occurredAt` is an **absolute** instant derived as `session.startedAt + startMs` (falling back to the
+  segment's persisted `created_at`, then `session.createdAt + startMs`). The existing string `/transcript`
+  endpoint is untouched. The endpoint is **cursor-paginated** so an hours-long session never returns thousands
+  of segments at once: query params `beforeSequence` (exclusive cursor; omit for the newest page) and `limit`
+  (default 50, capped 200) select the newest finals with `sequence < beforeSequence`; the response envelope
+  `TranscriptSegmentPageResponse` returns `segments` **ascending** by sequence for rendering plus `hasMore`
+  (older chunk remains) and `totalFinalSegments` (session-wide count). To page older, pass the first item's
+  `sequence` as the next `beforeSequence`.
+- **Session suggestions filterable by status (past decisions)** — `GET /api/sessions/{sessionId}/suggestions`
+  gains an optional `status` query param (`PENDING` | `ACCEPTED` | `DISMISSED`), defaulting to `PENDING` so the
+  live review queue stays backward-compatible. Frontends can now fetch a completed session's resolved decisions
+  to render past-decision markers. `SuggestionResponse` already carries `updatedAt` (`@LastModifiedDate`), which
+  is the resolution timestamp — the entity has no separate `resolvedAt`/`decidedAt` column, so no migration was
+  added; the frontend reads `updatedAt` as "when the decision happened".
+- **Post-stop suggestion decisions** — accept/dismiss of a `PENDING` suggestion works after the session has
+  `STOPPED`/`COMPLETED` (post-meeting triage). No status coupling existed in the decision handlers, so this
+  was verified (unit + integration) and preserved rather than added; the `SUGGESTION_ALREADY_RESOLVED` guard
+  remains the only gate.
+
+### Fixed (Realtime suggestion grounding — `feature/discovery-session-control`)
+
+- **Accepting an `EDGE_CASE` with a near-max-length title failed server-side** — `acceptAsEdgeCase` prefixes
+  the draft title with `"Edge case: "` before using it as the acceptance-criterion scenario, but both the
+  title and the scenario column cap at 200 chars, so a title over 189 chars overflowed the scenario and the
+  whole accept failed with a validation error the analyst could not fix. The composed label is now truncated
+  to the column limit.
+- **Realtime notification integration test dialed the old STOMP path** — the endpoint was namespaced under
+  `/ws/stomp` (`fc01ae0`) but the test still connected to `/ws`, failing every HTTP upgrade with 404.
+
+### Fixed (Discovery session control — `feature/discovery-session-control`)
+
+- **Past sessions showed an empty conversation after reload** — `GET /api/sessions/{sessionId}/transcript`
+  returned the session's `transcript` text field, which live-captured (streaming STT) sessions never
+  populate: the conversation lives only as persisted `TranscriptSegment` rows. `GetSessionTranscriptQueryHandler`
+  now assembles the transcript from the session's **final** segments in ascending `sequence` order (one
+  segment per line) when the stored field is blank, and returns the stored text verbatim for
+  batch/processed sessions. Read-only, single ordered query; the response field/shape is unchanged.
+- **Accepting an AI suggestion could fail with a transient 500 on the first try** — `AcceptSuggestionCommandHandler`
+  called the embedding provider inline inside the accept transaction; a transient provider failure (cold model,
+  timeout, refused connection — common on the first call) aborted the whole transaction, so the analyst's
+  explicit accept was lost and only a retry succeeded. The embedding step is now best-effort: on failure the
+  story is persisted **un-indexed** (`UserStory.isIndexed() == false`, the same state as when no embedding model
+  is configured) and the accept still commits. Similarity search skips the story until it is re-indexed. The
+  accept remains idempotent/safe to retry (a failure rolls nothing forward; the suggestion stays `PENDING`).
+
+### Changed / Removed (Discovery session control — `feature/discovery-session-control`)
+
+- **Removed the session reset capability** (`refactor(discovery)!`) — sessions are immutable once finished, so
+  the `POST /{sessionId}/reset` endpoint, its command/handler, `DiscoverySession.reset()`, the reset domain
+  event and the `SESSION_RESET` realtime event type are gone.
+- **No session deletion** — sessions are permanent immutable history (who did what, when) and can never be
+  deleted; there is no delete endpoint and no `SESSION_DELETE` permission.
+- Module boundaries unchanged: discovery references the workspace `@authz`/`WorkspaceModuleApi` beans by SpEL
+  name only (no compile-time dependency on workspace internals); `architectureTest` and `verifyModularity`
+  stay green.
+
 ### Added (Project access control — `feature/project-access-control`)
 
 - **Granular project permissions** — replaced the coarse `MANAGE_*` permissions with a `resource:action`

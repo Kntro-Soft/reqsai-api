@@ -6,6 +6,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import org.jspecify.annotations.Nullable;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 @Schema(description = "AI-generated suggestion pending analyst review")
@@ -55,6 +56,10 @@ public record SuggestionResponse(
         @Schema(description = "Clarifying question text (only for CLARIFYING_QUESTION)", nullable = true)
         @Nullable String question,
 
+        @Schema(description = "Proposed acceptance criteria: 2-4 for a NEW_STORY draft, exactly one for "
+                + "an EDGE_CASE (the boundary criterion added to the target story); empty for other types")
+        List<DraftCriterionResponse> draftAcceptanceCriteria,
+
         @Schema(description = "Story created or modified on acceptance; null if not yet accepted or type is CLARIFYING_QUESTION", nullable = true)
         @Nullable UUID resolvedStoryId,
 
@@ -67,4 +72,12 @@ public record SuggestionResponse(
         @Schema(description = "When the suggestion was last updated")
         Instant updatedAt
 ) {
+
+    @Schema(description = "A proposed Given/When/Then acceptance criterion (NEW_STORY draft or EDGE_CASE)")
+    public record DraftCriterionResponse(
+            @Schema(description = "Optional scenario label", nullable = true) @Nullable String scenario,
+            @Schema(description = "Given precondition") String given,
+            @Schema(description = "When action") String when,
+            @Schema(description = "Then outcome") String then
+    ) {}
 }

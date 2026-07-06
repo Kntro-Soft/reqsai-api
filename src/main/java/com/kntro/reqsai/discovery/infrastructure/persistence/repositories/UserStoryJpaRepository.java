@@ -4,6 +4,7 @@ import com.kntro.reqsai.discovery.domain.model.UserStory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -11,14 +12,22 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-/** Spring Data repository for {@link UserStory} (tenant-scoped table {@code user_stories}). */
-public interface UserStoryJpaRepository extends JpaRepository<UserStory, UUID> {
+/**
+ * Spring Data repository for {@link UserStory} (tenant-scoped table {@code user_stories}).
+ * Extends {@link JpaSpecificationExecutor} so the backlog listing can compose optional server-side
+ * filters via the Criteria API — predicates are added only for non-null filters, which sidesteps the
+ * untyped-null-parameter problem of guarded HQL and keeps filtering + paging in the database.
+ */
+public interface UserStoryJpaRepository extends JpaRepository<UserStory, UUID>, JpaSpecificationExecutor<UserStory> {
 
     Page<UserStory> findAllByProjectId(UUID projectId, Pageable pageable);
 
     Page<UserStory> findAllBySessionId(UUID sessionId, Pageable pageable);
 
     Optional<UserStory> findByIdAndProjectId(UUID id, UUID projectId);
+
+    /** Stories persisted without an embedding (provider down/failed at write time), oldest first. */
+    List<UserStory> findAllByProjectIdAndEmbeddingIsNull(UUID projectId, Pageable pageable);
 
     void deleteAllBySessionId(UUID sessionId);
 
@@ -49,4 +58,41 @@ public interface UserStoryJpaRepository extends JpaRepository<UserStory, UUID> {
             limit 1
             """, nativeQuery = true)
     List<Object[]> findClosest(@Param("projectId") UUID projectId, @Param("embedding") String embedding);
+
+    /**
+     * The {@code limit} stories closest (smallest cosine distance) to the given vector within the
+     * project, ordered nearest-first. Feeds the realtime generation context with the slice of the
+     * backlog most relevant to the recent transcript.
+     */
+    @SuppressWarnings("SqlResolve")
+    @Query(value = """
+            select * from user_stories
+            where project_id = :projectId and embedding is not null
+            order by embedding <=> cast(:embedding as vector)
+            limit :limit
+            """, nativeQuery = true)
+    List<UserStory> findTopSimilar(@Param("projectId") UUID projectId,
+                                   @Param("embedding") String embedding,
+                                   @Param("limit") int limit);
+
+    /**
+     * The {@code (id, distance)} pairs for up to {@code limit} stories whose cosine <em>distance</em>
+     * to the given vector is within {@code maxDistance} (i.e. cosine similarity {@code >= 1 - maxDistance}),
+     * nearest first. Used to surface loose-recall paraphrase candidates for the LLM dedup/UPDATE judge:
+     * the recall threshold is deliberately loose (well below the auto-dedup bar) so synonym paraphrases
+     * that sit at cosine 0.55–0.82 are still offered as candidate matches the model can converge onto.
+     */
+    @SuppressWarnings("SqlResolve")
+    @Query(value = """
+            select id, (embedding <=> cast(:embedding as vector)) as dist
+            from user_stories
+            where project_id = :projectId and embedding is not null
+              and (embedding <=> cast(:embedding as vector)) <= :maxDistance
+            order by dist
+            limit :limit
+            """, nativeQuery = true)
+    List<Object[]> findSimilarWithin(@Param("projectId") UUID projectId,
+                                     @Param("embedding") String embedding,
+                                     @Param("maxDistance") double maxDistance,
+                                     @Param("limit") int limit);
 }

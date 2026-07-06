@@ -7,6 +7,7 @@ import com.kntro.reqsai.shared.domain.model.DomainEvent;
 import org.jspecify.annotations.Nullable;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 public record SuggestionCreatedEvent(
@@ -23,6 +24,7 @@ public record SuggestionCreatedEvent(
         @Nullable String relatedTopic,
         @Nullable UUID targetStoryId,
         @Nullable String question,
+        List<Suggestion.DraftCriterion> draftAcceptanceCriteria,
         Instant occurredAt
 ) implements DomainEvent {
 
@@ -32,6 +34,7 @@ public record SuggestionCreatedEvent(
                 s.getDraftTitle(), s.getDraftRole(), s.getDraftAction(), s.getDraftBenefit(),
                 s.getDraftPriority(), s.getDraftStoryPoints(),
                 s.getRelatedTopic(), s.getTargetStoryId(), s.getQuestion(),
+                s.getDraftAcceptanceCriteria(),
                 Instant.now());
     }
 

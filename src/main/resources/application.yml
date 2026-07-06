@@ -143,7 +143,7 @@ reqsai:
     default-size: ${PAGINATION_DEFAULT_SIZE:20}
     max-size: ${PAGINATION_MAX_SIZE:100}
   websocket:
-    endpoint: ${WS_ENDPOINT:/ws}
+    endpoint: ${WS_ENDPOINT:/ws/stomp}
     allowed-origins: ${WS_ALLOWED_ORIGINS:${CORS_ALLOWED_ORIGINS:http://localhost:4200}}
     enable-sock-js: ${WS_ENABLE_SOCKJS:false}
     broker:
@@ -155,10 +155,15 @@ reqsai:
 
 discovery:
   realtime:
-    # Generate suggestions once this many new (post-watermark) transcript chars have accrued.
-    min-transcript-chars: ${DISCOVERY_REALTIME_MIN_TRANSCRIPT_CHARS:300}
-    # Top-K project context snippets injected into the generation prompt (RAG).
+    # Char threshold: generate once this many NEW (past-watermark) transcript chars have accrued.
+    min-transcript-chars: ${DISCOVERY_REALTIME_MIN_TRANSCRIPT_CHARS:180}
+    # Time fallback: generate when this many seconds have elapsed since the last pass with new
+    # transcript waiting, even if the char threshold has not been reached (short exchanges stream).
+    max-transcript-age-seconds: ${DISCOVERY_REALTIME_MAX_TRANSCRIPT_AGE_SECONDS:22}
     context-top-k: ${DISCOVERY_REALTIME_CONTEXT_TOP_K:5}
+    # Cross-pass near-duplicate cosine threshold: drop a draft this similar to a PENDING suggestion
+    # or existing story before persisting (below the 0.85 duplicate-story threshold to catch paraphrases).
+    dedup-similarity-threshold: ${DISCOVERY_REALTIME_DEDUP_SIMILARITY_THRESHOLD:0.84}
 
 server:
   port: ${PORT:${SERVER_PORT:8080}}

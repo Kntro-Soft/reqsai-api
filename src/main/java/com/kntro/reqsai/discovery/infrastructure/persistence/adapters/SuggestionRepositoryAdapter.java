@@ -5,6 +5,8 @@ import com.kntro.reqsai.discovery.domain.model.Suggestion;
 import com.kntro.reqsai.discovery.domain.model.SuggestionStatus;
 import com.kntro.reqsai.discovery.infrastructure.persistence.repositories.SuggestionJpaRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -41,6 +43,11 @@ public class SuggestionRepositoryAdapter implements SuggestionRepository {
     @Override
     public List<Suggestion> findAllBySessionIdAndStatus(UUID sessionId, SuggestionStatus status) {
         return jpa.findAllBySessionIdAndStatus(sessionId, status);
+    }
+
+    @Override
+    public Page<Suggestion> findAllByProjectIdAndStatus(UUID projectId, SuggestionStatus status, Pageable pageable) {
+        return jpa.findAllByProjectIdAndStatus(projectId, status, pageable);
     }
 
     @Override

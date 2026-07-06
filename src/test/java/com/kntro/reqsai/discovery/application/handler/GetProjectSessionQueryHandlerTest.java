@@ -1,6 +1,8 @@
 package com.kntro.reqsai.discovery.application.handler;
 
 import com.kntro.reqsai.discovery.application.port.DiscoverySessionRepository;
+import com.kntro.reqsai.discovery.application.port.SessionStatsRepository;
+import com.kntro.reqsai.discovery.application.port.SessionStatsRepository.SessionStats;
 import com.kntro.reqsai.discovery.application.query.GetProjectSessionQuery;
 import com.kntro.reqsai.discovery.domain.exception.DiscoveryError;
 import com.kntro.reqsai.discovery.domain.model.DiscoverySession;
@@ -13,6 +15,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -26,20 +29,28 @@ class GetProjectSessionQueryHandlerTest {
 
     @Mock
     private DiscoverySessionRepository sessions;
+    @Mock
+    private SessionStatsRepository stats;
     @InjectMocks
     private GetProjectSessionQueryHandler handler;
 
     @Test
-    @DisplayName("should return the session when it belongs to the given project")
+    @DisplayName("should return the session with its stats when it belongs to the given project")
     void should_return_session_for_correct_project() {
         UUID projectId = UUID.randomUUID();
         DiscoverySession session = DiscoverySessionMother.draft().withProjectId(projectId).build();
         when(sessions.findById(session.getId())).thenReturn(Optional.of(session));
+        when(stats.statsForSessions(java.util.List.of(session.getId())))
+                .thenReturn(Map.of(session.getId(), new SessionStats(4, 3, 2, 1)));
 
-        DiscoverySession result = handler.handle(new GetProjectSessionQuery(projectId, session.getId()));
+        SessionWithStats result = handler.handle(new GetProjectSessionQuery(projectId, session.getId()));
 
-        assertThat(result.getId()).isEqualTo(session.getId());
-        assertThat(result.getProjectId()).isEqualTo(projectId);
+        assertThat(result.session().getId()).isEqualTo(session.getId());
+        assertThat(result.session().getProjectId()).isEqualTo(projectId);
+        assertThat(result.stats().storiesGenerated()).isEqualTo(4);
+        assertThat(result.stats().storiesAccepted()).isEqualTo(3);
+        assertThat(result.stats().suggestionsPending()).isEqualTo(2);
+        assertThat(result.stats().questionsAsked()).isEqualTo(1);
     }
 
     @Test

@@ -63,6 +63,15 @@ public class DiscoverySession extends AggregateRoot {
     @Column(name = "last_suggested_sequence", nullable = false)
     private int lastSuggestedSequence = 0;
 
+    /**
+     * Wall-clock instant of the last realtime suggestion pass that actually ran generation.
+     * Drives the time-based cadence fallback: a pass fires once enough seconds have elapsed with
+     * new transcript even if the char threshold has not been reached, so short back-and-forth
+     * exchanges stream instead of arriving as one late batch. {@code null} until the first pass.
+     */
+    @Column(name = "last_suggested_at")
+    private @Nullable Instant lastSuggestedAt;
+
     @Column(name = "processing_error", length = PROCESSING_ERROR_MAX)
     private String processingError;
 
@@ -77,7 +86,7 @@ public class DiscoverySession extends AggregateRoot {
         this.language = Assert.notNull(language, "language");
         this.status = SessionStatus.DRAFT;
         this.startedAt = Instant.now();
-        registerEvent(DiscoverySessionCreatedEvent.of(getId(), projectId));
+        registerEvent(DiscoverySessionCreatedEvent.of(getId(), projectId, this.title, language.value(), this.startedAt));
     }
 
     /** Batch/demo path: saves the pre-recorded transcript and transitions {@code DRAFT → STOPPED}. */
@@ -118,7 +127,7 @@ public class DiscoverySession extends AggregateRoot {
         Assert.isTrue(this.status == SessionStatus.DRAFT, "status", "startRecording requires DRAFT but was " + this.status, DiscoveryError.INVALID_SESSION_STATUS);
         this.status = SessionStatus.RECORDING;
         this.startedAt = Assert.notNull(now, "now");
-        registerEvent(DiscoverySessionRecordingStartedEvent.of(getId(), projectId));
+        registerEvent(DiscoverySessionRecordingStartedEvent.of(getId(), projectId, title, language.value(), startedAt));
     }
 
     /** Temporarily pauses recording: {@code RECORDING → PAUSED}. */
@@ -127,7 +136,7 @@ public class DiscoverySession extends AggregateRoot {
                 "status", "pauseRecording requires RECORDING but was " + this.status,
                 DiscoveryError.INVALID_SESSION_STATUS);
         this.status = SessionStatus.PAUSED;
-        registerEvent(DiscoverySessionRecordingPausedEvent.of(getId(), projectId));
+        registerEvent(DiscoverySessionRecordingPausedEvent.of(getId(), projectId, title, language.value(), startedAt));
     }
 
     /** Resumes a paused recording: {@code PAUSED → RECORDING}. */
@@ -136,7 +145,7 @@ public class DiscoverySession extends AggregateRoot {
                 "status", "resumeRecording requires PAUSED but was " + this.status,
                 DiscoveryError.INVALID_SESSION_STATUS);
         this.status = SessionStatus.RECORDING;
-        registerEvent(DiscoverySessionRecordingResumedEvent.of(getId(), projectId));
+        registerEvent(DiscoverySessionRecordingResumedEvent.of(getId(), projectId, title, language.value(), startedAt));
     }
 
     /**
@@ -166,23 +175,7 @@ public class DiscoverySession extends AggregateRoot {
         Assert.isTrue(this.status == SessionStatus.RECORDING || this.status == SessionStatus.PAUSED, "status", "stopRecording requires RECORDING or PAUSED but was " + this.status, DiscoveryError.INVALID_SESSION_STATUS);
         this.status = SessionStatus.STOPPED;
         this.endedAt = Assert.notNull(now, "now");
-        registerEvent(DiscoverySessionRecordingStoppedEvent.of(getId(), projectId));
-    }
-
-    /** Resets back to {@code DRAFT}: {@code COMPLETED}, {@code FAILED}, or {@code STOPPED → DRAFT}. Clears all session data. */
-    public void reset() {
-        Assert.isTrue(this.status == SessionStatus.COMPLETED || this.status == SessionStatus.FAILED || this.status == SessionStatus.STOPPED,
-                "status", "reset requires COMPLETED, FAILED, or STOPPED but was " + this.status,
-                DiscoveryError.INVALID_SESSION_STATUS);
-        this.status = SessionStatus.DRAFT;
-        this.transcript = null;
-        this.startedAt = null;
-        this.endedAt = null;
-        this.processingError = null;
-        this.audioDurationMs = 0;
-        this.lastSequence = 0;
-        this.lastSuggestedSequence = 0;
-        registerEvent(DiscoverySessionResetEvent.of(getId(), projectId));
+        registerEvent(DiscoverySessionRecordingStoppedEvent.of(getId(), projectId, title, language.value(), startedAt));
     }
 
     /** Advances the realtime-suggestion watermark; never moves it backwards. */
@@ -190,5 +183,10 @@ public class DiscoverySession extends AggregateRoot {
         if (sequence > this.lastSuggestedSequence) {
             this.lastSuggestedSequence = sequence;
         }
+    }
+
+    /** Records when the last realtime suggestion pass ran (drives the time-based cadence fallback). */
+    public void markSuggestedAt(Instant when) {
+        this.lastSuggestedAt = Assert.notNull(when, "when");
     }
 }

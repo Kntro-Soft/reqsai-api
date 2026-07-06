@@ -24,6 +24,7 @@ public class ListProjectStoriesQueryHandler {
     public Page<UserStory> handle(ListProjectStoriesQuery query) {
         return stories.findAllByProjectId(
                 query.projectId(),
+                query.filter(),
                 pageRequestFactory.toPageable(query.criteria(), SORT));
     }
 }

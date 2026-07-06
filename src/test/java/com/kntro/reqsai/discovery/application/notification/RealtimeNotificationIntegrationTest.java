@@ -91,7 +91,7 @@ class RealtimeNotificationIntegrationTest extends AbstractIntegrationTest {
 
         // Act & Assert
         SessionStatusChangedMessage msg = awaitFirst(received,
-                () -> recordingListener.onRecordingStarted(DiscoverySessionRecordingStartedEvent.of(sessionId, UUID.randomUUID())));
+                () -> recordingListener.onRecordingStarted(DiscoverySessionRecordingStartedEvent.of(sessionId, UUID.randomUUID(), "Kickoff", "es-PE", java.time.Instant.now())));
         assertThat(msg.sessionId()).isEqualTo(sessionId);
         assertThat(msg.type()).isEqualTo(SessionEventType.RECORDING_STARTED);
     }
@@ -154,7 +154,7 @@ class RealtimeNotificationIntegrationTest extends AbstractIntegrationTest {
         connectHeaders.add("Authorization", authorization);
 
         return stompClient
-                .connectAsync("ws://localhost:" + port + "/ws",
+                .connectAsync("ws://localhost:" + port + "/ws/stomp",
                         new WebSocketHttpHeaders(),
                         connectHeaders,
                         new StompSessionHandlerAdapter() {})

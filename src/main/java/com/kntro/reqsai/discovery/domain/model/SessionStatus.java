@@ -10,7 +10,6 @@ package com.kntro.reqsai.discovery.domain.model;
  *                                                                       ▼
  *                                                  PROCESSING ──complete──▶ COMPLETED
  *                                                       └────fail────────▶ FAILED
- *               (COMPLETED | FAILED | STOPPED) ──reset──▶ DRAFT
  * </pre>
  * The live AI-suggestion loop runs <strong>during {@code RECORDING}</strong> in parallel and does not
  * change this status — it produces {@code Suggestion}s, not session-state transitions.

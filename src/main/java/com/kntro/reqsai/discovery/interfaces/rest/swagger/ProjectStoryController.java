@@ -1,6 +1,7 @@
 package com.kntro.reqsai.discovery.interfaces.rest.swagger;
 
 import com.kntro.reqsai.discovery.interfaces.rest.dto.request.CreateUserStoryRequest;
+import com.kntro.reqsai.discovery.interfaces.rest.dto.request.UpdateUserStoryRequest;
 import com.kntro.reqsai.discovery.interfaces.rest.dto.response.UserStoryResponse;
 import com.kntro.reqsai.shared.interfaces.pagination.PageResponse;
 import com.kntro.reqsai.shared.infrastructure.configuration.ApiVersioning;
@@ -17,15 +18,18 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
+import java.time.Instant;
 import java.util.UUID;
 
 /**
@@ -93,7 +97,11 @@ public interface ProjectStoryController {
 
     @Operation(
             summary = "List user stories for a project (backlog)",
-            description = "Returns a paginated list of user stories for the given project, scoped to the authenticated tenant.")
+            description = """
+                    Returns a paginated list of user stories for the given project, scoped to the \
+                    authenticated tenant. Supports optional server-side text search and filtering by \
+                    status, priority and creation-date range — all filters are applied in the database \
+                    and combined with AND. Omitting a filter leaves that dimension unrestricted.""")
     @ApiResponse(
             responseCode = "200",
             description = "Paginated project backlog",
@@ -111,5 +119,42 @@ public interface ProjectStoryController {
             @Parameter(description = "Sort field: createdAt | title | priority | status", example = "createdAt")
             @RequestParam(required = false) String sortBy,
             @Parameter(description = "Sort direction: ASC | DESC", example = "DESC")
-            @RequestParam(required = false) String sortDirection);
+            @RequestParam(required = false) String sortDirection,
+            @Parameter(description = "Case-insensitive substring matched across title, role and action", example = "upload")
+            @RequestParam(required = false) String search,
+            @Parameter(description = "Filter by review status", example = "DRAFT",
+                    schema = @Schema(allowableValues = {"DRAFT", "APPROVED", "REJECTED", "MERGED", "EXPORTED"}))
+            @RequestParam(required = false) String status,
+            @Parameter(description = "Filter by backlog priority", example = "HIGH",
+                    schema = @Schema(allowableValues = {"LOW", "MEDIUM", "HIGH", "CRITICAL"}))
+            @RequestParam(required = false) String priority,
+            @Parameter(description = "Lower bound on createdAt, inclusive (ISO-8601 instant)", example = "2026-06-01T00:00:00Z")
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant createdAfter,
+            @Parameter(description = "Upper bound on createdAt, exclusive (ISO-8601 instant)", example = "2026-07-01T00:00:00Z")
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant createdBefore);
+
+    @Operation(
+            summary = "Update a user story (manual edit)",
+            description = """
+                    Edits the core fields of an existing story (title, role, action, benefit, priority, \
+                    story points), scoped to the authenticated tenant. This is a straight field update: \
+                    it does NOT re-run duplicate detection or re-compute the similarity embedding, so a \
+                    manual edit never changes the story's indexed/deduplicated state.""")
+    @ApiResponse(
+            responseCode = "200",
+            description = "Story updated",
+            content = @Content(
+                    mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    schema = @Schema(implementation = UserStoryResponse.class)))
+    @ApiResponseBadRequest
+    @ApiResponseNotFound
+    @ApiStandardErrorResponses
+    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
+    @PutMapping(path = "/{storyId}", version = ApiVersioning.V1)
+    ResponseEntity<UserStoryResponse> update(
+            @Parameter(description = "Project the story belongs to", required = true)
+            @PathVariable UUID projectId,
+            @Parameter(description = "Story to update", required = true)
+            @PathVariable UUID storyId,
+            @Valid @RequestBody UpdateUserStoryRequest request);
 }

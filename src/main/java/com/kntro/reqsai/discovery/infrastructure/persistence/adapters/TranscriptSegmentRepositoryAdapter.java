@@ -39,6 +39,16 @@ public class TranscriptSegmentRepositoryAdapter implements TranscriptSegmentRepo
     }
 
     @Override
+    public List<TranscriptSegment> findFinalBySessionIdBefore(UUID sessionId, int beforeSequence, int limit) {
+        return jpa.findFinalBySessionIdBefore(sessionId, beforeSequence, PageRequest.of(0, limit));
+    }
+
+    @Override
+    public long countFinalBySessionId(UUID sessionId) {
+        return jpa.countBySessionIdAndIsFinalTrue(sessionId);
+    }
+
+    @Override
     @Transactional
     public void deleteAllBySessionId(UUID sessionId) {
         jpa.deleteAllBySessionId(sessionId);

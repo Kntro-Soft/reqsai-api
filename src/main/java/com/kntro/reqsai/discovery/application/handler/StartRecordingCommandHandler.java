@@ -13,6 +13,11 @@ import java.time.Instant;
 
 /**
  * Handles transitioning a discovery session status to RECORDING.
+ *
+ * <p>Enforces the single-active-session rule: at most one session per project may be live
+ * ({@code RECORDING} or {@code PAUSED}) at a time. The check runs inside the transaction; the
+ * partial unique index {@code uq_sessions_project_active} is the concurrency backstop, so two
+ * simultaneous starts cannot both win even if their reads interleave.
  */
 @Component
 @RequiredArgsConstructor
@@ -26,6 +31,12 @@ public class StartRecordingCommandHandler {
         DiscoverySession session = sessions.findById(command.sessionId())
                 .filter(s -> s.getProjectId().equals(command.projectId()))
                 .orElseThrow(() -> DiscoveryExceptions.sessionNotFound(command.sessionId()));
+
+        sessions.findActiveByProjectId(command.projectId())
+                .filter(active -> !active.getId().equals(session.getId()))
+                .ifPresent(active -> {
+                    throw DiscoveryExceptions.sessionAlreadyActive(command.projectId(), active.getId());
+                });
 
         session.startRecording(Instant.now());
         DiscoverySession saved = sessions.save(session);

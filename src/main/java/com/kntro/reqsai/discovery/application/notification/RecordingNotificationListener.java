@@ -4,7 +4,6 @@ import com.kntro.reqsai.discovery.domain.event.DiscoverySessionRecordingPausedEv
 import com.kntro.reqsai.discovery.domain.event.DiscoverySessionRecordingResumedEvent;
 import com.kntro.reqsai.discovery.domain.event.DiscoverySessionRecordingStartedEvent;
 import com.kntro.reqsai.discovery.domain.event.DiscoverySessionRecordingStoppedEvent;
-import com.kntro.reqsai.discovery.domain.event.DiscoverySessionResetEvent;
 import com.kntro.reqsai.discovery.interfaces.notification.mappers.DiscoverySessionNotificationMapper;
 import com.kntro.reqsai.discovery.interfaces.notification.messages.SessionRealtimeMessage;
 import com.kntro.reqsai.discovery.interfaces.notification.messages.SessionStatusChangedMessage;
@@ -19,7 +18,7 @@ import java.util.UUID;
 /**
  * Bridges recording lifecycle domain events to live WebSocket notifications.
  *
- * <p>Covers the five recording state transitions: start, pause, resume, stop, and reset.
+ * <p>Covers the four recording state transitions: start, pause, resume, and stop.
  * Each handler maps the event to a {@link SessionStatusChangedMessage}
  * and broadcasts it on the session topic via {@link SessionTopics}.
  */
@@ -47,11 +46,6 @@ class RecordingNotificationListener {
 
     @ApplicationModuleListener
     void onRecordingStopped(DiscoverySessionRecordingStoppedEvent event) {
-        broadcast(event.sessionId(), DiscoverySessionNotificationMapper.toMessage(event));
-    }
-
-    @ApplicationModuleListener
-    void onSessionReset(DiscoverySessionResetEvent event) {
         broadcast(event.sessionId(), DiscoverySessionNotificationMapper.toMessage(event));
     }
 

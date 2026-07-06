@@ -3,6 +3,8 @@ package com.kntro.reqsai.discovery.infrastructure.persistence.repositories;
 import com.kntro.reqsai.discovery.domain.model.Suggestion;
 import com.kntro.reqsai.discovery.domain.model.SuggestionStatus;
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -27,6 +29,8 @@ public interface SuggestionJpaRepository extends JpaRepository<Suggestion, UUID>
     Optional<Suggestion> findByIdAndSessionIdForUpdate(@Param("id") UUID id, @Param("sessionId") UUID sessionId);
 
     List<Suggestion> findAllBySessionIdAndStatus(UUID sessionId, SuggestionStatus status);
+
+    Page<Suggestion> findAllByProjectIdAndStatus(UUID projectId, SuggestionStatus status, Pageable pageable);
 
     void deleteAllBySessionId(UUID sessionId);
 }

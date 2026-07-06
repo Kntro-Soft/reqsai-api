@@ -5,7 +5,6 @@ import com.kntro.reqsai.discovery.application.port.SuggestionRepository;
 import com.kntro.reqsai.discovery.application.query.ListPendingSuggestionsQuery;
 import com.kntro.reqsai.discovery.domain.exception.DiscoveryExceptions;
 import com.kntro.reqsai.discovery.domain.model.Suggestion;
-import com.kntro.reqsai.discovery.domain.model.SuggestionStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +22,6 @@ public class ListPendingSuggestionsQueryHandler {
     public List<Suggestion> handle(ListPendingSuggestionsQuery query) {
         sessions.findById(query.sessionId())
                 .orElseThrow(() -> DiscoveryExceptions.sessionNotFound(query.sessionId()));
-        return suggestions.findAllBySessionIdAndStatus(query.sessionId(), SuggestionStatus.PENDING);
+        return suggestions.findAllBySessionIdAndStatus(query.sessionId(), query.statusOrDefault());
     }
 }

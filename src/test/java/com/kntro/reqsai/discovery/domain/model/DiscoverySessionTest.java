@@ -278,36 +278,6 @@ class DiscoverySessionTest {
     }
 
     @Test
-    @DisplayName("should transition status to DRAFT and clear fields when resetting from STOPPED")
-    void should_reset_from_stopped() {
-        // Arrange
-        DiscoverySession session = DiscoverySessionMother.draft().build();
-        session.startRecording(Instant.now());
-        session.stopRecording(Instant.now()); // status is STOPPED
-
-        // Act
-        session.reset();
-
-        // Assert
-        assertThat(session.getStatus()).isEqualTo(SessionStatus.DRAFT);
-        assertThat(session.getTranscript()).isNull();
-        assertThat(session.getStartedAt()).isNull();
-        assertThat(session.getEndedAt()).isNull();
-    }
-
-    @Test
-    @DisplayName("should reject resetting if session is in RECORDING")
-    void should_reject_reset_if_recording() {
-        // Arrange
-        DiscoverySession session = DiscoverySessionMother.draft().build();
-        session.startRecording(Instant.now()); // status is RECORDING
-
-        // Act & Assert
-        assertThatThrownBy(session::reset)
-                .isInstanceOf(DomainException.class);
-    }
-
-    @Test
     @DisplayName("should append a transcript segment while RECORDING, advancing lastSequence")
     void should_record_segment_while_recording() {
         // Arrange
@@ -348,21 +318,5 @@ class DiscoverySessionTest {
         // Act & Assert
         assertThatThrownBy(() -> session.recordSegment("   ", null, 0, 100, true))
                 .isInstanceOf(DomainException.class);
-    }
-
-    @Test
-    @DisplayName("should reset lastSequence to zero on reset")
-    void should_clear_last_sequence_on_reset() {
-        // Arrange
-        DiscoverySession session = DiscoverySessionMother.draft().build();
-        session.startRecording(Instant.now());
-        session.recordSegment("uno", null, 0, 100, true);
-        session.stopRecording(Instant.now());
-
-        // Act
-        session.reset();
-
-        // Assert
-        assertThat(session.getLastSequence()).isZero();
     }
 }

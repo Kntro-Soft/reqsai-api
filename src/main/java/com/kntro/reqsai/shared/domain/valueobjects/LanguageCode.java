@@ -15,8 +15,12 @@ public record LanguageCode(String value) {
     /** Maximum character length of a stored BCP-47 tag ({@code ll-RR} = 5 chars; 8 gives a safe buffer). */
     public static final int MAX_LENGTH = 8;
 
-    /** Matches {@code ll} or {@code ll-RR} (ISO-639 language, optional ISO-3166 region). */
-    private static final Pattern PATTERN = Pattern.compile("^[a-z]{2}(-[A-Z]{2})?$");
+    /**
+     * Matches {@code ll} or {@code ll-RR} — an ISO-639 language with an optional region that is either an
+     * ISO-3166 two-letter code ({@code PE}, {@code BR}) or a UN M.49 three-digit code ({@code 419} for
+     * Latin America, as used by Deepgram for {@code es-419}).
+     */
+    private static final Pattern PATTERN = Pattern.compile("^[a-z]{2}(-([A-Z]{2}|[0-9]{3}))?$");
 
     public LanguageCode {
         if (value == null || value.isBlank()) {

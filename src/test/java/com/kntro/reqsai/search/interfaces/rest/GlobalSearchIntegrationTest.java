@@ -179,7 +179,12 @@ class GlobalSearchIntegrationTest extends AbstractIntegrationTest {
         String suffix = UUID.randomUUID().toString().substring(0, 8);
         String orgId = createOrg(suffix);
 
-        String body = get(orgId, "/api/search?q=acme");
+        // Every org this suite creates is named "Acme <suffix>", and the integration Testcontainer DB is
+        // shared with no per-test cleanup. Searching the generic "acme" trigram-matches EVERY such org and,
+        // with the default result cap (8), the org just created can fall outside the top hits — a flake that
+        // surfaces once enough orgs have accumulated (e.g. in CI). Search the org's UNIQUE suffix so the
+        // trigram match is deterministic (still exercises name-based trigram search) regardless of DB volume.
+        String body = get(orgId, "/api/search?q=" + suffix);
 
         assertThat(body).contains("\"type\":\"ORGANIZATION\"");
         assertThat(body).contains("\"id\":\"" + orgId + "\"");

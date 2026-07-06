@@ -7,5 +7,7 @@ import java.util.UUID;
  * The handler validates the status and delegates to {@link com.kntro.reqsai.discovery.application.port.StreamingTranscriptionPort}.
  *
  * @param sessionId the discovery session that will receive transcript segments
+ * @param userId    the authenticated user opening the stream (from the WS handshake JWT); must hold
+ *                  the {@code SESSION_RUN} permission on the session's project
  */
-public record StartSttStreamCommand(UUID sessionId) {}
+public record StartSttStreamCommand(UUID sessionId, UUID userId) {}

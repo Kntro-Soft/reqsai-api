@@ -99,6 +99,43 @@ class GlossaryTermIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("should return a paginated, searchable glossary page")
+    void should_return_paginated_searchable_glossary() {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        String expectedSlug = "acme-" + suffix;
+        UUID orgId = createOrganizationAndReturnId(suffix, expectedSlug);
+        UUID projectId = createProjectAndReturnId(orgId, expectedSlug, "Paginated Glossary Project");
+
+        assertThat(addGlossaryTerm(orgId, projectId, expectedSlug,
+                Map.of("term", "Lead", "definition", "Potential customer")).getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(addGlossaryTerm(orgId, projectId, expectedSlug,
+                Map.of("term", "Opportunity", "definition", "Qualified prospect")).getStatusCode()).isEqualTo(HttpStatus.CREATED);
+
+        // Paginated envelope with both terms
+        ResponseEntity<String> all = client().get().uri("/api/organizations/{orgId}/projects/{projectId}/glossary", orgId, projectId)
+                .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId.toString(), "ROLE_USER"))
+                .header("Api-Version", "1")
+                .exchange((req, responseSpec) -> ResponseEntity.status(responseSpec.getStatusCode())
+                        .body(responseSpec.bodyTo(String.class)));
+        assertThat(all.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(all.getBody()).contains("\"content\":");
+        assertThat(all.getBody()).contains("\"totalElements\":2");
+        assertThat(all.getBody()).contains("\"term\":\"Lead\"");
+        assertThat(all.getBody()).contains("\"term\":\"Opportunity\"");
+
+        // Case-insensitive search over term/definition
+        ResponseEntity<String> searched = client().get().uri("/api/organizations/{orgId}/projects/{projectId}/glossary?search=prospect", orgId, projectId)
+                .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId.toString(), "ROLE_USER"))
+                .header("Api-Version", "1")
+                .exchange((req, responseSpec) -> ResponseEntity.status(responseSpec.getStatusCode())
+                        .body(responseSpec.bodyTo(String.class)));
+        assertThat(searched.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(searched.getBody()).contains("\"totalElements\":1");
+        assertThat(searched.getBody()).contains("\"term\":\"Opportunity\"");
+        assertThat(searched.getBody()).doesNotContain("\"term\":\"Lead\"");
+    }
+
+    @Test
     @DisplayName("should reject duplicate term ignoring case")
     void should_reject_duplicate_term_ignoring_case() {
         String suffix = UUID.randomUUID().toString().substring(0, 8);

@@ -48,4 +48,22 @@ public final class DiscoveryExceptions {
         return new DomainException(DiscoveryError.SUGGESTION_ALREADY_RESOLVED,
                 "Suggestion '%s' is already %s".formatted(id, status));
     }
+
+    public static DomainException edgeCaseWithoutTarget(java.util.UUID id) {
+        return new DomainException(DiscoveryError.EDGE_CASE_WITHOUT_TARGET,
+                ("Edge-case suggestion '%s' has no resolvable target story; assign a target story (edit "
+                        + "it or accept it as a new story explicitly) before accepting it as an edge case")
+                        .formatted(id));
+    }
+
+    public static DomainException sessionAccessDenied(java.util.UUID sessionId, java.util.UUID userId) {
+        return new DomainException(DiscoveryError.SESSION_ACCESS_DENIED,
+                "User '%s' may not stream audio into session '%s'".formatted(userId, sessionId));
+    }
+
+    public static DomainException sessionAlreadyActive(java.util.UUID projectId, java.util.UUID activeSessionId) {
+        return new DomainException(DiscoveryError.SESSION_ALREADY_ACTIVE,
+                "Project '%s' already has an active session '%s' (RECORDING or PAUSED); stop it before starting another"
+                        .formatted(projectId, activeSessionId));
+    }
 }

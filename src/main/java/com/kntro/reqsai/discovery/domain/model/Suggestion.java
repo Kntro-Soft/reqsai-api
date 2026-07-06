@@ -12,8 +12,12 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import lombok.Getter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import org.jspecify.annotations.Nullable;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -44,6 +48,12 @@ public class Suggestion extends AggregateRoot {
     private static final int FIELD_MAX = 500;
     private static final int QUESTION_MAX = 1000;
     private static final int ENUM_MAX = 32;
+    /**
+     * Max length of a criterion {@code scenario} label, mirroring {@link AcceptanceCriterion}'s own
+     * {@code SCENARIO_MAX}. An over-long LLM-emitted scenario is truncated here so accept never fails
+     * the whole suggestion on the criterion's {@code maxLength} assertion.
+     */
+    private static final int SCENARIO_MAX = 200;
 
     @Column(name = "session_id", columnDefinition = "uuid", nullable = false, updatable = false)
     private UUID sessionId;
@@ -80,6 +90,23 @@ public class Suggestion extends AggregateRoot {
     @Column(name = "draft_story_points")
     private @Nullable Integer draftStoryPoints;
 
+    /**
+     * Proposed structured acceptance criteria, carried through the review gate so acceptance can
+     * create/extend a story with real {@link AcceptanceCriterion} rows (each a Given/When/Then).
+     * Stored as JSONB (mirrors how {@link UserStory} maps its pgvector embedding with a Hibernate
+     * JDBC type code).
+     *
+     * <ul>
+     *   <li>{@code NEW_STORY} — the 2-4 criteria proposed for the new story.</li>
+     *   <li>{@code EDGE_CASE} — exactly one entry: the boundary/exceptional criterion to add to the
+     *       target story (accepted verbatim, no field twisting).</li>
+     *   <li>{@code UPDATE_STORY} / {@code CLARIFYING_QUESTION} — empty.</li>
+     * </ul>
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "draft_criteria", columnDefinition = "jsonb")
+    private List<DraftCriterion> draftCriteria = new ArrayList<>();
+
     // ── Related topic hint (EDGE_CASE — aids targetStoryId resolution) ────────
 
     @Column(name = "related_topic", length = FIELD_MAX)
@@ -110,20 +137,36 @@ public class Suggestion extends AggregateRoot {
 
     // ── Factory methods ───────────────────────────────────────────────────────
 
-    /** Creates a NEW_STORY or EDGE_CASE suggestion (no target). */
+    /** Creates a NEW_STORY suggestion (no target, no draft criteria). */
     public static Suggestion newStory(UUID sessionId, UUID projectId,
                                       String title, String role, String action, String benefit,
                                       Priority priority, @Nullable Integer storyPoints) {
-        return newStory(sessionId, projectId, title, role, action, benefit, priority, storyPoints, null, null);
+        return newStory(sessionId, projectId, title, role, action, benefit, priority, storyPoints, List.of());
     }
 
-    /** Creates an EDGE_CASE suggestion with a resolved target story. */
+    /** Creates a NEW_STORY suggestion carrying the LLM's proposed draft acceptance criteria. */
+    public static Suggestion newStory(UUID sessionId, UUID projectId,
+                                      String title, String role, String action, String benefit,
+                                      Priority priority, @Nullable Integer storyPoints,
+                                      List<DraftCriterion> criteria) {
+        Suggestion s = newStory(sessionId, projectId, title, role, action, benefit, priority, storyPoints, null, null);
+        s.draftCriteria = sanitizeCriteria(criteria);
+        return s;
+    }
+
+    /**
+     * Creates an EDGE_CASE suggestion carrying a real Given/When/Then {@code criterion} to add to the
+     * target story, plus the story fields kept only for the standalone-story fallback (when no target
+     * can be resolved at accept time) and for duplicate detection.
+     */
     public static Suggestion edgeCase(UUID sessionId, UUID projectId,
                                       String title, String role, String action, String benefit,
                                       Priority priority, @Nullable Integer storyPoints,
-                                      @Nullable String relatedTopic, @Nullable UUID targetStoryId) {
+                                      @Nullable String relatedTopic, @Nullable UUID targetStoryId,
+                                      @Nullable DraftCriterion criterion) {
         Suggestion s = newStory(sessionId, projectId, title, role, action, benefit, priority, storyPoints, relatedTopic, targetStoryId);
         s.type = SuggestionType.EDGE_CASE;
+        s.draftCriteria = sanitizeCriteria(criterion == null ? List.of() : List.of(criterion));
         return s;
     }
 
@@ -215,5 +258,67 @@ public class Suggestion extends AggregateRoot {
         s.targetStoryId = targetStoryId;
         s.registerEvent(SuggestionCreatedEvent.of(s));
         return s;
+    }
+
+    // ── Draft acceptance criteria (NEW_STORY) ─────────────────────────────────
+
+    /**
+     * A proposed acceptance criterion in Gherkin form. {@code scenario} is an optional short label
+     * (the LLM is asked to provide one in the transcript language, but it is dropped rather than
+     * fabricated when omitted); {@code given}/{@code when}/{@code then} are required. Persisted as an
+     * element of the {@code draft_criteria} JSONB column. The canonical constructor keeps Jackson
+     * happy for JSON (de)serialization by Hibernate.
+     */
+    public record DraftCriterion(@Nullable String scenario, String given, String when, String then) {}
+
+    /**
+     * The structured draft acceptance criteria (empty when none), never null. Holds the NEW_STORY
+     * criteria list or the single EDGE_CASE criterion.
+     */
+    public List<DraftCriterion> getDraftAcceptanceCriteria() {
+        return draftCriteria == null ? List.of() : List.copyOf(draftCriteria);
+    }
+
+    /**
+     * Replaces the draft acceptance criteria with the analyst-edited set on accept. Each is sanitized
+     * (given/when/then required, blank scenario normalized to null); an entry missing any of the
+     * three is dropped. Used by the accept handler when the request carries edited criteria.
+     */
+    public void replaceDraftCriteria(List<DraftCriterion> criteria) {
+        this.draftCriteria = sanitizeCriteria(criteria);
+    }
+
+    /**
+     * Keeps only criteria with all three of given/when/then present — a criterion missing any of them
+     * could not build a valid {@link AcceptanceCriterion} on accept, so it is dropped rather than
+     * fabricated. Strips fields, normalizes a blank scenario to null, and truncates an over-long
+     * scenario to {@link #SCENARIO_MAX} so a long LLM label caps the criterion instead of failing the
+     * whole accept on {@link AcceptanceCriterion}'s length assertion.
+     */
+    private static List<DraftCriterion> sanitizeCriteria(@Nullable List<DraftCriterion> criteria) {
+        List<DraftCriterion> out = new ArrayList<>();
+        if (criteria == null) {
+            return out;
+        }
+        for (DraftCriterion c : criteria) {
+            if (c == null || blank(c.given()) || blank(c.when()) || blank(c.then())) {
+                continue;
+            }
+            String scenario = blank(c.scenario()) ? null : truncate(c.scenario().strip(), SCENARIO_MAX);
+            out.add(new DraftCriterion(scenario, c.given().strip(), c.when().strip(), c.then().strip()));
+        }
+        return out;
+    }
+
+    /** Caps {@code value} at {@code max} characters (null-safe); shorter/blank values pass through. */
+    private static @Nullable String truncate(@Nullable String value, int max) {
+        if (value == null || value.length() <= max) {
+            return value;
+        }
+        return value.substring(0, max);
+    }
+
+    private static boolean blank(@Nullable String s) {
+        return s == null || s.isBlank();
     }
 }
