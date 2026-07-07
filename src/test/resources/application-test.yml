@@ -25,6 +25,14 @@ reqsai:
     # Deterministic non-secret AES-256 key (base64 of bytes 0..31) so tests encrypt/decrypt integration
     # secrets without a .env. NEVER use this key outside tests/local dev.
     encryption-key: AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=
+    jira:
+      oauth:
+        # Deterministic dummy OAuth config so the OAuth endpoints are configured (not disabled) in tests.
+        # No test hits real Atlassian — the JiraOAuthClient boundary is stubbed.
+        client-id: test-client-id
+        client-secret: test-client-secret
+        redirect-uri: http://localhost/integrations/jira/callback
+        state-secret: AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=
   cors:
     allowed-origins: http://localhost:4200
     allow-credentials: true

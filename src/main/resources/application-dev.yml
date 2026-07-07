@@ -33,6 +33,14 @@ reqsai:
     # Local-only default AES-256 key (base64 of bytes 0..31) so the app boots without a .env in dev.
     # Override with a real INTEGRATIONS_ENCRYPTION_KEY anywhere it matters. NEVER use this in prod.
     encryption-key: ${INTEGRATIONS_ENCRYPTION_KEY:AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=}
+    jira:
+      oauth:
+        # Dummy dev defaults so the OAuth beans wire and the authorize-url endpoint is exercisable
+        # locally. These are NOT real Atlassian credentials; register a real app and override via .env.
+        client-id: ${JIRA_OAUTH_CLIENT_ID:dev-client-id}
+        client-secret: ${JIRA_OAUTH_CLIENT_SECRET:dev-client-secret}
+        redirect-uri: ${JIRA_OAUTH_CALLBACK_URL:http://localhost:4200/integrations/jira/callback}
+        state-secret: ${JIRA_OAUTH_STATE_SECRET:AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=}
 
 logging:
   level:

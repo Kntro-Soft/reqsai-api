@@ -158,6 +158,17 @@ reqsai:
     # Base64-encoded 32-byte (AES-256) key used to encrypt third-party integration secrets at rest
     # (ADR-0023). Required for the integrations feature; keep it out of source control (.env / secret).
     encryption-key: ${INTEGRATIONS_ENCRYPTION_KEY:}
+    jira:
+      oauth:
+        # Jira OAuth 2.0 (3LO) app credentials (ADR-0022). OPTIONAL: when any of client-id/client-secret/
+        # redirect-uri is blank the OAuth endpoints return JIRA_OAUTH_NOT_CONFIGURED and the app still
+        # boots (unlike the encryption key, which is required). Keep secrets out of source control (.env).
+        client-id: ${JIRA_OAUTH_CLIENT_ID:}
+        client-secret: ${JIRA_OAUTH_CLIENT_SECRET:}
+        redirect-uri: ${JIRA_OAUTH_CALLBACK_URL:}
+        # HMAC secret for signing the stateless OAuth `state` token. Defaults to the encryption key when
+        # unset so a single configured secret suffices; override with a dedicated value if desired.
+        state-secret: ${JIRA_OAUTH_STATE_SECRET:${INTEGRATIONS_ENCRYPTION_KEY:}}
   jwt:
     private-key-path: ${JWT_PRIVATE_KEY_PATH:classpath:certs/private_key.pem}
     private-key-pem: ${JWT_PRIVATE_KEY_PEM:}

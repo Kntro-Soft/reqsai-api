@@ -13,7 +13,10 @@ public enum IntegrationsInfrastructureError implements ErrorCatalog {
     JIRA_AUTH_FAILED(HttpStatus.UNAUTHORIZED),
     JIRA_UNREACHABLE(HttpStatus.BAD_GATEWAY),
     JIRA_PUSH_FAILED(HttpStatus.BAD_GATEWAY),
-    INTEGRATION_ENCRYPTION_ERROR(HttpStatus.INTERNAL_SERVER_ERROR);
+    INTEGRATION_ENCRYPTION_ERROR(HttpStatus.INTERNAL_SERVER_ERROR),
+
+    /** The Jira OAuth authorization-code / refresh-token exchange with Atlassian failed. */
+    JIRA_OAUTH_EXCHANGE_FAILED(HttpStatus.BAD_GATEWAY);
 
     private final HttpStatus status;
 

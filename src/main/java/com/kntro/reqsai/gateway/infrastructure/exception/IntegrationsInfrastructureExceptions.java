@@ -33,4 +33,10 @@ public final class IntegrationsInfrastructureExceptions {
         return new InfrastructureException(IntegrationsInfrastructureError.INTEGRATION_ENCRYPTION_ERROR,
                 "Integration secret encryption failed: " + reason, cause);
     }
+
+    /** The Jira OAuth token/refresh exchange with Atlassian failed. Never includes any token. */
+    public static InfrastructureException jiraOauthExchangeFailed(String reason, Throwable cause) {
+        return new InfrastructureException(IntegrationsInfrastructureError.JIRA_OAUTH_EXCHANGE_FAILED,
+                "Jira OAuth token exchange failed: " + reason, cause);
+    }
 }

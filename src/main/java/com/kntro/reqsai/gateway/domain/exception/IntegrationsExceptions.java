@@ -47,4 +47,16 @@ public final class IntegrationsExceptions {
         return new EntityNotFoundException(IntegrationsError.INTEGRATION_CONNECTION_NOT_FOUND,
                 "Story not found in project: " + storyId);
     }
+
+    /** Jira OAuth is not configured on this deployment — the authorize/callback endpoints are unavailable. */
+    public static DomainException oauthNotConfigured() {
+        return new DomainException(IntegrationsError.JIRA_OAUTH_NOT_CONFIGURED,
+                "Jira OAuth 2.0 (3LO) is not configured on this deployment");
+    }
+
+    /** The OAuth {@code state} token failed validation (signature/expiry/org-user mismatch). */
+    public static DomainException oauthStateInvalid(String reason) {
+        return new DomainException(IntegrationsError.JIRA_OAUTH_STATE_INVALID,
+                "Invalid OAuth state: " + reason);
+    }
 }

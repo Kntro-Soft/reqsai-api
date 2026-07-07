@@ -13,7 +13,13 @@ public enum IntegrationsError implements ErrorCatalog {
     INTEGRATION_CONNECTION_NOT_FOUND(HttpStatus.NOT_FOUND),
     INTEGRATION_ALREADY_CONNECTED(HttpStatus.CONFLICT),
     INTEGRATION_TARGET_NOT_CONFIGURED(HttpStatus.CONFLICT),
-    JIRA_PROJECT_NOT_FOUND(HttpStatus.NOT_FOUND);
+    JIRA_PROJECT_NOT_FOUND(HttpStatus.NOT_FOUND),
+
+    /** Jira OAuth 2.0 (3LO) is not configured on this deployment (client id/secret/redirect absent). */
+    JIRA_OAUTH_NOT_CONFIGURED(HttpStatus.NOT_IMPLEMENTED),
+
+    /** The OAuth {@code state} token failed validation (bad signature, expired, or wrong org/user). */
+    JIRA_OAUTH_STATE_INVALID(HttpStatus.BAD_REQUEST);
 
     private final HttpStatus status;
 
