@@ -1,5 +1,6 @@
 package com.kntro.reqsai.integrations.infrastructure.crypto;
 
+import com.kntro.reqsai.integrations.application.port.SecretCipher;
 import com.kntro.reqsai.integrations.infrastructure.exception.IntegrationsInfrastructureExceptions;
 
 import javax.crypto.Cipher;
@@ -16,8 +17,10 @@ import java.util.Base64;
  * self-describing: the stored bytes are {@code IV(12) || ciphertext||tag}. The key is a base64-encoded
  * 32-byte value supplied at construction (from {@code INTEGRATIONS_ENCRYPTION_KEY}). Never logs
  * plaintext or key material.
+ * <p>
+ * Infrastructure adapter for the {@link SecretCipher} application port.
  */
-public final class AesGcmCipher {
+public final class AesGcmCipher implements SecretCipher {
 
     private static final String TRANSFORMATION = "AES/GCM/NoPadding";
     private static final int IV_LENGTH = 12;
@@ -44,6 +47,7 @@ public final class AesGcmCipher {
     }
 
     /** Encrypts {@code plaintext} → {@code IV || ciphertext+tag}. */
+    @Override
     public byte[] encrypt(byte[] plaintext) {
         try {
             byte[] iv = new byte[IV_LENGTH];
@@ -58,6 +62,7 @@ public final class AesGcmCipher {
     }
 
     /** Decrypts {@code IV || ciphertext+tag} produced by {@link #encrypt(byte[])}. */
+    @Override
     public byte[] decrypt(byte[] stored) {
         try {
             if (stored.length <= IV_LENGTH) {

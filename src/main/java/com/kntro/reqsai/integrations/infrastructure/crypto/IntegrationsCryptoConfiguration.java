@@ -1,5 +1,6 @@
 package com.kntro.reqsai.integrations.infrastructure.crypto;
 
+import com.kntro.reqsai.integrations.application.port.SecretCipher;
 import com.kntro.reqsai.integrations.infrastructure.exception.IntegrationsInfrastructureExceptions;
 import com.kntro.reqsai.integrations.infrastructure.persistence.converters.EncryptedStringConverter;
 import jakarta.annotation.PostConstruct;
@@ -20,7 +21,7 @@ import org.springframework.context.annotation.Configuration;
 @Slf4j
 public class IntegrationsCryptoConfiguration {
 
-    private final AesGcmCipher cipher;
+    private final SecretCipher cipher;
 
     public IntegrationsCryptoConfiguration(@Value("${reqsai.integrations.encryption-key:}") String base64Key) {
         if (base64Key == null || base64Key.isBlank()) {
@@ -31,7 +32,7 @@ public class IntegrationsCryptoConfiguration {
     }
 
     @Bean
-    AesGcmCipher integrationsCipher() {
+    SecretCipher integrationsCipher() {
         return cipher;
     }
 
