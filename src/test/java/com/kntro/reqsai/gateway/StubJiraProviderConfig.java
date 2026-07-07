@@ -49,6 +49,16 @@ public class StubJiraProviderConfig {
                 String key = projectKey + "-" + Math.abs(story.storyId().hashCode() % 1000);
                 return new PushedIssue(key, c.siteUrl() + "/browse/" + key);
             }
+
+            @Override
+            public List<RemoteIssue> searchImportableIssues(ProviderCredentials c, String projectKey, String issueTypeName) {
+                return List.of(
+                        new RemoteIssue(projectKey + "-101", "Password reset via email",
+                                issueTypeName, "As a user I want to reset my password so that I can regain access.",
+                                "HIGH"),
+                        new RemoteIssue(projectKey + "-102", "Export backlog to CSV",
+                                issueTypeName, "Allow exporting the backlog as a CSV file.", "MEDIUM"));
+            }
         };
     }
 }
