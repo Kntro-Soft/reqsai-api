@@ -31,6 +31,7 @@ one (and update the old one's status).
 | [0019](./0019-archunit-architecture-fitness-functions.md)        | Architecture fitness functions with ArchUnit           | Accepted |
 | [0020](./0020-global-search-postgres-trigram.md)                 | Global search with Postgres trigram lexical matching   | Accepted |
 | [0021](./0021-organization-invitations.md)                       | Organization invitations with tokenized email trust    | Accepted |
+| [0022](./0022-flyway-timestamp-based-migration-versions.md)      | Timestamp-based Flyway migration versions              | Accepted |
 
 ## Template
 
