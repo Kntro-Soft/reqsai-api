@@ -160,7 +160,7 @@ class JiraOAuthIntegrationTest extends AbstractIntegrationTest {
                 .header("Authorization", TestJwtFactory.bearer(USER_ID, UUID.randomUUID().toString(), "ROLE_USER"))
                 .header("Api-Version", "1")
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(Map.of("name", "OAuth Org " + suffix))
+                .body(Map.of("name", "Oauth " + suffix))
                 .exchange((req, res) -> ResponseEntity.status(res.getStatusCode()).body(res.bodyTo(String.class)));
         assertThat(orgRes.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         return jdbcTemplate.queryForObject(
