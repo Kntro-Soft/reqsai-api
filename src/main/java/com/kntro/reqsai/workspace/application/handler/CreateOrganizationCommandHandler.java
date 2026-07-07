@@ -1,5 +1,7 @@
 package com.kntro.reqsai.workspace.application.handler;
 
+import com.kntro.reqsai.billing.api.BillingModuleApi;
+import com.kntro.reqsai.billing.api.PlanLimitsSnapshot;
 import com.kntro.reqsai.shared.application.avatar.AvatarDownloadPort;
 import com.kntro.reqsai.shared.domain.valueobjects.LanguageCode;
 import com.kntro.reqsai.shared.infrastructure.persistence.multitenancy.ProvisioningService;
@@ -34,6 +36,7 @@ public class CreateOrganizationCommandHandler {
     private final OrganizationRepository organizations;
     private final ProvisioningService provisioningService;
     private final AvatarDownloadPort avatarDownloadAdapter;
+    private final BillingModuleApi billing;
 
     public Organization handle(CreateOrganizationCommand command) {
         Slug slug = (command.slug() != null && !command.slug().isBlank())
@@ -48,7 +51,16 @@ public class CreateOrganizationCommandHandler {
                 ? GenerationSettings.of(LanguageCode.of(command.meetingLanguage()), DEFAULT_RETENTION_DAYS)
                 : GenerationSettings.defaults();
 
-        Organization organization = new Organization(command.name(), slug, command.requestedBy(), settings, PlanLimits.free());
+        PlanLimitsSnapshot free = billing.freePlanLimits();
+        PlanLimits planLimits = new PlanLimits(
+                free.maxMembers(),
+                free.maxProjects(),
+                free.maxDocumentsPerProject(),
+                free.maxTokensPerMonth(),
+                free.maxGlossaryTermsPerProject()
+        );
+
+        Organization organization = new Organization(command.name(), slug, command.requestedBy(), settings, planLimits);
         organizations.save(organization);
         log.info("Organization {} persisted as PENDING (slug={})", organization.getId(), slug.value());
 
@@ -60,6 +72,9 @@ public class CreateOrganizationCommandHandler {
         organization.activate();
         organizations.save(organization);
         log.info("Organization {} activated", organization.getId());
+
+        billing.assignFreeSubscription(organization.getId());
+
         return organization;
     }
 }

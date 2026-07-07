@@ -16,17 +16,17 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class PlanLimitsTest {
 
     @Test
-    @DisplayName("should expose FREE-tier defaults")
-    void should_expose_free_defaults() {
+    @DisplayName("should construct valid PlanLimits")
+    void should_construct_valid_plan_limits() {
         // Act
-        PlanLimits free = PlanLimits.free();
+        PlanLimits limits = new PlanLimits(3, 25, 10, 100_000L, 50);
 
         // Assert
-        assertThat(free.maxMembers()).isEqualTo(3);
-        assertThat(free.maxProjects()).isEqualTo(25);
-        assertThat(free.maxDocumentsPerProject()).isEqualTo(10);
-        assertThat(free.maxTokensPerMonth()).isEqualTo(100_000L);
-        assertThat(free.maxGlossaryTermsPerProject()).isEqualTo(50);
+        assertThat(limits.maxMembers()).isEqualTo(3);
+        assertThat(limits.maxProjects()).isEqualTo(25);
+        assertThat(limits.maxDocumentsPerProject()).isEqualTo(10);
+        assertThat(limits.maxTokensPerMonth()).isEqualTo(100_000L);
+        assertThat(limits.maxGlossaryTermsPerProject()).isEqualTo(50);
     }
 
     @Test

@@ -21,7 +21,8 @@ class ArchitectureTests {
 					"..shared.domain.exception..",
 					"..discovery.domain.exception..",
 					"..workspace.domain.exception..",
-					"..iam.domain.exception..")
+					"..iam.domain.exception..",
+					"..billing.domain.exception..")
 			.should().dependOnClassesThat().resideInAPackage("org.springframework..")
 			.because("domain layer must be framework-agnostic; "
 					+ "shared.domain.model uses Spring Data auditing intentionally, "
@@ -36,7 +37,9 @@ class ArchitectureTests {
 					"..discovery.domain.valueobjects..",
 					"..workspace.domain.model..",
 					"..workspace.domain.valueobjects..",
-					"..iam.domain.model..")
+					"..iam.domain.model..",
+					"..billing.domain.model..",
+					"..billing.domain.model.valueobjects..")
 			.should().dependOnClassesThat().resideInAPackage("jakarta.persistence..")
 			.because("domain must not depend on JPA — use ports; "
 					+ "Active Record pattern exempts model and value-object packages");

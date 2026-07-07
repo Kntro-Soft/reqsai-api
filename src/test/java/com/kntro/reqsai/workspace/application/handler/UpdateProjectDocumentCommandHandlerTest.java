@@ -42,7 +42,7 @@ class UpdateProjectDocumentCommandHandlerTest {
     @Test
     @DisplayName("should update project document successfully")
     void should_update_project_document_successfully() {
-        Organization organization = OrganizationMother.active().withPlanLimits(PlanLimits.free()).build();
+        Organization organization = OrganizationMother.active().build();
         UUID orgId = organization.getId();
         UUID projectId = UUID.randomUUID();
         ProjectDocument document = new ProjectDocument(projectId, "Business Rules v1", DocumentType.BUSINESS_RULES);

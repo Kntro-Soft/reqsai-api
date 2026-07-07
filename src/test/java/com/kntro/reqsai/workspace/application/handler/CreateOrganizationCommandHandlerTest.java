@@ -1,5 +1,7 @@
 package com.kntro.reqsai.workspace.application.handler;
 
+import com.kntro.reqsai.billing.api.BillingModuleApi;
+import com.kntro.reqsai.billing.api.PlanLimitsSnapshot;
 import com.kntro.reqsai.shared.application.avatar.AvatarDownloadPort;
 import com.kntro.reqsai.shared.domain.exception.DomainException;
 import com.kntro.reqsai.shared.infrastructure.persistence.multitenancy.ProvisioningService;
@@ -7,6 +9,7 @@ import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
 import com.kntro.reqsai.workspace.domain.model.OrgStatus;
 import com.kntro.reqsai.workspace.domain.model.Organization;
 import com.kntro.reqsai.workspace.mothers.CreateOrganizationCommandMother;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -35,8 +38,16 @@ class CreateOrganizationCommandHandlerTest {
     private ProvisioningService provisioningService;
     @Mock
     private AvatarDownloadPort avatarDownloadAdapter;
+    @Mock
+    private BillingModuleApi billing;
     @InjectMocks
     private CreateOrganizationCommandHandler handler;
+
+    @BeforeEach
+    void setUp() {
+        lenient().when(billing.freePlanLimits())
+                .thenReturn(new PlanLimitsSnapshot(3, 25, 10, 100_000L, 50));
+    }
 
     @Nested
     @DisplayName("Successful creation")
@@ -58,6 +69,7 @@ class CreateOrganizationCommandHandlerTest {
             assertThat(org.getSettings().meetingLanguage().value()).isEqualTo("en-US");
             verify(provisioningService).provisionTenant("acme-corp");
             verify(organizations, times(2)).save(any(Organization.class)); // PENDING then ACTIVE
+            verify(billing).assignFreeSubscription(org.getId());
         }
 
         @Test
@@ -73,6 +85,7 @@ class CreateOrganizationCommandHandlerTest {
             // Assert
             assertThat(org.getSlug().value()).isEqualTo("custom-slug");
             verify(provisioningService).provisionTenant("custom-slug");
+            verify(billing).assignFreeSubscription(org.getId());
         }
 
         @Test
@@ -88,6 +101,7 @@ class CreateOrganizationCommandHandlerTest {
             // Assert
             assertThat(org.getSettings().meetingLanguage().value()).isEqualTo("es-PE");
             assertThat(org.getStatus()).isEqualTo(OrgStatus.ACTIVE);
+            verify(billing).assignFreeSubscription(org.getId());
         }
     }
 

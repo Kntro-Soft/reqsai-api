@@ -16,5 +16,8 @@
  * Other modules must declare {@code allowedDependencies = "workspace::api"} and may only import
  * types from {@link com.kntro.reqsai.workspace.api}.
  */
-@org.springframework.modulith.ApplicationModule(allowedDependencies = {"shared", "iam::ports", "iam::api"})
+@org.springframework.modulith.ApplicationModule(
+        allowedDependencies = {"shared", "iam::ports", "iam::api", "billing::api"}
+)
 package com.kntro.reqsai.workspace;
+
