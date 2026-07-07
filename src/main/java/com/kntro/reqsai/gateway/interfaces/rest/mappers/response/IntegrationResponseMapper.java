@@ -3,8 +3,11 @@ package com.kntro.reqsai.gateway.interfaces.rest.mappers.response;
 import com.kntro.reqsai.gateway.application.port.IntegrationProvider.RemoteIssueType;
 import com.kntro.reqsai.gateway.application.port.IntegrationProvider.RemoteProject;
 import com.kntro.reqsai.gateway.application.port.JiraOAuthPort.Site;
+import com.kntro.reqsai.gateway.application.result.BatchImportResult;
 import com.kntro.reqsai.gateway.application.result.BatchPushResult;
 import com.kntro.reqsai.gateway.application.result.ConnectionTestResult;
+import com.kntro.reqsai.gateway.application.result.ImportPreview;
+import com.kntro.reqsai.gateway.application.result.ImportStoryResult;
 import com.kntro.reqsai.gateway.application.result.StoryPushResult;
 import com.kntro.reqsai.gateway.domain.model.IntegrationConnection;
 import com.kntro.reqsai.gateway.domain.model.ProjectIntegrationTarget;
@@ -13,6 +16,8 @@ import com.kntro.reqsai.gateway.interfaces.rest.dto.response.ConnectionTestRespo
 import com.kntro.reqsai.gateway.interfaces.rest.dto.response.IntegrationConnectionResponse;
 import com.kntro.reqsai.gateway.interfaces.rest.dto.response.JiraIssueTypeResponse;
 import com.kntro.reqsai.gateway.interfaces.rest.dto.response.JiraOAuthSiteResponse;
+import com.kntro.reqsai.gateway.interfaces.rest.dto.response.JiraImportPreviewResponse;
+import com.kntro.reqsai.gateway.interfaces.rest.dto.response.JiraImportResponse;
 import com.kntro.reqsai.gateway.interfaces.rest.dto.response.JiraProjectResponse;
 import com.kntro.reqsai.gateway.interfaces.rest.dto.response.JiraPushResultResponse;
 import com.kntro.reqsai.gateway.interfaces.rest.dto.response.ProjectJiraTargetResponse;
@@ -74,5 +79,26 @@ public final class IntegrationResponseMapper {
                 r.results().stream().map(IntegrationResponseMapper::toResponse).toList(),
                 r.pushed(),
                 r.failed());
+    }
+
+    public static JiraImportPreviewResponse toResponse(ImportPreview p) {
+        return new JiraImportPreviewResponse(
+                p.total(),
+                p.issues().stream()
+                        .map(c -> new JiraImportPreviewResponse.Candidate(
+                                c.jiraIssueKey(), c.summary(), c.issueType(), c.duplicate(), c.existingStoryId()))
+                        .toList());
+    }
+
+    public static JiraImportResponse toResponse(BatchImportResult r) {
+        return new JiraImportResponse(
+                r.imported(),
+                r.skipped(),
+                r.failed(),
+                r.results().stream().map(IntegrationResponseMapper::toResponse).toList());
+    }
+
+    public static JiraImportResponse.Result toResponse(ImportStoryResult r) {
+        return new JiraImportResponse.Result(r.jiraIssueKey(), r.storyId(), r.status().wire(), r.message());
     }
 }

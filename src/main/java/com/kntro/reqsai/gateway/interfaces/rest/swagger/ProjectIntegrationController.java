@@ -1,7 +1,10 @@
 package com.kntro.reqsai.gateway.interfaces.rest.swagger;
 
+import com.kntro.reqsai.gateway.interfaces.rest.dto.request.ImportJiraStoriesRequest;
 import com.kntro.reqsai.gateway.interfaces.rest.dto.request.SaveProjectTargetRequest;
 import com.kntro.reqsai.gateway.interfaces.rest.dto.response.BatchPushResponse;
+import com.kntro.reqsai.gateway.interfaces.rest.dto.response.JiraImportPreviewResponse;
+import com.kntro.reqsai.gateway.interfaces.rest.dto.response.JiraImportResponse;
 import com.kntro.reqsai.gateway.interfaces.rest.dto.response.JiraPushResultResponse;
 import com.kntro.reqsai.gateway.interfaces.rest.dto.response.ProjectJiraTargetResponse;
 import com.kntro.reqsai.shared.infrastructure.configuration.ApiVersioning;
@@ -104,5 +107,39 @@ public interface ProjectIntegrationController {
     @PostMapping(value = "/stories/push-all", version = ApiVersioning.V1)
     ResponseEntity<BatchPushResponse> pushAllStories(
             @Parameter(description = "Project UUID") @PathVariable UUID projectId,
+            Authentication authentication);
+
+    @Operation(summary = "Preview a Jira import",
+            description = """
+                    Lists the Jira issues eligible for import from the project's target and flags likely
+                    duplicates (detected via the discovery similarity path, without creating anything).
+                    409 when no target is configured.""")
+    @ApiResponse(responseCode = "200", description = "Import preview",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    schema = @Schema(implementation = JiraImportPreviewResponse.class)))
+    @ApiResponseConflict
+    @ApiStandardErrorResponses
+    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
+    @GetMapping(value = "/import/preview", version = ApiVersioning.V1)
+    ResponseEntity<JiraImportPreviewResponse> previewImport(
+            @Parameter(description = "Project UUID") @PathVariable UUID projectId,
+            Authentication authentication);
+
+    @Operation(summary = "Import Jira issues as stories",
+            description = """
+                    Pulls Jira issues from the project's target and creates them as user stories (LLM
+                    mapping + duplicate detection reused from discovery). Body {issueKeys?} restricts the
+                    import; omit/empty imports all eligible issues. Per-issue failures are captured without
+                    aborting the batch; duplicates are counted as skipped. 409 when no target is configured.""")
+    @ApiResponse(responseCode = "200", description = "Import result",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    schema = @Schema(implementation = JiraImportResponse.class)))
+    @ApiResponseConflict
+    @ApiStandardErrorResponses
+    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
+    @PostMapping(value = "/import", version = ApiVersioning.V1)
+    ResponseEntity<JiraImportResponse> importStories(
+            @Parameter(description = "Project UUID") @PathVariable UUID projectId,
+            @RequestBody(required = false) ImportJiraStoriesRequest request,
             Authentication authentication);
 }

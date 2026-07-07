@@ -1,16 +1,23 @@
 package com.kntro.reqsai.gateway.interfaces.rest.controllers;
 
 import com.kntro.reqsai.gateway.application.command.DeleteProjectTargetCommand;
+import com.kntro.reqsai.gateway.application.command.ImportJiraStoriesCommand;
 import com.kntro.reqsai.gateway.application.command.PushAllStoriesCommand;
 import com.kntro.reqsai.gateway.application.command.PushStoryCommand;
 import com.kntro.reqsai.gateway.application.handler.DeleteProjectTargetCommandHandler;
 import com.kntro.reqsai.gateway.application.handler.GetProjectTargetQueryHandler;
+import com.kntro.reqsai.gateway.application.handler.ImportJiraStoriesCommandHandler;
+import com.kntro.reqsai.gateway.application.handler.PreviewJiraImportQueryHandler;
 import com.kntro.reqsai.gateway.application.handler.PushAllStoriesCommandHandler;
 import com.kntro.reqsai.gateway.application.handler.PushStoryCommandHandler;
 import com.kntro.reqsai.gateway.application.handler.SaveProjectTargetCommandHandler;
 import com.kntro.reqsai.gateway.application.query.GetProjectTargetQuery;
+import com.kntro.reqsai.gateway.application.query.PreviewJiraImportQuery;
+import com.kntro.reqsai.gateway.interfaces.rest.dto.request.ImportJiraStoriesRequest;
 import com.kntro.reqsai.gateway.interfaces.rest.dto.request.SaveProjectTargetRequest;
 import com.kntro.reqsai.gateway.interfaces.rest.dto.response.BatchPushResponse;
+import com.kntro.reqsai.gateway.interfaces.rest.dto.response.JiraImportPreviewResponse;
+import com.kntro.reqsai.gateway.interfaces.rest.dto.response.JiraImportResponse;
 import com.kntro.reqsai.gateway.interfaces.rest.dto.response.JiraPushResultResponse;
 import com.kntro.reqsai.gateway.interfaces.rest.dto.response.ProjectJiraTargetResponse;
 import com.kntro.reqsai.gateway.interfaces.rest.mappers.request.IntegrationRequestMapper;
@@ -22,6 +29,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -38,6 +46,8 @@ public class ProjectIntegrationControllerImpl implements ProjectIntegrationContr
     private final DeleteProjectTargetCommandHandler deleteTarget;
     private final PushStoryCommandHandler pushStory;
     private final PushAllStoriesCommandHandler pushAllStories;
+    private final PreviewJiraImportQueryHandler previewImport;
+    private final ImportJiraStoriesCommandHandler importStories;
 
     @Override
     @PreAuthorize("@authz.projectPermission(#projectId, 'INTEGRATION_READ', authentication)")
@@ -78,5 +88,23 @@ public class ProjectIntegrationControllerImpl implements ProjectIntegrationContr
         UUID requestedBy = UUID.fromString(authentication.getName());
         return ResponseEntity.ok(IntegrationResponseMapper.toResponse(
                 pushAllStories.handle(new PushAllStoriesCommand(projectId, requestedBy))));
+    }
+
+    @Override
+    @PreAuthorize("@authz.projectPermission(#projectId, 'INTEGRATION_SYNC', authentication)")
+    public ResponseEntity<JiraImportPreviewResponse> previewImport(UUID projectId, Authentication authentication) {
+        UUID requestedBy = UUID.fromString(authentication.getName());
+        return ResponseEntity.ok(IntegrationResponseMapper.toResponse(
+                previewImport.handle(new PreviewJiraImportQuery(projectId, requestedBy))));
+    }
+
+    @Override
+    @PreAuthorize("@authz.projectPermission(#projectId, 'INTEGRATION_SYNC', authentication)")
+    public ResponseEntity<JiraImportResponse> importStories(
+            UUID projectId, ImportJiraStoriesRequest request, Authentication authentication) {
+        UUID requestedBy = UUID.fromString(authentication.getName());
+        List<String> issueKeys = request == null ? null : request.issueKeys();
+        return ResponseEntity.ok(IntegrationResponseMapper.toResponse(
+                importStories.handle(new ImportJiraStoriesCommand(projectId, issueKeys, requestedBy))));
     }
 }
