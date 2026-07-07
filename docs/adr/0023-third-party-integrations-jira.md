@@ -37,14 +37,15 @@ Forces:
 
 ## Decision
 
-### A new `integrations` bounded context
+### Housed in the reserved `gateway` bounded context
 
-Introduce `com.kntro.reqsai.integrations` as its own Spring Modulith application module
-(`@ApplicationModule(allowedDependencies = {"shared", "workspace::api", "discovery::api"})`), with the
-usual hexagonal layers (`domain`, `application`, `infrastructure`, `interfaces`) plus an `api`
-named-interface package reserved for future cross-module exposure. It depends on `workspace::api` for
-org/project authorization context and on a new `discovery::api` named interface for reading the
-stories it pushes.
+The integration lives in `com.kntro.reqsai.gateway`, the Spring Modulith application module reserved
+for external integrations (`@ApplicationModule(allowedDependencies = {"shared", "workspace::api",
+"discovery::api"})`), with the usual hexagonal layers (`domain`, `application`, `infrastructure`,
+`interfaces`). It depends on `workspace::api` for org/project authorization context and on a new
+`discovery::api` named interface for reading the stories it pushes. The Jira feature keeps its own
+domain vocabulary (`IntegrationConnection`, `ProjectIntegrationTarget`, etc.) — those name the
+concept, while `gateway` names the module.
 
 ### Org-level connection, project-level target (the split)
 

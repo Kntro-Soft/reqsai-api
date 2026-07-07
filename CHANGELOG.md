@@ -30,7 +30,8 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
 
 ### Added (Integrations / Jira — `feature/integrations-jira`)
 
-- **New `integrations` bounded context with a Jira Cloud integration** (ADR-0022). Extensible
+- **Jira Cloud integration in the reserved `gateway` bounded context** (ADR-0022) — the feature reuses
+  the `com.kntro.reqsai.gateway` module reserved for external integrations. Extensible
   provider model (`IntegrationProvider` port + `JiraProvider`) whose credentials live at the
   **organization** level and whose push target lives at the **project** level.
   - **Org connection endpoints** (org owner/admin gated): `GET /organizations/{orgId}/integrations`,
@@ -53,7 +54,7 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
   - **RBAC** — new project permissions `INTEGRATION_READ`, `INTEGRATION_WRITE`, `INTEGRATION_DELETE`,
     `INTEGRATION_SYNC` added to the workspace `Permission` catalog. IAM identity/auth is unchanged.
   - **Cross-module read** — discovery now publishes a `discovery::api` named interface
-    (`DiscoveryStoryReadPort` returning value-only `StoryView`s) so integrations can read user stories
+    (`DiscoveryStoryReadPort` returning value-only `StoryView`s) so the `gateway` module can read user stories
     (title/role/action/benefit/priority/story points + Given/When/Then) to render the Jira issue
     description as ADF. The story is pushed with the `EXPORTED`-style export flow.
   - Migration `V21__integration_connections.sql` (tenant schema): `integration_connections`
