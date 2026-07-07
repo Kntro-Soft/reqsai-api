@@ -82,16 +82,39 @@ The push/verify capability is expressed as an `IntegrationProvider` port in the 
 endpoints or the aggregates. The `JiraClient` mirrors the existing `AssemblyAiAdapter` RestClient
 style (per-call `RestClient`, typed response records, status→exception mapping).
 
-### API token now, OAuth 2.0 (3LO) later
+### API token and OAuth 2.0 (3LO), side by side
 
-Authentication today is Jira **basic auth with an API token**:
+Authentication started as Jira **basic auth with an API token**:
 `Authorization: Basic base64(email:token)`, base URL `https://{site}/rest/api/3/...`. The credential
 abstraction (`IntegrationConnection` carrying an encrypted secret + the `IntegrationProvider` seam)
-is deliberately auth-mechanism-agnostic: adding OAuth 2.0 (3LO) later means storing an OAuth
-refresh/access token in the same encrypted secret column (or a sibling column), adding a
-`credentialType` discriminator, and having `JiraProvider` build an `Authorization: Bearer` header
-instead of `Basic` — the endpoints, RBAC, target model and push flow are unchanged. No OAuth code
-ships now; the seam is what ships.
+is deliberately auth-mechanism-agnostic, and we have now added **OAuth 2.0 (3LO)** alongside it — the
+API-token flow is unchanged.
+
+**Update (OAuth 2.0 3LO shipped).** A `credentialType` discriminator (`API_TOKEN` | `OAUTH2`) selects
+the credential shape on the same `integration_connections` table (migration `V23`, additive): OAuth
+rows carry the Atlassian `cloud_id` and the **encrypted** refresh/access tokens (`oauth_refresh_ciphertext`
+/ `oauth_access_ciphertext`, same `SecretCipher`/`AesGcmCipher` as the API token) plus
+`oauth_access_expires_at`, while `email` + `secret_ciphertext` are relaxed to nullable and left empty.
+Exactly one shape is populated per `credentialType` (app-enforced). The **same** `JiraProvider`/`JiraClient`
+serve both modes: the base URL + `Authorization` header are chosen per call — `https://{site}/rest/api/3`
++ `Basic` for API tokens, `https://api.atlassian.com/ex/jira/{cloudId}/rest/api/3` + `Bearer` for OAuth.
+Before an OAuth call, `JiraOAuthTokenService` refreshes the access token if it is expired/near-expiry and
+persists the **rotated** tokens (a refresh failure surfaces as `JIRA_AUTH_FAILED`).
+
+Two new org-admin-gated endpoints drive the flow, keyed off a **stateless HMAC-signed `state`** (over
+org + user + short expiry + nonce, using a dedicated `JIRA_OAUTH_STATE_SECRET`) so nothing is stored to
+survive the browser redirect:
+`GET /organizations/{orgId}/integrations/jira/oauth/authorize-url` → `{url, state}`, and
+`POST /organizations/{orgId}/integrations/jira/oauth/callback` `{code, state, cloudId?}` which validates
+the state, exchanges the code, and either saves an `OAUTH2` connection (cloudId given or exactly one
+accessible site) or returns the site list to choose from (multiple sites). Because authorization codes
+are **single-use**, the callback caches the exchanged tokens + discovered sites under the `state` (short
+in-memory TTL) so the follow-up site-selection POST completes from the cache without re-exchanging the
+already-consumed code. OAuth config is **optional**: when the client id/secret/redirect are absent the
+app still boots and the endpoints answer `JIRA_OAUTH_NOT_CONFIGURED` (501) so the UI disables the button.
+New error codes: `JIRA_OAUTH_NOT_CONFIGURED` (501), `JIRA_OAUTH_STATE_INVALID` (400),
+`JIRA_OAUTH_EXCHANGE_FAILED` (502). `IntegrationConnectionResponse` now carries `credentialType`, and
+`email` is `null` for OAuth connections; no token or ciphertext is ever returned.
 
 ### Encryption at rest (AES-256-GCM)
 
@@ -126,9 +149,10 @@ org-admin action, not a project permission. IAM identity/authn is untouched.
 
 - Domain: `IntegrationsError` — `INTEGRATION_CONNECTION_NOT_FOUND` (404),
   `INTEGRATION_ALREADY_CONNECTED` (409), `INTEGRATION_TARGET_NOT_CONFIGURED` (409),
-  `JIRA_PROJECT_NOT_FOUND` (404).
+  `JIRA_PROJECT_NOT_FOUND` (404), `JIRA_OAUTH_NOT_CONFIGURED` (501), `JIRA_OAUTH_STATE_INVALID` (400).
 - Infrastructure: `IntegrationsInfrastructureError` — `JIRA_AUTH_FAILED` (401),
-  `JIRA_UNREACHABLE` (502), `JIRA_PUSH_FAILED` (502), `INTEGRATION_ENCRYPTION_ERROR` (500).
+  `JIRA_UNREACHABLE` (502), `JIRA_PUSH_FAILED` (502), `INTEGRATION_ENCRYPTION_ERROR` (500),
+  `JIRA_OAUTH_EXCHANGE_FAILED` (502).
 
 Both are `ErrorCatalog` enums auto-mapped by the shared `GlobalExceptionHandler`; infrastructure
 errors never leak the token or the internal cause to the client.

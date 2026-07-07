@@ -62,6 +62,34 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
     per project). New error codes: `INTEGRATION_CONNECTION_NOT_FOUND`, `INTEGRATION_ALREADY_CONNECTED`,
     `INTEGRATION_TARGET_NOT_CONFIGURED`, `JIRA_PROJECT_NOT_FOUND`, `JIRA_AUTH_FAILED`,
     `JIRA_UNREACHABLE`, `JIRA_PUSH_FAILED`, `INTEGRATION_ENCRYPTION_ERROR`.
+  - **Jira OAuth 2.0 (3LO) as a second credential type** (ADR-0022) — added alongside the API-token
+    flow, which is unchanged. A `credentialType` (`API_TOKEN` | `OAUTH2`) selects the auth: OAuth uses
+    bearer auth against `https://api.atlassian.com/ex/jira/{cloudId}/rest/api/3`, API tokens keep basic
+    auth against `https://{site}/rest/api/3`. **`IntegrationConnectionResponse` now carries
+    `credentialType`, and `email` is `null` for `OAUTH2` connections** (frontend contract change). No
+    token or ciphertext is ever returned.
+    - **New org-admin-gated endpoints** (header `Api-Version: 1`):
+      `GET /organizations/{orgId}/integrations/jira/oauth/authorize-url` → `{url, state}` (the `state`
+      is a stateless HMAC-signed token over org+user+expiry+nonce; `501 JIRA_OAUTH_NOT_CONFIGURED` when
+      OAuth is unconfigured), and
+      `POST /organizations/{orgId}/integrations/jira/oauth/callback` `{code, state, cloudId?}` — validates
+      the state, exchanges the code, and either saves an encrypted `OAUTH2` connection (cloudId given or
+      exactly one accessible site) or returns `200 {sites:[…]}` to choose from (multiple sites), enforcing
+      the one-active-connection rule (`409 INTEGRATION_ALREADY_CONNECTED`). Authorization codes are
+      single-use, so the exchanged tokens are cached under the `state` (short TTL) and the site-selection
+      re-POST completes from the cache without re-exchanging the code.
+    - **Token handling** — OAuth refresh + access tokens are encrypted at rest with the same AES-256-GCM
+      `SecretCipher`; before an OAuth call the access token is refreshed if near expiry and the **rotated**
+      refresh token is persisted (`JIRA_AUTH_FAILED` on refresh failure).
+    - **Config** (all optional; the app boots when unset): `reqsai.integrations.jira.oauth.client-id`,
+      `client-secret`, `redirect-uri` (from `JIRA_OAUTH_CLIENT_ID` / `JIRA_OAUTH_CLIENT_SECRET` /
+      `JIRA_OAUTH_CALLBACK_URL`) and a dedicated `state-secret` (`JIRA_OAUTH_STATE_SECRET`; generate with
+      `scripts/generate-oauth-state-secret.sh`).
+    - Migration `V23__integration_connections_oauth.sql` (tenant, additive): adds `credential_type`
+      (default `API_TOKEN`), `cloud_id`, `oauth_refresh_ciphertext`, `oauth_access_ciphertext`,
+      `oauth_access_expires_at`, and relaxes `email` + `secret_ciphertext` to nullable. New error codes:
+      `JIRA_OAUTH_NOT_CONFIGURED` (501), `JIRA_OAUTH_STATE_INVALID` (400),
+      `JIRA_OAUTH_EXCHANGE_FAILED` (502).
 
 ### Added (Backlog / Glossary / Constraints listing — `feature/discovery-session-control`)
 
