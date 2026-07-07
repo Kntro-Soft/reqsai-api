@@ -154,6 +154,10 @@ reqsai:
       webhook-secret: ${STRIPE_WEBHOOK_SECRET:}
       success-url: ${STRIPE_SUCCESS_URL:${WEB_APP_URL:http://localhost:4200}/billing/success}
       cancel-url: ${STRIPE_CANCEL_URL:${WEB_APP_URL:http://localhost:4200}/billing/cancel}
+  integrations:
+    # Base64-encoded 32-byte (AES-256) key used to encrypt third-party integration secrets at rest
+    # (ADR-0023). Required for the integrations feature; keep it out of source control (.env / secret).
+    encryption-key: ${INTEGRATIONS_ENCRYPTION_KEY:}
   jwt:
     private-key-path: ${JWT_PRIVATE_KEY_PATH:classpath:certs/private_key.pem}
     private-key-pem: ${JWT_PRIVATE_KEY_PEM:}
