@@ -22,7 +22,7 @@ class EmailConfiguration {
     EmailNotificationPort emailRouter(
             JavaMailSender mailSender,
             @Value("${reqsai.email.provider:mailpit}") String provider,
-            @Value("${reqsai.url:http://localhost:8080}") String appUrl,
+            @Value("${reqsai.frontend-url:http://localhost:4200}") String appUrl,
             @Value("${reqsai.email.from:noreply@reqsai.com}") String fromEmail) {
         return new EmailRouter(
                 provider,
