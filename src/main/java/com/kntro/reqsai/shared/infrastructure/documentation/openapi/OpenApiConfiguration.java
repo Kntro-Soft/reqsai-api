@@ -87,6 +87,14 @@ public class OpenApiConfiguration {
     }
 
     @Bean
+    public GroupedOpenApi billingApi() {
+        return GroupedOpenApi.builder()
+                .group("billing")
+                .packagesToScan("com.kntro.reqsai.billing.interfaces")
+                .build();
+    }
+
+    @Bean
     @Profile("dev")
     public GroupedOpenApi devToolsApi() {
         return GroupedOpenApi.builder()
