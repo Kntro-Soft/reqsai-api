@@ -36,7 +36,7 @@ public class ConnectJiraCommandHandler {
         String siteUrl = IntegrationConnection.normalizeSiteUrl(command.siteUrl());
         IntegrationProvider provider = providers.get(IntegrationProviderType.JIRA);
         // Verify the credential BEFORE persisting anything. Throws on auth/reachability failure.
-        provider.verify(new IntegrationProvider.ProviderCredentials(siteUrl, command.email(), command.apiToken()));
+        provider.verify(IntegrationProvider.ProviderCredentials.apiToken(siteUrl, command.email(), command.apiToken()));
 
         IntegrationConnection connection = new IntegrationConnection(
                 command.organizationId(), IntegrationProviderType.JIRA,

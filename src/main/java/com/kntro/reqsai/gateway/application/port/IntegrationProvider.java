@@ -1,7 +1,9 @@
 package com.kntro.reqsai.gateway.application.port;
 
 import com.kntro.reqsai.discovery.api.StoryView;
+import com.kntro.reqsai.gateway.domain.model.CredentialType;
 import com.kntro.reqsai.gateway.domain.model.IntegrationProviderType;
+import org.jspecify.annotations.Nullable;
 
 import java.util.List;
 
@@ -31,8 +33,29 @@ public interface IntegrationProvider {
     /** Creates a tracker issue from a Reqs-AI story and returns its key + browse URL. */
     PushedIssue pushStory(ProviderCredentials credentials, String projectKey, String issueTypeName, StoryView story);
 
-    /** Decrypted credentials for a single provider call (never persisted, never logged). */
-    record ProviderCredentials(String siteUrl, String email, String apiToken) {}
+    /**
+     * Decrypted credentials for a single provider call (never persisted, never logged). Carries both
+     * credential shapes; {@link #credentialType} selects which is populated:
+     * <ul>
+     *   <li>{@link CredentialType#API_TOKEN} — {@code siteUrl} + {@code email} + {@code apiToken}.</li>
+     *   <li>{@link CredentialType#OAUTH2} — {@code siteUrl} (for browse URLs) + {@code cloudId} +
+     *       {@code accessToken}. The access token is already fresh (refreshed by the caller if needed).</li>
+     * </ul>
+     */
+    record ProviderCredentials(CredentialType credentialType, String siteUrl,
+                               @Nullable String email, @Nullable String apiToken,
+                               @Nullable String cloudId, @Nullable String accessToken) {
+
+        /** API-token credentials (basic auth). */
+        public static ProviderCredentials apiToken(String siteUrl, String email, String apiToken) {
+            return new ProviderCredentials(CredentialType.API_TOKEN, siteUrl, email, apiToken, null, null);
+        }
+
+        /** OAuth 2.0 credentials (bearer auth); {@code accessToken} must already be valid. */
+        public static ProviderCredentials oauth(String siteUrl, String cloudId, String accessToken) {
+            return new ProviderCredentials(CredentialType.OAUTH2, siteUrl, null, null, cloudId, accessToken);
+        }
+    }
 
     /** A remote project ({key,name}). */
     record RemoteProject(String key, String name) {}

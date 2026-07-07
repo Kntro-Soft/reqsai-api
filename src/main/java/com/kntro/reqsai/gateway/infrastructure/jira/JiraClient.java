@@ -14,10 +14,16 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Outbound Jira Cloud REST v3 client (ADR-0022). Mirrors the {@code AssemblyAiAdapter} RestClient style:
- * a per-call {@link RestClient}, typed Jackson response records, and HTTP-status → infrastructure
- * exception mapping. Authentication is basic auth with the API token
- * ({@code Authorization: Basic base64(email:token)}); the token is never logged nor placed in exceptions.
+ * Outbound Jira Cloud REST v3 client (ADR-0022), dual-mode across the two credential types:
+ * <ul>
+ *   <li><strong>API_TOKEN</strong> — base {@code https://{site}/rest/api/3} with basic auth
+ *       ({@code Authorization: Basic base64(email:token)}).</li>
+ *   <li><strong>OAUTH2</strong> — base {@code https://api.atlassian.com/ex/jira/{cloudId}/rest/api/3}
+ *       with bearer auth ({@code Authorization: Bearer {access}}).</li>
+ * </ul>
+ * The base URL + {@code Authorization} header are supplied per call via a {@link JiraApiContext} built by
+ * {@link JiraProvider}, so the same call code serves both modes. Neither the token nor the header is ever
+ * logged or placed in exceptions.
  * <ul>
  *   <li>401/403 → {@code JIRA_AUTH_FAILED}</li>
  *   <li>connect/timeout/5xx → {@code JIRA_UNREACHABLE}</li>
@@ -28,13 +34,37 @@ import java.util.Map;
 @Slf4j
 public class JiraClient {
 
+    private static final String OAUTH_API_BASE = "https://api.atlassian.com/ex/jira/";
+
     private final RestClient restClient = RestClient.create();
 
-    /** GET /rest/api/3/myself → the authenticated account's display name. */
-    public String verify(String siteUrl, String email, String token) {
+    /**
+     * The per-call base URL + {@code Authorization} header for a Jira REST v3 call. The {@code browseBase}
+     * is the human site URL used to build a {@code /browse/{key}} link (same for both modes).
+     */
+    public record JiraApiContext(String apiBase, String authHeader, String browseBase) {
+
+        /** API-token context: {@code https://{site}/rest/api/3} + basic auth. */
+        public static JiraApiContext apiToken(String siteUrl, String email, String token) {
+            return new JiraApiContext(siteUrl + "/rest/api/3", basic(email, token), siteUrl);
+        }
+
+        /** OAuth context: {@code https://api.atlassian.com/ex/jira/{cloudId}/rest/api/3} + bearer auth. */
+        public static JiraApiContext oauth(String cloudId, String accessToken, String browseBase) {
+            return new JiraApiContext(OAUTH_API_BASE + cloudId + "/rest/api/3", "Bearer " + accessToken, browseBase);
+        }
+
+        private static String basic(String email, String token) {
+            String raw = email + ":" + token;
+            return "Basic " + Base64.getEncoder().encodeToString(raw.getBytes(StandardCharsets.UTF_8));
+        }
+    }
+
+    /** GET /myself → the authenticated account's display name. */
+    public String verify(JiraApiContext ctx) {
         Myself me = exchange(() -> restClient.get()
-                .uri(siteUrl + "/rest/api/3/myself")
-                .header("Authorization", basic(email, token))
+                .uri(ctx.apiBase() + "/myself")
+                .header("Authorization", ctx.authHeader())
                 .accept(MediaType.APPLICATION_JSON)
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, (req, res) -> mapError(res.getStatusCode(), false))
@@ -42,11 +72,11 @@ public class JiraClient {
         return me != null ? me.displayName() : "";
     }
 
-    /** GET /rest/api/3/project/search → visible projects. */
-    public List<JiraProject> listProjects(String siteUrl, String email, String token) {
+    /** GET /project/search → visible projects. */
+    public List<JiraProject> listProjects(JiraApiContext ctx) {
         ProjectSearch search = exchange(() -> restClient.get()
-                .uri(siteUrl + "/rest/api/3/project/search?maxResults=100")
-                .header("Authorization", basic(email, token))
+                .uri(ctx.apiBase() + "/project/search?maxResults=100")
+                .header("Authorization", ctx.authHeader())
                 .accept(MediaType.APPLICATION_JSON)
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, (req, res) -> mapError(res.getStatusCode(), false))
@@ -54,11 +84,11 @@ public class JiraClient {
         return search == null || search.values() == null ? List.of() : search.values();
     }
 
-    /** GET /rest/api/3/issuetype/project?projectId= is key-based; we use the simpler global list. */
-    public List<JiraIssueType> listIssueTypes(String siteUrl, String email, String token, String projectKey) {
+    /** GET /issuetype → the global issue-type list (project param is accepted for parity, unused). */
+    public List<JiraIssueType> listIssueTypes(JiraApiContext ctx, String projectKey) {
         List<JiraIssueType> types = exchange(() -> restClient.get()
-                .uri(siteUrl + "/rest/api/3/issuetype")
-                .header("Authorization", basic(email, token))
+                .uri(ctx.apiBase() + "/issuetype")
+                .header("Authorization", ctx.authHeader())
                 .accept(MediaType.APPLICATION_JSON)
                 .retrieve()
                 .onStatus(HttpStatusCode::isError, (req, res) -> mapError(res.getStatusCode(), false))
@@ -66,18 +96,17 @@ public class JiraClient {
         return types == null ? List.of() : types;
     }
 
-    /** POST /rest/api/3/issue → the created issue's key + self URL. */
-    public CreatedIssue createIssue(String siteUrl, String email, String token,
-                                    String projectKey, String issueTypeName, String summary,
-                                    Map<String, Object> descriptionAdf) {
+    /** POST /issue → the created issue's key + self URL. */
+    public CreatedIssue createIssue(JiraApiContext ctx, String projectKey, String issueTypeName,
+                                    String summary, Map<String, Object> descriptionAdf) {
         Map<String, Object> fields = Map.of(
                 "project", Map.of("key", projectKey),
                 "issuetype", Map.of("name", issueTypeName),
                 "summary", summary,
                 "description", descriptionAdf);
         CreatedIssue created = exchange(() -> restClient.post()
-                .uri(siteUrl + "/rest/api/3/issue")
-                .header("Authorization", basic(email, token))
+                .uri(ctx.apiBase() + "/issue")
+                .header("Authorization", ctx.authHeader())
                 .contentType(MediaType.APPLICATION_JSON)
                 .accept(MediaType.APPLICATION_JSON)
                 .body(Map.of("fields", fields))
@@ -90,17 +119,12 @@ public class JiraClient {
         return created;
     }
 
-    /** Browse URL for a created issue. */
-    public String browseUrl(String siteUrl, String issueKey) {
-        return siteUrl + "/browse/" + issueKey;
+    /** Browse URL for a created issue (uses the human site URL, not the OAuth API base). */
+    public String browseUrl(String browseBase, String issueKey) {
+        return browseBase + "/browse/" + issueKey;
     }
 
     // Helpers
-
-    private static String basic(String email, String token) {
-        String raw = email + ":" + token;
-        return "Basic " + Base64.getEncoder().encodeToString(raw.getBytes(StandardCharsets.UTF_8));
-    }
 
     /**
      * Maps an error status inside the RestClient exchange. {@code onCreate} selects the 400 → push-failed
