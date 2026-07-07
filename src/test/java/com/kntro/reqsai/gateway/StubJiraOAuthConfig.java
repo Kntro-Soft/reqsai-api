@@ -51,7 +51,8 @@ public class StubJiraOAuthConfig {
         public CreatedIssue createIssue(JiraApiContext ctx, String projectKey, String issueTypeName,
                                         String summary, Map<String, Object> descriptionAdf) {
             apiBases.add(ctx.apiBase());
-            return new CreatedIssue(projectKey + "-42", ctx.apiBase() + "/issue/" + projectKey + "-42");
+            String key = projectKey + "-42";
+            return new CreatedIssue("42", key, ctx.apiBase() + "/issue/" + key);
         }
     }
 
