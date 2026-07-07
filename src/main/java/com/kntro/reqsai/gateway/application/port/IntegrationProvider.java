@@ -34,6 +34,13 @@ public interface IntegrationProvider {
     PushedIssue pushStory(ProviderCredentials credentials, String projectKey, String issueTypeName, StoryView story);
 
     /**
+     * Fetches the tracker issues eligible for import from {@code projectKey} of type {@code issueTypeName}
+     * (all pages), each flattened to a provider-neutral {@link RemoteIssue} (summary + plain-text
+     * description + mapped priority). The reverse of {@link #pushStory}.
+     */
+    List<RemoteIssue> searchImportableIssues(ProviderCredentials credentials, String projectKey, String issueTypeName);
+
+    /**
      * Decrypted credentials for a single provider call (never persisted, never logged). Carries both
      * credential shapes; {@link #credentialType} selects which is populated:
      * <ul>
@@ -65,4 +72,12 @@ public interface IntegrationProvider {
 
     /** The result of a successful push ({issueKey, issueUrl}). */
     record PushedIssue(String issueKey, String issueUrl) {}
+
+    /**
+     * A tracker issue eligible for import, flattened to provider-neutral fields. {@code priority} is a
+     * Reqs-AI {@code Priority} name (the provider maps the tracker's priority scale); {@code description}
+     * is plain text (ADF flattened for Jira). {@code issueType} is the tracker's type label.
+     */
+    record RemoteIssue(String issueKey, String summary, @Nullable String issueType,
+                       @Nullable String description, String priority) {}
 }
