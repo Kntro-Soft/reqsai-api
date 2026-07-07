@@ -70,7 +70,13 @@ import static org.assertj.core.api.Assertions.catchThrowableOfType;
  * and then drives the application services directly under an explicit {@link TenantContext} + {@link TransactionTemplate},
  * which is what an HTTP request's filter would otherwise establish.
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(
+        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        properties = {
+                "discovery.realtime.min-transcript-chars=180",
+                "discovery.realtime.max-transcript-age-seconds=22"
+        }
+)
 @ActiveProfiles("test")
 @Tag("integration")
 @Import({ProgrammableEmbeddingConfig.class, ProgrammableGenerationConfig.class})
