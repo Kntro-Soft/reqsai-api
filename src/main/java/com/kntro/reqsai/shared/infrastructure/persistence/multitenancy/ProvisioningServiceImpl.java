@@ -73,6 +73,7 @@ public class ProvisioningServiceImpl implements ProvisioningService {
                 .baselineOnMigrate(true)
                 .table("flyway_schema_history")
                 .validateOnMigrate(true)
+                .outOfOrder(true)
                 .cleanDisabled(true)
                 .load()
                 .migrate();

@@ -166,6 +166,7 @@ Detalle en [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md).
 | [`docs/REALTIME.md`](./docs/REALTIME.md)                                                                             | WebSocket/STOMP: cómo emitir y consumir tiempo real  |
 | [`docs/LOCAL_AI.md`](./docs/LOCAL_AI.md)                                                                             | IA local↔nube (LLM, embeddings, STT) — Mac/Win/Linux |
 | [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md)                                                                         | Despliegue (Docker, AWS ECS Fargate, CI/CD)          |
+| [`docs/MIGRATIONS.md`](./docs/MIGRATIONS.md)                                                                         | Cómo crear migraciones Flyway (`scripts/new-migration.sh`) |
 | [`.github/CONTRIBUTING.md`](./.github/CONTRIBUTING.md)                                                               | Flujo de trabajo, build, tests, ramas, commits       |
 | [`CHANGELOG.md`](./CHANGELOG.md)                                                                                     | Historial de cambios (Keep a Changelog)              |
 | [`AUTHORS.md`](./AUTHORS.md) · [`CONTRIBUTORS.md`](./CONTRIBUTORS.md) · [`ACKNOWLEDGMENTS.md`](./ACKNOWLEDGMENTS.md) | Equipo y créditos                                    |
