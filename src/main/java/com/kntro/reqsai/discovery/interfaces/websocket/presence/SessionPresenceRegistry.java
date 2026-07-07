@@ -2,6 +2,7 @@ package com.kntro.reqsai.discovery.interfaces.websocket.presence;
 
 import org.springframework.stereotype.Component;
 
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -28,7 +29,11 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class SessionPresenceRegistry {
 
-    /** discovery sessionId → (stompSessionId → userId) of everyone currently subscribed. */
+    /**
+     * discovery sessionId → (stompSessionId → userId) of everyone currently subscribed. The inner map
+     * is a {@link LinkedHashMap} so the roster keeps a stable join order (avatars don't reshuffle);
+     * safe because every access below is {@code synchronized}.
+     */
     private final Map<UUID, Map<String, UUID>> presenceBySession = new ConcurrentHashMap<>();
 
     /** stompSessionId → (subscriptionId → discovery sessionId), to resolve unsubscribe/disconnect. */
@@ -45,7 +50,7 @@ public class SessionPresenceRegistry {
                 .put(subscriptionId, sessionId);
         boolean userWasPresent = isUserPresent(sessionId, userId);
         presenceBySession
-                .computeIfAbsent(sessionId, k -> new ConcurrentHashMap<>())
+                .computeIfAbsent(sessionId, k -> new LinkedHashMap<>())
                 .put(stompSessionId, userId);
         return !userWasPresent;
     }
