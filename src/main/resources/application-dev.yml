@@ -30,8 +30,6 @@ spring:
 
 reqsai:
   integrations:
-    # Local-only default AES-256 key (base64 of bytes 0..31) so the app boots without a .env in dev.
-    # Override with a real INTEGRATIONS_ENCRYPTION_KEY anywhere it matters. NEVER use this in prod.
     encryption-key: ${INTEGRATIONS_ENCRYPTION_KEY:AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=}
     jira:
       oauth:

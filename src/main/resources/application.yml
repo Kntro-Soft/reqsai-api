@@ -191,14 +191,9 @@ reqsai:
 
 discovery:
   realtime:
-    # Char threshold: generate once this many NEW (past-watermark) transcript chars have accrued.
     min-transcript-chars: ${DISCOVERY_REALTIME_MIN_TRANSCRIPT_CHARS:180}
-    # Time fallback: generate when this many seconds have elapsed since the last pass with new
-    # transcript waiting, even if the char threshold has not been reached (short exchanges stream).
     max-transcript-age-seconds: ${DISCOVERY_REALTIME_MAX_TRANSCRIPT_AGE_SECONDS:22}
     context-top-k: ${DISCOVERY_REALTIME_CONTEXT_TOP_K:5}
-    # Cross-pass near-duplicate cosine threshold: drop a draft this similar to a PENDING suggestion
-    # or existing story before persisting (below the 0.85 duplicate-story threshold to catch paraphrases).
     dedup-similarity-threshold: ${DISCOVERY_REALTIME_DEDUP_SIMILARITY_THRESHOLD:0.84}
 
 server:
