@@ -1,0 +1,151 @@
+{
+  "containerDefinitions": [
+    {
+      "name": "reqsai-api",
+      "image": "PLACEHOLDER",
+      "cpu": 0,
+      "portMappings": [
+        {
+          "containerPort": 8080,
+          "hostPort": 8080,
+          "protocol": "tcp"
+        }
+      ],
+      "essential": true,
+      "environment": [
+        {
+          "name": "CORS_ALLOWED_ORIGINS",
+          "value": "https://d29o19vcsmcdsd.cloudfront.net"
+        },
+        {
+          "name": "SPRINGDOC_API_DOCS_ENABLED",
+          "value": "true"
+        },
+        {
+          "name": "SPRINGDOC_SWAGGER_UI_ENABLED",
+          "value": "true"
+        },
+        {
+          "name": "DB_PORT",
+          "value": "5432"
+        },
+        {
+          "name": "MAIL_HOST",
+          "value": "smtp.gmail.com"
+        },
+        {
+          "name": "SPRING_PROFILES_ACTIVE",
+          "value": "prod"
+        },
+        {
+          "name": "DB_NAME",
+          "value": "reqsai"
+        },
+        {
+          "name": "EMAIL_PROVIDER",
+          "value": "gmail"
+        },
+        {
+          "name": "DB_HOST",
+          "value": "reqsai-production.c6z04qiocl48.us-east-1.rds.amazonaws.com"
+        },
+        {
+          "name": "FRONTEND_URL",
+          "value": "https://d29o19vcsmcdsd.cloudfront.net"
+        },
+        {
+          "name": "MAIL_PORT",
+          "value": "587"
+        },
+        {
+          "name": "DB_USERNAME",
+          "value": "reqsai_admin"
+        },
+        {
+          "name": "SPRING_AI_MODEL_EMBEDDING",
+          "value": "openai"
+        },
+        {
+          "name": "STT_PROVIDER",
+          "value": "deepgram"
+        },
+        {
+          "name": "SPRING_AI_MODEL_CHAT",
+          "value": "openai"
+        },
+        {
+          "name": "STT_STREAMING_PROVIDER",
+          "value": "deepgram"
+        },
+        {
+          "name": "EMBEDDING_PROVIDER",
+          "value": "openai"
+        },
+        {
+          "name": "APP_URL",
+          "value": "http://reqsai-production-api-121983331.us-east-1.elb.amazonaws.com"
+        },
+        {
+          "name": "GENERATION_PROVIDER",
+          "value": "openai"
+        }
+      ],
+      "mountPoints": [],
+      "volumesFrom": [],
+      "secrets": [
+        {
+          "name": "DB_PASSWORD",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:418272789689:secret:rds!db-3ca47ea4-53b2-4ed4-9ada-9f9e7e54793c-HQUHKe:password::"
+        },
+        {
+          "name": "JWT_PRIVATE_KEY_PEM",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:418272789689:secret:reqsai/production/jwt-vTXAQ7:private_key_pem::"
+        },
+        {
+          "name": "JWT_PUBLIC_KEY_PEM",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:418272789689:secret:reqsai/production/jwt-vTXAQ7:public_key_pem::"
+        },
+        {
+          "name": "MAIL_USERNAME",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:418272789689:secret:reqsai/production/smtp-27o6Hf:username::"
+        },
+        {
+          "name": "MAIL_PASSWORD",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:418272789689:secret:reqsai/production/smtp-27o6Hf:password::"
+        },
+        {
+          "name": "DEEPGRAM_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:418272789689:secret:reqsai/production/ai-GTSPn8:deepgram_api_key::"
+        },
+        {
+          "name": "OPENAI_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:418272789689:secret:reqsai/production/ai-GTSPn8:openai_api_key::"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/reqsai-production/reqsai-api",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "systemControls": []
+    }
+  ],
+  "family": "reqsai-api",
+  "taskRoleArn": "arn:aws:iam::418272789689:role/reqsai-production-ecs-task",
+  "executionRoleArn": "arn:aws:iam::418272789689:role/reqsai-production-ecs-execution",
+  "networkMode": "awsvpc",
+  "volumes": [],
+  "placementConstraints": [],
+  "runtimePlatform": {
+    "cpuArchitecture": "X86_64",
+    "operatingSystemFamily": "LINUX"
+  },
+  "requiresCompatibilities": [
+    "FARGATE"
+  ],
+  "cpu": "1024",
+  "memory": "2048"
+}
