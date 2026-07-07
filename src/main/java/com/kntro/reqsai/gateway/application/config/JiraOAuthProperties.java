@@ -14,8 +14,8 @@ import org.jspecify.annotations.Nullable;
  * @param clientId     the OAuth app client id (blank ⇒ not configured)
  * @param clientSecret the OAuth app client secret (blank ⇒ not configured)
  * @param redirectUri  the registered callback URL (blank ⇒ not configured)
- * @param stateSecret  HMAC secret for signing the stateless {@code state} token; defaults to the
- *                     encryption key material when unset
+ * @param stateSecret  dedicated HMAC secret ({@code JIRA_OAUTH_STATE_SECRET}, a random hex string) for
+ *                     signing the stateless {@code state} token
  */
 @ConfigurationProperties(prefix = "reqsai.integrations.jira.oauth")
 public record JiraOAuthProperties(
@@ -30,9 +30,9 @@ public record JiraOAuthProperties(
         return notBlank(clientId) && notBlank(clientSecret) && notBlank(redirectUri);
     }
 
-    /** The HMAC signing secret, falling back to {@code client-secret} if no dedicated secret is set. */
+    /** The dedicated HMAC signing secret (raw UTF-8 key material); empty when unset. */
     public String effectiveStateSecret() {
-        return notBlank(stateSecret) ? stateSecret : (clientSecret == null ? "" : clientSecret);
+        return notBlank(stateSecret) ? stateSecret : "";
     }
 
     private static boolean notBlank(@Nullable String value) {

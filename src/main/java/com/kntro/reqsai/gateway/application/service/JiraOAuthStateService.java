@@ -19,7 +19,7 @@ import java.util.UUID;
  * to the initiating {@code orgId} + {@code userId} with a short expiry and a random nonce, so nothing has
  * to be stored server-side and it survives the browser redirect. Format:
  * <pre>{@code base64url(orgId|userId|expiryEpochSeconds|nonce) + "." + base64url(HMAC-SHA256(payload))}</pre>
- * The HMAC key is {@code reqsai.integrations.jira.oauth.state-secret} (falling back to the client secret).
+ * The HMAC key is the dedicated {@code reqsai.integrations.jira.oauth.state-secret} ({@code JIRA_OAUTH_STATE_SECRET}).
  * Verification checks the signature (constant-time), the expiry, and that the org/user match the caller;
  * any failure raises {@code JIRA_OAUTH_STATE_INVALID}.
  */

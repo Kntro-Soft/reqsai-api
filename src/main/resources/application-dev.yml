@@ -35,12 +35,10 @@ reqsai:
     encryption-key: ${INTEGRATIONS_ENCRYPTION_KEY:AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=}
     jira:
       oauth:
-        # Dummy dev defaults so the OAuth beans wire and the authorize-url endpoint is exercisable
-        # locally. These are NOT real Atlassian credentials; register a real app and override via .env.
         client-id: ${JIRA_OAUTH_CLIENT_ID:dev-client-id}
         client-secret: ${JIRA_OAUTH_CLIENT_SECRET:dev-client-secret}
         redirect-uri: ${JIRA_OAUTH_CALLBACK_URL:http://localhost:4200/integrations/jira/callback}
-        state-secret: ${JIRA_OAUTH_STATE_SECRET:AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=}
+        state-secret: ${JIRA_OAUTH_STATE_SECRET:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
 
 logging:
   level:
