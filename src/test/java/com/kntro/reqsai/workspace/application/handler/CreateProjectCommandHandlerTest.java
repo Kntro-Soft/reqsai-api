@@ -46,7 +46,7 @@ class CreateProjectCommandHandlerTest {
         @DisplayName("should create a project successfully and persist it")
         void should_create_project_successfully() {
             // Arrange
-            Organization org = OrganizationMother.active().withPlanLimits(PlanLimits.free()).build();
+            Organization org = OrganizationMother.active().build();
             UUID orgId = org.getId();
             CreateProjectCommand command = CreateProjectCommandMother.withOrganizationId(orgId);
 

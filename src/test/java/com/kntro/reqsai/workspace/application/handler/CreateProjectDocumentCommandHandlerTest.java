@@ -52,7 +52,7 @@ class CreateProjectDocumentCommandHandlerTest {
         @Test
         @DisplayName("should create project document successfully and persist it")
         void should_create_project_document_successfully() {
-            Organization organization = OrganizationMother.active().withPlanLimits(PlanLimits.free()).build();
+            Organization organization = OrganizationMother.active().build();
             UUID orgId = organization.getId();
             UUID projectId = UUID.randomUUID();
             Project project = ProjectMother.standard().withOrganizationId(orgId).build();

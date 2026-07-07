@@ -22,7 +22,7 @@ public class OrganizationBuilder {
     private UUID ownerId = UUID.randomUUID();
     private LanguageCode meetingLanguage = LanguageCode.of(FAKER.options().option("es-PE", "en-US", "pt-BR"));
     private int audioRetentionDays = FAKER.number().numberBetween(0, 90);
-    private PlanLimits planLimits = PlanLimits.free();
+    private PlanLimits planLimits = new PlanLimits(3, 25, 10, 100_000L, 50);
     private boolean active;
 
     public static OrganizationBuilder anOrganization() {
