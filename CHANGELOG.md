@@ -28,6 +28,40 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
   state. The authenticated `orgId` is stashed in the STOMP session attributes on CONNECT so the
   broker-thread listeners can resolve the tenant.
 
+### Added (Integrations / Jira — `feature/integrations-jira`)
+
+- **New `integrations` bounded context with a Jira Cloud integration** (ADR-0022). Extensible
+  provider model (`IntegrationProvider` port + `JiraProvider`) whose credentials live at the
+  **organization** level and whose push target lives at the **project** level.
+  - **Org connection endpoints** (org owner/admin gated): `GET /organizations/{orgId}/integrations`,
+    `POST /organizations/{orgId}/integrations/jira` (`{siteUrl,email,apiToken}` — verifies against Jira
+    then stores the token **encrypted**; `409 INTEGRATION_ALREADY_CONNECTED` when one already exists),
+    `POST /organizations/{orgId}/integrations/{connectionId}/test` (`{ok, accountName?}`),
+    `DELETE /organizations/{orgId}/integrations/{connectionId}` (`204`),
+    `GET /organizations/{orgId}/integrations/{connectionId}/jira/projects`,
+    `GET /organizations/{orgId}/integrations/{connectionId}/jira/issue-types?projectKey=`.
+    The API token is **never** returned by any response.
+  - **Project target + push endpoints** (project `INTEGRATION_*` gated):
+    `GET/PUT/DELETE /projects/{projectId}/integration/jira/target` (single target per project;
+    `404` when none), `POST /projects/{projectId}/integration/jira/stories/{storyId}/push`
+    (`{storyId,jiraIssueKey,jiraIssueUrl}`; `409 INTEGRATION_TARGET_NOT_CONFIGURED` when no target),
+    `POST /projects/{projectId}/integration/jira/stories/push-all` (`{results,pushed,failed}` — per-story
+    failures captured without aborting the batch). All endpoints use header `Api-Version: 1`.
+  - **Encryption at rest** — AES-256-GCM `AttributeConverter` (random 12-byte IV prepended to the
+    ciphertext) keyed from `INTEGRATIONS_ENCRYPTION_KEY` (base64 32 bytes); a documented default key is
+    provided for dev/test so the suite runs without a `.env`.
+  - **RBAC** — new project permissions `INTEGRATION_READ`, `INTEGRATION_WRITE`, `INTEGRATION_DELETE`,
+    `INTEGRATION_SYNC` added to the workspace `Permission` catalog. IAM identity/auth is unchanged.
+  - **Cross-module read** — discovery now publishes a `discovery::api` named interface
+    (`DiscoveryStoryReadPort` returning value-only `StoryView`s) so integrations can read user stories
+    (title/role/action/benefit/priority/story points + Given/When/Then) to render the Jira issue
+    description as ADF. The story is pushed with the `EXPORTED`-style export flow.
+  - Migration `V21__integration_connections.sql` (tenant schema): `integration_connections`
+    (org-scoped, one active per org+provider) and `project_integration_targets` (project-scoped, one
+    per project). New error codes: `INTEGRATION_CONNECTION_NOT_FOUND`, `INTEGRATION_ALREADY_CONNECTED`,
+    `INTEGRATION_TARGET_NOT_CONFIGURED`, `JIRA_PROJECT_NOT_FOUND`, `JIRA_AUTH_FAILED`,
+    `JIRA_UNREACHABLE`, `JIRA_PUSH_FAILED`, `INTEGRATION_ENCRYPTION_ERROR`.
+
 ### Added (Backlog / Glossary / Constraints listing — `feature/discovery-session-control`)
 
 - **User-story backlog list filters + search** — `GET /projects/{projectId}/stories` now accepts five
