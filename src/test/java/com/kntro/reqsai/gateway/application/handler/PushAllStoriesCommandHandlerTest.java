@@ -66,7 +66,7 @@ class PushAllStoriesCommandHandlerTest {
         when(targets.findByProjectId(projectId)).thenReturn(Optional.of(target));
         when(connections.findById(connectionId)).thenReturn(Optional.of(connection));
         when(credentialsFactory.from(connection)).thenReturn(
-                new IntegrationProvider.ProviderCredentials("https://acme.atlassian.net", "pm@acme.com", "tok"));
+                IntegrationProvider.ProviderCredentials.apiToken("https://acme.atlassian.net", "pm@acme.com", "tok"));
 
         StoryView ok = story(projectId, "Good story");
         StoryView bad = story(projectId, "Bad story");

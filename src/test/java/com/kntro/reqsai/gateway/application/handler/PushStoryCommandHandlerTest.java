@@ -68,7 +68,7 @@ class PushStoryCommandHandlerTest {
         when(stories.findStory(projectId, storyId)).thenReturn(Optional.of(story));
         when(connections.findById(connectionId)).thenReturn(Optional.of(connection));
         when(credentialsFactory.from(connection)).thenReturn(
-                new IntegrationProvider.ProviderCredentials("https://acme.atlassian.net", "pm@acme.com", "tok"));
+                IntegrationProvider.ProviderCredentials.apiToken("https://acme.atlassian.net", "pm@acme.com", "tok"));
         when(jiraProvider.pushStory(any(), any(), any(), any()))
                 .thenReturn(new PushedIssue("PAY-7", "https://acme.atlassian.net/browse/PAY-7"));
 

@@ -51,7 +51,7 @@ class TestConnectionQueryHandlerTest {
         IntegrationConnection connection = connection(orgId);
         when(connections.findByIdAndOrganizationId(connectionId, orgId)).thenReturn(Optional.of(connection));
         when(credentialsFactory.from(connection)).thenReturn(
-                new IntegrationProvider.ProviderCredentials("https://acme.atlassian.net", "pm@acme.com", "tok"));
+                IntegrationProvider.ProviderCredentials.apiToken("https://acme.atlassian.net", "pm@acme.com", "tok"));
         when(jiraProvider.verify(any())).thenReturn("Jane Admin");
 
         ConnectionTestResult result = handler.handle(new TestConnectionQuery(orgId, connectionId, UUID.randomUUID()));
@@ -69,7 +69,7 @@ class TestConnectionQueryHandlerTest {
         IntegrationConnection connection = connection(orgId);
         when(connections.findByIdAndOrganizationId(connectionId, orgId)).thenReturn(Optional.of(connection));
         when(credentialsFactory.from(connection)).thenReturn(
-                new IntegrationProvider.ProviderCredentials("https://acme.atlassian.net", "pm@acme.com", "tok"));
+                IntegrationProvider.ProviderCredentials.apiToken("https://acme.atlassian.net", "pm@acme.com", "tok"));
         when(jiraProvider.verify(any())).thenThrow(IntegrationsInfrastructureExceptions.jiraAuthFailed());
 
         ConnectionTestResult result = handler.handle(new TestConnectionQuery(orgId, connectionId, UUID.randomUUID()));
