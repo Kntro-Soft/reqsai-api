@@ -18,6 +18,7 @@ import com.kntro.reqsai.shared.domain.exception.DomainException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -56,28 +57,38 @@ class DiscoveryStoryWritePortImpl implements DiscoveryStoryWritePort {
     private final UserStoryRepository stories;
     private final EmbeddingPort embeddingPort;
 
+    /**
+     * Imports one issue in its OWN transaction ({@link Propagation#REQUIRES_NEW}) so a per-issue rollback
+     * (e.g. a rare check→create duplicate race) never poisons the caller's batch — matching how
+     * {@code StoryExtractionService} isolates each AI-generated story. Must be invoked from another bean
+     * (the {@code gateway} handler) for the proxy to apply the new transaction.
+     *
+     * <p>A near-duplicate is detected BEFORE invoking the {@link CreateUserStoryCommandHandler}: were the
+     * handler to throw the duplicate exception, that throw would cross its {@code @Transactional} boundary
+     * and mark this transaction rollback-only even though we catch it. The pre-check uses the same canonical
+     * text + embedding + threshold as the create-time gate, so behaviour is identical; the handler still
+     * guards as a backstop.
+     */
     @Override
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public ImportedStory importFromExternalIssue(ExternalIssueInput input) {
         GeneratedStory gen = transform(input);
-        try {
-            CreateUserStoryCommand command = new CreateUserStoryCommand(
-                    input.projectId(), gen.title(), gen.role(), gen.action(), gen.benefit(),
-                    gen.priority(), gen.storyPoints());
-            UserStory saved = createUserStory.handle(command);
-            if (gen.acceptanceCriteria() != null && !gen.acceptanceCriteria().isEmpty()) {
-                gen.acceptanceCriteria().forEach(c ->
-                        saved.addAcceptanceCriterion(c.scenario(), c.given(), c.when(), c.then()));
-                stories.save(saved);
-            }
-            return ImportedStory.created(saved.getId());
-        } catch (DomainException e) {
-            if (e.error() == DiscoveryError.DUPLICATE_USER_STORY) {
-                StoryDuplicateCheck match = resolveDuplicate(input.projectId(), gen);
-                return ImportedStory.duplicate(match.existingStoryId(), match.similarity());
-            }
-            throw e;
+
+        StoryDuplicateCheck dup = resolveDuplicate(input.projectId(), gen);
+        if (dup.duplicate()) {
+            return ImportedStory.duplicate(dup.existingStoryId(), dup.similarity());
         }
+
+        CreateUserStoryCommand command = new CreateUserStoryCommand(
+                input.projectId(), gen.title(), gen.role(), gen.action(), gen.benefit(),
+                gen.priority(), gen.storyPoints());
+        UserStory saved = createUserStory.handle(command);
+        if (gen.acceptanceCriteria() != null && !gen.acceptanceCriteria().isEmpty()) {
+            gen.acceptanceCriteria().forEach(c ->
+                    saved.addAcceptanceCriterion(c.scenario(), c.given(), c.when(), c.then()));
+            stories.save(saved);
+        }
+        return ImportedStory.created(saved.getId());
     }
 
     @Override
