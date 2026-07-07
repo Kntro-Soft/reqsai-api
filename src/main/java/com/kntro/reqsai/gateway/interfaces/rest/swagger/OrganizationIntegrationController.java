@@ -1,9 +1,11 @@
 package com.kntro.reqsai.gateway.interfaces.rest.swagger;
 
 import com.kntro.reqsai.gateway.interfaces.rest.dto.request.ConnectJiraRequest;
+import com.kntro.reqsai.gateway.interfaces.rest.dto.request.JiraOAuthCallbackRequest;
 import com.kntro.reqsai.gateway.interfaces.rest.dto.response.ConnectionTestResponse;
 import com.kntro.reqsai.gateway.interfaces.rest.dto.response.IntegrationConnectionResponse;
 import com.kntro.reqsai.gateway.interfaces.rest.dto.response.JiraIssueTypeResponse;
+import com.kntro.reqsai.gateway.interfaces.rest.dto.response.JiraOAuthAuthorizeUrlResponse;
 import com.kntro.reqsai.gateway.interfaces.rest.dto.response.JiraProjectResponse;
 import com.kntro.reqsai.shared.infrastructure.configuration.ApiVersioning;
 import com.kntro.reqsai.shared.infrastructure.documentation.openapi.OpenApiConfiguration;
@@ -66,6 +68,43 @@ public interface OrganizationIntegrationController {
     ResponseEntity<IntegrationConnectionResponse> connectJira(
             @Parameter(description = "Organization UUID") @PathVariable UUID orgId,
             @Valid @RequestBody ConnectJiraRequest request,
+            Authentication authentication);
+
+    @Operation(summary = "Get the Jira OAuth authorize URL",
+            description = """
+                    Returns the Atlassian authorize URL (with a stateless signed `state`) to redirect the
+                    user into the OAuth 2.0 (3LO) consent flow. Responds `501 JIRA_OAUTH_NOT_CONFIGURED`
+                    when the deployment has no Jira OAuth app configured (the UI disables the button).""")
+    @ApiResponse(responseCode = "200", description = "Authorize URL + state",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    schema = @Schema(implementation = JiraOAuthAuthorizeUrlResponse.class)))
+    @ApiStandardErrorResponses
+    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
+    @GetMapping(value = "/jira/oauth/authorize-url", version = ApiVersioning.V1)
+    ResponseEntity<JiraOAuthAuthorizeUrlResponse> jiraOAuthAuthorizeUrl(
+            @Parameter(description = "Organization UUID") @PathVariable UUID orgId,
+            Authentication authentication);
+
+    @Operation(summary = "Complete the Jira OAuth callback",
+            description = """
+                    Validates the signed `state`, exchanges the authorization `code`, and discovers the
+                    accessible Atlassian sites. If a `cloudId` is supplied (or exactly one site exists) an
+                    encrypted OAUTH2 connection is saved and returned (`IntegrationConnectionResponse`).
+                    If multiple sites exist and no `cloudId` is given, returns `200 {sites:[...]}` WITHOUT
+                    saving, for the frontend to re-POST with a chosen `cloudId`. `409` when a connection
+                    already exists; `400 JIRA_OAUTH_STATE_INVALID` on a bad state;
+                    `501 JIRA_OAUTH_NOT_CONFIGURED` when OAuth is unconfigured.""")
+    @ApiResponse(responseCode = "200",
+            description = "OAUTH2 connection saved, or the list of sites to choose from",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE))
+    @ApiResponseBadRequest
+    @ApiResponseConflict
+    @ApiStandardErrorResponses
+    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
+    @PostMapping(value = "/jira/oauth/callback", version = ApiVersioning.V1)
+    ResponseEntity<Object> jiraOAuthCallback(
+            @Parameter(description = "Organization UUID") @PathVariable UUID orgId,
+            @Valid @RequestBody JiraOAuthCallbackRequest request,
             Authentication authentication);
 
     @Operation(summary = "Test an integration connection",

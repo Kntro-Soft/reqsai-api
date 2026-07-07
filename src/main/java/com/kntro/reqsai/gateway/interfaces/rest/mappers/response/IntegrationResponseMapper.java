@@ -2,6 +2,7 @@ package com.kntro.reqsai.gateway.interfaces.rest.mappers.response;
 
 import com.kntro.reqsai.gateway.application.port.IntegrationProvider.RemoteIssueType;
 import com.kntro.reqsai.gateway.application.port.IntegrationProvider.RemoteProject;
+import com.kntro.reqsai.gateway.application.port.JiraOAuthPort.Site;
 import com.kntro.reqsai.gateway.application.result.BatchPushResult;
 import com.kntro.reqsai.gateway.application.result.ConnectionTestResult;
 import com.kntro.reqsai.gateway.application.result.StoryPushResult;
@@ -11,6 +12,7 @@ import com.kntro.reqsai.gateway.interfaces.rest.dto.response.BatchPushResponse;
 import com.kntro.reqsai.gateway.interfaces.rest.dto.response.ConnectionTestResponse;
 import com.kntro.reqsai.gateway.interfaces.rest.dto.response.IntegrationConnectionResponse;
 import com.kntro.reqsai.gateway.interfaces.rest.dto.response.JiraIssueTypeResponse;
+import com.kntro.reqsai.gateway.interfaces.rest.dto.response.JiraOAuthSiteResponse;
 import com.kntro.reqsai.gateway.interfaces.rest.dto.response.JiraProjectResponse;
 import com.kntro.reqsai.gateway.interfaces.rest.dto.response.JiraPushResultResponse;
 import com.kntro.reqsai.gateway.interfaces.rest.dto.response.ProjectJiraTargetResponse;
@@ -46,6 +48,10 @@ public final class IntegrationResponseMapper {
 
     public static JiraIssueTypeResponse toResponse(RemoteIssueType t) {
         return new JiraIssueTypeResponse(t.id(), t.name());
+    }
+
+    public static JiraOAuthSiteResponse toResponse(Site s) {
+        return new JiraOAuthSiteResponse(s.cloudId(), s.url(), s.name());
     }
 
     public static ProjectJiraTargetResponse toResponse(ProjectIntegrationTarget t) {

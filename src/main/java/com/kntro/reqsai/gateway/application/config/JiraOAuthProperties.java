@@ -1,4 +1,4 @@
-package com.kntro.reqsai.gateway.infrastructure.jira;
+package com.kntro.reqsai.gateway.application.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.jspecify.annotations.Nullable;
