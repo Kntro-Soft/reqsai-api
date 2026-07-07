@@ -16,6 +16,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Authenticates STOMP CONNECT frames using the same {@link TokenVerifier} as the HTTP filter.
@@ -24,11 +25,18 @@ import java.util.List;
  * interceptor verifies it and binds the user {@code Principal} to the session (so per-user queues and
  * {@code @MessageMapping} security work). A CONNECT with no token is left anonymous; a CONNECT with an
  * invalid token is rejected (the verifier throws).
+ * <p>
+ * The verified {@code orgId} (tenant) is also stashed in the STOMP session attributes under
+ * {@link #ORG_ID_ATTRIBUTE}: session-lifecycle listeners (e.g. discovery presence) run on the broker
+ * thread with no bound {@code TenantContext}, so they read the tenant from here rather than the JWT.
  */
 @Component
 @RequiredArgsConstructor
 @Slf4j
 public class StompAuthChannelInterceptor implements ChannelInterceptor {
+
+    /** STOMP session-attribute key holding the authenticated tenant/organization id (a {@code String}). */
+    public static final String ORG_ID_ATTRIBUTE = "reqsai.orgId";
 
     private final TokenVerifier tokenVerifier;
 
@@ -43,6 +51,10 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
                         token.userId(), null,
                         token.role() != null ? List.of(new SimpleGrantedAuthority(token.role())) : List.of());
                 accessor.setUser(authentication);
+                Map<String, Object> attributes = accessor.getSessionAttributes();
+                if (attributes != null && token.orgId() != null) {
+                    attributes.put(ORG_ID_ATTRIBUTE, token.orgId());
+                }
                 log.debug("WebSocket CONNECT authenticated for user {} (tenant {})",
                         token.userId(), token.orgId());
             }
