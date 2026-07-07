@@ -6,11 +6,13 @@ import tools.jackson.databind.ObjectMapper;
 import com.kntro.reqsai.discovery.application.port.GenerationContext;
 import com.kntro.reqsai.discovery.application.port.GenerationResult;
 import com.kntro.reqsai.discovery.application.port.RequirementGenerationPort;
+import com.kntro.reqsai.discovery.application.port.TokenUsageRecorderPort;
 import com.kntro.reqsai.discovery.infrastructure.exception.DiscoveryInfrastructureExceptions;
 import com.kntro.reqsai.discovery.domain.model.Priority;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 
 import java.util.List;
@@ -312,9 +314,15 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
             """;
 
     private final ObjectMapper objectMapper;
+    private final TokenUsageRecorderPort tokenUsageRecorder;
 
     protected AbstractLlmGenerationAdapter(ObjectMapper objectMapper) {
+        this(objectMapper, tokens -> { /* no-op: metering disabled (e.g. in unit tests) */ });
+    }
+
+    protected AbstractLlmGenerationAdapter(ObjectMapper objectMapper, TokenUsageRecorderPort tokenUsageRecorder) {
         this.objectMapper = objectMapper;
+        this.tokenUsageRecorder = tokenUsageRecorder;
     }
 
     /** Sends {@code promptText} to the concrete model and returns the raw text response. */
@@ -444,12 +452,36 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
     }
 
     protected String callAndExtractText(ChatModel model, String promptText) {
-        var result = model.call(new Prompt(promptText)).getResult();
+        ChatResponse response = model.call(new Prompt(promptText));
+        recordTokenUsage(response);
+        var result = response != null ? response.getResult() : null;
         String text = result != null ? result.getOutput().getText() : null;
         if (text == null || text.isBlank()) {
             throw DiscoveryInfrastructureExceptions.generationFailed("Empty response from AI model");
         }
         return text;
+    }
+
+    /**
+     * Best-effort AI-token metering: reads the provider-reported total token usage from the response
+     * metadata and reports it to Billing. Never throws — a metering failure must not fail generation.
+     */
+    private void recordTokenUsage(@Nullable ChatResponse response) {
+        try {
+            if (response == null || response.getMetadata() == null) {
+                return;
+            }
+            var usage = response.getMetadata().getUsage();
+            if (usage == null) {
+                return;
+            }
+            Number total = usage.getTotalTokens();
+            if (total != null && total.longValue() > 0) {
+                tokenUsageRecorder.record(total.longValue());
+            }
+        } catch (RuntimeException e) {
+            log.debug("Token usage metering skipped for {}: {}", modelName(), e.getMessage());
+        }
     }
 
     /** Strips optional Markdown code fences that some models wrap around JSON. */

@@ -21,7 +21,19 @@ public final class PlanCatalog {
     public static PlanLimitsValues limitsFor(PlanType planType) {
         return switch (planType) {
             case FREE -> new PlanLimitsValues(3, 25, 10, 100_000L, 50);
-            default -> throw new UnsupportedOperationException("Plan limits not yet defined for: " + planType);
+            case PRO -> new PlanLimitsValues(15, 200, 50, 2_000_000L, 300);
+            case ENTERPRISE -> new PlanLimitsValues(200, 2_000, 500, 50_000_000L, 3_000);
         };
+    }
+
+    /**
+     * A plan is purchasable when it can be assigned through the paid upgrade flow.
+     * FREE is provisioned automatically on organization creation, never purchased.
+     *
+     * @param planType the plan tier
+     * @return {@code true} for paid tiers (PRO, ENTERPRISE)
+     */
+    public static boolean isPurchasable(PlanType planType) {
+        return planType != PlanType.FREE;
     }
 }

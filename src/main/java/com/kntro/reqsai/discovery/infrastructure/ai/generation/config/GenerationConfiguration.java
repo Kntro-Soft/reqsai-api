@@ -2,6 +2,7 @@ package com.kntro.reqsai.discovery.infrastructure.ai.generation.config;
 
 import tools.jackson.databind.ObjectMapper;
 import com.kntro.reqsai.discovery.application.port.RequirementGenerationPort;
+import com.kntro.reqsai.discovery.application.port.TokenUsageRecorderPort;
 import com.kntro.reqsai.discovery.infrastructure.ai.generation.RequirementGenerationRouter;
 import com.kntro.reqsai.discovery.infrastructure.ai.generation.strategy.GeminiRequirementGenerationAdapter;
 import com.kntro.reqsai.discovery.infrastructure.ai.generation.strategy.OpenAiRequirementGenerationAdapter;
@@ -27,11 +28,12 @@ class GenerationConfiguration {
             ObjectProvider<ChatModel> chatModel,
             ObjectProvider<OpenAiChatModel> openAiChatModel,
             ObjectMapper objectMapper,
+            TokenUsageRecorderPort tokenUsageRecorder,
             @Value("${reqsai.ai.generation.provider:gemini}") String provider) {
         return new RequirementGenerationRouter(
                 provider,
-                new GeminiRequirementGenerationAdapter(chatModel, objectMapper),
-                new OpenAiRequirementGenerationAdapter(openAiChatModel, objectMapper)
+                new GeminiRequirementGenerationAdapter(chatModel, objectMapper, tokenUsageRecorder),
+                new OpenAiRequirementGenerationAdapter(openAiChatModel, objectMapper, tokenUsageRecorder)
         );
     }
 }

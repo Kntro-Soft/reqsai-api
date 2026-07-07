@@ -14,5 +14,7 @@ public interface SubscriptionRepositoryPort {
 
     Optional<Subscription> findByOrganizationId(UUID organizationId);
 
+    Optional<Subscription> findByProviderExternalId(String externalId);
+
     boolean existsByOrganizationId(UUID organizationId);
 }

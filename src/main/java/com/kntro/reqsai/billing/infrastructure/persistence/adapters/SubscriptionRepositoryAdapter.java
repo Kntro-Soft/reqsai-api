@@ -29,6 +29,11 @@ public class SubscriptionRepositoryAdapter implements SubscriptionRepositoryPort
     }
 
     @Override
+    public Optional<Subscription> findByProviderExternalId(String externalId) {
+        return jpa.findByProviderRefExternalId(externalId);
+    }
+
+    @Override
     public boolean existsByOrganizationId(UUID organizationId) {
         return jpa.existsByOrganizationId(organizationId);
     }
