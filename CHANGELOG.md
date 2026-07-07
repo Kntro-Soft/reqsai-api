@@ -91,6 +91,14 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
       `JIRA_OAUTH_NOT_CONFIGURED` (501), `JIRA_OAUTH_STATE_INVALID` (400),
       `JIRA_OAUTH_EXCHANGE_FAILED` (502).
 
+### Changed (Workspace — `feature/integrations-jira`)
+
+- **Org admins may now view organization general settings** — `GET /organizations/{orgId}` is now gated
+  by `@authz.orgOwnerOrAdmin` instead of `@authz.orgOwner`, so an organization **admin** receives `200`
+  when reading the org (previously `403`). Editing stays owner-only: `PATCH /organizations/{orgId}`,
+  `POST /organizations/{orgId}/transfer-ownership`, and `DELETE /organizations/{orgId}` remain
+  `@authz.orgOwner`. Non-members still receive `403` on the GET.
+
 ### Added (Backlog / Glossary / Constraints listing — `feature/discovery-session-control`)
 
 - **User-story backlog list filters + search** — `GET /projects/{projectId}/stories` now accepts five

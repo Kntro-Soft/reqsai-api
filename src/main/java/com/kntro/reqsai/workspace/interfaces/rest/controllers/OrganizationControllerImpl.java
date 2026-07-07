@@ -50,7 +50,7 @@ public class OrganizationControllerImpl implements OrganizationController {
     }
 
     @Override
-    @PreAuthorize("@authz.orgOwner(#orgId, authentication)")
+    @PreAuthorize("@authz.orgOwnerOrAdmin(#orgId, authentication)")
     public ResponseEntity<OrganizationResponse> getById(UUID orgId, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         Organization organization = getOrganization.handle(new GetOrganizationQuery(orgId, requestedBy));
