@@ -45,7 +45,10 @@ public class SecurityConfiguration {
             "/swagger-ui.html",
             "/actuator/health",
             "/actuator/health/**",
-            "/ws/**"
+            "/ws/**",
+            // Payment-provider webhooks authenticate by provider signature (HMAC), not JWT — the
+            // caller is Stripe, not a logged-in user. The handler verifies the signature itself.
+            "/api/billing/webhooks/**"
     };
 
     /**

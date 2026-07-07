@@ -1,6 +1,7 @@
 package com.kntro.reqsai.discovery.infrastructure.ai.generation.strategy;
 
 import tools.jackson.databind.ObjectMapper;
+import com.kntro.reqsai.discovery.application.port.TokenUsageRecorderPort;
 import com.kntro.reqsai.discovery.infrastructure.exception.DiscoveryInfrastructureExceptions;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.openai.OpenAiChatModel;
@@ -16,8 +17,9 @@ public class OpenAiRequirementGenerationAdapter extends AbstractLlmGenerationAda
 
     private final ObjectProvider<OpenAiChatModel> chatModel;
 
-    public OpenAiRequirementGenerationAdapter(ObjectProvider<OpenAiChatModel> chatModel, ObjectMapper objectMapper) {
-        super(objectMapper);
+    public OpenAiRequirementGenerationAdapter(ObjectProvider<OpenAiChatModel> chatModel, ObjectMapper objectMapper,
+                                              TokenUsageRecorderPort tokenUsageRecorder) {
+        super(objectMapper, tokenUsageRecorder);
         this.chatModel = chatModel;
     }
 
