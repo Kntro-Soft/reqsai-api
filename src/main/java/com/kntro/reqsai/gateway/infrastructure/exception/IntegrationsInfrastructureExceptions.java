@@ -29,6 +29,11 @@ public final class IntegrationsInfrastructureExceptions {
                 "Jira rejected the issue creation: " + reason, null);
     }
 
+    public static InfrastructureException jiraImportFailed(String reason, Throwable cause) {
+        return new InfrastructureException(IntegrationsInfrastructureError.JIRA_IMPORT_FAILED,
+                "Jira import failed: " + reason, cause);
+    }
+
     public static InfrastructureException encryptionError(String reason, Throwable cause) {
         return new InfrastructureException(IntegrationsInfrastructureError.INTEGRATION_ENCRYPTION_ERROR,
                 "Integration secret encryption failed: " + reason, cause);

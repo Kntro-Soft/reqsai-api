@@ -58,6 +58,40 @@ public class JiraProvider implements IntegrationProvider {
         return new PushedIssue(created.key(), jira.browseUrl(ctx.browseBase(), created.key()));
     }
 
+    @Override
+    public List<RemoteIssue> searchImportableIssues(ProviderCredentials c, String projectKey, String issueTypeName) {
+        JiraApiContext ctx = contextFor(c);
+        String jql = "project = \"" + projectKey + "\" AND issuetype = \"" + issueTypeName
+                + "\" ORDER BY created ASC";
+        return jira.searchAllIssues(ctx, jql).stream()
+                .map(JiraProvider::toRemoteIssue)
+                .toList();
+    }
+
+    private static RemoteIssue toRemoteIssue(JiraClient.JiraIssue issue) {
+        JiraClient.IssueFields f = issue.fields();
+        String summary = f != null && f.summary() != null ? f.summary() : issue.key();
+        String description = f != null ? JiraAdfReader.toPlainText(f.description()) : "";
+        String issueType = f != null && f.issuetype() != null ? f.issuetype().name() : null;
+        String priority = mapPriority(f != null && f.priority() != null ? f.priority().name() : null);
+        return new RemoteIssue(issue.key(), summary, issueType, description, priority);
+    }
+
+    /**
+     * Maps a Jira priority name to a Reqs-AI {@code Priority} name: Highest/High → HIGH,
+     * Medium → MEDIUM, Low/Lowest → LOW; anything else (including {@code null}) → MEDIUM.
+     */
+    private static String mapPriority(String jiraPriority) {
+        if (jiraPriority == null) {
+            return "MEDIUM";
+        }
+        return switch (jiraPriority.trim().toLowerCase(java.util.Locale.ROOT)) {
+            case "highest", "high" -> "HIGH";
+            case "low", "lowest" -> "LOW";
+            default -> "MEDIUM";
+        };
+    }
+
     /** Builds the base-URL + auth context for the credential's mode. */
     private static JiraApiContext contextFor(ProviderCredentials c) {
         if (c.credentialType() == CredentialType.OAUTH2) {
