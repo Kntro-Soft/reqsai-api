@@ -11,6 +11,23 @@ follows [Semantic Versioning](https://semver.org/).
 
 _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in progress._
 
+### Added (Live session presence — `feature/discovery-presence`)
+
+- **Real-time presence for live discovery sessions** — the users currently viewing a live session are
+  now tracked and broadcast so every participant sees who else is present. A new `PRESENCE_STATE`
+  event on the existing per-session topic (`/topic/sessions/{id}`) carries a `SessionPresenceMessage`
+  snapshot: the full participant list (`userId`, `displayName`, `avatarUrl`) plus a distinct `count`.
+  Presence is driven entirely by STOMP lifecycle events — subscribing to the session topic **is** the
+  presence signal; unsubscribe/disconnect removes the user; the same user across two tabs counts once.
+- **`WorkspaceModuleApi.findMemberDisplayName(orgId, userId)`** — new read on the `workspace::api` ACL
+  so discovery labels participants from the member roster (`public.members`) without reaching into
+  workspace internals; the result is Caffeine-cached per tenant+user.
+- **No Redis / no schema change** — the presence roster is ephemeral in-process state (a
+  `SessionPresenceRegistry` alongside the in-memory broker). Like the `SIMPLE` broker (ADR-0007) it is
+  per-JVM; a fully global roster across multiple instances would require the shared `RELAY` broker's
+  state. The authenticated `orgId` is stashed in the STOMP session attributes on CONNECT so the
+  broker-thread listeners can resolve the tenant.
+
 ### Added (Backlog / Glossary / Constraints listing — `feature/discovery-session-control`)
 
 - **User-story backlog list filters + search** — `GET /projects/{projectId}/stories` now accepts five

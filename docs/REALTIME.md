@@ -84,6 +84,26 @@ client.activate();
 | `/topic` | server → clients  | broadcast (many subscribers)                          |
 | `/user`  | server → one user | per-user queue (`sendToUser`, resolved per principal) |
 
+## Live presence (who is viewing a session)
+
+Discovery tracks who is currently viewing a **live** session and broadcasts the roster so every
+participant sees the others. It is built entirely on the STOMP lifecycle — there is **no** extra
+subscription and **no** client→server message:
+
+- **Signal:** a client's SUBSCRIBE to `/topic/sessions/{id}` *is* "I am present". `SessionPresenceTracker`
+  listens to `SessionSubscribeEvent` / `SessionUnsubscribeEvent` / `SessionDisconnectEvent`.
+- **State:** `SessionPresenceRegistry` holds, per session, which connections are present (a user across
+  two tabs counts once). It is in-process — **not** Redis — and, like the `SIMPLE` broker, per-JVM.
+- **Broadcast:** on any real roster change the tracker sends a `PRESENCE_STATE` message
+  (`SessionPresenceMessage`: full participant snapshot + `count`) back on the same `sessions/{id}` topic.
+  The client keeps its one subscription and switches on `type` (see the single-topic pattern below).
+- **Identity:** the CONNECT interceptor stashes the tenant `orgId` in the STOMP session attributes;
+  the tracker resolves each `userId` to a display name via `WorkspaceModuleApi.findMemberDisplayName`
+  (Caffeine-cached) and a deterministic `avatarUrl` (`/api/users/{userId}/avatar`).
+
+> Multi-instance caveat: because the registry is per-JVM (same as the `SIMPLE` broker), a global roster
+> across several ECS tasks needs the shared `RELAY` broker's state — acceptable at single-instance scale.
+
 ## Scaling: SIMPLE vs. RELAY (important for ECS)
 
 The default **`SIMPLE`** broker is in-memory and only knows connections on the **local JVM**. With more
