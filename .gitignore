@@ -35,3 +35,16 @@ out/
 
 ### VS Code ###
 .vscode/
+
+### Secrets ###
+.env
+.env.*
+!.env.example
+src/main/resources/certs/*.pem
+
+### Generated diagrams ###
+assets/diagrams/
+
+### Documentation ###
+docs/PROJECT_CONTEXT.md
+docs/USER_STORIES.md

@@ -1,0 +1,190 @@
+package com.kntro.reqsai.shared.infrastructure.web.error;
+
+import com.kntro.reqsai.shared.domain.exception.AuthenticationException;
+import com.kntro.reqsai.shared.domain.exception.CommonError;
+import com.kntro.reqsai.shared.domain.exception.DomainException;
+import com.kntro.reqsai.shared.domain.exception.EntityNotFoundException;
+import com.kntro.reqsai.shared.domain.exception.InfrastructureException;
+import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.InvalidDataAccessResourceUsageException;
+import org.jspecify.annotations.NonNull;
+import org.slf4j.MDC;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.http.ProblemDetail;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.ServletWebRequest;
+import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
+
+import java.net.URI;
+import java.util.Map;
+import java.util.Optional;
+
+/**
+ * Central exception handling, producing RFC 9457 {@link ProblemDetail} responses.
+ * <p>
+ * Extends {@link ResponseEntityExceptionHandler} so Spring MVC exceptions (unreadable body, method
+ * not allowed, unsupported media type, …) are already rendered as {@code ProblemDetail}. Domain
+ * exceptions map to their error catalog's HTTP status. Every response carries a {@code code} and
+ * a {@code correlationId} (from the MDC, set by {@code CorrelationFilter}). Infrastructure errors
+ * never leak their internal message to the client.
+ */
+@Slf4j
+@RestControllerAdvice
+public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
+
+    // Domain
+    @ExceptionHandler(EntityNotFoundException.class)
+    public ProblemDetail handleNotFound(EntityNotFoundException ex, HttpServletRequest req) {
+        log.warn("[{}] Not found [{}]: {}", tenantId(), ex.error().code(), ex.getMessage());
+        return problem(ex, req);
+    }
+
+    @ExceptionHandler(AuthenticationException.class)
+    public ProblemDetail handleAuth(AuthenticationException ex, HttpServletRequest req) {
+        log.warn("[{}] Auth failed [{}]: {}", tenantId(), ex.error().code(), ex.getMessage());
+        return problem(ex, req);
+    }
+
+    @ExceptionHandler(InfrastructureException.class)
+    public ProblemDetail handleInfra(InfrastructureException ex, HttpServletRequest req) {
+        // Internal cause is logged with stacktrace, never exposed to the client.
+        log.error("[{}] Infrastructure error [{}]: {}", tenantId(), ex.error().code(), ex.getMessage(), ex);
+        ProblemDetail pd = ProblemDetail.forStatus(ex.error().status());
+        pd.setDetail("A server error occurred. Please try again later.");
+        pd.setProperty("code", ex.error().code());
+        pd.setProperty("correlationId", correlationId());
+        pd.setInstance(URI.create(req.getRequestURI()));
+        return pd;
+    }
+
+    // Spring Security — method-security/authorization denials (e.g. @PreAuthorize). Without this they
+    // fall through to the generic 500 handler instead of a proper 403.
+    // RFC 9110 §15.5.2: if the user is not authenticated at all, return 401 (not 403).
+    @ExceptionHandler(AccessDeniedException.class)
+    public ProblemDetail handleAccessDenied(AccessDeniedException ex, HttpServletRequest req) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        boolean unauthenticated = auth == null || !auth.isAuthenticated()
+                || "anonymousUser".equals(auth.getPrincipal());
+        if (unauthenticated) {
+            log.warn("[{}] Unauthenticated access [{}]: {}", tenantId(), CommonError.NOT_AUTHENTICATED.code(), req.getRequestURI());
+            ProblemDetail pd = ProblemDetail.forStatusAndDetail(CommonError.NOT_AUTHENTICATED.status(), "Authentication required");
+            pd.setProperty("code", CommonError.NOT_AUTHENTICATED.code());
+            pd.setProperty("correlationId", correlationId());
+            pd.setInstance(URI.create(req.getRequestURI()));
+            return pd;
+        }
+        log.warn("[{}] Access denied [{}]: {}", tenantId(), CommonError.PERMISSION_DENIED.code(), ex.getMessage());
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(CommonError.PERMISSION_DENIED.status(), "Access is denied");
+        pd.setProperty("code", CommonError.PERMISSION_DENIED.code());
+        pd.setProperty("correlationId", correlationId());
+        pd.setInstance(URI.create(req.getRequestURI()));
+        return pd;
+    }
+
+    @ExceptionHandler(DomainException.class)
+    public ProblemDetail handleDomain(DomainException ex, HttpServletRequest req) {
+        log.warn("[{}] Domain error [{}]: {}", tenantId(), ex.error().code(), ex.getMessage());
+        return problem(ex, req);
+    }
+
+    // ResponseStatusException — thrown at the interface layer for client input errors
+    @ExceptionHandler(ResponseStatusException.class)
+    public ProblemDetail handleResponseStatus(ResponseStatusException ex, HttpServletRequest req) {
+        log.warn("[{}] Request error on {}: {}", tenantId(), req.getRequestURI(), ex.getReason());
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(ex.getStatusCode(),
+                ex.getReason() != null ? ex.getReason() : "The request could not be processed");
+        pd.setProperty("code", CommonError.UNPROCESSABLE_REQUEST.code());
+        pd.setProperty("correlationId", correlationId());
+        pd.setInstance(URI.create(req.getRequestURI()));
+        return pd;
+    }
+
+    // Validation (@Valid) — override the base handler to enrich the body
+    @Override
+    protected ResponseEntity<Object> handleMethodArgumentNotValid(
+            MethodArgumentNotValidException ex, @NonNull HttpHeaders headers, @NonNull HttpStatusCode status, @NonNull WebRequest request) {
+
+        var fieldErrors = ex.getBindingResult().getFieldErrors().stream()
+                .map(fe -> Map.of(
+                        "field", fe.getField(),
+                        "message", String.valueOf(fe.getDefaultMessage()),
+                        "rejectedValue", fe.getRejectedValue() != null ? fe.getRejectedValue() : "null"))
+                .toList();
+
+        log.warn("[{}] Validation failed on {}: {} error(s)", tenantId(), uri(request), fieldErrors.size());
+
+        ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
+        pd.setDetail("Request validation failed");
+        pd.setProperty("code", CommonError.VALIDATION_FAILED.code());
+        pd.setProperty("fieldErrors", fieldErrors);
+        pd.setProperty("correlationId", correlationId());
+        pd.setInstance(URI.create(uri(request)));
+        return handleExceptionInternal(ex, pd, headers, HttpStatus.BAD_REQUEST, request);
+    }
+
+    // Tenant schema missing — org token is valid, but org is not provisioned (deleted or pending)
+    @ExceptionHandler(InvalidDataAccessResourceUsageException.class)
+    public ProblemDetail handleSchemaError(InvalidDataAccessResourceUsageException ex, HttpServletRequest req) {
+        String cause = ex.getMostSpecificCause().getMessage();
+        if (cause != null && cause.contains("does not exist")) {
+            log.warn("[{}] Tenant schema missing on {} — org not provisioned: {}", tenantId(), req.getRequestURI(), cause);
+            ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.FORBIDDEN);
+            pd.setDetail("Organization is not provisioned");
+            pd.setProperty("code", "TENANT_NOT_PROVISIONED");
+            pd.setProperty("correlationId", correlationId());
+            pd.setInstance(URI.create(req.getRequestURI()));
+            return pd;
+        }
+        log.error("[{}] Data access error on {}", tenantId(), req.getRequestURI(), ex);
+        ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.INTERNAL_SERVER_ERROR);
+        pd.setDetail("A server error occurred. Please try again later.");
+        pd.setProperty("code", CommonError.INTERNAL_ERROR.code());
+        pd.setProperty("correlationId", correlationId());
+        pd.setInstance(URI.create(req.getRequestURI()));
+        return pd;
+    }
+
+    // Fallback
+    @ExceptionHandler(Exception.class)
+    public ProblemDetail handleUnknown(Exception ex, HttpServletRequest req) {
+        log.error("[{}] Unhandled exception on {}", tenantId(), req.getRequestURI(), ex);
+        ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.INTERNAL_SERVER_ERROR);
+        pd.setDetail("An unexpected error occurred");
+        pd.setProperty("code", CommonError.INTERNAL_ERROR.code());
+        pd.setProperty("correlationId", correlationId());
+        pd.setInstance(URI.create(req.getRequestURI()));
+        return pd;
+    }
+
+    // Helpers
+    private ProblemDetail problem(DomainException ex, HttpServletRequest req) {
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(ex.error().status(), ex.getMessage());
+        pd.setProperty("code", ex.error().code());
+        pd.setProperty("correlationId", correlationId());
+        pd.setInstance(URI.create(req.getRequestURI()));
+        return pd;
+    }
+
+    private String uri(WebRequest request) {
+        return request instanceof ServletWebRequest swr ? swr.getRequest().getRequestURI() : "";
+    }
+
+    private String correlationId() {
+        return Optional.ofNullable(MDC.get("correlationId")).orElse("unknown");
+    }
+
+    private String tenantId() {
+        return Optional.ofNullable(MDC.get("tenantId")).orElse("system");
+    }
+}

@@ -1,0 +1,51 @@
+package com.kntro.reqsai.workspace.infrastructure.persistence.adapters;
+
+import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
+import com.kntro.reqsai.workspace.domain.model.Organization;
+import com.kntro.reqsai.workspace.domain.valueobjects.Slug;
+import com.kntro.reqsai.workspace.infrastructure.persistence.repositories.OrganizationJpaRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Repository;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+/** Adapts the {@link OrganizationRepository} port to Spring Data JPA. */
+@Repository
+@RequiredArgsConstructor
+public class OrganizationRepositoryAdapter implements OrganizationRepository {
+
+    private final OrganizationJpaRepository jpa;
+
+    @Override
+    public Organization save(Organization organization) {
+        return jpa.save(organization);
+    }
+
+    @Override
+    public boolean existsBySlug(Slug slug) {
+        return jpa.existsBySlug(slug);
+    }
+
+    @Override
+    public Optional<Organization> findById(UUID id) {
+        return jpa.findById(id);
+    }
+
+    @Override
+    public Optional<Organization> findByOwnerId(UUID ownerId) {
+        return jpa.findFirstByOwnerIdOrderByCreatedAtDesc(ownerId);
+    }
+
+    @Override
+    public List<Organization> findAllByOwnerId(UUID ownerId) {
+        return jpa.findAllByOwnerIdOrderByCreatedAtDesc(ownerId);
+    }
+
+    @Override
+    public List<Organization> findAllByIdIn(Collection<UUID> ids) {
+        return ids.isEmpty() ? List.of() : jpa.findAllById(ids);
+    }
+}

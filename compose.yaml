@@ -1,11 +1,113 @@
+name: reqsai
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
-  pgvector:
-    image: 'pgvector/pgvector:pg16'
+
+  db:
+    profiles: [core]
+    container_name: reqsai-db
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    shm_size: 128mb
     environment:
-      - 'POSTGRES_DB=mydatabase'
-      - 'POSTGRES_PASSWORD=secret'
-      - 'POSTGRES_USER=myuser'
+      POSTGRES_DB: ${DB_NAME:-reqsai}
+      POSTGRES_USER: ${DB_USERNAME:-reqsai}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-secret}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - reqsai_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-reqsai} -d ${DB_NAME:-reqsai}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     labels:
       - "org.springframework.boot.service-connection=postgres"
+    logging: *default-logging
+
+  mailpit:
+    profiles: [core]
+    container_name: reqsai-mailpit
+    image: axllent/mailpit:v1.29.3
+    restart: unless-stopped
     ports:
-      - '5432'
+      - "${MAILPIT_SMTP_PORT:-1025}:1025"
+      - "${MAILPIT_UI_PORT:-8025}:8025"
+    logging: *default-logging
+
+  app:
+    profiles: [app]
+    container_name: reqsai-app
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: reqsai-api:local
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      DB_URL: jdbc:postgresql://db:5432/${DB_NAME:-reqsai}
+      DB_USERNAME: ${DB_USERNAME:-reqsai}
+      DB_PASSWORD: ${DB_PASSWORD:-secret}
+      MAIL_HOST: mailpit
+      MAIL_PORT: 1025
+      JWT_PUBLIC_KEY_PATH: classpath:certs/public_key.pem
+      JWT_ISSUER: reqsai
+      SPRING_DOCKER_COMPOSE_ENABLED: "false"
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    develop:
+      watch:
+        - path: src
+          action: rebuild
+        - path: build.gradle.kts
+          action: rebuild
+    logging: *default-logging
+
+  whisper:
+    profiles: [ai]
+    container_name: reqsai-whisper
+    image: hwdsl2/whisper-server
+    restart: unless-stopped
+    environment:
+      WHISPER_MODEL: ${WHISPER_MODEL:-small}
+      WHISPER_LANGUAGE: ${WHISPER_LANGUAGE:-auto}
+      WHISPER_DIARIZATION: ${WHISPER_DIARIZATION:-false}
+    ports:
+      - "${WHISPER_PORT:-9000}:9000"
+    volumes:
+      - reqsai_whisper_data:/var/lib/whisper
+    logging: *default-logging
+
+  whisperlive:
+    profiles: [ai]
+    container_name: reqsai-whisperlive
+    build:
+      context: ./docker/whisperlive
+      dockerfile: Dockerfile
+    image: reqsai-whisperlive:local
+    restart: unless-stopped
+    environment:
+      WHISPER_MODEL: ${WHISPERLIVE_MODEL:-small}
+    ports:
+      - "${WHISPERLIVE_PORT:-9090}:9090"
+    volumes:
+      - reqsai_whisperlive_data:/root/.cache/huggingface
+    logging: *default-logging
+
+volumes:
+  reqsai_db_data:
+    name: reqsai-db-data
+  reqsai_whisper_data:
+    name: reqsai-whisper-data
+  reqsai_whisperlive_data:
+    name: reqsai-whisperlive-data

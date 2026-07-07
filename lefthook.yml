@@ -1,0 +1,5 @@
+pre-commit:
+  commands:
+    spotless:
+      glob: "*.java"
+      run: ./gradlew spotlessApply --no-daemon

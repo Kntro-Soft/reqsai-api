@@ -1,0 +1,31 @@
+# CODEOWNERS — Kntro-Soft / reqsai-api
+#
+# Owners are automatically requested as reviewers on every PR that touches
+# files matching their pattern. Each bounded context is owned by its developer;
+# the Shared Kernel and cross-cutting concerns are owned by the Tech Lead.
+#
+# Format: <pattern>  @<github-username>
+
+# ─── Global fallback (Tech Lead) ────────────────────────────────────────────
+*                                                   @jhosepmyr
+
+# ─── Shared Kernel & cross-cutting infrastructure ───────────────────────────
+/src/main/java/com/kntro/reqsai/shared/            @jhosepmyr
+
+# ─── Bounded contexts ───────────────────────────────────────────────────────
+/src/main/java/com/kntro/reqsai/iam/               @Kyrubi
+/src/main/java/com/kntro/reqsai/billing/           @VarBus
+/src/main/java/com/kntro/reqsai/workspace/         @salimramirez
+/src/main/java/com/kntro/reqsai/discovery/         @jhosepmyr @Eric396
+/src/main/java/com/kntro/reqsai/gateway/           @VarBus
+
+# ─── Database migrations ────────────────────────────────────────────────────
+/src/main/resources/db/migration/common/           @jhosepmyr
+/src/main/resources/db/migration/tenant/           @jhosepmyr
+
+# ─── Build, CI/CD, governance ───────────────────────────────────────────────
+/build.gradle.kts                                  @jhosepmyr
+/settings.gradle.kts                               @jhosepmyr
+/Dockerfile                                        @jhosepmyr
+/.github/                                          @jhosepmyr
+/docs/                                             @jhosepmyr

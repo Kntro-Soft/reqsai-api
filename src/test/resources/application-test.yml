@@ -1,0 +1,36 @@
+spring:
+  datasource:
+    hikari:
+      # Raised from 3: the realtime suggestion pass takes a Postgres advisory lock
+      # (pg_advisory_xact_lock) and HOLDS its connection for the whole pass — which, in the real-LLM
+      # E2E probes, includes multi-second OpenAI generation + embedding round-trips. A high-fanout
+      # streamed transcript (e.g. RealLlmStreamingWsSuggestionE2ETest scenario 6, 4 final segments)
+      # spawns several overlapping async passes; with the test thread's own polling reads competing for
+      # connections, a pool of 3 could starve and a newly-arriving async pass failed to open its JPA
+      # EntityManager (CannotCreateTransactionException). 10 is still well under the container's
+      # max_connections and only affects tests.
+      maximum-pool-size: 10
+      minimum-idle: 1
+  jpa:
+    show-sql: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration/common
+
+reqsai:
+  jwt:
+    public-key-path: classpath:certs/public_key.pem
+    issuer: reqsai-test
+  cors:
+    allowed-origins: http://localhost:4200
+    allow-credentials: true
+
+logging:
+  level:
+    com.kntro.reqsai: DEBUG
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true

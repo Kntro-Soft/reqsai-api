@@ -1,0 +1,36 @@
+package com.kntro.reqsai.iam.interfaces.rest.mappers.response;
+
+import com.kntro.reqsai.iam.application.result.UserProfile;
+import com.kntro.reqsai.iam.domain.model.User;
+import com.kntro.reqsai.iam.domain.model.UserPreferences;
+import com.kntro.reqsai.iam.interfaces.rest.dto.response.UserPreferencesResponse;
+import com.kntro.reqsai.iam.interfaces.rest.dto.response.UserResponse;
+import com.kntro.reqsai.shared.application.avatar.AvatarPaths;
+
+/** Maps the {@link User} aggregate (plus its account email) to its response DTO. */
+public final class UserResponseMapper {
+
+    private UserResponseMapper() {
+        throw new UnsupportedOperationException("Utility class - do not instantiate");
+    }
+
+    public static UserResponse toResponse(UserProfile profile) {
+        return toResponse(profile.user(), profile.email());
+    }
+
+    public static UserResponse toResponse(User user, String email) {
+        return new UserResponse(
+                user.getId(),
+                email,
+                user.getFirstName(),
+                user.getLastName(),
+                user.getFullName(),
+                AvatarPaths.user(user.getId()),
+                toPreferencesResponse(user.getPreferences()));
+    }
+
+    private static UserPreferencesResponse toPreferencesResponse(UserPreferences prefs) {
+        if (prefs == null) return new UserPreferencesResponse(null, null);
+        return new UserPreferencesResponse(prefs.lastVisitedOrgId(), prefs.lastVisitedProjectId());
+    }
+}

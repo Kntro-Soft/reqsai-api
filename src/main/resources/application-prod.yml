@@ -1,0 +1,54 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT:5432}/${DB_NAME}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:20}
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      keepalive-time: 300000
+      max-lifetime: 1740000
+  jpa:
+    show-sql: false
+  flyway:
+    clean-disabled: true
+  ai:
+    model:
+      chat: google-genai
+      embedding: none
+    vectorstore:
+      pgvector:
+        initialize-schema: false
+
+reqsai:
+  ai:
+    stt:
+      batch:
+        provider: ${STT_PROVIDER:assemblyai}
+      streaming:
+        provider: ${STT_STREAMING_PROVIDER:assemblyai}
+    generation:
+      provider: ${GENERATION_PROVIDER:gemini}
+    embedding:
+      provider: ${EMBEDDING_PROVIDER:gemini}
+
+server:
+  compression:
+    enabled: true
+
+springdoc:
+  api-docs:
+    enabled: ${SPRINGDOC_API_DOCS_ENABLED:false}
+  swagger-ui:
+    enabled: ${SPRINGDOC_SWAGGER_UI_ENABLED:false}
+
+logging:
+  structured:
+    format:
+      console: ecs
+  level:
+    root: WARN
+    com.kntro.reqsai: INFO
+    org.hibernate.SQL: ERROR

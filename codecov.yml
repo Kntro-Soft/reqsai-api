@@ -1,0 +1,32 @@
+# Coverage gate.
+#
+# The Gradle `jacocoTestCoverageVerification` (project >= 50%) used to run via `build` -> `check`.
+# The staged CI pipeline no longer calls `check`, so the gate is enforced here, by Codecov, over the
+# coverage it merges from the `unit` and `integration` flag uploads (the unit and integration jobs).
+codecov:
+  notify:
+    # Wait for both the unit and integration coverage uploads before computing the status.
+    after_n_builds: 2
+  require_ci_to_pass: true
+
+coverage:
+  status:
+    project:
+      default:
+        target: 50%        # mirrors the former jacoco minimum
+        threshold: 1%      # tolerate tiny fluctuations
+    patch:
+      default:
+        informational: true   # report coverage on changed lines without blocking (for now)
+
+# Each CI stage uploads with its own flag; carry-forward keeps the last known value for a flag whose
+# job did not run in a given pipeline (e.g. integration skipped when unit failed fast).
+flags:
+  unit:
+    carryforward: true
+  integration:
+    carryforward: true
+
+comment:
+  layout: "reach, diff, flags, files"
+  require_changes: false
