@@ -27,6 +27,7 @@ public final class IntegrationResponseMapper {
                 c.getId(),
                 c.getOrganizationId(),
                 c.getProvider().name(),
+                c.getCredentialType().name(),
                 c.getSiteUrl(),
                 c.getEmail(),
                 c.getStatus().name(),
