@@ -20,6 +20,15 @@ public final class SessionTopics {
     }
 
     /**
+     * The logical topic prefix for per-session destinations (no broker prefix). Presence tracking
+     * matches subscribe destinations against {@code /topic/} + this value to recognize which session
+     * a client is viewing.
+     */
+    public static String sessionsPrefix() {
+        return SESSIONS_PREFIX;
+    }
+
+    /**
      * Logical topic carrying every realtime update for one discovery session.
      *
      * @param sessionId the session aggregate id (required)
