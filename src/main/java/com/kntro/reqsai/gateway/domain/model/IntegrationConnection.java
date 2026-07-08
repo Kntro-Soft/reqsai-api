@@ -16,7 +16,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * Organization-scoped third-party integration connection (ADR-0022). Holds the provider, the Jira site
+ * Organization-scoped third-party integration connection (ADR-0023). Holds the provider, the Jira site
  * URL, and one of two credential shapes selected by {@link #credentialType}:
  * <ul>
  *   <li>{@link CredentialType#API_TOKEN} — account {@code email} + the API token

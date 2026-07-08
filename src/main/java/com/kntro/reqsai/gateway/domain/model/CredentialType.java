@@ -1,7 +1,7 @@
 package com.kntro.reqsai.gateway.domain.model;
 
 /**
- * How an {@link IntegrationConnection} authenticates against its provider (ADR-0022).
+ * How an {@link IntegrationConnection} authenticates against its provider (ADR-0023).
  * <ul>
  *   <li>{@code API_TOKEN} — Jira basic auth: {@code Authorization: Basic base64(email:token)} against
  *       {@code https://{site}/rest/api/3}. The {@code email} + encrypted {@code secret_ciphertext} are

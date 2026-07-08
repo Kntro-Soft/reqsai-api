@@ -4,7 +4,7 @@ import com.kntro.reqsai.shared.domain.exception.ErrorCatalog;
 import org.springframework.http.HttpStatus;
 
 /**
- * Error codes for external-service and crypto failures in the Integrations bounded context (ADR-0022).
+ * Error codes for external-service and crypto failures in the Integrations bounded context (ADR-0023).
  * These are infrastructure concerns (Jira reachability/auth, encryption) and must NOT live in
  * {@link com.kntro.reqsai.gateway.domain.exception.IntegrationsError}.
  */

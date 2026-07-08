@@ -5,7 +5,7 @@ import org.jspecify.annotations.Nullable;
 import java.util.List;
 
 /**
- * Application seam for the Atlassian OAuth 2.0 (3LO) endpoints (ADR-0022): authorization-code exchange,
+ * Application seam for the Atlassian OAuth 2.0 (3LO) endpoints (ADR-0023): authorization-code exchange,
  * refresh-token rotation, and accessible-resources discovery. The concrete HTTP lives in an
  * infrastructure adapter over {@code JiraOAuthClient}; application code programs against this port so it
  * never touches {@code infrastructure}. Tokens are opaque strings and are never logged by callers.

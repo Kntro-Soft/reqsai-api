@@ -22,7 +22,7 @@ import java.time.Instant;
 import java.util.List;
 
 /**
- * Completes the Jira OAuth 2.0 (3LO) org-level flow (ADR-0022):
+ * Completes the Jira OAuth 2.0 (3LO) org-level flow (ADR-0023):
  * <ol>
  *   <li>reject if OAuth is not configured ({@code JIRA_OAUTH_NOT_CONFIGURED});</li>
  *   <li>validate the signed {@code state} against this org+user ({@code JIRA_OAUTH_STATE_INVALID});</li>

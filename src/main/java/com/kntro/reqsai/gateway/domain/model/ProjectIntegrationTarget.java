@@ -10,7 +10,7 @@ import lombok.Getter;
 import java.util.UUID;
 
 /**
- * Project-scoped push target (ADR-0022): the Jira project key + issue type a Reqs-AI project's stories
+ * Project-scoped push target (ADR-0023): the Jira project key + issue type a Reqs-AI project's stories
  * are pushed to, referencing the org-level {@link IntegrationConnection}. Exactly one per project (the
  * {@code PUT .../target} endpoint upserts this single row).
  */

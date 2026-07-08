@@ -4,7 +4,7 @@ import com.kntro.reqsai.shared.domain.exception.ErrorCatalog;
 import org.springframework.http.HttpStatus;
 
 /**
- * Domain (business-rule) error codes owned by the Integrations bounded context (ADR-0022). Mapped to
+ * Domain (business-rule) error codes owned by the Integrations bounded context (ADR-0023). Mapped to
  * RFC 9457 {@code ProblemDetail} by the shared {@code GlobalExceptionHandler}. External-service
  * failures live in {@link com.kntro.reqsai.gateway.infrastructure.exception.IntegrationsInfrastructureError}.
  */

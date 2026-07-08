@@ -11,7 +11,7 @@ import java.security.SecureRandom;
 import java.util.Base64;
 
 /**
- * AES-256-GCM symmetric encryption for integration secrets at rest (ADR-0022).
+ * AES-256-GCM symmetric encryption for integration secrets at rest (ADR-0023).
  * <p>
  * Each value gets a fresh random 12-byte IV, prepended to the ciphertext+tag so decryption is
  * self-describing: the stored bytes are {@code IV(12) || ciphertext||tag}. The key is a base64-encoded

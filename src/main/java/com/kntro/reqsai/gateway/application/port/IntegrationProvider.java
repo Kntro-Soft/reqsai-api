@@ -8,7 +8,7 @@ import org.jspecify.annotations.Nullable;
 import java.util.List;
 
 /**
- * Provider seam (ADR-0022): the capability of talking to a third-party tracker. Jira is the first
+ * Provider seam (ADR-0023): the capability of talking to a third-party tracker. Jira is the first
  * implementation ({@code JiraProvider}); adding another provider means adding an implementation keyed
  * by its {@link IntegrationProviderType}, with no change to the handlers or endpoints.
  *

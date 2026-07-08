@@ -15,7 +15,7 @@ import java.time.Instant;
 
 /**
  * Ensures an OAuth 2.0 (3LO) {@link IntegrationConnection} has a usable, non-expired access token before a
- * provider call (ADR-0022). If the cached access token is missing, expired, or within {@link #SKEW} of
+ * provider call (ADR-0023). If the cached access token is missing, expired, or within {@link #SKEW} of
  * expiring, it refreshes via {@link JiraOAuthPort}, persists the rotated tokens (encrypted) + new expiry,
  * and returns the fresh access token. A refresh failure surfaces as {@code JIRA_AUTH_FAILED}. Tokens are
  * never logged.

@@ -41,7 +41,7 @@ import java.util.UUID;
 
 /**
  * Organization-level integration endpoints. Administering an org-wide credential is an org-admin action,
- * so every method is gated by {@code @authz.orgOwnerOrAdmin} (ADR-0022).
+ * so every method is gated by {@code @authz.orgOwnerOrAdmin} (ADR-0023).
  */
 @RestController
 @RequiredArgsConstructor

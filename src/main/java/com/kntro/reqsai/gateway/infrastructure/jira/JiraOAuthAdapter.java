@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component;
 import java.util.List;
 
 /**
- * Adapts the {@link JiraOAuthPort} application port to the {@link JiraOAuthClient} HTTP client (ADR-0022),
+ * Adapts the {@link JiraOAuthPort} application port to the {@link JiraOAuthClient} HTTP client (ADR-0023),
  * translating the client's Jackson records into the port's value records. Keeps application code off
  * infrastructure.
  */

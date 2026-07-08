@@ -10,7 +10,7 @@ import java.nio.charset.StandardCharsets;
 
 /**
  * JPA converter that encrypts a {@code String} attribute (the Jira API token) to a {@code byte[]}
- * ({@code secret_ciphertext} BYTEA) with AES-256-GCM and decrypts it on load (ADR-0022).
+ * ({@code secret_ciphertext} BYTEA) with AES-256-GCM and decrypts it on load (ADR-0023).
  * <p>
  * JPA converters are instantiated by Hibernate, not Spring, so the {@link SecretCipher} is supplied
  * through a static holder set once at startup by {@code IntegrationsCryptoConfiguration}. A missing

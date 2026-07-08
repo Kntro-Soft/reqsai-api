@@ -1,7 +1,7 @@
 package com.kntro.reqsai.gateway.application.port;
 
 /**
- * Port for symmetric encryption of integration secrets at rest (ADR-0022).
+ * Port for symmetric encryption of integration secrets at rest (ADR-0023).
  * <p>
  * Abstracts the cipher used to protect sensitive credentials (e.g. the Jira API token) before they
  * are persisted, and to recover them on load. Callers program against this port; the concrete

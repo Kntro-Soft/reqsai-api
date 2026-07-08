@@ -13,7 +13,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Short-lived in-memory cache of a completed OAuth code exchange, keyed by the signed {@code state}
- * (ADR-0022).
+ * (ADR-0023).
  * <p>
  * Atlassian authorization codes are SINGLE-USE: the multi-site callback exchanges the code once (to call
  * accessible-resources) and, when the user must still pick a site, cannot exchange it again on the second

@@ -10,7 +10,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Wires the AES-256-GCM cipher used to encrypt integration secrets at rest (ADR-0022) and injects it
+ * Wires the AES-256-GCM cipher used to encrypt integration secrets at rest (ADR-0023) and injects it
  * into the Hibernate-instantiated {@link EncryptedStringConverter} via its static holder.
  * <p>
  * The key comes from {@code INTEGRATIONS_ENCRYPTION_KEY} (base64, 32 bytes). It is required for the

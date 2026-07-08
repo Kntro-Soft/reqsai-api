@@ -8,7 +8,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 import java.util.UUID;
 
 /**
- * Builds the Atlassian authorize URL for the OAuth 2.0 (3LO) flow (ADR-0022):
+ * Builds the Atlassian authorize URL for the OAuth 2.0 (3LO) flow (ADR-0023):
  * {@code https://auth.atlassian.com/authorize?audience=api.atlassian.com&client_id=...&scope=...&
  * redirect_uri=...&state=...&response_type=code&prompt=consent}. The {@code state} is a stateless signed
  * token from {@link JiraOAuthStateService}. When OAuth is not configured it raises

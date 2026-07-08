@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Resolves the {@link IntegrationProvider} for a given {@link IntegrationProviderType} (ADR-0022 provider
+ * Resolves the {@link IntegrationProvider} for a given {@link IntegrationProviderType} (ADR-0023 provider
  * seam). Indexes every provider bean by its {@code type()}; adding a provider is purely additive.
  */
 @Component

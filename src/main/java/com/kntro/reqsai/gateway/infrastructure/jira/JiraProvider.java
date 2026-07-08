@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Jira Cloud implementation of {@link IntegrationProvider} (ADR-0022). Translates provider-neutral calls
+ * Jira Cloud implementation of {@link IntegrationProvider} (ADR-0023). Translates provider-neutral calls
  * into {@link JiraClient} REST calls and renders the story description as ADF via {@link JiraAdfBuilder}.
  * <p>
  * Dual-mode: {@link #contextFor(ProviderCredentials)} picks the base URL + {@code Authorization} header

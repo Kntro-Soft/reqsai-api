@@ -1,5 +1,5 @@
 /**
- * Gateway — external integrations bounded context (ADR-0022).
+ * Gateway — external integrations bounded context (ADR-0023).
  * <p>
  * Third-party tracker connections and story push, whose first provider is Jira Cloud. Extensible
  * provider model: credentials live at the <strong>organization</strong> level

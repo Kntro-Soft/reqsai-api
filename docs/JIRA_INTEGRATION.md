@@ -2,7 +2,7 @@
 
 Reqs-AI can push **user stories to Jira Cloud** as issues. The integration lives in the **`gateway`**
 bounded context and is designed to be provider-extensible (Jira is the first provider). See
-[ADR-0022](adr/0022-third-party-integrations-jira.md) for the design rationale.
+[ADR-0023](adr/0023-third-party-integrations-jira.md) for the design rationale.
 
 - **Connection is organization-level** — credentials are stored once per org, encrypted at rest.
 - **Push target is project-level** — each project picks which Jira project + issue type its stories go to.
@@ -149,7 +149,7 @@ Actions are RBAC-gated by new permissions: `INTEGRATION_READ`, `INTEGRATION_WRIT
 
 ## Reference
 
-- **Design:** [ADR-0022](adr/0022-third-party-integrations-jira.md)
+- **Design:** [ADR-0023](adr/0023-third-party-integrations-jira.md)
 - **Module:** `com.kntro.reqsai.gateway`
 - **Migrations (tenant):** `V21` connections, `V22` targets, `V23` OAuth columns
 - **Config keys:** `reqsai.integrations.encryption-key`, `reqsai.integrations.jira.oauth.{client-id,client-secret,redirect-uri,state-secret}`

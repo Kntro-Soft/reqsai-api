@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Outbound Jira Cloud REST v3 client (ADR-0022), dual-mode across the two credential types:
+ * Outbound Jira Cloud REST v3 client (ADR-0023), dual-mode across the two credential types:
  * <ul>
  *   <li><strong>API_TOKEN</strong> — base {@code https://{site}/rest/api/3} with basic auth
  *       ({@code Authorization: Basic base64(email:token)}).</li>

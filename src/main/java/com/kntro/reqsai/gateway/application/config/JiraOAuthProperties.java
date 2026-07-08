@@ -4,7 +4,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Jira OAuth 2.0 (3LO) app configuration bound from {@code reqsai.integrations.jira.oauth.*} (ADR-0022).
+ * Jira OAuth 2.0 (3LO) app configuration bound from {@code reqsai.integrations.jira.oauth.*} (ADR-0023).
  * <p>
  * All fields are OPTIONAL: when {@link #clientId}, {@link #clientSecret} or {@link #redirectUri} is
  * blank the feature is considered <em>not configured</em> ({@link #configured()} is false) and the OAuth

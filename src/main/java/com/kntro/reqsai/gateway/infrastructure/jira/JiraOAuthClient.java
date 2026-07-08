@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Outbound Atlassian OAuth 2.0 (3LO) client (ADR-0022): authorization-code exchange, refresh-token
+ * Outbound Atlassian OAuth 2.0 (3LO) client (ADR-0023): authorization-code exchange, refresh-token
  * rotation, and accessible-resources discovery. Mirrors the {@link JiraClient} RestClient style (per-call
  * client, typed records, status → infrastructure exception).
  * <ul>

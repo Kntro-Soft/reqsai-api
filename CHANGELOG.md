@@ -30,7 +30,7 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
 
 ### Added (Integrations / Jira — `feature/integrations-jira`)
 
-- **Jira Cloud integration in the reserved `gateway` bounded context** (ADR-0022) — the feature reuses
+- **Jira Cloud integration in the reserved `gateway` bounded context** (ADR-0023) — the feature reuses
   the `com.kntro.reqsai.gateway` module reserved for external integrations. Extensible
   provider model (`IntegrationProvider` port + `JiraProvider`) whose credentials live at the
   **organization** level and whose push target lives at the **project** level.
@@ -57,12 +57,12 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
     (`DiscoveryStoryReadPort` returning value-only `StoryView`s) so the `gateway` module can read user stories
     (title/role/action/benefit/priority/story points + Given/When/Then) to render the Jira issue
     description as ADF. The story is pushed with the `EXPORTED`-style export flow.
-  - Migration `V21__integration_connections.sql` (tenant schema): `integration_connections`
+  - Migration `V20260708055818__integration_connections.sql` (tenant schema): `integration_connections`
     (org-scoped, one active per org+provider) and `project_integration_targets` (project-scoped, one
     per project). New error codes: `INTEGRATION_CONNECTION_NOT_FOUND`, `INTEGRATION_ALREADY_CONNECTED`,
     `INTEGRATION_TARGET_NOT_CONFIGURED`, `JIRA_PROJECT_NOT_FOUND`, `JIRA_AUTH_FAILED`,
     `JIRA_UNREACHABLE`, `JIRA_PUSH_FAILED`, `INTEGRATION_ENCRYPTION_ERROR`.
-  - **Jira OAuth 2.0 (3LO) as a second credential type** (ADR-0022) — added alongside the API-token
+  - **Jira OAuth 2.0 (3LO) as a second credential type** (ADR-0023) — added alongside the API-token
     flow, which is unchanged. A `credentialType` (`API_TOKEN` | `OAUTH2`) selects the auth: OAuth uses
     bearer auth against `https://api.atlassian.com/ex/jira/{cloudId}/rest/api/3`, API tokens keep basic
     auth against `https://{site}/rest/api/3`. **`IntegrationConnectionResponse` now carries
@@ -85,7 +85,7 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
       `client-secret`, `redirect-uri` (from `JIRA_OAUTH_CLIENT_ID` / `JIRA_OAUTH_CLIENT_SECRET` /
       `JIRA_OAUTH_CALLBACK_URL`) and a dedicated `state-secret` (`JIRA_OAUTH_STATE_SECRET`; generate with
       `scripts/generate-oauth-state-secret.sh`).
-    - Migration `V23__integration_connections_oauth.sql` (tenant, additive): adds `credential_type`
+    - Migration `V20260708055820__integration_connections_oauth.sql` (tenant, additive): adds `credential_type`
       (default `API_TOKEN`), `cloud_id`, `oauth_refresh_ciphertext`, `oauth_access_ciphertext`,
       `oauth_access_expires_at`, and relaxes `email` + `secret_ciphertext` to nullable. New error codes:
       `JIRA_OAUTH_NOT_CONFIGURED` (501), `JIRA_OAUTH_STATE_INVALID` (400),

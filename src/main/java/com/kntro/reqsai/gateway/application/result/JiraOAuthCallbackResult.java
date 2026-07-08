@@ -7,7 +7,7 @@ import org.jspecify.annotations.Nullable;
 import java.util.List;
 
 /**
- * Outcome of the Jira OAuth callback (ADR-0022): either a saved {@link #connection} (a site was chosen or
+ * Outcome of the Jira OAuth callback (ADR-0023): either a saved {@link #connection} (a site was chosen or
  * auto-selected), or a non-empty list of {@link #sites} to choose from (multiple sites, no {@code cloudId}
  * yet) — in which case nothing was persisted and the frontend re-POSTs with a chosen {@code cloudId}.
  * Exactly one of the two is non-null.

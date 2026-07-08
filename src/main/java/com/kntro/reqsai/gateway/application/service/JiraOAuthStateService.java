@@ -15,7 +15,7 @@ import java.util.Base64;
 import java.util.UUID;
 
 /**
- * Signs and verifies the STATELESS OAuth {@code state} token (ADR-0022). The token binds the CSRF state
+ * Signs and verifies the STATELESS OAuth {@code state} token (ADR-0023). The token binds the CSRF state
  * to the initiating {@code orgId} + {@code userId} with a short expiry and a random nonce, so nothing has
  * to be stored server-side and it survives the browser redirect. Format:
  * <pre>{@code base64url(orgId|userId|expiryEpochSeconds|nonce) + "." + base64url(HMAC-SHA256(payload))}</pre>
