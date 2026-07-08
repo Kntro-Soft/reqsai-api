@@ -119,7 +119,6 @@ class DiscoveryStoryWritePortImplTest {
         when(generationPort.isAvailable()).thenReturn(false);
         when(embeddingPort.isAvailable()).thenReturn(true);
         when(embeddingPort.embed(any())).thenReturn(new float[EmbeddingPort.DIMENSIONS]);
-        when(stories.highestSimilarity(any(), any())).thenReturn(Optional.of(0.93));
         when(stories.findMostSimilar(any(), any()))
                 .thenReturn(Optional.of(new UserStoryRepository.SimilarStory(existing, 0.93)));
 
