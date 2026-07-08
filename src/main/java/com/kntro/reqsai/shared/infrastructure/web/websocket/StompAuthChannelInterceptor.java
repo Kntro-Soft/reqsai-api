@@ -26,14 +26,22 @@ import java.util.Map;
  * {@code @MessageMapping} security work). A CONNECT with no token is left anonymous; a CONNECT with an
  * invalid token is rejected (the verifier throws).
  * <p>
- * The verified {@code orgId} (tenant) is also stashed in the STOMP session attributes under
- * {@link #ORG_ID_ATTRIBUTE}: session-lifecycle listeners (e.g. discovery presence) run on the broker
- * thread with no bound {@code TenantContext}, so they read the tenant from here rather than the JWT.
+ * The verified {@code userId} and {@code orgId} are also stashed in the STOMP session attributes
+ * ({@link #USER_ID_ATTRIBUTE}, {@link #ORG_ID_ATTRIBUTE}). This is deliberate, not redundant with
+ * {@link StompHeaderAccessor#setUser}: empirically, the {@code Principal} set on the CONNECT frame's
+ * accessor does <strong>not</strong> carry over to later frames on the same STOMP session (a later
+ * SUBSCRIBE/UNSUBSCRIBE frame's {@code accessor.getUser()} is {@code null}), whereas session
+ * attributes are the underlying {@code WebSocketSession}'s own attribute map and do persist across
+ * every frame. Session-lifecycle listeners (e.g. discovery presence) that need the caller's identity
+ * outside the CONNECT frame must read it from here, not from {@code accessor.getUser()}.
  */
 @Component
 @RequiredArgsConstructor
 @Slf4j
 public class StompAuthChannelInterceptor implements ChannelInterceptor {
+
+    /** STOMP session-attribute key holding the authenticated user id (a {@code String}). */
+    public static final String USER_ID_ATTRIBUTE = "reqsai.userId";
 
     /** STOMP session-attribute key holding the authenticated tenant/organization id (a {@code String}). */
     public static final String ORG_ID_ATTRIBUTE = "reqsai.orgId";
@@ -52,8 +60,11 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
                         token.role() != null ? List.of(new SimpleGrantedAuthority(token.role())) : List.of());
                 accessor.setUser(authentication);
                 Map<String, Object> attributes = accessor.getSessionAttributes();
-                if (attributes != null && token.orgId() != null) {
-                    attributes.put(ORG_ID_ATTRIBUTE, token.orgId());
+                if (attributes != null) {
+                    attributes.put(USER_ID_ATTRIBUTE, token.userId());
+                    if (token.orgId() != null) {
+                        attributes.put(ORG_ID_ATTRIBUTE, token.orgId());
+                    }
                 }
                 log.debug("WebSocket CONNECT authenticated for user {} (tenant {})",
                         token.userId(), token.orgId());
