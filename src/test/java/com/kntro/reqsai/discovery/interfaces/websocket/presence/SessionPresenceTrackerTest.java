@@ -16,12 +16,10 @@ import org.springframework.messaging.Message;
 import org.springframework.messaging.simp.stomp.StompCommand;
 import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.MessageBuilder;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 import org.springframework.web.socket.messaging.SessionSubscribeEvent;
 import org.springframework.web.socket.messaging.SessionUnsubscribeEvent;
 
-import java.security.Principal;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -78,6 +76,27 @@ class SessionPresenceTrackerTest {
     }
 
     @Test
+    @DisplayName("a subscribe with no user-id session attribute is ignored, even with a Principal on the frame")
+    void ignoresSubscribeMissingUserIdAttribute() {
+        // Regression test: the STOMP Principal set on CONNECT does not carry over to later frames in
+        // practice (verified against a real Spring STOMP session), so the tracker must not depend on
+        // accessor.getUser() — only on the session-attribute identity stashed by the auth interceptor.
+        StompHeaderAccessor accessor = StompHeaderAccessor.create(StompCommand.SUBSCRIBE);
+        accessor.setSessionId("stomp-1");
+        accessor.setSubscriptionId("sub-1");
+        accessor.setDestination("/topic/" + SessionTopics.of(sessionId));
+        Map<String, Object> attributesWithoutUserId = new HashMap<>();
+        attributesWithoutUserId.put(StompAuthChannelInterceptor.ORG_ID_ATTRIBUTE, orgId.toString());
+        accessor.setSessionAttributes(attributesWithoutUserId);
+        accessor.setUser(new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(alice.toString(), null));
+        Message<byte[]> message = MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());
+
+        tracker.onSubscribe(new SessionSubscribeEvent(this, message, null));
+
+        verify(notifier, never()).broadcast(any(), any());
+    }
+
+    @Test
     @DisplayName("unsubscribing the last subscription rebroadcasts an empty roster")
     void unsubscribeBroadcastsEmptyRoster() {
         when(resolver.resolve(orgId, alice))
@@ -121,10 +140,8 @@ class SessionPresenceTrackerTest {
         accessor.setSubscriptionId(subscriptionId);
         accessor.setDestination(destination);
         accessor.setSessionAttributes(sessionAttributes());
-        Principal user = new UsernamePasswordAuthenticationToken(alice.toString(), null);
-        accessor.setUser(user);
         Message<byte[]> message = MessageBuilder.createMessage(new byte[0], accessor.getMessageHeaders());
-        return new SessionSubscribeEvent(this, message, user);
+        return new SessionSubscribeEvent(this, message, null);
     }
 
     private SessionUnsubscribeEvent unsubscribe(String stompSessionId, String subscriptionId) {
@@ -146,6 +163,7 @@ class SessionPresenceTrackerTest {
 
     private Map<String, Object> sessionAttributes() {
         Map<String, Object> attributes = new HashMap<>();
+        attributes.put(StompAuthChannelInterceptor.USER_ID_ATTRIBUTE, alice.toString());
         attributes.put(StompAuthChannelInterceptor.ORG_ID_ATTRIBUTE, orgId.toString());
         return attributes;
     }

@@ -15,7 +15,6 @@ import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 import org.springframework.web.socket.messaging.SessionSubscribeEvent;
 import org.springframework.web.socket.messaging.SessionUnsubscribeEvent;
 
-import java.security.Principal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -45,8 +44,9 @@ public class SessionPresenceTracker {
     void onSubscribe(SessionSubscribeEvent event) {
         StompHeaderAccessor accessor = StompHeaderAccessor.wrap(event.getMessage());
         UUID sessionId = parseSessionId(accessor.getDestination());
-        UUID userId = userId(accessor.getUser());
-        UUID orgId = orgId(accessor.getSessionAttributes());
+        Map<String, Object> attributes = accessor.getSessionAttributes();
+        UUID userId = attributeUuid(attributes, StompAuthChannelInterceptor.USER_ID_ATTRIBUTE);
+        UUID orgId = attributeUuid(attributes, StompAuthChannelInterceptor.ORG_ID_ATTRIBUTE);
         String stompSessionId = accessor.getSessionId();
         String subscriptionId = accessor.getSubscriptionId();
         if (sessionId == null || userId == null || orgId == null
@@ -66,7 +66,7 @@ public class SessionPresenceTracker {
         if (stompSessionId == null || subscriptionId == null) {
             return;
         }
-        UUID orgId = orgId(accessor.getSessionAttributes());
+        UUID orgId = attributeUuid(accessor.getSessionAttributes(), StompAuthChannelInterceptor.ORG_ID_ATTRIBUTE);
         registry.leaveSubscription(stompSessionId, subscriptionId)
                 .ifPresent(sessionId -> broadcast(sessionId, orgId));
     }
@@ -78,7 +78,7 @@ public class SessionPresenceTracker {
         if (stompSessionId == null) {
             return;
         }
-        UUID orgId = orgId(accessor.getSessionAttributes());
+        UUID orgId = attributeUuid(accessor.getSessionAttributes(), StompAuthChannelInterceptor.ORG_ID_ATTRIBUTE);
         for (UUID sessionId : registry.disconnect(stompSessionId)) {
             broadcast(sessionId, orgId);
         }
@@ -119,22 +119,16 @@ public class SessionPresenceTracker {
         }
     }
 
-    private static UUID userId(Principal principal) {
-        if (principal == null) {
-            return null;
-        }
-        try {
-            return UUID.fromString(principal.getName());
-        } catch (IllegalArgumentException ex) {
-            return null;
-        }
-    }
-
-    private static UUID orgId(Map<String, Object> attributes) {
+    /**
+     * Reads a UUID-valued STOMP session attribute (see {@link StompAuthChannelInterceptor}).
+     * Session attributes — unlike the frame's {@code Principal} — persist across every frame of a
+     * STOMP session, which is why identity is read from here rather than {@code accessor.getUser()}.
+     */
+    private static UUID attributeUuid(Map<String, Object> attributes, String key) {
         if (attributes == null) {
             return null;
         }
-        Object value = attributes.get(StompAuthChannelInterceptor.ORG_ID_ATTRIBUTE);
+        Object value = attributes.get(key);
         if (!(value instanceof String raw)) {
             return null;
         }
