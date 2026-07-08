@@ -1,5 +1,6 @@
 package com.kntro.reqsai.discovery.interfaces.notification.messages;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.kntro.reqsai.discovery.interfaces.notification.SessionEventType;
 
 import java.time.Instant;
@@ -26,7 +27,16 @@ public record SessionPresenceMessage(
         return new SessionPresenceMessage(sessionId, List.copyOf(participants), participants.size(), occurredAt);
     }
 
+    /**
+     * {@code type} is a fixed constant, not a canonical record component — the same pattern used by
+     * {@code SessionProcessingFailedMessage}/{@code SessionStoryGeneratedMessage}/
+     * {@code SessionTranscriptSegmentMessage}. The explicit {@code @JsonProperty} is required: Jackson's
+     * record serializer only emits canonical components, so without it this override is silently
+     * dropped from the JSON and the client never sees a discriminator to switch on (the bug this
+     * annotation fixes — verified missing from the wire payload).
+     */
     @Override
+    @JsonProperty("type")
     public SessionEventType type() {
         return SessionEventType.PRESENCE_STATE;
     }
