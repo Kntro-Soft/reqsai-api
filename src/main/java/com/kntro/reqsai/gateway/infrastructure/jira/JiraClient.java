@@ -150,18 +150,45 @@ public class JiraClient {
     }
 
     /**
+     * GET {@code /issue/createmeta/{projectKey}/issuetypes/{issueTypeId}} → the create-screen fields for
+     * that project + issue type (required flag, default flag and schema type). Used to satisfy
+     * project-specific REQUIRED custom fields (e.g. a mandatory "Criterios de aceptación" text field) that
+     * would otherwise fail the create with a 400.
+     */
+    public List<CreateField> listCreateFields(JiraApiContext ctx, String projectKey, String issueTypeId) {
+        CreateMetaFields meta = exchange(() -> restClient.get()
+                .uri(ctx.apiBase() + "/issue/createmeta/" + enc(projectKey) + "/issuetypes/"
+                        + enc(issueTypeId) + "?maxResults=200")
+                .header("Authorization", ctx.authHeader())
+                .accept(MediaType.APPLICATION_JSON)
+                .retrieve()
+                .onStatus(HttpStatusCode::isError, (req, res) -> { throw mapError(res, false); })
+                .body(CreateMetaFields.class), "listCreateFields");
+        return meta == null || meta.fields() == null ? List.of() : meta.fields();
+    }
+
+    /** The base create fields Reqs-AI always sends; anything else required must be filled generically. */
+    private static final java.util.Set<String> BASE_FIELDS =
+            java.util.Set.of("project", "issuetype", "summary", "description", "reporter");
+
+    /**
      * POST /issue → the created issue's id/key/self. Sends {@code issuetype:{id:…}} (resolved for the
-     * project) so team-managed and localized projects accept the create. Reads Jira's error body on failure
-     * and surfaces its {@code errorMessages}/field {@code errors} (token-free) for diagnosability.
+     * project) so team-managed and localized projects accept the create. Any OTHER field the project marks
+     * required without a default (custom fields like "Criterios de aceptación") is filled generically from
+     * {@code requiredFieldFallbackText}: plain text for {@code string} fields, an ADF doc for {@code doc}
+     * fields (unfillable types are left for Jira to report). Reads Jira's error body on failure and
+     * surfaces its {@code errorMessages}/field {@code errors} (token-free) for diagnosability.
      */
     public CreatedIssue createIssue(JiraApiContext ctx, String projectKey, String issueTypeName,
-                                    String summary, Map<String, Object> descriptionAdf) {
+                                    String summary, Map<String, Object> descriptionAdf,
+                                    String requiredFieldFallbackText) {
         String issueTypeId = resolveIssueTypeId(ctx, projectKey, issueTypeName);
-        Map<String, Object> fields = Map.of(
-                "project", Map.of("key", projectKey),
-                "issuetype", Map.of("id", issueTypeId),
-                "summary", summary,
-                "description", descriptionAdf);
+        Map<String, Object> fields = new LinkedHashMap<>();
+        fields.put("project", Map.of("key", projectKey));
+        fields.put("issuetype", Map.of("id", issueTypeId));
+        fields.put("summary", summary);
+        fields.put("description", descriptionAdf);
+        fillRequiredCustomFields(ctx, projectKey, issueTypeId, fields, requiredFieldFallbackText);
         CreatedIssue created = exchange(() -> restClient.post()
                 .uri(ctx.apiBase() + "/issue")
                 .header("Authorization", ctx.authHeader())
@@ -224,6 +251,40 @@ public class JiraClient {
     /** Browse URL for a created issue (uses the human site URL, not the OAuth API base). */
     public String browseUrl(String browseBase, String issueKey) {
         return browseBase + "/browse/" + issueKey;
+    }
+
+    /**
+     * Fills every create-screen field the project marks {@code required} without a default and that the
+     * base payload does not already cover, so project-specific mandatory custom fields (e.g. a required
+     * "Criterios de aceptación") don't 400 the create. {@code string} fields get {@code fallbackText};
+     * rich-text {@code doc} fields get a single-paragraph ADF doc. Other types (options, numbers, users…)
+     * cannot be guessed generically and are left unset — Jira's diagnosable 400 then names them.
+     */
+    private void fillRequiredCustomFields(JiraApiContext ctx, String projectKey, String issueTypeId,
+                                          Map<String, Object> fields, String fallbackText) {
+        String text = fallbackText == null || fallbackText.isBlank() ? "See description." : fallbackText;
+        for (CreateField field : listCreateFields(ctx, projectKey, issueTypeId)) {
+            String id = field.fieldId();
+            if (id == null || fields.containsKey(id) || BASE_FIELDS.contains(id)
+                    || !Boolean.TRUE.equals(field.required())
+                    || Boolean.TRUE.equals(field.hasDefaultValue())) {
+                continue;
+            }
+            String type = field.schema() == null ? null : field.schema().type();
+            String custom = field.schema() == null ? null : field.schema().custom();
+            // Rich-text fields need an ADF doc even when the schema type says "string": the v3 API
+            // requires ADF for textarea/paragraph custom fields (team-managed projects report them as
+            // string+custom:…textarea, and a plain string is rejected as "not valid ADF").
+            boolean richText = "doc".equals(type)
+                    || (custom != null && (custom.contains("textarea") || custom.contains("paragraph")));
+            if (richText) {
+                fields.put(id, Map.of("type", "doc", "version", 1, "content",
+                        List.of(Map.of("type", "paragraph", "content",
+                                List.of(Map.of("type", "text", "text", text))))));
+            } else if ("string".equals(type)) {
+                fields.put(id, text);
+            }
+        }
     }
 
     // Helpers
@@ -308,6 +369,19 @@ public class JiraClient {
     /** Response of {@code /issue/createmeta/{projectKey}/issuetypes}. */
     @JsonIgnoreProperties(ignoreUnknown = true)
     private record CreateMetaIssueTypes(List<JiraIssueType> issueTypes) {}
+
+    /** One create-screen field from {@code createmeta/{project}/issuetypes/{typeId}}. */
+    public record CreateField(String fieldId, String name, Boolean required, Boolean hasDefaultValue,
+                              FieldSchema schema) {}
+
+    /**
+     * The schema of a create-screen field. {@code type} is the value type ({@code string}, {@code doc},
+     * {@code array}, …); {@code custom} names the custom-field kind (e.g. {@code …:textarea}) — needed
+     * because rich-text fields report {@code type=string} but the v3 API requires ADF values for them.
+     */
+    public record FieldSchema(String type, String custom) {}
+
+    private record CreateMetaFields(List<CreateField> fields) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record CreatedIssue(String id, String key, String self) {}

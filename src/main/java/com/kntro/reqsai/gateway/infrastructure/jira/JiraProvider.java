@@ -54,8 +54,24 @@ public class JiraProvider implements IntegrationProvider {
     public PushedIssue pushStory(ProviderCredentials c, String projectKey, String issueTypeName, StoryView story) {
         JiraApiContext ctx = contextFor(c);
         Map<String, Object> description = JiraAdfBuilder.buildDescription(story);
-        JiraClient.CreatedIssue created = jira.createIssue(ctx, projectKey, issueTypeName, story.title(), description);
+        JiraClient.CreatedIssue created = jira.createIssue(
+                ctx, projectKey, issueTypeName, story.title(), description, acceptanceCriteriaText(story));
         return new PushedIssue(created.key(), jira.browseUrl(ctx.browseBase(), created.key()));
+    }
+
+    /**
+     * Renders the story's acceptance criteria as plain {@code Given … When … Then …} lines — the generic
+     * value used to satisfy project-specific REQUIRED custom fields (e.g. a mandatory
+     * "Criterios de aceptación"). Empty when the story has none (the client then sends a neutral note).
+     */
+    private static String acceptanceCriteriaText(StoryView story) {
+        if (story.acceptanceCriteria() == null || story.acceptanceCriteria().isEmpty()) {
+            return "";
+        }
+        return story.acceptanceCriteria().stream()
+                .map(c -> (c.scenario() != null && !c.scenario().isBlank() ? c.scenario() + ": " : "")
+                        + "Given " + c.given() + ", When " + c.when() + ", Then " + c.then() + ".")
+                .collect(java.util.stream.Collectors.joining("\n"));
     }
 
     @Override

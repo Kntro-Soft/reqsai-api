@@ -49,7 +49,8 @@ public class StubJiraOAuthConfig {
 
         @Override
         public CreatedIssue createIssue(JiraApiContext ctx, String projectKey, String issueTypeName,
-                                        String summary, Map<String, Object> descriptionAdf) {
+                                        String summary, Map<String, Object> descriptionAdf,
+                                        String requiredFieldFallbackText) {
             apiBases.add(ctx.apiBase());
             String key = projectKey + "-42";
             return new CreatedIssue("42", key, ctx.apiBase() + "/issue/" + key);

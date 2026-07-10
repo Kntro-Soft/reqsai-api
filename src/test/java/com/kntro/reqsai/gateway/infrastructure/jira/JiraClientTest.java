@@ -70,16 +70,27 @@ class JiraClientTest {
         server.expect(requestTo(BASE + "/issue/createmeta/PAY/issuetypes?maxResults=200"))
                 .andRespond(withSuccess("{\"issueTypes\":[{\"id\":\"10001\",\"name\":\"Historia\"}]}",
                         MediaType.APPLICATION_JSON));
+        // The create-screen meta declares a REQUIRED rich-text custom field (the real-world
+        // "Criterios de aceptación" case) — the client must fill it generically or Jira 400s.
+        server.expect(requestTo(BASE + "/issue/createmeta/PAY/issuetypes/10001?maxResults=200"))
+                .andRespond(withSuccess("{\"fields\":[{\"fieldId\":\"customfield_10037\","
+                                + "\"name\":\"Criterios de aceptación\",\"required\":true,"
+                                + "\"hasDefaultValue\":false,\"schema\":{\"type\":\"doc\"}}]}",
+                        MediaType.APPLICATION_JSON));
         server.expect(requestTo(BASE + "/issue"))
                 .andExpect(method(org.springframework.http.HttpMethod.POST))
                 .andExpect(jsonPath("$.fields.issuetype.id").value("10001"))
                 .andExpect(jsonPath("$.fields.project.key").value("PAY"))
+                .andExpect(jsonPath("$.fields.customfield_10037.type").value("doc"))
+                .andExpect(jsonPath("$.fields.customfield_10037.content[0].content[0].text")
+                        .value("Given ok, When login, Then home."))
                 .andRespond(withStatus(HttpStatus.CREATED)
                         .body("{\"id\":\"42\",\"key\":\"PAY-42\",\"self\":\"https://acme.atlassian.net/rest/api/3/issue/42\"}")
                         .contentType(MediaType.APPLICATION_JSON));
 
         CreatedIssue created = client.createIssue(CTX, "PAY", "Historia", "Login con Google",
-                Map.of("type", "doc", "version", 1, "content", List.of()));
+                Map.of("type", "doc", "version", 1, "content", List.of()),
+                "Given ok, When login, Then home.");
 
         assertThat(created.key()).isEqualTo("PAY-42");
         assertThat(created.id()).isEqualTo("42");
@@ -92,6 +103,8 @@ class JiraClientTest {
         server.expect(requestTo(BASE + "/issue/createmeta/PAY/issuetypes?maxResults=200"))
                 .andRespond(withSuccess("{\"issueTypes\":[{\"id\":\"10001\",\"name\":\"Historia\"}]}",
                         MediaType.APPLICATION_JSON));
+        server.expect(requestTo(BASE + "/issue/createmeta/PAY/issuetypes/10001?maxResults=200"))
+                .andRespond(withSuccess("{\"fields\":[]}", MediaType.APPLICATION_JSON));
         server.expect(requestTo(BASE + "/issue"))
                 .andRespond(withStatus(HttpStatus.BAD_REQUEST)
                         .body("{\"errorMessages\":[\"Field 'customfield_10011' is required\"],"
@@ -99,7 +112,7 @@ class JiraClientTest {
                         .contentType(MediaType.APPLICATION_JSON));
 
         assertThatThrownBy(() -> client.createIssue(CTX, "PAY", "Historia", "x",
-                Map.of("type", "doc", "version", 1, "content", List.of())))
+                Map.of("type", "doc", "version", 1, "content", List.of()), ""))
                 .isInstanceOf(InfrastructureException.class)
                 .hasMessageContaining("Field 'customfield_10011' is required")
                 .hasMessageContaining("summary: Summary must be provided.");
