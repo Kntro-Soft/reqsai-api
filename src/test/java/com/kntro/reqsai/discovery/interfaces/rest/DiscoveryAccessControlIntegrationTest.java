@@ -44,6 +44,10 @@ class DiscoveryAccessControlIntegrationTest extends AbstractIntegrationTest {
         String slug = "acme-" + suffix;
         String schema = "tenant_" + slug;
         UUID orgId = createOrganizationAndReturnId(suffix, slug);
+        // This suite verifies PROJECT-ROLE gating in isolation. Pin the org's member base-permission
+        // floor to NONE so an unassigned member has no implicit read; the READ floor itself is covered
+        // by BasePermissionIntegrationTest.
+        jdbcTemplate.update("UPDATE public.organizations SET member_base_permission = 'NONE' WHERE id = ?", orgId);
 
         createMember(orgId, Map.of(
                 "userId", READER_USER_ID, "email", "reader@example.com", "displayName", "Reader", "role", "MEMBER"));
