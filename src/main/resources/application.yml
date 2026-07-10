@@ -208,7 +208,14 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,modulith
+        # Only health is exposed over HTTP. metrics/modulith reveal internal
+        # architecture and operational data with no legitimate consumer today
+        # (no Prometheus/scraper — logs go to CloudWatch only); info returns
+        # nothing useful without management.info.* contributors configured.
+        # There's no platform-wide "ops" role in this codebase to gate them
+        # behind (authorization here is entirely tenant/org-scoped) — not
+        # exposing them at all is simpler and safer than inventing one.
+        include: health
   endpoint:
     health:
       show-details: when-authorized
