@@ -42,6 +42,14 @@ public interface WorkspaceModuleApi {
     boolean callerHasProjectPermission(UUID projectId, UUID userId, String permission);
 
     /**
+     * Whether {@code userId} is an active member — the owner or an ACTIVE member row — of the
+     * <em>currently bound tenant</em>. Returns {@code false} when no tenant is bound or the organization
+     * is unknown. Coarse org-membership gate for member-scoped routes carrying no {@code orgId} path
+     * variable (e.g. {@code /api/projects/{projectId}/me/permissions}).
+     */
+    boolean callerIsActiveMember(UUID userId);
+
+    /**
      * Resolves the roster display name of an active member by organization and user id. Used by
      * discovery's live-session presence to label participants without reaching into the workspace
      * member internals. Reads the {@code public.members} registry, so it does not require a tenant
