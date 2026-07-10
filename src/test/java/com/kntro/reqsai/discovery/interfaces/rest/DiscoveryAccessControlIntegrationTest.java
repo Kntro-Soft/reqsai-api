@@ -106,7 +106,73 @@ class DiscoveryAccessControlIntegrationTest extends AbstractIntegrationTest {
                 .isEqualTo(HttpStatus.NOT_FOUND);
     }
 
+    @Test
+    @DisplayName("story delete + batch-delete require STORY_DELETE: a writer without it gets 403; with it 204/200")
+    void story_delete_endpoints_enforce_story_delete_permission() {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        String slug = "acme-" + suffix;
+        String schema = "tenant_" + slug;
+        UUID orgId = createOrganizationAndReturnId(suffix, slug);
+
+        createMember(orgId, Map.of(
+                "userId", READER_USER_ID, "email", "writer@example.com", "displayName", "Writer", "role", "MEMBER"));
+        UUID writerId = memberId(orgId, "writer@example.com");
+
+        UUID projectId = createProjectAndReturnId(orgId, slug);
+        // A writer role that can create/edit but NOT delete stories.
+        String writerRoleId = createRoleAndReturnId(orgId, projectId, "Story Writer",
+                List.of("STORY_READ", "STORY_WRITE"), schema);
+        assignMember(orgId, projectId, writerId.toString(), writerRoleId);
+
+        // Owner seeds two distinct stories (owner bypasses the gates).
+        UUID story1 = createStory(orgId, projectId, "Bulk import suppliers via CSV upload");
+        UUID story2 = createStory(orgId, projectId, "Export the monthly compliance audit report");
+
+        // Writer lacks STORY_DELETE -> single delete and batch-delete are both forbidden.
+        assertThat(delete(READER_USER_ID, orgId, "/api/projects/" + projectId + "/stories/" + story1).getStatusCode())
+                .isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(post(READER_USER_ID, orgId, "/api/projects/" + projectId + "/stories/batch-delete",
+                Map.of("storyIds", List.of(story1, story2))).getStatusCode())
+                .isEqualTo(HttpStatus.FORBIDDEN);
+
+        // Grant STORY_DELETE by updating the role.
+        put(OWNER_USER_ID, orgId,
+                "/api/organizations/" + orgId + "/projects/" + projectId + "/roles/" + writerRoleId,
+                Map.of("name", "Story Writer", "permissions", List.of("STORY_READ", "STORY_WRITE", "STORY_DELETE")));
+
+        // Now the single delete succeeds (204) and the batch-delete of the remaining story returns 200 {deleted:1}.
+        assertThat(delete(READER_USER_ID, orgId, "/api/projects/" + projectId + "/stories/" + story1).getStatusCode())
+                .isEqualTo(HttpStatus.NO_CONTENT);
+        ResponseEntity<String> batch = post(READER_USER_ID, orgId,
+                "/api/projects/" + projectId + "/stories/batch-delete",
+                Map.of("storyIds", List.of(story2, UUID.randomUUID())));
+        assertThat(batch.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(batch.getBody()).contains("\"deleted\":1");
+    }
+
     // ----- helpers -----
+
+    private UUID createStory(UUID orgId, UUID projectId, String action) {
+        ResponseEntity<String> res = post(OWNER_USER_ID, orgId, "/api/projects/" + projectId + "/stories",
+                Map.of("title", action, "role", "user", "action", action, "benefit", "access", "priority", "HIGH"));
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        return UUID.fromString(res.getBody().split("\"id\":\"")[1].split("\"")[0]);
+    }
+
+    private ResponseEntity<String> delete(String userId, UUID orgId, String uri) {
+        return client().method(org.springframework.http.HttpMethod.DELETE).uri(uri)
+                .header("Authorization", TestJwtFactory.bearer(userId, orgId.toString(), "ROLE_USER"))
+                .header("Api-Version", "1")
+                .exchange((req, res) -> ResponseEntity.status(res.getStatusCode()).body(res.bodyTo(String.class)));
+    }
+
+    private ResponseEntity<String> put(String userId, UUID orgId, String uri, Map<String, Object> body) {
+        return client().put().uri(uri)
+                .header("Authorization", TestJwtFactory.bearer(userId, orgId.toString(), "ROLE_USER"))
+                .header("Api-Version", "1")
+                .contentType(MediaType.APPLICATION_JSON).body(body)
+                .exchange((req, res) -> ResponseEntity.status(res.getStatusCode()).body(res.bodyTo(String.class)));
+    }
 
     private ResponseEntity<String> get(String userId, UUID orgId, String uri) {
         return client().get().uri(uri)
