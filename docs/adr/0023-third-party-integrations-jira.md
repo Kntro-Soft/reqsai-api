@@ -145,10 +145,73 @@ resources. **Project** endpoints (target read/write/delete, story push) are gate
 path (`@authz.orgOwnerOrAdmin(#orgId, authentication)`) — administering an org-wide credential is an
 org-admin action, not a project permission. IAM identity/authn is untouched.
 
+### Async sync jobs on Spring Batch (import / push-all)
+
+Import (dozens of issues × one LLM transformation each) and push-all take minutes; a blocking HTTP
+request locks the UI and a page reload loses everything. Both operations therefore run as
+**background jobs**: `POST .../import` and `POST .../stories/push-all` answer **202 Accepted**
+immediately with an `IntegrationJobResponse` snapshot, progress streams over STOMP, and the state
+survives reloads. The execution engine is **Spring Batch**, chosen over a hand-rolled `@Async`
+worker because it gives us, out of the box, a persistent execution ledger, chunked transactions,
+a declarative per-item skip policy, and an operational vocabulary (job/step/execution) that any
+Spring developer can read.
+
+**Spring Batch in one paragraph.** A *Job* is a named, parameterized unit of work. Launching a job
+with a set of *identifying* `JobParameters` creates a *JobInstance* (the logical run: "import for
+domain job X"); every attempt at an instance is a *JobExecution* (rows in the `BATCH_*` metadata
+tables, written by the *JobRepository*). A job is a sequence of *Steps*; our jobs have exactly one
+**chunk-oriented step**, which reads items one at a time (*ItemReader*), transforms them
+(*ItemProcessor*), and commits a transaction every N items (chunk size 5) — bounding transaction
+size and, in restartable designs, lost work. `faultTolerant().skip(Exception)` makes a throwing
+item a *skip* (counted, logged, execution continues) instead of a failure — exactly the
+per-item-failure semantics the old synchronous endpoints had. We deliberately do **not** use Batch
+restartability (each API launch is a fresh JobInstance keyed by the domain job UUID): a half-done
+import is re-run safely because the discovery dedup skips already-imported stories.
+
+The topology (all in `gateway.infrastructure.batch` — the engine is an infrastructure detail behind
+the application's `IntegrationJobLauncher` port; handlers and REST contract never see Batch types):
+
+- `jiraImportJob` / `jiraPushAllJob`, one chunk step each. Step-scoped readers resolve the work list
+  up front (Jira fetch / story list) and fix the projection's `total`; processors delegate one item
+  to the *existing* `JiraImportService` / `StoryPushService`; the writer is a no-op (services own
+  their side effects).
+- **Tenant propagation**: the launcher captures `TenantContext` (tenant id + schema) on the request
+  thread into *non-identifying job parameters*; a `JobExecutionListener` restores it in `beforeJob`
+  and clears it in `afterJob` — the same snapshot-then-restore pattern as
+  `TenantAwareModuleListener`. The whole execution runs on one executor thread, so every Hibernate
+  session in the job resolves the caller's schema.
+- **Batch metadata lives in `public`** (`V20260709100001__spring_batch_metadata.sql`, common
+  migration) with the JobRepository configured with table prefix **`public.BATCH_`**
+  (`shared/.../BatchConfiguration extends JdbcDefaultBatchConfiguration`). Rationale: the single
+  DataSource rewrites `search_path` per tenant, so unqualified `BATCH_*` SQL could land in an
+  arbitrary tenant schema; qualifying every metadata query makes it immune to whatever
+  `search_path` a pooled connection carries. Batch metadata is operational, org-agnostic data —
+  global like `public.organizations`. (Boot 4 / Batch 6 default to an in-memory "resourceless"
+  JobRepository; subclassing `JdbcDefaultBatchConfiguration` is the opt-in to durable JDBC metadata,
+  and `spring.batch.job.enabled=false` stops Boot replaying jobs at startup.)
+- **Domain projection, not `BATCH_*` exposure**: the API reads/writes the per-tenant
+  `integration_sync_jobs` row (`{id, projectId, jobType, status, total, processed, succeeded,
+  failed, message, createdAt, finishedAt}`), updated per item by step listeners and finalized in
+  `afterJob`. The projection is tenant-scoped, queryable per project, and keeps the REST/STOMP
+  contract stable even if the engine changes; the `BATCH_*` tables stay an internal ledger
+  (1:1 linked via the identifying `domainJobId` parameter).
+- **Realtime + recovery**: every counter update is broadcast as the full job snapshot on
+  `/topic/projects/{projectId}/integration-jobs` (same JSON as `IntegrationJobResponse`); a reloaded
+  client re-attaches via `GET .../jobs?active=true` and `GET .../jobs/{jobId}` — the durable row is
+  the source of truth, STOMP is only the push channel.
+- **Concurrency**: at most one RUNNING job per (project, type), enforced in the application layer
+  (pre-check + partial unique index backstop → 409 `INTEGRATION_JOB_ALREADY_RUNNING`) — Batch's
+  JobInstance uniqueness is not used for this rule.
+- Import duplicates count toward `processed` only (neither `succeeded` nor `failed`); the terminal
+  message summarizes them ("N duplicados omitidos"). A fatal error (e.g. Jira unreachable in the
+  reader) fails the step, and `afterJob` marks the projection FAILED with the first failure message.
+- The single-story push and the import preview remain synchronous (fast, no job).
+
 ### Error surface
 
 - Domain: `IntegrationsError` — `INTEGRATION_CONNECTION_NOT_FOUND` (404),
   `INTEGRATION_ALREADY_CONNECTED` (409), `INTEGRATION_TARGET_NOT_CONFIGURED` (409),
+  `INTEGRATION_JOB_ALREADY_RUNNING` (409), `INTEGRATION_JOB_NOT_FOUND` (404),
   `JIRA_PROJECT_NOT_FOUND` (404), `JIRA_OAUTH_NOT_CONFIGURED` (501), `JIRA_OAUTH_STATE_INVALID` (400).
 - Infrastructure: `IntegrationsInfrastructureError` — `JIRA_AUTH_FAILED` (401),
   `JIRA_UNREACHABLE` (502), `JIRA_PUSH_FAILED` (502), `INTEGRATION_ENCRYPTION_ERROR` (500),
@@ -168,6 +231,8 @@ errors never leak the token or the internal cause to the client.
   relaxing the two unique indexes without a shape change to the endpoints.
 - Trade-off: a symmetric AES-GCM key in config means key rotation is a manual re-encrypt for now; a
   KMS-backed key can replace the converter's key source later without touching the model.
-- The push-all endpoint captures per-story failures and continues the batch, so one bad story never
-  aborts the export of the rest.
-```
+- The push-all and import jobs capture per-item failures (skip policy) and continue, so one bad
+  story/issue never aborts the rest; a stuck modal is gone — the UI follows the job row.
+- Trade-off: Spring Batch adds metadata tables and a learning curve, but buys a durable execution
+  ledger, chunked transactions and skip/retry semantics we would otherwise reimplement; the engine
+  stays swappable behind the `IntegrationJobLauncher` port.

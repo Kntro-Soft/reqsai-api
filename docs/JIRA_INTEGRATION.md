@@ -125,9 +125,17 @@ Each user creates a personal API token:
 1. **Connect** (once per org): Org Settings → **Integrations** → *Connect with Atlassian* (OAuth) or the
    API-token form. On multi-site Atlassian accounts you pick the site.
 2. **Map** (per project): Project Settings → **Integrations** → choose the Jira project + issue type.
-3. **Push**: from a story's detail (*Push to Jira*) or the backlog (*Push all to Jira*). The story title
-   becomes the issue summary; the description carries role/action/benefit + acceptance criteria
-   (Given/When/Then).
+3. **Push**: from a story's detail (*Push to Jira*, synchronous) or the backlog (*Push all to Jira*).
+   The story title becomes the issue summary; the description carries role/action/benefit + acceptance
+   criteria (Given/When/Then).
+4. **Import**: from the backlog, preview the eligible Jira issues (duplicates flagged) and import them
+   as user stories (LLM mapping + dedup).
+
+**Push-all and import run as background jobs** (Spring Batch): the POST returns `202` with a job
+snapshot, progress streams on `/topic/projects/{projectId}/integration-jobs`, and after a reload the
+client recovers via `GET .../integration/jira/jobs?active=true` (or `.../jobs/{jobId}`). At most one
+running job per type and project (`409 INTEGRATION_JOB_ALREADY_RUNNING`). See ADR-0023, "Async sync
+jobs on Spring Batch".
 
 Actions are RBAC-gated by new permissions: `INTEGRATION_READ`, `INTEGRATION_WRITE`, `INTEGRATION_DELETE`,
 `INTEGRATION_SYNC`. Org-level connection management requires org owner/admin.
@@ -151,6 +159,8 @@ Actions are RBAC-gated by new permissions: `INTEGRATION_READ`, `INTEGRATION_WRIT
 
 - **Design:** [ADR-0023](adr/0023-third-party-integrations-jira.md)
 - **Module:** `com.kntro.reqsai.gateway`
-- **Migrations (tenant):** `V21` connections, `V22` targets, `V23` OAuth columns
-- **Config keys:** `reqsai.integrations.encryption-key`, `reqsai.integrations.jira.oauth.{client-id,client-secret,redirect-uri,state-secret}`
-- **Endpoints:** `/api/organizations/{orgId}/integrations*` (connection, OAuth authorize-url/callback), `/api/projects/{projectId}/integration/jira*` (target, story push)
+- **Migrations:** tenant — connections, targets, OAuth columns, `integration_sync_jobs`; common —
+  Spring Batch metadata in `public` (`V20260709100001__spring_batch_metadata.sql`)
+- **Config keys:** `reqsai.integrations.encryption-key`, `reqsai.integrations.jira.oauth.{client-id,client-secret,redirect-uri,state-secret}`, `spring.batch.job.enabled=false`
+- **Endpoints:** `/api/organizations/{orgId}/integrations*` (connection, OAuth authorize-url/callback), `/api/projects/{projectId}/integration/jira*` (target, story push, import preview/import, sync jobs)
+- **Realtime:** `/topic/projects/{projectId}/integration-jobs` (job progress snapshots)
