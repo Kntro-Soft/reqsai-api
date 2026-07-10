@@ -21,6 +21,16 @@ reqsai:
   jwt:
     public-key-path: classpath:certs/public_key.pem
     issuer: reqsai-test
+  integrations:
+    # Deterministic non-secret AES-256 key (base64 of bytes 0..31) so tests encrypt/decrypt integration
+    # secrets without a .env. NEVER use this key outside tests/local dev.
+    encryption-key: AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=
+    jira:
+      oauth:
+        client-id: test-client-id
+        client-secret: test-client-secret
+        redirect-uri: http://localhost/integrations/jira/callback
+        state-secret: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
   cors:
     allowed-origins: http://localhost:4200
     allow-credentials: true

@@ -73,8 +73,19 @@ client.activate();
 1. The HTTP handshake to `/ws/**` is **permitted** in `SecurityConfiguration` (no token yet).
 2. The client sends `Authorization: Bearer <jwt>` as a native STOMP header on **CONNECT**.
 3. `StompAuthChannelInterceptor` verifies it with the same `TokenVerifier` as the HTTP filter and binds
-   the user `Principal` to the session — so `/user/**` queues and per-message security work.
+   the user `Principal` to the CONNECT frame's accessor, and — separately — stashes `userId`/`orgId` in
+   the STOMP **session attributes**.
 4. CONNECT with no token → anonymous; with an invalid token → rejected (the verifier throws).
+
+> **The `Principal` does not persist past CONNECT.** Empirically (verified against a running instance),
+> a later frame's `accessor.getUser()` on the same STOMP session comes back `null` — only the session
+> attributes carry over to every subsequent frame. Anything that needs the caller's identity outside the
+> CONNECT handler itself (a session-lifecycle listener, a future `@MessageMapping` handler) must read
+> `StompAuthChannelInterceptor.USER_ID_ATTRIBUTE`/`ORG_ID_ATTRIBUTE` from `accessor.getSessionAttributes()`,
+> not `accessor.getUser()`. This is why presence resolves identity this way (see below). `sendToUser`
+> is expected to be unaffected — Spring resolves it via a username registry populated from the CONNECT
+> frame itself, not by re-reading `accessor.getUser()` on later frames — but it has no caller in this
+> codebase yet, so that has not been directly exercised.
 
 ## Destination prefixes
 
@@ -83,6 +94,27 @@ client.activate();
 | `/app`   | client → server   | routed to your `@MessageMapping` handlers             |
 | `/topic` | server → clients  | broadcast (many subscribers)                          |
 | `/user`  | server → one user | per-user queue (`sendToUser`, resolved per principal) |
+
+## Live presence (who is viewing a session)
+
+Discovery tracks who is currently viewing a **live** session and broadcasts the roster so every
+participant sees the others. It is built entirely on the STOMP lifecycle — there is **no** extra
+subscription and **no** client→server message:
+
+- **Signal:** a client's SUBSCRIBE to `/topic/sessions/{id}` *is* "I am present". `SessionPresenceTracker`
+  listens to `SessionSubscribeEvent` / `SessionUnsubscribeEvent` / `SessionDisconnectEvent`.
+- **State:** `SessionPresenceRegistry` holds, per session, which connections are present (a user across
+  two tabs counts once). It is in-process — **not** Redis — and, like the `SIMPLE` broker, per-JVM.
+- **Broadcast:** on any real roster change the tracker sends a `PRESENCE_STATE` message
+  (`SessionPresenceMessage`: full participant snapshot + `count`) back on the same `sessions/{id}` topic.
+  The client keeps its one subscription and switches on `type` (see the single-topic pattern below).
+- **Identity:** the CONNECT interceptor stashes `userId` and `orgId` in the STOMP session attributes
+  (see the callout above — not the frame `Principal`); the tracker resolves each `userId` to a display
+  name via `WorkspaceModuleApi.findMemberDisplayName` (Caffeine-cached) and a deterministic `avatarUrl`
+  (`/api/users/{userId}/avatar`).
+
+> Multi-instance caveat: because the registry is per-JVM (same as the `SIMPLE` broker), a global roster
+> across several ECS tasks needs the shared `RELAY` broker's state — acceptable at single-instance scale.
 
 ## Scaling: SIMPLE vs. RELAY (important for ECS)
 

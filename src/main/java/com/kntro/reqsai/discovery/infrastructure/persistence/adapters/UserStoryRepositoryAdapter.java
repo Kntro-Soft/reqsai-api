@@ -55,6 +55,16 @@ public class UserStoryRepositoryAdapter implements UserStoryRepository {
     }
 
     @Override
+    public List<UserStory> findAllByProjectIdAndIdIn(UUID projectId, List<UUID> storyIds) {
+        return jpa.findAllByProjectIdAndIdIn(projectId, storyIds);
+    }
+
+    @Override
+    public void delete(UserStory story) {
+        jpa.delete(story);
+    }
+
+    @Override
     public void deleteAllBySessionId(UUID sessionId) {
         jpa.deleteAllBySessionId(sessionId);
     }

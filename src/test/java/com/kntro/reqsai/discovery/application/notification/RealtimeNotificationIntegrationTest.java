@@ -6,8 +6,11 @@ import com.kntro.reqsai.discovery.domain.event.UserStoryCreatedEvent;
 import com.kntro.reqsai.discovery.domain.model.Priority;
 import com.kntro.reqsai.discovery.interfaces.notification.SessionEventType;
 import com.kntro.reqsai.discovery.interfaces.notification.messages.SessionProcessingFailedMessage;
+import com.kntro.reqsai.discovery.interfaces.notification.messages.SessionRealtimeMessage;
 import com.kntro.reqsai.discovery.interfaces.notification.messages.SessionStatusChangedMessage;
 import com.kntro.reqsai.discovery.interfaces.notification.messages.SessionStoryGeneratedMessage;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kntro.reqsai.testsupport.AbstractIntegrationTest;
 import com.kntro.reqsai.testsupport.TestJwtFactory;
 import org.junit.jupiter.api.AfterEach;
@@ -63,6 +66,15 @@ class RealtimeNotificationIntegrationTest extends AbstractIntegrationTest {
     private static final String USER_ID = "00000000-0000-0000-0000-000000000001";
     private static final String ORG_ID = "00000000-0000-0000-0000-0000000000aa";
 
+    /**
+     * Converts a raw wire frame (Map) into the typed message once its wire {@code type} is confirmed.
+     * Ignores unknown properties: the wire carries a {@code type} discriminator (and presence frames
+     * carry {@code participants}/{@code count}) that are not canonical record components.
+     */
+    private static final ObjectMapper WIRE_MAPPER = new ObjectMapper()
+            .findAndRegisterModules()
+            .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
     @LocalServerPort
     private int port;
 
@@ -87,7 +99,8 @@ class RealtimeNotificationIntegrationTest extends AbstractIntegrationTest {
     void should_deliver_status_change() throws Exception {
         // Arrange
         UUID sessionId = UUID.randomUUID();
-        var received = subscribe(connectAuthenticated(), sessionId, SessionStatusChangedMessage.class);
+        var received = subscribe(connectAuthenticated(), sessionId, SessionStatusChangedMessage.class,
+                SessionEventType.RECORDING_STARTED);
 
         // Act & Assert
         SessionStatusChangedMessage msg = awaitFirst(received,
@@ -101,7 +114,8 @@ class RealtimeNotificationIntegrationTest extends AbstractIntegrationTest {
     void should_deliver_failure_reason() throws Exception {
         // Arrange
         UUID sessionId = UUID.randomUUID();
-        var received = subscribe(connectAuthenticated(), sessionId, SessionProcessingFailedMessage.class);
+        var received = subscribe(connectAuthenticated(), sessionId, SessionProcessingFailedMessage.class,
+                SessionEventType.FAILED);
 
         // Act & Assert
         SessionProcessingFailedMessage msg = awaitFirst(received,
@@ -116,7 +130,8 @@ class RealtimeNotificationIntegrationTest extends AbstractIntegrationTest {
         // Arrange
         UUID sessionId = UUID.randomUUID();
         UUID storyId = UUID.randomUUID();
-        var received = subscribe(connectAuthenticated(), sessionId, SessionStoryGeneratedMessage.class);
+        var received = subscribe(connectAuthenticated(), sessionId, SessionStoryGeneratedMessage.class,
+                SessionEventType.STORY_GENERATED);
 
         // Act & Assert
         SessionStoryGeneratedMessage msg = awaitFirst(received,
@@ -161,18 +176,36 @@ class RealtimeNotificationIntegrationTest extends AbstractIntegrationTest {
                 .get(5, TimeUnit.SECONDS);
     }
 
-    private <T> BlockingQueue<T> subscribe(StompSession session, UUID sessionId, Class<T> payloadType) {
+    /**
+     * Subscribes and filters incoming frames to {@code expectedType} before enqueuing. A subscriber
+     * to a session topic can now also receive an automatic {@code PRESENCE_STATE} broadcast (see
+     * {@code SessionPresenceTracker}) the instant it subscribes — the JSON still decodes cleanly into
+     * whatever {@code payloadType} the caller asked for (a record's extra unmapped fields are just
+     * ignored), so without this filter the spurious presence frame would race the real one under test.
+     */
+    private <T extends SessionRealtimeMessage> BlockingQueue<T> subscribe(
+            StompSession session, UUID sessionId, Class<T> payloadType, SessionEventType expectedType) {
         BlockingQueue<T> queue = new LinkedBlockingQueue<>();
+        // Read each frame as a raw Map first: every concrete message hardcodes type() as a fixed
+        // constant (not a JSON-mapped record component), so force-casting a frame into payloadType makes
+        // type() lie. In particular the automatic PRESENCE_STATE broadcast (sent the instant a client
+        // subscribes) would deserialize into e.g. SessionProcessingFailedMessage with type()==FAILED and
+        // a null reason, defeating a type()-based filter. Discriminate on the WIRE type instead, then
+        // convert only genuine matches into the typed record.
         session.subscribe("/topic/" + SessionTopics.of(sessionId), new StompFrameHandler() {
             @Override
             @NonNull
             public Type getPayloadType(@NonNull StompHeaders headers) {
-                return payloadType;
+                return java.util.Map.class;
             }
 
             @Override
             public void handleFrame(@NonNull StompHeaders headers, Object payload) {
-                queue.add(payloadType.cast(payload));
+                @SuppressWarnings("unchecked")
+                java.util.Map<String, Object> frame = (java.util.Map<String, Object>) payload;
+                if (expectedType.name().equals(String.valueOf(frame.get("type")))) {
+                    queue.add(WIRE_MAPPER.convertValue(frame, payloadType));
+                }
             }
         });
         return queue;

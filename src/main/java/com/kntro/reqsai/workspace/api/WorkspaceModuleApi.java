@@ -40,4 +40,17 @@ public interface WorkspaceModuleApi {
      * {@code orgId} path variable (e.g. discovery's {@code /api/projects/{projectId}/...}).
      */
     boolean callerHasProjectPermission(UUID projectId, UUID userId, String permission);
+
+    /**
+     * Resolves the roster display name of an active member by organization and user id. Used by
+     * discovery's live-session presence to label participants without reaching into the workspace
+     * member internals. Reads the {@code public.members} registry, so it does not require a tenant
+     * schema to be bound. Returns {@link Optional#empty()} when the user is not an active member of
+     * the organization.
+     *
+     * @param organizationId the tenant/organization id (the JWT {@code orgId})
+     * @param userId         the authenticated user id (the JWT {@code sub})
+     * @return the member's display name, or empty when there is no active membership
+     */
+    Optional<String> findMemberDisplayName(UUID organizationId, UUID userId);
 }

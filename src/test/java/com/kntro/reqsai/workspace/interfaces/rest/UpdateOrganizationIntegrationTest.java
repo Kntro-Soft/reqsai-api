@@ -227,6 +227,49 @@ class UpdateOrganizationIntegrationTest extends AbstractIntegrationTest {
         assertThat(updateResponse.getStatusCode()).isIn(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN);
     }
 
+    @Test
+    @DisplayName("should reject update from an org admin (owner-only edit)")
+    void should_reject_update_from_an_admin() {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        String originalName = "Acme " + suffix;
+        String expectedSlug = "acme-" + suffix;
+        String adminUserId = "00000000-0000-0000-0000-000000000003";
+
+        ResponseEntity<String> createResponse = post(
+                Map.of("name", originalName, "meetingLanguage", "en-US"),
+                TestJwtFactory.bearer(USER_ID, ORG_ID, "ROLE_USER"));
+        assertThat(createResponse.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+
+        String organizationId = jdbcTemplate.queryForObject(
+                "SELECT id::text FROM public.organizations WHERE slug = ?", String.class, expectedSlug);
+        createMember(organizationId, USER_ID, Map.of(
+                "userId", adminUserId, "email", "admin@example.com", "displayName", "Admin", "role", "ADMIN"));
+
+        ResponseEntity<String> updateResponse = patch(
+                organizationId,
+                Map.of("name", "Admin Update " + suffix, "meetingLanguage", "pt-BR", "audioRetentionDays", 7),
+                TestJwtFactory.bearer(adminUserId, organizationId, "ROLE_USER"));
+
+        assertThat(updateResponse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+        Map<String, Object> row = jdbcTemplate.queryForMap(
+                "SELECT name, meeting_language FROM public.organizations WHERE id = ?::uuid",
+                organizationId);
+        assertThat(row.get("name")).isEqualTo(originalName);
+        assertThat(row.get("meeting_language")).isEqualTo("en-US");
+    }
+
+    private void createMember(String organizationId, String ownerUserId, Map<String, Object> body) {
+        ResponseEntity<String> res = client().post().uri("/api/organizations/{orgId}/members", organizationId)
+                .header("Authorization", TestJwtFactory.bearer(ownerUserId, organizationId, "ROLE_USER"))
+                .header("Api-Version", "1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body)
+                .exchange((request, response) -> ResponseEntity.status(response.getStatusCode())
+                        .body(response.bodyTo(String.class)));
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    }
+
     private ResponseEntity<String> post(Map<String, String> body, String bearer) {
         return client().post().uri("/api/organizations")
                 .header("Authorization", bearer)

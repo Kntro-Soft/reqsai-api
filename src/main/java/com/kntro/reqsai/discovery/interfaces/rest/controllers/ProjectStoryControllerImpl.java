@@ -1,6 +1,8 @@
 package com.kntro.reqsai.discovery.interfaces.rest.controllers;
 
+import com.kntro.reqsai.discovery.application.handler.BatchDeleteUserStoriesCommandHandler;
 import com.kntro.reqsai.discovery.application.handler.CreateUserStoryCommandHandler;
+import com.kntro.reqsai.discovery.application.handler.DeleteUserStoryCommandHandler;
 import com.kntro.reqsai.discovery.application.handler.GetProjectStoryQueryHandler;
 import com.kntro.reqsai.discovery.application.handler.ListProjectStoriesQueryHandler;
 import com.kntro.reqsai.discovery.application.handler.UpdateUserStoryCommandHandler;
@@ -10,8 +12,10 @@ import com.kntro.reqsai.discovery.application.query.StoryFilter;
 import com.kntro.reqsai.discovery.domain.model.Priority;
 import com.kntro.reqsai.discovery.domain.model.StoryStatus;
 import com.kntro.reqsai.discovery.domain.model.UserStory;
+import com.kntro.reqsai.discovery.interfaces.rest.dto.request.BatchDeleteUserStoriesRequest;
 import com.kntro.reqsai.discovery.interfaces.rest.dto.request.CreateUserStoryRequest;
 import com.kntro.reqsai.discovery.interfaces.rest.dto.request.UpdateUserStoryRequest;
+import com.kntro.reqsai.discovery.interfaces.rest.dto.response.BatchDeleteUserStoriesResponse;
 import com.kntro.reqsai.discovery.interfaces.rest.dto.response.UserStoryResponse;
 import com.kntro.reqsai.discovery.interfaces.rest.mappers.request.UserStoryRequestMapper;
 import com.kntro.reqsai.discovery.interfaces.rest.mappers.response.UserStoryResponseMapper;
@@ -37,6 +41,8 @@ public class ProjectStoryControllerImpl implements ProjectStoryController {
     private final GetProjectStoryQueryHandler getUserStory;
     private final ListProjectStoriesQueryHandler listUserStories;
     private final UpdateUserStoryCommandHandler updateUserStory;
+    private final DeleteUserStoryCommandHandler deleteUserStory;
+    private final BatchDeleteUserStoriesCommandHandler batchDeleteUserStories;
 
     @Override
     @PreAuthorize("@authz.projectPermission(#projectId, 'STORY_WRITE', authentication)")
@@ -80,6 +86,20 @@ public class ProjectStoryControllerImpl implements ProjectStoryController {
         UserStory story = updateUserStory.handle(
                 UserStoryRequestMapper.toUpdateCommand(projectId, storyId, request));
         return ResponseEntity.ok(UserStoryResponseMapper.toResponse(story));
+    }
+
+    @Override
+    @PreAuthorize("@authz.projectPermission(#projectId, 'STORY_DELETE', authentication)")
+    public ResponseEntity<Void> delete(UUID projectId, UUID storyId) {
+        deleteUserStory.handle(UserStoryRequestMapper.toDeleteCommand(projectId, storyId));
+        return ResponseEntity.noContent().build();
+    }
+
+    @Override
+    @PreAuthorize("@authz.projectPermission(#projectId, 'STORY_DELETE', authentication)")
+    public ResponseEntity<BatchDeleteUserStoriesResponse> batchDelete(UUID projectId, BatchDeleteUserStoriesRequest request) {
+        int deleted = batchDeleteUserStories.handle(UserStoryRequestMapper.toBatchDeleteCommand(projectId, request));
+        return ResponseEntity.ok(new BatchDeleteUserStoriesResponse(deleted));
     }
 
     /**

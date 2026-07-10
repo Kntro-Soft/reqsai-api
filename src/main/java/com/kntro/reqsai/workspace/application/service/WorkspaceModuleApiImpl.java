@@ -5,11 +5,14 @@ import com.kntro.reqsai.workspace.api.ProjectSnapshot;
 import com.kntro.reqsai.workspace.api.WorkspaceModuleApi;
 import com.kntro.reqsai.shared.infrastructure.persistence.multitenancy.TenantContext;
 import com.kntro.reqsai.workspace.application.port.GlossaryRepository;
+import com.kntro.reqsai.workspace.application.port.MemberRepository;
 import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
 import com.kntro.reqsai.workspace.application.port.ProjectRepository;
 import com.kntro.reqsai.workspace.application.port.WorkspaceSearchRepository;
 import com.kntro.reqsai.workspace.domain.model.Glossary;
 import com.kntro.reqsai.workspace.domain.model.GlossaryTerm;
+import com.kntro.reqsai.workspace.domain.model.Member;
+import com.kntro.reqsai.workspace.domain.model.MemberStatus;
 import com.kntro.reqsai.workspace.domain.model.Permission;
 import com.kntro.reqsai.workspace.domain.model.Project;
 import com.kntro.reqsai.workspace.domain.model.ProjectConstraint;
@@ -30,6 +33,7 @@ class WorkspaceModuleApiImpl implements WorkspaceModuleApi {
     private final WorkspaceSearchRepository searchRepository;
     private final OrganizationRepository organizations;
     private final ProjectPermissionService projectPermissions;
+    private final MemberRepository members;
 
     @Override
     @Transactional(readOnly = true)
@@ -84,6 +88,13 @@ class WorkspaceModuleApiImpl implements WorkspaceModuleApi {
         return organizations.findById(orgId)
                 .map(org -> projectPermissions.hasPermission(org, projectId, userId, required))
                 .orElse(false);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<String> findMemberDisplayName(UUID organizationId, UUID userId) {
+        return members.findByOrganizationIdAndUserIdAndStatus(organizationId, userId, MemberStatus.ACTIVE)
+                .map(Member::getDisplayName);
     }
 
     /** The organization bound to the current request/callback thread, or {@code null} when none is. */

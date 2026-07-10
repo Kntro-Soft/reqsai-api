@@ -16,6 +16,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Authenticates STOMP CONNECT frames using the same {@link TokenVerifier} as the HTTP filter.
@@ -24,11 +25,26 @@ import java.util.List;
  * interceptor verifies it and binds the user {@code Principal} to the session (so per-user queues and
  * {@code @MessageMapping} security work). A CONNECT with no token is left anonymous; a CONNECT with an
  * invalid token is rejected (the verifier throws).
+ * <p>
+ * The verified {@code userId} and {@code orgId} are also stashed in the STOMP session attributes
+ * ({@link #USER_ID_ATTRIBUTE}, {@link #ORG_ID_ATTRIBUTE}). This is deliberate, not redundant with
+ * {@link StompHeaderAccessor#setUser}: empirically, the {@code Principal} set on the CONNECT frame's
+ * accessor does <strong>not</strong> carry over to later frames on the same STOMP session (a later
+ * SUBSCRIBE/UNSUBSCRIBE frame's {@code accessor.getUser()} is {@code null}), whereas session
+ * attributes are the underlying {@code WebSocketSession}'s own attribute map and do persist across
+ * every frame. Session-lifecycle listeners (e.g. discovery presence) that need the caller's identity
+ * outside the CONNECT frame must read it from here, not from {@code accessor.getUser()}.
  */
 @Component
 @RequiredArgsConstructor
 @Slf4j
 public class StompAuthChannelInterceptor implements ChannelInterceptor {
+
+    /** STOMP session-attribute key holding the authenticated user id (a {@code String}). */
+    public static final String USER_ID_ATTRIBUTE = "reqsai.userId";
+
+    /** STOMP session-attribute key holding the authenticated tenant/organization id (a {@code String}). */
+    public static final String ORG_ID_ATTRIBUTE = "reqsai.orgId";
 
     private final TokenVerifier tokenVerifier;
 
@@ -43,6 +59,13 @@ public class StompAuthChannelInterceptor implements ChannelInterceptor {
                         token.userId(), null,
                         token.role() != null ? List.of(new SimpleGrantedAuthority(token.role())) : List.of());
                 accessor.setUser(authentication);
+                Map<String, Object> attributes = accessor.getSessionAttributes();
+                if (attributes != null) {
+                    attributes.put(USER_ID_ATTRIBUTE, token.userId());
+                    if (token.orgId() != null) {
+                        attributes.put(ORG_ID_ATTRIBUTE, token.orgId());
+                    }
+                }
                 log.debug("WebSocket CONNECT authenticated for user {} (tenant {})",
                         token.userId(), token.orgId());
             }

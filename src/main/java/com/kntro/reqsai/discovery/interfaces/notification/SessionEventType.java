@@ -61,5 +61,13 @@ public enum SessionEventType {
     SUGGESTION_ACCEPTED,
 
     /** The analyst dismissed a suggestion (no backlog change). */
-    SUGGESTION_DISMISSED
+    SUGGESTION_DISMISSED,
+
+    // Live presence
+
+    /**
+     * The roster of users currently viewing the live session changed (someone joined or left).
+     * Carries the full participant list so the client can render it idempotently.
+     */
+    PRESENCE_STATE
 }

@@ -18,6 +18,26 @@
           "value": "https://app.tamci.app"
         },
         {
+          "name": "WEB_APP_URL",
+          "value": "https://app.tamci.app"
+        },
+        {
+          "name": "BILLING_PAYMENT_PROVIDER",
+          "value": "stripe"
+        },
+        {
+          "name": "BILLING_CURRENCY",
+          "value": "USD"
+        },
+        {
+          "name": "BILLING_PRO_STRIPE_PRICE_ID",
+          "value": "price_1TrSiGDRW48WB7COzoE13Ius"
+        },
+        {
+          "name": "BILLING_ENTERPRISE_STRIPE_PRICE_ID",
+          "value": "price_1TrSikDRW48WB7COSEMwH3xf"
+        },
+        {
           "name": "SPRINGDOC_API_DOCS_ENABLED",
           "value": "true"
         },
@@ -124,6 +144,30 @@
         {
           "name": "OPENAI_API_KEY",
           "valueFrom": "arn:aws:secretsmanager:us-east-1:418272789689:secret:reqsai/production/ai-GTSPn8:openai_api_key::"
+        },
+        {
+          "name": "INTEGRATIONS_ENCRYPTION_KEY",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:418272789689:secret:reqsai/production/jira-JsDzh5:encryption_key::"
+        },
+        {
+          "name": "JIRA_OAUTH_CLIENT_ID",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:418272789689:secret:reqsai/production/jira-JsDzh5:oauth_client_id::"
+        },
+        {
+          "name": "JIRA_OAUTH_CLIENT_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:418272789689:secret:reqsai/production/jira-JsDzh5:oauth_client_secret::"
+        },
+        {
+          "name": "JIRA_OAUTH_STATE_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:418272789689:secret:reqsai/production/jira-JsDzh5:oauth_state_secret::"
+        },
+        {
+          "name": "STRIPE_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:418272789689:secret:reqsai/production/stripe-GUmpLb:api_key::"
+        },
+        {
+          "name": "STRIPE_WEBHOOK_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:418272789689:secret:reqsai/production/stripe-GUmpLb:webhook_secret::"
         }
       ],
       "logConfiguration": {

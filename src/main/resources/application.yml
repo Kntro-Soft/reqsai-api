@@ -48,6 +48,13 @@ spring:
     validate-on-migrate: true
     out-of-order: true
 
+  # Spring Batch runs the async integration sync jobs (Jira import / push-all). Jobs are launched
+  # on demand by the API — never at startup, hence enabled: false. Metadata DDL is owned by the
+  # common Flyway migrations (public.batch_*); Boot 4 does not auto-initialize a batch schema.
+  batch:
+    job:
+      enabled: false
+
   mail:
     host: ${MAIL_HOST:smtp.gmail.com}
     port: ${MAIL_PORT:587}
@@ -154,6 +161,16 @@ reqsai:
       webhook-secret: ${STRIPE_WEBHOOK_SECRET:}
       success-url: ${STRIPE_SUCCESS_URL:${WEB_APP_URL:http://localhost:4200}/billing/success}
       cancel-url: ${STRIPE_CANCEL_URL:${WEB_APP_URL:http://localhost:4200}/billing/cancel}
+  integrations:
+    # Base64-encoded 32-byte (AES-256) key used to encrypt third-party integration secrets at rest
+    # (ADR-0023). Required for the integrations feature; keep it out of source control (.env / secret).
+    encryption-key: ${INTEGRATIONS_ENCRYPTION_KEY:}
+    jira:
+      oauth:
+        client-id: ${JIRA_OAUTH_CLIENT_ID:}
+        client-secret: ${JIRA_OAUTH_CLIENT_SECRET:}
+        redirect-uri: ${JIRA_OAUTH_CALLBACK_URL:${FRONTEND_URL:http://localhost:4200}/settings/integrations/jira/callback}
+        state-secret: ${JIRA_OAUTH_STATE_SECRET:}
   jwt:
     private-key-path: ${JWT_PRIVATE_KEY_PATH:classpath:certs/private_key.pem}
     private-key-pem: ${JWT_PRIVATE_KEY_PEM:}
@@ -181,14 +198,9 @@ reqsai:
 
 discovery:
   realtime:
-    # Char threshold: generate once this many NEW (past-watermark) transcript chars have accrued.
     min-transcript-chars: ${DISCOVERY_REALTIME_MIN_TRANSCRIPT_CHARS:180}
-    # Time fallback: generate when this many seconds have elapsed since the last pass with new
-    # transcript waiting, even if the char threshold has not been reached (short exchanges stream).
     max-transcript-age-seconds: ${DISCOVERY_REALTIME_MAX_TRANSCRIPT_AGE_SECONDS:22}
     context-top-k: ${DISCOVERY_REALTIME_CONTEXT_TOP_K:5}
-    # Cross-pass near-duplicate cosine threshold: drop a draft this similar to a PENDING suggestion
-    # or existing story before persisting (below the 0.85 duplicate-story threshold to catch paraphrases).
     dedup-similarity-threshold: ${DISCOVERY_REALTIME_DEDUP_SIMILARITY_THRESHOLD:0.84}
 
 server:
@@ -208,7 +220,14 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,modulith
+        # Only health is exposed over HTTP. metrics/modulith reveal internal
+        # architecture and operational data with no legitimate consumer today
+        # (no Prometheus/scraper — logs go to CloudWatch only); info returns
+        # nothing useful without management.info.* contributors configured.
+        # There's no platform-wide "ops" role in this codebase to gate them
+        # behind (authorization here is entirely tenant/org-scoped) — not
+        # exposing them at all is simpler and safer than inventing one.
+        include: health
   endpoint:
     health:
       show-details: when-authorized
