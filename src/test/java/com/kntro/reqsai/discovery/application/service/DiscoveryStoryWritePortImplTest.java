@@ -135,7 +135,7 @@ class DiscoveryStoryWritePortImplTest {
     @DisplayName("checkDuplicate: flags a near-duplicate without creating anything")
     void check_duplicate_flags_without_creating() {
         UUID existing = UUID.randomUUID();
-        when(generationPort.isAvailable()).thenReturn(false);
+        // checkDuplicate deliberately never consults the LLM (deterministic mapping only) — no generation stub.
         when(embeddingPort.isAvailable()).thenReturn(true);
         when(embeddingPort.embed(any())).thenReturn(new float[EmbeddingPort.DIMENSIONS]);
         when(stories.findMostSimilar(any(), any()))

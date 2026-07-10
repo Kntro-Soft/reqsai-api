@@ -97,7 +97,10 @@ class DiscoveryStoryWritePortImpl implements DiscoveryStoryWritePort {
         if (!embeddingPort.isAvailable()) {
             return StoryDuplicateCheck.notDuplicate();
         }
-        return resolveDuplicate(input.projectId(), transform(input));
+        // Deliberately uses the deterministic mapping (NOT the LLM): preview calls this once per remote
+        // issue, and an LLM generation per issue makes previews take minutes. The similarity gate re-runs
+        // at import time against the final (possibly LLM-transformed) story, so the badge stays a preview.
+        return resolveDuplicate(input.projectId(), fallback(input));
     }
 
     /**
