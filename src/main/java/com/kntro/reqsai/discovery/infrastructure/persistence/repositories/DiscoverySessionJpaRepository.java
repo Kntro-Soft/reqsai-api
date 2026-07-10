@@ -5,7 +5,11 @@ import com.kntro.reqsai.discovery.domain.model.SessionStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -17,4 +21,21 @@ public interface DiscoverySessionJpaRepository extends JpaRepository<DiscoverySe
 
     /** The project's active session (at most one — enforced by the partial unique index). */
     Optional<DiscoverySession> findFirstByProjectIdAndStatusIn(UUID projectId, List<SessionStatus> statuses);
+
+    /**
+     * Scoped watermark update — touches ONLY the two suggestion columns so it can never clobber
+     * {@code lastSequence} (advanced by the concurrent transcript-append path). The
+     * {@code lastSuggestedSequence < :sequence} guard keeps the watermark monotonic under overlap.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update DiscoverySession s
+               set s.lastSuggestedSequence = :sequence,
+                   s.lastSuggestedAt = :suggestedAt
+             where s.id = :sessionId
+               and s.lastSuggestedSequence < :sequence
+            """)
+    int advanceSuggestionWatermark(@Param("sessionId") UUID sessionId,
+                                   @Param("sequence") int sequence,
+                                   @Param("suggestedAt") Instant suggestedAt);
 }

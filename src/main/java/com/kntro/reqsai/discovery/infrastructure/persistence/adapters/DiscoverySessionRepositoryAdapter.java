@@ -9,6 +9,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -39,5 +40,10 @@ public class DiscoverySessionRepositoryAdapter implements DiscoverySessionReposi
     public Optional<DiscoverySession> findActiveByProjectId(UUID projectId) {
         return jpa.findFirstByProjectIdAndStatusIn(
                 projectId, List.of(SessionStatus.RECORDING, SessionStatus.PAUSED));
+    }
+
+    @Override
+    public void advanceSuggestionWatermark(UUID sessionId, int suggestedSequence, Instant suggestedAt) {
+        jpa.advanceSuggestionWatermark(sessionId, suggestedSequence, suggestedAt);
     }
 }
