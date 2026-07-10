@@ -4,6 +4,7 @@ import com.kntro.reqsai.discovery.domain.event.SuggestionCreatedEvent;
 import com.kntro.reqsai.discovery.domain.model.Priority;
 import com.kntro.reqsai.discovery.domain.model.SuggestionType;
 import com.kntro.reqsai.discovery.interfaces.notification.SessionEventType;
+import com.kntro.reqsai.discovery.interfaces.notification.messages.SessionRealtimeMessage;
 import com.kntro.reqsai.discovery.interfaces.notification.messages.SessionSuggestionMessage;
 import com.kntro.reqsai.testsupport.AbstractIntegrationTest;
 import com.kntro.reqsai.testsupport.TestJwtFactory;
@@ -81,7 +82,8 @@ class SuggestionBroadcastIntegrationTest extends AbstractIntegrationTest {
         UUID projectId = UUID.randomUUID();
 
         BlockingQueue<SessionSuggestionMessage> received =
-                subscribe(connectAuthenticated(), sessionId, SessionSuggestionMessage.class);
+                subscribe(connectAuthenticated(), sessionId, SessionSuggestionMessage.class,
+                        SessionEventType.SUGGESTION_GENERATED);
 
         SuggestionCreatedEvent event = new SuggestionCreatedEvent(
                 suggestionId, sessionId, projectId, SuggestionType.NEW_STORY,
@@ -111,7 +113,15 @@ class SuggestionBroadcastIntegrationTest extends AbstractIntegrationTest {
                 .get(5, TimeUnit.SECONDS);
     }
 
-    private <T> BlockingQueue<T> subscribe(StompSession session, UUID sessionId, Class<T> payloadType) {
+    /**
+     * Subscribes and filters incoming frames to {@code expectedType} before enqueuing. A subscriber
+     * to a session topic can now also receive an automatic {@code PRESENCE_STATE} broadcast (see
+     * {@code SessionPresenceTracker}) the instant it subscribes — the JSON still decodes cleanly into
+     * whatever {@code payloadType} the caller asked for (a record's extra unmapped fields are just
+     * ignored), so without this filter the spurious presence frame would race the real one under test.
+     */
+    private <T extends SessionRealtimeMessage> BlockingQueue<T> subscribe(
+            StompSession session, UUID sessionId, Class<T> payloadType, SessionEventType expectedType) {
         BlockingQueue<T> queue = new LinkedBlockingQueue<>();
         session.subscribe("/topic/" + SessionTopics.of(sessionId), new StompFrameHandler() {
             @Override
@@ -122,7 +132,10 @@ class SuggestionBroadcastIntegrationTest extends AbstractIntegrationTest {
 
             @Override
             public void handleFrame(@NonNull StompHeaders headers, Object payload) {
-                queue.add(payloadType.cast(payload));
+                T message = payloadType.cast(payload);
+                if (message.type() == expectedType) {
+                    queue.add(message);
+                }
             }
         });
         return queue;
