@@ -25,10 +25,11 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * End-to-end test of the Jira IMPORT slice: connects Jira at the org level, sets a project target, then
- * imports the two stubbed Jira issues into the backlog as user stories — asserting stories are created and
- * that a near-duplicate is skipped (both stubbed issues map to the same stubbed generation output, so the
- * second is detected as a duplicate of the first via the deterministic embedding stub).
+ * End-to-end test of the ASYNC Jira IMPORT slice: connects Jira at the org level, sets a project target,
+ * then starts the import job (202 + RUNNING snapshot), polls the job endpoint until the Spring Batch
+ * execution COMPLETEs in the right tenant schema, and asserts stories were created with a near-duplicate
+ * counted as processed-but-skipped (both stubbed issues map to the same stubbed generation output). Also
+ * asserts the batch metadata landed in the global {@code public.batch_*} tables, not a tenant schema.
  *
  * <p>The Jira boundary is stubbed via {@link StubJiraProviderConfig} (no real network) and the LLM via
  * {@link StubRequirementGenerationConfig} (no real model — this test is NOT tagged {@code llm}).
@@ -69,7 +70,7 @@ class JiraImportIntegrationTest extends AbstractIntegrationTest {
         assertThat(preview.get("total").asInt()).isEqualTo(2);
         assertThat(preview.get("issues")).hasSize(2);
 
-        // Import all eligible issues.
+        // Start the import job: 202 Accepted with a RUNNING snapshot.
         ResponseEntity<String> importRes = client().post()
                 .uri("/api/projects/{p}/integration/jira/import", projectId)
                 .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId, "ROLE_USER"))
@@ -77,33 +78,69 @@ class JiraImportIntegrationTest extends AbstractIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(Map.of())
                 .exchange((req, res) -> ResponseEntity.status(res.getStatusCode()).body(res.bodyTo(String.class)));
-        assertThat(importRes.getStatusCode()).isEqualTo(HttpStatus.OK);
-        JsonNode result = JSON.readTree(importRes.getBody());
+        assertThat(importRes.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+        JsonNode accepted = JSON.readTree(importRes.getBody());
+        assertThat(accepted.get("jobType").asText()).isEqualTo("IMPORT");
+        assertThat(accepted.get("status").asText()).isEqualTo("RUNNING");
+        String jobId = accepted.get("id").asText();
 
-        // Both stubbed issues map (via the stubbed generation) to the same story, so the second collides.
-        assertThat(result.get("imported").asInt()).isEqualTo(1);
-        assertThat(result.get("skipped").asInt()).isEqualTo(1);
+        // The RUNNING job is visible to the reload-recovery query while it lasts, and the terminal
+        // state is reached by polling the job endpoint (the batch runs on the async executor).
+        JsonNode result = awaitJobCompletion(projectId, jobId, orgId);
+
+        // Both stubbed issues map (via the stubbed generation) to the same story, so the second is a
+        // duplicate: processed but neither succeeded nor failed, summarized in the message.
+        assertThat(result.get("status").asText()).isEqualTo("COMPLETED");
+        assertThat(result.get("total").asInt()).isEqualTo(2);
+        assertThat(result.get("processed").asInt()).isEqualTo(2);
+        assertThat(result.get("succeeded").asInt()).isEqualTo(1);
         assertThat(result.get("failed").asInt()).isZero();
-        assertThat(result.get("results")).hasSize(2);
-        boolean hasImported = false;
-        boolean hasDuplicate = false;
-        for (JsonNode r : result.get("results")) {
-            if ("imported".equals(r.get("status").asText())) {
-                hasImported = true;
-                assertThat(r.hasNonNull("storyId")).isTrue();
-            } else if ("duplicate".equals(r.get("status").asText())) {
-                hasDuplicate = true;
-                assertThat(r.hasNonNull("storyId")).isFalse();
-            }
-        }
-        assertThat(hasImported).isTrue();
-        assertThat(hasDuplicate).isTrue();
+        assertThat(result.get("message").asText()).isEqualTo("1 duplicados omitidos");
+        assertThat(result.hasNonNull("finishedAt")).isTrue();
 
-        // Exactly one story persisted in the tenant backlog.
+        // Exactly one story persisted in the tenant backlog — written from the batch thread, proving
+        // the tenant context captured at launch was restored by the job listener.
         Integer storyCount = jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM \"" + schema + "\".user_stories WHERE project_id = ?::uuid",
                 Integer.class, projectId.toString());
         assertThat(storyCount).isEqualTo(1);
+
+        // Spring Batch metadata lands in the global public schema (schema-qualified table prefix).
+        Integer batchInstances = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM public.batch_job_instance WHERE job_name = 'jiraImportJob'",
+                Integer.class);
+        assertThat(batchInstances).isGreaterThanOrEqualTo(1);
+
+        // The jobs listing returns the finished job (most recent first).
+        ResponseEntity<String> listRes = client().get()
+                .uri("/api/projects/{p}/integration/jira/jobs", projectId)
+                .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId, "ROLE_USER"))
+                .header("Api-Version", "1")
+                .exchange((req, res) -> ResponseEntity.status(res.getStatusCode()).body(res.bodyTo(String.class)));
+        assertThat(listRes.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode jobsList = JSON.readTree(listRes.getBody());
+        assertThat(jobsList.isArray()).isTrue();
+        assertThat(jobsList.get(0).get("id").asText()).isEqualTo(jobId);
+    }
+
+    /** Polls {@code GET .../jobs/{jobId}} until the job leaves RUNNING (max ~60s). */
+    private JsonNode awaitJobCompletion(UUID projectId, String jobId, String orgId) throws Exception {
+        JsonNode job = null;
+        for (int i = 0; i < 200; i++) {
+            ResponseEntity<String> res = client().get()
+                    .uri("/api/projects/{p}/integration/jira/jobs/{j}", projectId, jobId)
+                    .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId, "ROLE_USER"))
+                    .header("Api-Version", "1")
+                    .exchange((req, response) -> ResponseEntity.status(response.getStatusCode())
+                            .body(response.bodyTo(String.class)));
+            assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
+            job = JSON.readTree(res.getBody());
+            if (!"RUNNING".equals(job.get("status").asText())) {
+                return job;
+            }
+            Thread.sleep(300);
+        }
+        throw new AssertionError("Job " + jobId + " did not finish in time: " + job);
     }
 
     @Test

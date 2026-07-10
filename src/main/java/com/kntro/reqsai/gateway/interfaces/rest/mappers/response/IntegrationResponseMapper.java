@@ -3,21 +3,18 @@ package com.kntro.reqsai.gateway.interfaces.rest.mappers.response;
 import com.kntro.reqsai.gateway.application.port.IntegrationProvider.RemoteIssueType;
 import com.kntro.reqsai.gateway.application.port.IntegrationProvider.RemoteProject;
 import com.kntro.reqsai.gateway.application.port.JiraOAuthPort.Site;
-import com.kntro.reqsai.gateway.application.result.BatchImportResult;
-import com.kntro.reqsai.gateway.application.result.BatchPushResult;
 import com.kntro.reqsai.gateway.application.result.ConnectionTestResult;
 import com.kntro.reqsai.gateway.application.result.ImportPreview;
-import com.kntro.reqsai.gateway.application.result.ImportStoryResult;
 import com.kntro.reqsai.gateway.application.result.StoryPushResult;
 import com.kntro.reqsai.gateway.domain.model.IntegrationConnection;
+import com.kntro.reqsai.gateway.domain.model.IntegrationSyncJob;
 import com.kntro.reqsai.gateway.domain.model.ProjectIntegrationTarget;
-import com.kntro.reqsai.gateway.interfaces.rest.dto.response.BatchPushResponse;
 import com.kntro.reqsai.gateway.interfaces.rest.dto.response.ConnectionTestResponse;
 import com.kntro.reqsai.gateway.interfaces.rest.dto.response.IntegrationConnectionResponse;
+import com.kntro.reqsai.gateway.interfaces.rest.dto.response.IntegrationJobResponse;
 import com.kntro.reqsai.gateway.interfaces.rest.dto.response.JiraIssueTypeResponse;
 import com.kntro.reqsai.gateway.interfaces.rest.dto.response.JiraOAuthSiteResponse;
 import com.kntro.reqsai.gateway.interfaces.rest.dto.response.JiraImportPreviewResponse;
-import com.kntro.reqsai.gateway.interfaces.rest.dto.response.JiraImportResponse;
 import com.kntro.reqsai.gateway.interfaces.rest.dto.response.JiraProjectResponse;
 import com.kntro.reqsai.gateway.interfaces.rest.dto.response.JiraPushResultResponse;
 import com.kntro.reqsai.gateway.interfaces.rest.dto.response.ProjectJiraTargetResponse;
@@ -74,11 +71,20 @@ public final class IntegrationResponseMapper {
         return new JiraPushResultResponse(r.storyId(), r.jiraIssueKey(), r.jiraIssueUrl(), r.error());
     }
 
-    public static BatchPushResponse toResponse(BatchPushResult r) {
-        return new BatchPushResponse(
-                r.results().stream().map(IntegrationResponseMapper::toResponse).toList(),
-                r.pushed(),
-                r.failed());
+    /** Same field-by-field shape as the {@code IntegrationJobMessage} broadcast over STOMP. */
+    public static IntegrationJobResponse toResponse(IntegrationSyncJob job) {
+        return new IntegrationJobResponse(
+                job.getId(),
+                job.getProjectId(),
+                job.getJobType().name(),
+                job.getStatus().name(),
+                job.getTotal(),
+                job.getProcessed(),
+                job.getSucceeded(),
+                job.getFailed(),
+                job.getMessage(),
+                job.getCreatedAt(),
+                job.getFinishedAt());
     }
 
     public static JiraImportPreviewResponse toResponse(ImportPreview p) {
@@ -90,15 +96,4 @@ public final class IntegrationResponseMapper {
                         .toList());
     }
 
-    public static JiraImportResponse toResponse(BatchImportResult r) {
-        return new JiraImportResponse(
-                r.imported(),
-                r.skipped(),
-                r.failed(),
-                r.results().stream().map(IntegrationResponseMapper::toResponse).toList());
-    }
-
-    public static JiraImportResponse.Result toResponse(ImportStoryResult r) {
-        return new JiraImportResponse.Result(r.jiraIssueKey(), r.storyId(), r.status().wire(), r.message());
-    }
 }

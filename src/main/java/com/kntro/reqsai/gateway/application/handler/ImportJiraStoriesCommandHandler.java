@@ -1,51 +1,41 @@
 package com.kntro.reqsai.gateway.application.handler;
 
 import com.kntro.reqsai.gateway.application.command.ImportJiraStoriesCommand;
-import com.kntro.reqsai.gateway.application.port.IntegrationProvider.RemoteIssue;
+import com.kntro.reqsai.gateway.application.port.IntegrationJobLauncher;
 import com.kntro.reqsai.gateway.application.port.ProjectIntegrationTargetRepository;
-import com.kntro.reqsai.gateway.application.result.BatchImportResult;
-import com.kntro.reqsai.gateway.application.result.ImportStoryResult;
-import com.kntro.reqsai.gateway.application.service.JiraImportService;
-import com.kntro.reqsai.gateway.application.service.StoryPushService.PushContext;
+import com.kntro.reqsai.gateway.application.service.IntegrationSyncJobStarter;
 import com.kntro.reqsai.gateway.domain.exception.IntegrationsExceptions;
-import com.kntro.reqsai.gateway.domain.model.ProjectIntegrationTarget;
+import com.kntro.reqsai.gateway.domain.model.IntegrationSyncJob;
+import com.kntro.reqsai.gateway.domain.model.IntegrationSyncJobType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
 
 /**
- * Pulls Jira issues from the project's configured target and creates them as user stories via the discovery
- * write port (which owns the LLM mapping + dedup). 409 ({@code INTEGRATION_TARGET_NOT_CONFIGURED}) when no
- * target exists. Per-issue failures are captured without aborting the batch; duplicates are counted as
- * {@code skipped}. When {@code issueKeys} is null/empty, all eligible issues are imported.
+ * Accepts a Jira import request as an <strong>asynchronous background job</strong>: validates the
+ * target exists (409 {@code INTEGRATION_TARGET_NOT_CONFIGURED}), persists a RUNNING
+ * {@code integration_sync_jobs} row (409 {@code INTEGRATION_JOB_ALREADY_RUNNING} when one is
+ * already running), hands execution to the {@link IntegrationJobLauncher} and returns the job
+ * snapshot for the 202 response. Progress streams on
+ * {@code /topic/projects/{projectId}/integration-jobs} and is queryable via the job endpoints.
+ * Deliberately not {@code @Transactional}: the job row must be committed (and visible to the async
+ * worker and to reload queries) before the launch.
  */
 @Component
 @RequiredArgsConstructor
 public class ImportJiraStoriesCommandHandler {
 
     private final ProjectIntegrationTargetRepository targets;
-    private final JiraImportService importService;
+    private final IntegrationSyncJobStarter starter;
+    private final IntegrationJobLauncher launcher;
 
-    @Transactional
-    public BatchImportResult handle(ImportJiraStoriesCommand command) {
-        ProjectIntegrationTarget target = targets.findByProjectId(command.projectId())
+    public IntegrationSyncJob handle(ImportJiraStoriesCommand command) {
+        targets.findByProjectId(command.projectId())
                 .orElseThrow(() -> IntegrationsExceptions.targetNotConfigured(command.projectId()));
 
-        PushContext ctx = importService.contextFor(target);
-        List<RemoteIssue> issues = importService.fetchIssues(ctx);
-
-        Set<String> requested = command.issueKeys() == null ? Set.of() : Set.copyOf(command.issueKeys());
-        List<ImportStoryResult> results = new ArrayList<>();
-        for (RemoteIssue issue : issues) {
-            if (!requested.isEmpty() && !requested.contains(issue.issueKey())) {
-                continue;
-            }
-            results.add(importService.importIssue(command.projectId(), issue));
-        }
-        return BatchImportResult.of(results);
+        int knownTotal = command.issueKeys() == null ? 0 : command.issueKeys().size();
+        IntegrationSyncJob job = starter.start(
+                command.projectId(), IntegrationSyncJobType.IMPORT, knownTotal, command.requestedBy());
+        launcher.launchImport(job.getId(), command.projectId(), command.issueKeys());
+        return job;
     }
 }

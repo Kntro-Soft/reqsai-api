@@ -115,16 +115,51 @@ class JiraIntegrationPushIntegrationTest extends AbstractIntegrationTest {
         assertThat(push.get("jiraIssueUrl").asText()).startsWith("https://acme.atlassian.net/browse/PAY-");
         assertThat(push.hasNonNull("error")).isFalse();
 
-        // push-all also succeeds for the single seeded story.
+        // push-all is now an async job: 202 with a RUNNING snapshot, then poll to COMPLETED.
         ResponseEntity<String> pushAllRes = client().post()
                 .uri("/api/projects/{p}/integration/jira/stories/push-all", projectId)
                 .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId, "ROLE_USER"))
                 .header("Api-Version", "1")
                 .exchange((req, res) -> ResponseEntity.status(res.getStatusCode()).body(res.bodyTo(String.class)));
-        assertThat(pushAllRes.getStatusCode()).isEqualTo(HttpStatus.OK);
-        JsonNode all = JSON.readTree(pushAllRes.getBody());
-        assertThat(all.get("pushed").asInt()).isEqualTo(1);
+        assertThat(pushAllRes.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+        JsonNode accepted = JSON.readTree(pushAllRes.getBody());
+        assertThat(accepted.get("jobType").asText()).isEqualTo("PUSH_ALL");
+        assertThat(accepted.get("status").asText()).isEqualTo("RUNNING");
+        assertThat(accepted.get("total").asInt()).isEqualTo(1);
+
+        JsonNode all = awaitJobCompletion(projectId, accepted.get("id").asText(), orgId);
+        assertThat(all.get("status").asText()).isEqualTo("COMPLETED");
+        assertThat(all.get("total").asInt()).isEqualTo(1);
+        assertThat(all.get("processed").asInt()).isEqualTo(1);
+        assertThat(all.get("succeeded").asInt()).isEqualTo(1);
         assertThat(all.get("failed").asInt()).isZero();
+        assertThat(all.hasNonNull("finishedAt")).isTrue();
+
+        // Batch metadata for the push-all job lands in the global public schema.
+        Integer batchInstances = jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM public.batch_job_instance WHERE job_name = 'jiraPushAllJob'",
+                Integer.class);
+        assertThat(batchInstances).isGreaterThanOrEqualTo(1);
+    }
+
+    /** Polls {@code GET .../jobs/{jobId}} until the job leaves RUNNING (max ~60s). */
+    private JsonNode awaitJobCompletion(UUID projectId, String jobId, String orgId) throws Exception {
+        JsonNode job = null;
+        for (int i = 0; i < 200; i++) {
+            ResponseEntity<String> res = client().get()
+                    .uri("/api/projects/{p}/integration/jira/jobs/{j}", projectId, jobId)
+                    .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId, "ROLE_USER"))
+                    .header("Api-Version", "1")
+                    .exchange((req, response) -> ResponseEntity.status(response.getStatusCode())
+                            .body(response.bodyTo(String.class)));
+            assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
+            job = JSON.readTree(res.getBody());
+            if (!"RUNNING".equals(job.get("status").asText())) {
+                return job;
+            }
+            Thread.sleep(300);
+        }
+        throw new AssertionError("Job " + jobId + " did not finish in time: " + job);
     }
 
     @Test
