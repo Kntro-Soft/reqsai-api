@@ -18,6 +18,7 @@ import com.kntro.reqsai.gateway.application.query.GetProjectTargetQuery;
 import com.kntro.reqsai.gateway.application.query.ListIntegrationJobsQuery;
 import com.kntro.reqsai.gateway.application.query.PreviewJiraImportQuery;
 import com.kntro.reqsai.gateway.interfaces.rest.dto.request.ImportJiraStoriesRequest;
+import com.kntro.reqsai.gateway.interfaces.rest.dto.request.PushAllStoriesRequest;
 import com.kntro.reqsai.gateway.interfaces.rest.dto.request.SaveProjectTargetRequest;
 import com.kntro.reqsai.gateway.interfaces.rest.dto.response.IntegrationJobResponse;
 import com.kntro.reqsai.gateway.interfaces.rest.dto.response.JiraImportPreviewResponse;
@@ -96,10 +97,12 @@ public class ProjectIntegrationControllerImpl implements ProjectIntegrationContr
 
     @Override
     @PreAuthorize("@authz.projectPermission(#projectId, 'INTEGRATION_SYNC', authentication)")
-    public ResponseEntity<IntegrationJobResponse> pushAllStories(UUID projectId, Authentication authentication) {
+    public ResponseEntity<IntegrationJobResponse> pushAllStories(
+            UUID projectId, PushAllStoriesRequest request, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
+        List<UUID> storyIds = request == null ? null : request.storyIds();
         return ResponseEntity.accepted().body(IntegrationResponseMapper.toResponse(
-                pushAllStories.handle(new PushAllStoriesCommand(projectId, requestedBy))));
+                pushAllStories.handle(new PushAllStoriesCommand(projectId, storyIds, requestedBy))));
     }
 
     @Override

@@ -1,7 +1,10 @@
 package com.kntro.reqsai.gateway.infrastructure.batch;
 
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
+import java.util.StringJoiner;
+import java.util.UUID;
 
 /**
  * Job-parameter keys shared by the integration batch jobs. Spring Batch derives the
@@ -10,7 +13,7 @@ import java.util.Set;
  * API-triggered run is a fresh JobInstance with exactly one JobExecution, and the batch metadata
  * links 1:1 back to the domain row. The remaining keys are non-identifying context the execution
  * needs: the tenant coordinates to restore ({@link #TENANT_ID}/{@link #TENANT_SCHEMA}), the project,
- * and the optional issue-key selection.
+ * the optional issue-key selection (import) and the optional story-id selection (push-all).
  */
 public final class IntegrationJobParameters {
 
@@ -23,6 +26,9 @@ public final class IntegrationJobParameters {
 
     /** Comma-joined Jira issue keys to import; absent/blank means all eligible issues. */
     public static final String ISSUE_KEYS = "issueKeys";
+
+    /** Comma-joined story ids to push; absent/blank means all eligible stories. */
+    public static final String STORY_IDS = "storyIds";
 
     private IntegrationJobParameters() {
         throw new UnsupportedOperationException("Utility class - do not instantiate");
@@ -47,5 +53,34 @@ public final class IntegrationJobParameters {
             return null;
         }
         return String.join(",", issueKeys);
+    }
+
+    /**
+     * Parses the comma-joined {@link #STORY_IDS} value into an ordered set of {@link UUID}s; an empty
+     * set means "no restriction" (push every eligible story). Blank or malformed tokens are ignored.
+     */
+    public static Set<UUID> parseStoryIds(String storyIdsCsv) {
+        Set<UUID> ids = new LinkedHashSet<>();
+        if (storyIdsCsv != null && !storyIdsCsv.isBlank()) {
+            for (String token : storyIdsCsv.split(",")) {
+                String trimmed = token.trim();
+                if (!trimmed.isBlank()) {
+                    ids.add(UUID.fromString(trimmed));
+                }
+            }
+        }
+        return ids;
+    }
+
+    /** Joins story ids for the {@link #STORY_IDS} parameter; {@code null} when unrestricted. */
+    public static String joinStoryIds(List<UUID> storyIds) {
+        if (storyIds == null || storyIds.isEmpty()) {
+            return null;
+        }
+        StringJoiner joiner = new StringJoiner(",");
+        for (UUID id : storyIds) {
+            joiner.add(id.toString());
+        }
+        return joiner.toString();
     }
 }

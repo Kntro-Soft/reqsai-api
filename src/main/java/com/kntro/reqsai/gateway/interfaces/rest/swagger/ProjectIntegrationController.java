@@ -1,6 +1,7 @@
 package com.kntro.reqsai.gateway.interfaces.rest.swagger;
 
 import com.kntro.reqsai.gateway.interfaces.rest.dto.request.ImportJiraStoriesRequest;
+import com.kntro.reqsai.gateway.interfaces.rest.dto.request.PushAllStoriesRequest;
 import com.kntro.reqsai.gateway.interfaces.rest.dto.request.SaveProjectTargetRequest;
 import com.kntro.reqsai.gateway.interfaces.rest.dto.response.IntegrationJobResponse;
 import com.kntro.reqsai.gateway.interfaces.rest.dto.response.JiraImportPreviewResponse;
@@ -97,12 +98,13 @@ public interface ProjectIntegrationController {
 
     @Operation(summary = "Push all stories to Jira (async job)",
             description = """
-                    Starts a background job that pushes every project story to the Jira target and returns
-                    202 immediately with the job snapshot. Progress is broadcast on
-                    /topic/projects/{projectId}/integration-jobs and queryable via the jobs endpoints.
-                    Per-story failures are counted without aborting the job. 409 when no target is
-                    configured (INTEGRATION_TARGET_NOT_CONFIGURED) or a push-all job is already running
-                    (INTEGRATION_JOB_ALREADY_RUNNING).""")
+                    Starts a background job that pushes project stories to the Jira target and returns
+                    202 immediately with the job snapshot. Body {storyIds?} restricts the push to the
+                    given stories; omit/empty pushes every eligible story (ids not in the project are
+                    ignored). Progress is broadcast on /topic/projects/{projectId}/integration-jobs and
+                    queryable via the jobs endpoints. Per-story failures are counted without aborting the
+                    job. 409 when no target is configured (INTEGRATION_TARGET_NOT_CONFIGURED) or a
+                    push-all job is already running (INTEGRATION_JOB_ALREADY_RUNNING).""")
     @ApiResponse(responseCode = "202", description = "Job accepted and running",
             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                     schema = @Schema(implementation = IntegrationJobResponse.class)))
@@ -112,6 +114,7 @@ public interface ProjectIntegrationController {
     @PostMapping(value = "/stories/push-all", version = ApiVersioning.V1)
     ResponseEntity<IntegrationJobResponse> pushAllStories(
             @Parameter(description = "Project UUID") @PathVariable UUID projectId,
+            @RequestBody(required = false) PushAllStoriesRequest request,
             Authentication authentication);
 
     @Operation(summary = "Preview a Jira import",

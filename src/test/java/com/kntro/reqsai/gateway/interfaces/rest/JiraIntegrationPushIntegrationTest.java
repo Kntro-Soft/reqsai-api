@@ -116,10 +116,13 @@ class JiraIntegrationPushIntegrationTest extends AbstractIntegrationTest {
         assertThat(push.hasNonNull("error")).isFalse();
 
         // push-all is now an async job: 202 with a RUNNING snapshot, then poll to COMPLETED.
+        // An empty body {} selects all eligible stories (the unrestricted default).
         ResponseEntity<String> pushAllRes = client().post()
                 .uri("/api/projects/{p}/integration/jira/stories/push-all", projectId)
                 .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId, "ROLE_USER"))
                 .header("Api-Version", "1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of())
                 .exchange((req, res) -> ResponseEntity.status(res.getStatusCode()).body(res.bodyTo(String.class)));
         assertThat(pushAllRes.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
         JsonNode accepted = JSON.readTree(pushAllRes.getBody());
@@ -140,6 +143,71 @@ class JiraIntegrationPushIntegrationTest extends AbstractIntegrationTest {
                 "SELECT count(*) FROM public.batch_job_instance WHERE job_name = 'jiraPushAllJob'",
                 Integer.class);
         assertThat(batchInstances).isGreaterThanOrEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("push-all with a storyIds selection pushes only the selected stories")
+    void push_all_with_story_selection() throws Exception {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        String slug = "acme-" + suffix;
+        String schema = "tenant_" + slug;
+        String orgId = createOrg(suffix, slug);
+        UUID projectId = createProject(orgId, schema, "Selective Push");
+
+        ResponseEntity<String> connectRes = connectJira(orgId);
+        assertThat(connectRes.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        String connectionId = JSON.readTree(connectRes.getBody()).get("id").asText();
+
+        // Seed three stories; only two will be selected for the push-all.
+        String story1 = createStoryReturningId(orgId, projectId, "First");
+        createStoryReturningId(orgId, projectId, "Second");
+        String story3 = createStoryReturningId(orgId, projectId, "Third");
+
+        setTarget(orgId, projectId, connectionId);
+
+        // Push-all with a selection of two of the three stories (order preserved by the reader).
+        ResponseEntity<String> pushAllRes = client().post()
+                .uri("/api/projects/{p}/integration/jira/stories/push-all", projectId)
+                .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId, "ROLE_USER"))
+                .header("Api-Version", "1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("storyIds", java.util.List.of(story1, story3)))
+                .exchange((req, res) -> ResponseEntity.status(res.getStatusCode()).body(res.bodyTo(String.class)));
+        assertThat(pushAllRes.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+        JsonNode accepted = JSON.readTree(pushAllRes.getBody());
+        assertThat(accepted.get("jobType").asText()).isEqualTo("PUSH_ALL");
+        // total reflects the filtered selection, not the full backlog of three.
+        assertThat(accepted.get("total").asInt()).isEqualTo(2);
+
+        JsonNode all = awaitJobCompletion(projectId, accepted.get("id").asText(), orgId);
+        assertThat(all.get("status").asText()).isEqualTo("COMPLETED");
+        assertThat(all.get("total").asInt()).isEqualTo(2);
+        assertThat(all.get("processed").asInt()).isEqualTo(2);
+        assertThat(all.get("succeeded").asInt()).isEqualTo(2);
+        assertThat(all.get("failed").asInt()).isZero();
+    }
+
+    private String createStoryReturningId(String orgId, UUID projectId, String title) throws Exception {
+        ResponseEntity<String> res = client().post().uri("/api/projects/{p}/stories", projectId)
+                .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId, "ROLE_USER"))
+                .header("Api-Version", "1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("title", title, "role", "analyst",
+                        "action", "do " + title, "benefit", "save time", "priority", "HIGH"))
+                .exchange((req, r) -> ResponseEntity.status(r.getStatusCode()).body(r.bodyTo(String.class)));
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        return JSON.readTree(res.getBody()).get("id").asText();
+    }
+
+    private void setTarget(String orgId, UUID projectId, String connectionId) {
+        ResponseEntity<String> res = client().put()
+                .uri("/api/projects/{p}/integration/jira/target", projectId)
+                .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId, "ROLE_USER"))
+                .header("Api-Version", "1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("connectionId", connectionId, "jiraProjectKey", "PAY", "issueTypeName", "Story"))
+                .exchange((req, r) -> ResponseEntity.status(r.getStatusCode()).body(r.bodyTo(String.class)));
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
     /** Polls {@code GET .../jobs/{jobId}} until the job leaves RUNNING (max ~60s). */

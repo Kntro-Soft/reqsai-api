@@ -58,12 +58,33 @@ class PushAllStoriesCommandHandlerTest {
         IntegrationSyncJob job = new IntegrationSyncJob(PROJECT, IntegrationSyncJobType.PUSH_ALL, 3, USER);
         when(starter.start(PROJECT, IntegrationSyncJobType.PUSH_ALL, 3, USER)).thenReturn(job);
 
-        IntegrationSyncJob result = handler.handle(new PushAllStoriesCommand(PROJECT, USER));
+        IntegrationSyncJob result = handler.handle(new PushAllStoriesCommand(PROJECT, null, USER));
 
         assertThat(result.getStatus()).isEqualTo(IntegrationSyncJobStatus.RUNNING);
         assertThat(result.getTotal()).isEqualTo(3);
         assertThat(result.getProcessed()).isZero();
-        verify(launcher).launchPushAll(job.getId(), PROJECT);
+        verify(launcher).launchPushAll(job.getId(), PROJECT, null);
+    }
+
+    @Test
+    @DisplayName("with a story-id selection, total counts only selected stories present in the project")
+    void starts_job_with_selection() {
+        StoryView a = story();
+        StoryView b = story();
+        StoryView c = story();
+        UUID missing = UUID.randomUUID();
+        List<UUID> selection = List.of(a.storyId(), c.storyId(), missing);
+
+        when(targets.findByProjectId(PROJECT)).thenReturn(Optional.of(mock(ProjectIntegrationTarget.class)));
+        when(stories.listStories(PROJECT)).thenReturn(List.of(a, b, c));
+        IntegrationSyncJob job = new IntegrationSyncJob(PROJECT, IntegrationSyncJobType.PUSH_ALL, 2, USER);
+        when(starter.start(PROJECT, IntegrationSyncJobType.PUSH_ALL, 2, USER)).thenReturn(job);
+
+        IntegrationSyncJob result = handler.handle(new PushAllStoriesCommand(PROJECT, selection, USER));
+
+        // only a and c exist in the project; the missing id is ignored
+        assertThat(result.getTotal()).isEqualTo(2);
+        verify(launcher).launchPushAll(job.getId(), PROJECT, selection);
     }
 
     @Test
@@ -71,11 +92,11 @@ class PushAllStoriesCommandHandlerTest {
     void no_target_conflicts() {
         when(targets.findByProjectId(PROJECT)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> handler.handle(new PushAllStoriesCommand(PROJECT, USER)))
+        assertThatThrownBy(() -> handler.handle(new PushAllStoriesCommand(PROJECT, null, USER)))
                 .isInstanceOf(DomainException.class)
                 .satisfies(e -> assertThat(((DomainException) e).error().code())
                         .isEqualTo("INTEGRATION_TARGET_NOT_CONFIGURED"));
-        verify(launcher, never()).launchPushAll(any(), any());
+        verify(launcher, never()).launchPushAll(any(), any(), any());
     }
 
     private static StoryView story() {

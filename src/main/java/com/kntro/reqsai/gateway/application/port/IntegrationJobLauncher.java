@@ -17,6 +17,9 @@ public interface IntegrationJobLauncher {
     /** Starts the Jira import run for an already-persisted RUNNING job row. */
     void launchImport(UUID jobId, UUID projectId, @Nullable List<String> issueKeys);
 
-    /** Starts the push-all run for an already-persisted RUNNING job row. */
-    void launchPushAll(UUID jobId, UUID projectId);
+    /**
+     * Starts the push-all run for an already-persisted RUNNING job row. {@code storyIds} optionally
+     * restricts the push to the given stories; {@code null}/empty pushes every eligible story.
+     */
+    void launchPushAll(UUID jobId, UUID projectId, @Nullable List<UUID> storyIds);
 }

@@ -53,23 +53,26 @@ public class IntegrationJobLauncherAdapter implements IntegrationJobLauncher {
 
     @Override
     public void launchImport(UUID jobId, UUID projectId, @Nullable List<String> issueKeys) {
-        launch(jiraImportJob, jobId, projectId, IntegrationJobParameters.joinIssueKeys(issueKeys));
+        launch(jiraImportJob, jobId, projectId,
+                IntegrationJobParameters.ISSUE_KEYS, IntegrationJobParameters.joinIssueKeys(issueKeys));
     }
 
     @Override
-    public void launchPushAll(UUID jobId, UUID projectId) {
-        launch(jiraPushAllJob, jobId, projectId, null);
+    public void launchPushAll(UUID jobId, UUID projectId, @Nullable List<UUID> storyIds) {
+        launch(jiraPushAllJob, jobId, projectId,
+                IntegrationJobParameters.STORY_IDS, IntegrationJobParameters.joinStoryIds(storyIds));
     }
 
-    private void launch(Job batchJob, UUID jobId, UUID projectId, @Nullable String issueKeysCsv) {
+    private void launch(Job batchJob, UUID jobId, UUID projectId,
+                        String selectionKey, @Nullable String selectionCsv) {
         TenantSnapshot tenant = TenantContext.capture();
         JobParametersBuilder params = new JobParametersBuilder()
                 .addString(IntegrationJobParameters.DOMAIN_JOB_ID, jobId.toString(), true)
                 .addString(IntegrationJobParameters.PROJECT_ID, projectId.toString(), false)
                 .addString(IntegrationJobParameters.TENANT_ID, tenant.tenantId(), false)
                 .addString(IntegrationJobParameters.TENANT_SCHEMA, tenant.tenantSchema(), false);
-        if (issueKeysCsv != null) {
-            params.addString(IntegrationJobParameters.ISSUE_KEYS, issueKeysCsv, false);
+        if (selectionCsv != null) {
+            params.addString(selectionKey, selectionCsv, false);
         }
         try {
             jobOperator.start(batchJob, params.toJobParameters());

@@ -78,16 +78,33 @@ class IntegrationJobLauncherAdapterTest {
     }
 
     @Test
-    @DisplayName("launchPushAll omits issue keys and starts the push-all job")
+    @DisplayName("launchPushAll without a selection omits story ids and starts the push-all job")
     void launches_push_all() throws Exception {
         TenantContext.setCurrentTenant("org-1");
         TenantContext.setCurrentSchema("tenant_acme");
 
-        adapter().launchPushAll(JOB_ID, PROJECT);
+        adapter().launchPushAll(JOB_ID, PROJECT, null);
 
         ArgumentCaptor<JobParameters> params = ArgumentCaptor.forClass(JobParameters.class);
         verify(jobOperator).start(eq(jiraPushAllJob), params.capture());
+        assertThat(params.getValue().getParameter(IntegrationJobParameters.STORY_IDS)).isNull();
         assertThat(params.getValue().getParameter(IntegrationJobParameters.ISSUE_KEYS)).isNull();
+    }
+
+    @Test
+    @DisplayName("launchPushAll with a selection passes the story ids as a comma-joined job parameter")
+    void launches_push_all_with_selection() throws Exception {
+        TenantContext.setCurrentTenant("org-1");
+        TenantContext.setCurrentSchema("tenant_acme");
+        UUID s1 = UUID.randomUUID();
+        UUID s2 = UUID.randomUUID();
+
+        adapter().launchPushAll(JOB_ID, PROJECT, List.of(s1, s2));
+
+        ArgumentCaptor<JobParameters> params = ArgumentCaptor.forClass(JobParameters.class);
+        verify(jobOperator).start(eq(jiraPushAllJob), params.capture());
+        assertThat(params.getValue().getString(IntegrationJobParameters.STORY_IDS))
+                .isEqualTo(s1 + "," + s2);
     }
 
     @Test

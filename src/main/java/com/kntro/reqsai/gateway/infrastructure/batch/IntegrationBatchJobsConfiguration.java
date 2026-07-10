@@ -165,18 +165,27 @@ public class IntegrationBatchJobsConfiguration {
                 .build();
     }
 
-    /** Resolves the push work list (every project story) and fixes the projection's {@code total}. */
+    /**
+     * Resolves the push work list and fixes the projection's {@code total}. Pushes every project story
+     * unless a story-id selection was carried on the job, in which case the list is filtered to the
+     * selected ids (original ordering preserved; ids not in the project are ignored). The {@code total}
+     * reflects the filtered count.
+     */
     @Bean
     @StepScope
     public ListItemReader<StoryView> jiraPushAllReader(
             @Value("#{jobParameters['" + IntegrationJobParameters.DOMAIN_JOB_ID + "']}") String domainJobId,
             @Value("#{jobParameters['" + IntegrationJobParameters.PROJECT_ID + "']}") String projectId,
+            @Value("#{jobParameters['" + IntegrationJobParameters.STORY_IDS + "']}") String storyIdsCsv,
             DiscoveryStoryReadPort stories,
             IntegrationSyncJobRepository jobs,
             IntegrationJobProgressNotifier progress) {
-        List<StoryView> all = stories.listStories(UUID.fromString(projectId));
-        planTotal(jobs, progress, domainJobId, all.size());
-        return new ListItemReader<>(all);
+        Set<UUID> requested = IntegrationJobParameters.parseStoryIds(storyIdsCsv);
+        List<StoryView> selected = stories.listStories(UUID.fromString(projectId)).stream()
+                .filter(story -> requested.isEmpty() || requested.contains(story.storyId()))
+                .toList();
+        planTotal(jobs, progress, domainJobId, selected.size());
+        return new ListItemReader<>(selected);
     }
 
     @Bean
