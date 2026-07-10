@@ -80,6 +80,24 @@ public class WorkspaceAuthorization {
     }
 
     /**
+     * Caller holds <em>any</em> of the named {@link Permission}s on the given project. The org is
+     * resolved once and each permission checked against it. Used where one action is reachable
+     * through several grants — e.g. reading the project roles list backs both {@code ROLE_READ}
+     * and the member editor's {@code MEMBER_UPDATE_ROLE}/{@code MEMBER_INVITE} pickers.
+     */
+    public boolean projectAnyPermission(
+            UUID orgId, UUID projectId, Authentication authentication, String... permissions) {
+        return onOrg(orgId, authentication, (org, userId) -> {
+            for (String permission : permissions) {
+                if (projectPermission.hasPermission(org, projectId, userId, Permission.valueOf(permission))) {
+                    return true;
+                }
+            }
+            return false;
+        });
+    }
+
+    /**
      * Caller holds the named {@link Permission} on the given project of the <em>current tenant</em>
      * (the JWT {@code orgId} bound by the authentication filter). For routes that carry no
      * {@code orgId} path variable, e.g. the discovery module's {@code /api/projects/{projectId}/...}.

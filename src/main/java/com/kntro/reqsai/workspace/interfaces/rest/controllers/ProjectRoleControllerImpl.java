@@ -41,7 +41,7 @@ public class ProjectRoleControllerImpl implements ProjectRoleController {
     }
 
     @Override
-    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'ROLE_READ', authentication)")
+    @PreAuthorize("@authz.projectAnyPermission(#orgId, #projectId, authentication, 'ROLE_READ', 'MEMBER_UPDATE_ROLE', 'MEMBER_INVITE')")
     public ResponseEntity<List<ProjectRoleResponse>> listRoles(UUID orgId, UUID projectId, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         return ResponseEntity.ok(listRoles.handle(new ListProjectRolesQuery(orgId, projectId, requestedBy)).stream()

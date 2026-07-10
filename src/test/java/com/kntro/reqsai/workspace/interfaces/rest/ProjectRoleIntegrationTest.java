@@ -122,6 +122,54 @@ class ProjectRoleIntegrationTest extends AbstractIntegrationTest {
         assertThat(forbidden.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
 
+    @Test
+    @DisplayName("member with MEMBER_UPDATE_ROLE (no ROLE_READ) can list roles for the role editor")
+    void member_with_member_update_role_can_list_roles() {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        String slug = "acme-" + suffix;
+        UUID orgId = createOrganizationAndReturnId(suffix, slug);
+        // base=NONE so access rests purely on the assigned role — isolate the MEMBER_UPDATE_ROLE path.
+        jdbcTemplate.update("UPDATE public.organizations SET member_base_permission = 'NONE' WHERE id = ?", orgId);
+        UUID projectId = createProjectAndReturnId(orgId, slug, "Role Editor Project");
+        String schema = "tenant_" + slug;
+
+        createMember(orgId, OWNER_USER_ID, Map.of(
+                "userId", MEMBER_USER_ID,
+                "email", "member@example.com",
+                "displayName", "Regular Member",
+                "role", "MEMBER"));
+        String memberId = jdbcTemplate.queryForObject(
+                "SELECT id::text FROM public.members WHERE organization_id = ?::uuid AND email = ?",
+                String.class, orgId, "member@example.com");
+
+        // A role that grants MEMBER_UPDATE_ROLE but NOT ROLE_READ.
+        ResponseEntity<String> created = client().post().uri("/api/organizations/{orgId}/projects/{projectId}/roles", orgId, projectId)
+                .header("Authorization", TestJwtFactory.bearer(OWNER_USER_ID, orgId.toString(), "ROLE_USER"))
+                .header("Api-Version", "1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("name", "Member Editor", "permissions", List.of("MEMBER_READ", "MEMBER_UPDATE_ROLE")))
+                .exchange((req, res) -> ResponseEntity.status(res.getStatusCode()).body(res.bodyTo(String.class)));
+        assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        String roleId = jdbcTemplate.queryForObject(
+                "SELECT id::text FROM \"" + schema + "\".project_roles WHERE project_id = ?::uuid AND name = ?",
+                String.class, projectId, "Member Editor");
+
+        client().post().uri("/api/organizations/{orgId}/projects/{projectId}/members", orgId, projectId)
+                .header("Authorization", TestJwtFactory.bearer(OWNER_USER_ID, orgId.toString(), "ROLE_USER"))
+                .header("Api-Version", "1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("memberId", memberId, "roleId", roleId))
+                .exchange((req, res) -> ResponseEntity.status(res.getStatusCode()).build());
+
+        // The member — holding MEMBER_UPDATE_ROLE but not ROLE_READ — can now read the roles list.
+        ResponseEntity<String> list = client().get().uri("/api/organizations/{orgId}/projects/{projectId}/roles", orgId, projectId)
+                .header("Authorization", TestJwtFactory.bearer(MEMBER_USER_ID, orgId.toString(), "ROLE_USER"))
+                .header("Api-Version", "1")
+                .exchange((req, res) -> ResponseEntity.status(res.getStatusCode()).body(res.bodyTo(String.class)));
+        assertThat(list.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(list.getBody()).contains("Member Editor");
+    }
+
     private UUID createOrganizationAndReturnId(String suffix, String expectedSlug) {
         ResponseEntity<String> orgRes = client().post().uri("/api/organizations")
                 .header("Authorization", TestJwtFactory.bearer(OWNER_USER_ID, UUID.randomUUID().toString(), "ROLE_USER"))
