@@ -193,8 +193,10 @@ public class JiraClient {
         if (nextPageToken != null && !nextPageToken.isBlank()) {
             uri.append("&nextPageToken=").append(enc(nextPageToken));
         }
+        // The JQL is already URL-encoded via enc(); pass a java.net.URI so RestClient does NOT treat the
+        // string as a template and re-encode it (double-encoding turned %22 into %2522 → Jira 400).
         IssueSearchResponse res = exchange(() -> restClient.get()
-                .uri(uri.toString())
+                .uri(java.net.URI.create(uri.toString()))
                 .header("Authorization", ctx.authHeader())
                 .accept(MediaType.APPLICATION_JSON)
                 .retrieve()
