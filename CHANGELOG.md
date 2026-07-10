@@ -28,6 +28,107 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
   state. The authenticated `orgId` is stashed in the STOMP session attributes on CONNECT so the
   broker-thread listeners can resolve the tenant.
 
+### Added (Integrations / Jira — `feature/integrations-jira`)
+
+- **Jira Cloud integration in the reserved `gateway` bounded context** (ADR-0023) — the feature reuses
+  the `com.kntro.reqsai.gateway` module reserved for external integrations. Extensible
+  provider model (`IntegrationProvider` port + `JiraProvider`) whose credentials live at the
+  **organization** level and whose push target lives at the **project** level.
+  - **Org connection endpoints** (org owner/admin gated): `GET /organizations/{orgId}/integrations`,
+    `POST /organizations/{orgId}/integrations/jira` (`{siteUrl,email,apiToken}` — verifies against Jira
+    then stores the token **encrypted**; `409 INTEGRATION_ALREADY_CONNECTED` when one already exists),
+    `POST /organizations/{orgId}/integrations/{connectionId}/test` (`{ok, accountName?}`),
+    `DELETE /organizations/{orgId}/integrations/{connectionId}` (`204`),
+    `GET /organizations/{orgId}/integrations/{connectionId}/jira/projects`,
+    `GET /organizations/{orgId}/integrations/{connectionId}/jira/issue-types?projectKey=`.
+    The API token is **never** returned by any response.
+  - **Project target + push endpoints** (project `INTEGRATION_*` gated):
+    `GET/PUT/DELETE /projects/{projectId}/integration/jira/target` (single target per project;
+    `404` when none), `POST /projects/{projectId}/integration/jira/stories/{storyId}/push`
+    (`{storyId,jiraIssueKey,jiraIssueUrl}`; `409 INTEGRATION_TARGET_NOT_CONFIGURED` when no target),
+    `POST /projects/{projectId}/integration/jira/stories/push-all` (now an **async job** — see the
+    "async sync jobs" entry below). All endpoints use header `Api-Version: 1`.
+  - **Encryption at rest** — AES-256-GCM `AttributeConverter` (random 12-byte IV prepended to the
+    ciphertext) keyed from `INTEGRATIONS_ENCRYPTION_KEY` (base64 32 bytes); a documented default key is
+    provided for dev/test so the suite runs without a `.env`.
+  - **RBAC** — new project permissions `INTEGRATION_READ`, `INTEGRATION_WRITE`, `INTEGRATION_DELETE`,
+    `INTEGRATION_SYNC` added to the workspace `Permission` catalog. IAM identity/auth is unchanged.
+  - **Cross-module read** — discovery now publishes a `discovery::api` named interface
+    (`DiscoveryStoryReadPort` returning value-only `StoryView`s) so the `gateway` module can read user stories
+    (title/role/action/benefit/priority/story points + Given/When/Then) to render the Jira issue
+    description as ADF. The story is pushed with the `EXPORTED`-style export flow.
+  - Migration `V20260708055818__integration_connections.sql` (tenant schema): `integration_connections`
+    (org-scoped, one active per org+provider) and `project_integration_targets` (project-scoped, one
+    per project). New error codes: `INTEGRATION_CONNECTION_NOT_FOUND`, `INTEGRATION_ALREADY_CONNECTED`,
+    `INTEGRATION_TARGET_NOT_CONFIGURED`, `JIRA_PROJECT_NOT_FOUND`, `JIRA_AUTH_FAILED`,
+    `JIRA_UNREACHABLE`, `JIRA_PUSH_FAILED`, `INTEGRATION_ENCRYPTION_ERROR`.
+  - **Jira OAuth 2.0 (3LO) as a second credential type** (ADR-0023) — added alongside the API-token
+    flow, which is unchanged. A `credentialType` (`API_TOKEN` | `OAUTH2`) selects the auth: OAuth uses
+    bearer auth against `https://api.atlassian.com/ex/jira/{cloudId}/rest/api/3`, API tokens keep basic
+    auth against `https://{site}/rest/api/3`. **`IntegrationConnectionResponse` now carries
+    `credentialType`, and `email` is `null` for `OAUTH2` connections** (frontend contract change). No
+    token or ciphertext is ever returned.
+    - **New org-admin-gated endpoints** (header `Api-Version: 1`):
+      `GET /organizations/{orgId}/integrations/jira/oauth/authorize-url` → `{url, state}` (the `state`
+      is a stateless HMAC-signed token over org+user+expiry+nonce; `501 JIRA_OAUTH_NOT_CONFIGURED` when
+      OAuth is unconfigured), and
+      `POST /organizations/{orgId}/integrations/jira/oauth/callback` `{code, state, cloudId?}` — validates
+      the state, exchanges the code, and either saves an encrypted `OAUTH2` connection (cloudId given or
+      exactly one accessible site) or returns `200 {sites:[…]}` to choose from (multiple sites), enforcing
+      the one-active-connection rule (`409 INTEGRATION_ALREADY_CONNECTED`). Authorization codes are
+      single-use, so the exchanged tokens are cached under the `state` (short TTL) and the site-selection
+      re-POST completes from the cache without re-exchanging the code.
+    - **Token handling** — OAuth refresh + access tokens are encrypted at rest with the same AES-256-GCM
+      `SecretCipher`; before an OAuth call the access token is refreshed if near expiry and the **rotated**
+      refresh token is persisted (`JIRA_AUTH_FAILED` on refresh failure).
+    - **Config** (all optional; the app boots when unset): `reqsai.integrations.jira.oauth.client-id`,
+      `client-secret`, `redirect-uri` (from `JIRA_OAUTH_CLIENT_ID` / `JIRA_OAUTH_CLIENT_SECRET` /
+      `JIRA_OAUTH_CALLBACK_URL`) and a dedicated `state-secret` (`JIRA_OAUTH_STATE_SECRET`; generate with
+      `scripts/generate-oauth-state-secret.sh`).
+    - Migration `V20260708055820__integration_connections_oauth.sql` (tenant, additive): adds `credential_type`
+      (default `API_TOKEN`), `cloud_id`, `oauth_refresh_ciphertext`, `oauth_access_ciphertext`,
+      `oauth_access_expires_at`, and relaxes `email` + `secret_ciphertext` to nullable. New error codes:
+      `JIRA_OAUTH_NOT_CONFIGURED` (501), `JIRA_OAUTH_STATE_INVALID` (400),
+      `JIRA_OAUTH_EXCHANGE_FAILED` (502).
+
+### Added (Integrations / Jira — async sync jobs on Spring Batch, `feature/integrations-jira`)
+
+- **Jira import and push-all now run as background jobs** (ADR-0023). The blocking requests (minutes of
+  LLM transformations / issue creation) are gone:
+  - `POST /projects/{projectId}/integration/jira/import` (`{issueKeys?}`) and
+    `POST /projects/{projectId}/integration/jira/stories/push-all` now answer **`202 Accepted`** with an
+    `IntegrationJobResponse` snapshot `{id, projectId, jobType: IMPORT|PUSH_ALL, status:
+    RUNNING|COMPLETED|FAILED, total, processed, succeeded, failed, message, createdAt, finishedAt}`.
+    `409 INTEGRATION_JOB_ALREADY_RUNNING` when a job of the same type is already RUNNING for the project
+    (at most one, enforced by a partial unique index). The single-story push and the import preview stay
+    synchronous.
+  - **Live progress over STOMP** — every per-item update and the terminal state are broadcast as the full
+    `IntegrationJobResponse` JSON on **`/topic/projects/{projectId}/integration-jobs`** (JWT-authenticated
+    CONNECT, as with the other project topics).
+  - **Reload recovery** — `GET /projects/{projectId}/integration/jira/jobs?active=true` returns the
+    RUNNING jobs (re-attach the progress banner after a reload); without the flag the most recent ~10 of
+    any status. `GET .../jobs/{jobId}` returns one job (`404 INTEGRATION_JOB_NOT_FOUND`). Job reads are
+    gated by `INTEGRATION_READ`; job starts keep `INTEGRATION_SYNC`.
+  - **Durable state** — new tenant migration `V20260709100000__integration_sync_jobs.sql`
+    (`integration_sync_jobs`, the domain-facing projection and source of truth for the UI). Import
+    duplicates count toward `processed` only; the terminal message summarizes them
+    ("N duplicados omitidos"). A fatal error (e.g. Jira unreachable) marks the job `FAILED` with a message.
+  - **Engine: Spring Batch 6** — two chunk-oriented jobs (`jiraImportJob`, `jiraPushAllJob`; chunk size 5,
+    per-item skip policy so one bad item never aborts the run) behind the application-layer
+    `IntegrationJobLauncher` port. Batch metadata (`BATCH_JOB_INSTANCE`, `BATCH_JOB_EXECUTION`, ...) lives
+    in the **global `public` schema** (common migration `V20260709100001__spring_batch_metadata.sql`) with
+    the JobRepository schema-qualified via table prefix `public.BATCH_` — immune to the per-tenant
+    `search_path` routing. The caller's tenant is captured into job parameters and restored around the
+    execution. `spring.batch.job.enabled=false` (jobs run only on API demand).
+
+### Changed (Workspace — `feature/integrations-jira`)
+
+- **Org admins may now view organization general settings** — `GET /organizations/{orgId}` is now gated
+  by `@authz.orgOwnerOrAdmin` instead of `@authz.orgOwner`, so an organization **admin** receives `200`
+  when reading the org (previously `403`). Editing stays owner-only: `PATCH /organizations/{orgId}`,
+  `POST /organizations/{orgId}/transfer-ownership`, and `DELETE /organizations/{orgId}` remain
+  `@authz.orgOwner`. Non-members still receive `403` on the GET.
+
 ### Added (Backlog / Glossary / Constraints listing — `feature/discovery-session-control`)
 
 - **User-story backlog list filters + search** — `GET /projects/{projectId}/stories` now accepts five

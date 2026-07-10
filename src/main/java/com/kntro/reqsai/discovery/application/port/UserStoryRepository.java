@@ -37,6 +37,20 @@ public interface UserStoryRepository {
 
     Page<UserStory> findAllBySessionId(UUID sessionId, Pageable pageable);
 
+    /**
+     * Returns the stories of {@code projectId} whose id is in {@code storyIds}, in an arbitrary order.
+     * Used by the batch delete to resolve the candidate ids to managed aggregates: ids not belonging to
+     * the project simply do not appear in the result (silently skipped).
+     */
+    List<UserStory> findAllByProjectIdAndIdIn(UUID projectId, List<UUID> storyIds);
+
+    /**
+     * Permanently deletes the story (hard delete, mirroring document deletion). Removing the aggregate
+     * cascades to its acceptance criteria via {@code orphanRemoval}. This is a local delete only: it does
+     * not touch any external tracker (e.g. Jira) issue the story was exported to.
+     */
+    void delete(UserStory story);
+
     void deleteAllBySessionId(UUID sessionId);
 
     /**

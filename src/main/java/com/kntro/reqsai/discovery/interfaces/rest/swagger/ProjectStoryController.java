@@ -1,7 +1,9 @@
 package com.kntro.reqsai.discovery.interfaces.rest.swagger;
 
+import com.kntro.reqsai.discovery.interfaces.rest.dto.request.BatchDeleteUserStoriesRequest;
 import com.kntro.reqsai.discovery.interfaces.rest.dto.request.CreateUserStoryRequest;
 import com.kntro.reqsai.discovery.interfaces.rest.dto.request.UpdateUserStoryRequest;
+import com.kntro.reqsai.discovery.interfaces.rest.dto.response.BatchDeleteUserStoriesResponse;
 import com.kntro.reqsai.discovery.interfaces.rest.dto.response.UserStoryResponse;
 import com.kntro.reqsai.shared.interfaces.pagination.PageResponse;
 import com.kntro.reqsai.shared.infrastructure.configuration.ApiVersioning;
@@ -21,6 +23,7 @@ import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -157,4 +160,45 @@ public interface ProjectStoryController {
             @Parameter(description = "Story to update", required = true)
             @PathVariable UUID storyId,
             @Valid @RequestBody UpdateUserStoryRequest request);
+
+    @Operation(
+            summary = "Delete a user story",
+            description = """
+                    Permanently deletes a single user story of the given project, scoped to the \
+                    authenticated tenant. The story's acceptance criteria are removed with it. This is a \
+                    Reqs-AI-local delete only: it does NOT touch any external tracker (e.g. Jira) issue \
+                    the story was previously exported to.""")
+    @ApiResponse(responseCode = "204", description = "Story deleted")
+    @ApiResponseNotFound
+    @ApiStandardErrorResponses
+    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
+    @DeleteMapping(path = "/{storyId}", version = ApiVersioning.V1)
+    ResponseEntity<Void> delete(
+            @Parameter(description = "Project the story belongs to", required = true)
+            @PathVariable UUID projectId,
+            @Parameter(description = "Story to delete", required = true)
+            @PathVariable UUID storyId);
+
+    @Operation(
+            summary = "Delete several user stories in one call",
+            description = """
+                    Permanently deletes the given stories of the project, scoped to the authenticated \
+                    tenant, and returns how many were actually deleted. Ids not found in the project are \
+                    silently skipped (never an error). Each deleted story's acceptance criteria are \
+                    removed with it. Local delete only: it does NOT touch any external tracker (e.g. \
+                    Jira) issue a story was exported to.""")
+    @ApiResponse(
+            responseCode = "200",
+            description = "Stories deleted; body reports the deleted count",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    schema = @Schema(implementation = BatchDeleteUserStoriesResponse.class),
+                    examples = @ExampleObject(value = "{ \"deleted\": 3 }")))
+    @ApiResponseBadRequest
+    @ApiStandardErrorResponses
+    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
+    @PostMapping(path = "/batch-delete", version = ApiVersioning.V1)
+    ResponseEntity<BatchDeleteUserStoriesResponse> batchDelete(
+            @Parameter(description = "Project the stories belong to", required = true)
+            @PathVariable UUID projectId,
+            @Valid @RequestBody BatchDeleteUserStoriesRequest request);
 }

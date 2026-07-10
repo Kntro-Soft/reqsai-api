@@ -26,6 +26,9 @@ public interface UserStoryJpaRepository extends JpaRepository<UserStory, UUID>, 
 
     Optional<UserStory> findByIdAndProjectId(UUID id, UUID projectId);
 
+    /** Stories of the project whose id is in the given collection (ids in other projects are excluded). */
+    List<UserStory> findAllByProjectIdAndIdIn(UUID projectId, List<UUID> ids);
+
     /** Stories persisted without an embedding (provider down/failed at write time), oldest first. */
     List<UserStory> findAllByProjectIdAndEmbeddingIsNull(UUID projectId, Pageable pageable);
 
