@@ -169,7 +169,7 @@ reqsai:
       oauth:
         client-id: ${JIRA_OAUTH_CLIENT_ID:}
         client-secret: ${JIRA_OAUTH_CLIENT_SECRET:}
-        redirect-uri: ${JIRA_OAUTH_CALLBACK_URL:}
+        redirect-uri: ${JIRA_OAUTH_CALLBACK_URL:${FRONTEND_URL:http://localhost:4200}/settings/integrations/jira/callback}
         state-secret: ${JIRA_OAUTH_STATE_SECRET:}
   jwt:
     private-key-path: ${JWT_PRIVATE_KEY_PATH:classpath:certs/private_key.pem}

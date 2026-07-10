@@ -18,10 +18,6 @@
           "value": "https://app.tamci.app"
         },
         {
-          "name": "JIRA_OAUTH_CALLBACK_URL",
-          "value": "https://app.tamci.app/settings/integrations/jira/callback"
-        },
-        {
           "name": "SPRINGDOC_API_DOCS_ENABLED",
           "value": "true"
         },
