@@ -8,6 +8,7 @@ public record ProjectMemberResponse(
         UUID projectId,
         UUID memberId,
         UUID roleId,
+        String roleName,
         UUID assignedBy,
         Instant assignedAt,
         Instant createdAt,

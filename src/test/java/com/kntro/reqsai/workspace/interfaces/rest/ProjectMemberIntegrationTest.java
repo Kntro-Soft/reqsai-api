@@ -79,6 +79,8 @@ class ProjectMemberIntegrationTest extends AbstractIntegrationTest {
                 .exchange((req, res) -> ResponseEntity.status(res.getStatusCode()).body(res.bodyTo(String.class)));
         assertThat(list.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(list.getBody()).contains(assignmentId);
+        // The list embeds the role's display name so viewers see roles without ROLE_READ.
+        assertThat(list.getBody()).contains("\"roleName\":\"Analyst\"");
 
         ResponseEntity<String> getOne = client().get().uri("/api/organizations/{orgId}/projects/{projectId}/members/{assignmentId}",
                         orgId, projectId, UUID.fromString(assignmentId))
@@ -137,6 +139,45 @@ class ProjectMemberIntegrationTest extends AbstractIntegrationTest {
                 .body(Map.of("memberId", memberId, "roleId", roleId))
                 .exchange((req, res) -> ResponseEntity.status(res.getStatusCode()).body(res.bodyTo(String.class)));
         assertThat(forbidden.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("member with only MEMBER_READ can list members and sees role names without ROLE_READ")
+    void member_with_member_read_can_list_members() {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        String slug = "acme-" + suffix;
+        UUID orgId = createOrganizationAndReturnId(suffix, slug);
+        // Pin the base floor to NONE so access rests purely on the assigned role — the exact
+        // scenario a member whose only project role grants MEMBER_READ lands in.
+        jdbcTemplate.update("UPDATE public.organizations SET member_base_permission = 'NONE' WHERE id = ?", orgId);
+        UUID projectId = createProjectAndReturnId(orgId, slug, "Viewer Project");
+
+        createMember(orgId, OWNER_USER_ID, Map.of(
+                "userId", MEMBER_USER_ID,
+                "email", "member@example.com",
+                "displayName", "Regular Member",
+                "role", "MEMBER"));
+        String schema = "tenant_" + slug;
+        String memberId = jdbcTemplate.queryForObject(
+                "SELECT id::text FROM public.members WHERE organization_id = ?::uuid AND email = ?",
+                String.class, orgId, "member@example.com");
+        String roleId = createRoleAndReturnId(orgId, projectId, OWNER_USER_ID, "Viewer", List.of("MEMBER_READ"), schema);
+
+        ResponseEntity<String> assigned = client().post().uri("/api/organizations/{orgId}/projects/{projectId}/members", orgId, projectId)
+                .header("Authorization", TestJwtFactory.bearer(OWNER_USER_ID, orgId.toString(), "ROLE_USER"))
+                .header("Api-Version", "1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("memberId", memberId, "roleId", roleId))
+                .exchange((req, res) -> ResponseEntity.status(res.getStatusCode()).body(res.bodyTo(String.class)));
+        assertThat(assigned.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+
+        // The member themselves — holding only MEMBER_READ via the assigned role — lists members.
+        ResponseEntity<String> list = client().get().uri("/api/organizations/{orgId}/projects/{projectId}/members", orgId, projectId)
+                .header("Authorization", TestJwtFactory.bearer(MEMBER_USER_ID, orgId.toString(), "ROLE_USER"))
+                .header("Api-Version", "1")
+                .exchange((req, res) -> ResponseEntity.status(res.getStatusCode()).body(res.bodyTo(String.class)));
+        assertThat(list.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(list.getBody()).contains("\"roleName\":\"Viewer\"");
     }
 
     private UUID createOrganizationAndReturnId(String suffix, String expectedSlug) {
