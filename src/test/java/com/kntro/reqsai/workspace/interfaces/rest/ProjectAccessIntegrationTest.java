@@ -41,6 +41,9 @@ class ProjectAccessIntegrationTest extends AbstractIntegrationTest {
         String slug = "acme-" + suffix;
         String schema = "tenant_" + slug;
         UUID orgId = createOrganizationAndReturnId(suffix, slug);
+        // This suite verifies assignment-based project access in isolation; pin the org's member base
+        // permission to NONE so members without an assignment have no implicit all-project access.
+        jdbcTemplate.update("UPDATE public.organizations SET member_base_permission = 'NONE' WHERE id = ?", orgId);
 
         createMember(orgId, OWNER_USER_ID, Map.of(
                 "userId", ADMIN_USER_ID, "email", "admin@example.com", "displayName", "Admin", "role", "ADMIN"));
@@ -86,6 +89,9 @@ class ProjectAccessIntegrationTest extends AbstractIntegrationTest {
         String slug = "acme-" + suffix;
         String schema = "tenant_" + slug;
         UUID orgId = createOrganizationAndReturnId(suffix, slug);
+        // This suite verifies assignment-based project access in isolation; pin the org's member base
+        // permission to NONE so members without an assignment have no implicit all-project access.
+        jdbcTemplate.update("UPDATE public.organizations SET member_base_permission = 'NONE' WHERE id = ?", orgId);
 
         // A manager (has MANAGE_MEMBERS via project role), a plain member (no manage permission), and a target.
         createMember(orgId, OWNER_USER_ID, Map.of(

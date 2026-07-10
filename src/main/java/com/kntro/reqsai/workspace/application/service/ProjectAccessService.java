@@ -3,6 +3,7 @@ package com.kntro.reqsai.workspace.application.service;
 import com.kntro.reqsai.workspace.application.port.MemberRepository;
 import com.kntro.reqsai.workspace.application.port.ProjectMemberRepository;
 import com.kntro.reqsai.workspace.domain.exception.WorkspaceExceptions;
+import com.kntro.reqsai.workspace.domain.model.BasePermission;
 import com.kntro.reqsai.workspace.domain.model.Member;
 import com.kntro.reqsai.workspace.domain.model.MemberStatus;
 import com.kntro.reqsai.workspace.domain.model.Organization;
@@ -19,8 +20,11 @@ import java.util.stream.Collectors;
  * Resolves which projects a caller may see/access within an organization.
  * <p>
  * Org {@code OWNER} and {@code ADMIN} implicitly have access to <em>all</em> projects in their
- * organization — no explicit {@link ProjectMember} row is required. A regular {@code MEMBER} can
- * access only the projects where they hold an explicit {@code ProjectMember} assignment.
+ * organization — no explicit {@link ProjectMember} row is required. A regular {@code MEMBER}'s reach
+ * depends on the organization's {@link Organization#getMemberBasePermission() member base permission}:
+ * with a non-{@code NONE} floor ({@code READ}) every active member reaches all projects by default;
+ * with {@code NONE}, access is limited to the projects where they hold an explicit
+ * {@code ProjectMember} assignment.
  */
 @Component
 @RequiredArgsConstructor
@@ -43,6 +47,12 @@ public class ProjectAccessService {
                         organization.getId(), requestedBy, MemberStatus.ACTIVE)
                 .orElseThrow(() -> WorkspaceExceptions.insufficientPermissions(
                         "access projects in organization " + organization.getId(), requestedBy));
+
+        // A non-NONE member base-permission floor (READ) grants every active member access to ALL
+        // projects of the org by default; with NONE, access is limited to explicit assignments.
+        if (organization.getMemberBasePermission() != BasePermission.NONE) {
+            return Optional.empty();
+        }
 
         Set<UUID> projectIds = assignments.findAllByMemberId(member.getId()).stream()
                 .map(ProjectMember::getProjectId)
@@ -71,8 +81,9 @@ public class ProjectAccessService {
         }
         return members.findByOrganizationIdAndUserIdAndStatus(
                         organization.getId(), requestedBy, MemberStatus.ACTIVE)
-                .map(member -> assignments.findAllByMemberId(member.getId()).stream()
-                        .anyMatch(assignment -> assignment.getProjectId().equals(projectId)))
+                .map(member -> organization.getMemberBasePermission() != BasePermission.NONE
+                        || assignments.findAllByMemberId(member.getId()).stream()
+                                .anyMatch(assignment -> assignment.getProjectId().equals(projectId)))
                 .orElse(false);
     }
 }
