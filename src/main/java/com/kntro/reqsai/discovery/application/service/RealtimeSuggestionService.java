@@ -168,9 +168,11 @@ public class RealtimeSuggestionService {
 
         List<Suggestion> created = suggestionCreation.createSuggestions(result, sessionId, session.getProjectId());
 
-        session.advanceSuggestedSequence(maxSequence);
-        session.markSuggestedAt(Instant.now());
-        sessions.save(session);
+        // Persist ONLY the watermark + cadence timestamp with a scoped UPDATE. Do NOT mutate + save the
+        // whole aggregate here: this pass loaded the session seconds ago (before the LLM call), so a full
+        // save would carry a stale last_sequence and clobber the value the concurrent transcript-append
+        // path advanced meanwhile — corrupting the segment sequence and freezing live transcription.
+        sessions.advanceSuggestionWatermark(sessionId, maxSequence, Instant.now());
 
         log.info("Realtime suggestion for session {}: {} suggestions from {} segments (watermark {} -> {}, force={})", sessionId, created.size(), pending.size(), watermark, maxSequence, force);
     }
