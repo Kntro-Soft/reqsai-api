@@ -7,6 +7,8 @@ import com.kntro.reqsai.shared.infrastructure.web.CorsProperties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
@@ -39,6 +41,9 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 public class SecurityConfiguration {
 
     private static final String[] PUBLIC_ENDPOINTS = {
+            // NOTE: this wildcard also matches /api/auth/dev-token (DevTokenController, mints a JWT
+            // for any user/org/role, no login required). A dedicated, profile-aware rule for that one
+            // path is registered before this wildcard in securityFilterChain() — see the comment there.
             "/api/auth/**",
             "/api-docs/**",
             "/swagger-ui/**",
@@ -69,22 +74,34 @@ public class SecurityConfiguration {
     private final TokenVerifier tokenVerifier;
     private final TenantSchemaResolver tenantSchemaResolver;
     private final CorsProperties corsProperties;
+    private final Environment environment;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) {
         CorrelationFilter correlationFilter = new CorrelationFilter();
         JwtAuthenticationFilter jwtAuthenticationFilter =
                 new JwtAuthenticationFilter(tokenVerifier, tenantSchemaResolver);
+        boolean devProfileActive = environment.acceptsProfiles(Profiles.of("dev"));
 
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, PUBLIC_GET_ENDPOINTS).permitAll()
-                        .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
-                        .anyRequest().authenticated())
+                .authorizeHttpRequests(auth -> {
+                    auth.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll();
+                    // Evaluated before the /api/auth/** wildcard below, so this specific rule wins.
+                    // DevTokenController is @Profile("dev") (its bean never registers otherwise), but
+                    // that annotation is invisible to Spring Security's filter chain — this rule is
+                    // the actual enforcement if a profile misconfiguration ever activates it outside dev.
+                    if (devProfileActive) {
+                        auth.requestMatchers("/api/auth/dev-token").permitAll();
+                    } else {
+                        auth.requestMatchers("/api/auth/dev-token").denyAll();
+                    }
+                    auth.requestMatchers(HttpMethod.GET, PUBLIC_GET_ENDPOINTS).permitAll();
+                    auth.requestMatchers(PUBLIC_ENDPOINTS).permitAll();
+                    auth.anyRequest().authenticated();
+                })
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(unauthenticatedEntryPoint()))
                 .addFilterBefore(correlationFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterAfter(jwtAuthenticationFilter, CorrelationFilter.class);
