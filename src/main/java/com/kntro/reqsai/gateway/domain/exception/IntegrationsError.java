@@ -13,6 +13,12 @@ public enum IntegrationsError implements ErrorCatalog {
     INTEGRATION_CONNECTION_NOT_FOUND(HttpStatus.NOT_FOUND),
     INTEGRATION_ALREADY_CONNECTED(HttpStatus.CONFLICT),
     INTEGRATION_TARGET_NOT_CONFIGURED(HttpStatus.CONFLICT),
+
+    /** A background sync job (import / push-all) of the same type is already RUNNING for the project. */
+    INTEGRATION_JOB_ALREADY_RUNNING(HttpStatus.CONFLICT),
+
+    /** No sync job with the requested id exists for the project. */
+    INTEGRATION_JOB_NOT_FOUND(HttpStatus.NOT_FOUND),
     JIRA_PROJECT_NOT_FOUND(HttpStatus.NOT_FOUND),
 
     /** Jira OAuth 2.0 (3LO) is not configured on this deployment (client id/secret/redirect absent). */

@@ -37,6 +37,18 @@ public final class IntegrationsExceptions {
                 "No integration target configured for project " + projectId);
     }
 
+    /** A RUNNING sync job of the same type already exists for the project — 409 for the job-start endpoints. */
+    public static DomainException jobAlreadyRunning(UUID projectId, String jobType) {
+        return new DomainException(IntegrationsError.INTEGRATION_JOB_ALREADY_RUNNING,
+                "A %s job is already running for project %s".formatted(jobType, projectId));
+    }
+
+    /** No sync job with the given id exists for the project — 404 for the job query endpoint. */
+    public static EntityNotFoundException jobNotFound(UUID jobId) {
+        return new EntityNotFoundException(IntegrationsError.INTEGRATION_JOB_NOT_FOUND,
+                "Integration sync job not found: " + jobId);
+    }
+
     public static EntityNotFoundException jiraProjectNotFound(String jiraProjectKey) {
         return new EntityNotFoundException(IntegrationsError.JIRA_PROJECT_NOT_FOUND,
                 "Jira project not found: " + jiraProjectKey);
