@@ -141,10 +141,10 @@ reqsai:
     # recurring Price you create in Stripe MUST match these amounts (keep the web plan catalog in sync).
     plans:
       pro:
-        amount-cents: ${BILLING_PRO_AMOUNT_CENTS:2900}
+        amount-cents: ${BILLING_PRO_AMOUNT_CENTS:4900}
         stripe-price-id: ${BILLING_PRO_STRIPE_PRICE_ID:}
       enterprise:
-        amount-cents: ${BILLING_ENTERPRISE_AMOUNT_CENTS:9900}
+        amount-cents: ${BILLING_ENTERPRISE_AMOUNT_CENTS:14900}
         stripe-price-id: ${BILLING_ENTERPRISE_STRIPE_PRICE_ID:}
     # Stripe credentials + hosted-checkout return URLs (required only when payment-provider=stripe).
     # Return URLs point at the WEB app (Angular, :4200), NOT the API — that is where the
