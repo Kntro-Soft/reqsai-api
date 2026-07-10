@@ -107,8 +107,10 @@ class RealtimeSuggestionServiceTest {
             verify(generation).generate(any(), eq("es-PE"), contextCaptor.capture());
             assertThat(contextCaptor.getValue().projectName()).isEqualTo("PayApp");
             assertThat(contextCaptor.getValue().constraints()).containsExactly("PCI-DSS compliant");
-            verify(sessions).save(session);
-            assertThat(session.getLastSuggestedSequence()).isEqualTo(5);
+            // Watermark persisted via the scoped update (not a full-aggregate save) so it never
+            // clobbers last_sequence advanced by the concurrent transcript-append path.
+            verify(sessions).advanceSuggestionWatermark(eq(sessionId), eq(5), any());
+            verify(sessions, never()).save(any());
         }
 
         @Test
@@ -435,7 +437,7 @@ class RealtimeSuggestionServiceTest {
             service.suggest(session.getId());
 
             verify(generation).generate(any(), any(), any());
-            assertThat(session.getLastSuggestedSequence()).isEqualTo(7);
+            verify(sessions).advanceSuggestionWatermark(eq(session.getId()), eq(7), any());
         }
 
         @Test
@@ -471,7 +473,7 @@ class RealtimeSuggestionServiceTest {
             service.suggest(session.getId());
 
             verify(generation).generate(any(), any(), any());
-            assertThat(session.getLastSuggestedAt()).isNotNull();
+            verify(sessions).advanceSuggestionWatermark(eq(session.getId()), eq(3), any());
         }
 
         @Test
