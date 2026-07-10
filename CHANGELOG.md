@@ -69,6 +69,30 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
   `.env.example` documents every billing/Stripe variable (provider flag, API key, per-plan Price ids,
   webhook secret, return-URL overrides).
 
+### Added (Member base permission — `feature/rbac-base-permission`)
+
+- **GitHub-style member base permission floor** — every organization now has a `memberBasePermission`
+  applied to **all** project members on top of their explicit project role (roles are additive on the
+  floor); owners/admins bypass it entirely. Values: `NONE` (members get only their project role) or
+  `READ` (a read-only baseline). Default `READ`. The `READ` floor grants exactly the workspace
+  `*_READ` permissions members need — `MEMBER_READ`, `ROLE_READ`, `DOCUMENT_READ`, `GLOSSARY_READ`,
+  `CONSTRAINT_READ`, `SESSION_READ`, `STORY_READ` (integration read is excluded; integrations are
+  org-admin configuration). Wired into `ProjectPermissionService.hasPermission`, so it flows through
+  `@authz.projectPermission` and `WorkspaceModuleApi.callerHasProjectPermission` — every gated
+  workspace/discovery endpoint honors the floor.
+- **New endpoints** (header `Api-Version: 1`):
+  - `GET /organizations/{orgId}/base-permission` → `{ "basePermission": "NONE"|"READ" }` (org
+    owner/admin).
+  - `PUT /organizations/{orgId}/base-permission` `{ "basePermission": "NONE"|"READ" }` → `200`
+    `{ "basePermission": … }` (org owner/admin).
+  - `GET /organizations/{orgId}/me/authorization` →
+    `{ "orgRole": "OWNER"|"ADMIN"|"MEMBER", "memberBasePermission": "NONE"|"READ" }` (any org member).
+  - `GET /projects/{projectId}/me/permissions` → `{ "permissions": ["STORY_READ", …] }` — the caller's
+    effective project permissions (the full catalog for owners/admins, else the base floor unioned with
+    their project role). Gated on active tenant membership so any member reads their own set.
+- Migration `V20260710090000__organization_member_base_permission.sql` (public schema): adds
+  `organizations.member_base_permission VARCHAR(16) NOT NULL DEFAULT 'READ'`.
+
 ### Added (Live session presence — `feature/discovery-presence`)
 
 - **Real-time presence for live discovery sessions** — the users currently viewing a live session are
