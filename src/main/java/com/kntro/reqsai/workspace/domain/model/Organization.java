@@ -53,6 +53,14 @@ public class Organization extends AggregateRoot {
     @Column(name = "status", nullable = false, length = 16)
     private OrgStatus status;
 
+    /**
+     * GitHub-style RBAC floor applied to every project member on top of their explicit project role.
+     * Defaults to {@link BasePermission#READ}; owners/admins bypass it.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "member_base_permission", nullable = false, length = 16)
+    private BasePermission memberBasePermission;
+
     @Embedded
     private GenerationSettings settings;
 
@@ -77,6 +85,7 @@ public class Organization extends AggregateRoot {
         this.slug = Assert.notNull(slug, "slug");
         this.ownerId = Assert.notNull(ownerId, "ownerId");
         this.status = OrgStatus.PENDING;
+        this.memberBasePermission = BasePermission.READ;
         this.settings = Assert.notNull(settings, "settings");
         this.planLimits = Assert.notNull(planLimits, "planLimits");
     }
@@ -92,6 +101,11 @@ public class Organization extends AggregateRoot {
 
     public void updateSettings(GenerationSettings settings) {
         this.settings = Assert.notNull(settings, "settings");
+    }
+
+    /** Changes the organization-wide RBAC floor applied to every project member. */
+    public void changeMemberBasePermission(BasePermission memberBasePermission) {
+        this.memberBasePermission = Assert.notNull(memberBasePermission, "memberBasePermission");
     }
 
     /**
