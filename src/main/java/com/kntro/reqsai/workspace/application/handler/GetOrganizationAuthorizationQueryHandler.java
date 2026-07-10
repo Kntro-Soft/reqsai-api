@@ -1,0 +1,32 @@
+package com.kntro.reqsai.workspace.application.handler;
+
+import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
+import com.kntro.reqsai.workspace.application.query.GetOrganizationAuthorizationQuery;
+import com.kntro.reqsai.workspace.application.result.OrganizationAuthorization;
+import com.kntro.reqsai.workspace.application.service.OrganizationAdminAccessService;
+import com.kntro.reqsai.workspace.domain.exception.WorkspaceExceptions;
+import com.kntro.reqsai.workspace.domain.model.OrgRole;
+import com.kntro.reqsai.workspace.domain.model.Organization;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+
+@Component
+@RequiredArgsConstructor
+public class GetOrganizationAuthorizationQueryHandler {
+
+    private final OrganizationRepository organizations;
+    private final OrganizationAdminAccessService orgAccess;
+
+    @Transactional(readOnly = true)
+    public OrganizationAuthorization handle(GetOrganizationAuthorizationQuery query) {
+        Organization organization = organizations.findById(query.organizationId())
+                .orElseThrow(() -> WorkspaceExceptions.organizationNotFound(query.organizationId()));
+
+        OrgRole role = orgAccess.effectiveRole(organization, query.requestedBy())
+                .orElseThrow(() -> WorkspaceExceptions.insufficientPermissions(
+                        "read organization authorization", query.requestedBy()));
+
+        return new OrganizationAuthorization(role, organization.getMemberBasePermission());
+    }
+}

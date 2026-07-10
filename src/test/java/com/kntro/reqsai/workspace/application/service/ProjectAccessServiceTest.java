@@ -3,6 +3,7 @@ package com.kntro.reqsai.workspace.application.service;
 import com.kntro.reqsai.shared.domain.exception.DomainException;
 import com.kntro.reqsai.workspace.application.port.MemberRepository;
 import com.kntro.reqsai.workspace.application.port.ProjectMemberRepository;
+import com.kntro.reqsai.workspace.domain.model.BasePermission;
 import com.kntro.reqsai.workspace.domain.model.Member;
 import com.kntro.reqsai.workspace.domain.model.MemberStatus;
 import com.kntro.reqsai.workspace.domain.model.OrgRole;
@@ -76,6 +77,8 @@ class ProjectAccessServiceTest {
     @DisplayName("member sees only assigned projects")
     void member_sees_assigned_only() {
         Organization org = OrganizationMother.active().build();
+        // Pin the base floor to NONE so access is driven purely by explicit assignments.
+        org.changeMemberBasePermission(BasePermission.NONE);
         UUID memberUser = UUID.randomUUID();
         Member m = member(org.getId(), memberUser, OrgRole.MEMBER);
         UUID assignedProject = UUID.randomUUID();
@@ -96,6 +99,8 @@ class ProjectAccessServiceTest {
     @DisplayName("member is denied an unassigned project")
     void member_denied_unassigned() {
         Organization org = OrganizationMother.active().build();
+        // Pin the base floor to NONE so access is driven purely by explicit assignments.
+        org.changeMemberBasePermission(BasePermission.NONE);
         UUID memberUser = UUID.randomUUID();
         Member m = member(org.getId(), memberUser, OrgRole.MEMBER);
         UUID assignedProject = UUID.randomUUID();

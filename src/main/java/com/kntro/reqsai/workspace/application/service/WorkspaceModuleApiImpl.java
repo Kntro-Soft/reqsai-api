@@ -33,6 +33,7 @@ class WorkspaceModuleApiImpl implements WorkspaceModuleApi {
     private final WorkspaceSearchRepository searchRepository;
     private final OrganizationRepository organizations;
     private final ProjectPermissionService projectPermissions;
+    private final OrganizationAdminAccessService orgAccess;
     private final MemberRepository members;
 
     @Override
@@ -87,6 +88,18 @@ class WorkspaceModuleApiImpl implements WorkspaceModuleApi {
         }
         return organizations.findById(orgId)
                 .map(org -> projectPermissions.hasPermission(org, projectId, userId, required))
+                .orElse(false);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean callerIsActiveMember(UUID userId) {
+        UUID orgId = currentTenantOrgId();
+        if (orgId == null) {
+            return false;
+        }
+        return organizations.findById(orgId)
+                .map(org -> orgAccess.isMember(org, userId))
                 .orElse(false);
     }
 

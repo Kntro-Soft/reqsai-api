@@ -60,12 +60,41 @@ public class WorkspaceAuthorization {
                 (org, userId) -> projectAccess.canAccessProject(org, projectId, userId));
     }
 
+    /**
+     * Caller is an active member (or owner/admin) of the <em>current tenant</em> (the JWT {@code orgId}
+     * bound by the authentication filter). For member-scoped routes that carry no {@code orgId} path
+     * variable, e.g. {@code /api/projects/{projectId}/me/permissions} where any member may read their
+     * own effective permissions. Denies when no tenant is bound to the request.
+     */
+    public boolean tenantMember(Authentication authentication) {
+        UUID userId = callerId(authentication);
+        return userId != null && moduleApi.callerIsActiveMember(userId);
+    }
+
     /** Caller holds the named {@link Permission} on the given project. */
     public boolean projectPermission(
             UUID orgId, UUID projectId, String permission, Authentication authentication) {
         Permission required = Permission.valueOf(permission);
         return onOrg(orgId, authentication,
                 (org, userId) -> projectPermission.hasPermission(org, projectId, userId, required));
+    }
+
+    /**
+     * Caller holds <em>any</em> of the named {@link Permission}s on the given project. The org is
+     * resolved once and each permission checked against it. Used where one action is reachable
+     * through several grants — e.g. reading the project roles list backs both {@code ROLE_READ}
+     * and the member editor's {@code MEMBER_UPDATE_ROLE}/{@code MEMBER_INVITE} pickers.
+     */
+    public boolean projectAnyPermission(
+            UUID orgId, UUID projectId, Authentication authentication, String... permissions) {
+        return onOrg(orgId, authentication, (org, userId) -> {
+            for (String permission : permissions) {
+                if (projectPermission.hasPermission(org, projectId, userId, Permission.valueOf(permission))) {
+                    return true;
+                }
+            }
+            return false;
+        });
     }
 
     /**

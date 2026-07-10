@@ -60,6 +60,14 @@ class OrganizationTest {
             assertThat(org.getSettings().audioRetentionDays()).isEqualTo(7);
             assertThat(org.getPlanLimits().maxProjects()).isEqualTo(25);
         }
+
+        @Test
+        @DisplayName("should default the member base permission to READ")
+        void should_default_member_base_permission_to_read() {
+            Organization org = OrganizationMother.pending().build();
+
+            assertThat(org.getMemberBasePermission()).isEqualTo(BasePermission.READ);
+        }
     }
 
     @Nested
@@ -113,6 +121,28 @@ class OrganizationTest {
 
             // Assert
             assertThat(org.getName()).isEqualTo("Acme International");
+        }
+
+        @Test
+        @DisplayName("should change the member base permission floor")
+        void should_change_member_base_permission() {
+            // Arrange
+            Organization org = OrganizationMother.pending().build();
+
+            // Act
+            org.changeMemberBasePermission(BasePermission.NONE);
+
+            // Assert
+            assertThat(org.getMemberBasePermission()).isEqualTo(BasePermission.NONE);
+        }
+
+        @Test
+        @DisplayName("should reject a null member base permission")
+        void should_reject_null_member_base_permission() {
+            Organization org = OrganizationMother.pending().build();
+
+            assertThatThrownBy(() -> org.changeMemberBasePermission(null))
+                    .isInstanceOf(DomainException.class);
         }
 
         @Test

@@ -22,128 +22,165 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
 @Tag("integration")
-@DisplayName("Integration: Project Access (implicit owner/admin + project RBAC)")
-class ProjectAccessIntegrationTest extends AbstractIntegrationTest {
+@DisplayName("Integration: Member base permission floor + effective permission endpoints")
+class BasePermissionIntegrationTest extends AbstractIntegrationTest {
 
     private static final String OWNER_USER_ID = "00000000-0000-0000-0000-000000000001";
     private static final String ADMIN_USER_ID = "00000000-0000-0000-0000-000000000002";
     private static final String MEMBER_USER_ID = "00000000-0000-0000-0000-000000000003";
-    private static final String MANAGER_USER_ID = "00000000-0000-0000-0000-000000000005";
-    private static final String TARGET_USER_ID = "00000000-0000-0000-0000-000000000006";
+    private static final String ROLE_MEMBER_USER_ID = "00000000-0000-0000-0000-000000000004";
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @Test
-    @DisplayName("owner and admin access all projects; member sees only assigned; member denied on unassigned")
-    void implicit_access_for_owner_admin_and_scoped_member() {
+    @DisplayName("PUT base-permission: owner can set it, a plain member is forbidden")
+    void put_base_permission_owner_ok_member_forbidden() {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        String slug = "acme-" + suffix;
+        UUID orgId = createOrganizationAndReturnId(suffix, slug);
+
+        createMember(orgId, OWNER_USER_ID, Map.of(
+                "userId", MEMBER_USER_ID, "email", "member@example.com", "displayName", "Member", "role", "MEMBER"));
+
+        // Owner sets the floor to NONE
+        ResponseEntity<String> byOwner = putBasePermission(orgId, OWNER_USER_ID, "NONE");
+        assertThat(byOwner.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(byOwner.getBody()).contains("\"basePermission\":\"NONE\"");
+
+        // GET reflects it
+        ResponseEntity<String> get = getBasePermission(orgId, OWNER_USER_ID);
+        assertThat(get.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(get.getBody()).contains("\"basePermission\":\"NONE\"");
+
+        // A plain member cannot change or read it
+        assertThat(putBasePermission(orgId, MEMBER_USER_ID, "READ").getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(getBasePermission(orgId, MEMBER_USER_ID).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("role-less member reads a CONSTRAINT_READ endpoint when base=READ, is denied when base=NONE")
+    void base_floor_gates_a_read_endpoint_for_a_role_less_member() {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        String slug = "acme-" + suffix;
+        UUID orgId = createOrganizationAndReturnId(suffix, slug);
+
+        // A member with NO project assignment at all.
+        createMember(orgId, OWNER_USER_ID, Map.of(
+                "userId", MEMBER_USER_ID, "email", "member@example.com", "displayName", "Member", "role", "MEMBER"));
+
+        UUID projectId = createProjectAndReturnId(orgId, slug, "Floor Project");
+
+        // base=READ (the default) → the role-less member can read constraints.
+        assertThat(putBasePermission(orgId, OWNER_USER_ID, "READ").getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(listConstraints(orgId, projectId, MEMBER_USER_ID).getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        // base=NONE → the same member is now forbidden.
+        assertThat(putBasePermission(orgId, OWNER_USER_ID, "NONE").getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(listConstraints(orgId, projectId, MEMBER_USER_ID).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("me/permissions: owner gets the full catalog; role-less member gets the floor; role member gets floor + role")
+    void me_permissions_reflects_owner_floor_and_role() {
         String suffix = UUID.randomUUID().toString().substring(0, 8);
         String slug = "acme-" + suffix;
         String schema = "tenant_" + slug;
         UUID orgId = createOrganizationAndReturnId(suffix, slug);
-        // This suite verifies assignment-based project access in isolation; pin the org's member base
-        // permission to NONE so members without an assignment have no implicit all-project access.
-        jdbcTemplate.update("UPDATE public.organizations SET member_base_permission = 'NONE' WHERE id = ?", orgId);
+
+        createMember(orgId, OWNER_USER_ID, Map.of(
+                "userId", MEMBER_USER_ID, "email", "member@example.com", "displayName", "Member", "role", "MEMBER"));
+        createMember(orgId, OWNER_USER_ID, Map.of(
+                "userId", ROLE_MEMBER_USER_ID, "email", "writer@example.com", "displayName", "Writer", "role", "MEMBER"));
+        UUID writerMemberId = memberId(orgId, "writer@example.com");
+
+        UUID projectId = createProjectAndReturnId(orgId, slug, "Perms Project");
+
+        // base=READ so the role-less member has the read floor.
+        assertThat(putBasePermission(orgId, OWNER_USER_ID, "READ").getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        // A custom role carrying a WRITE the floor does not grant, assigned to the writer member.
+        String roleId = createRoleAndReturnId(orgId, projectId, OWNER_USER_ID, "Writer",
+                List.of("CONSTRAINT_READ", "CONSTRAINT_WRITE"), schema);
+        assignMember(orgId, projectId, OWNER_USER_ID, writerMemberId.toString(), roleId);
+
+        // Owner → full catalog (includes writes and manage permissions).
+        ResponseEntity<String> owner = myPermissions(projectId, OWNER_USER_ID, orgId);
+        assertThat(owner.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(owner.getBody()).contains("STORY_READ", "STORY_WRITE", "PROJECT_DELETE", "ROLE_CREATE");
+
+        // Role-less member → only the READ floor (7 *_READ perms, no writes).
+        ResponseEntity<String> member = myPermissions(projectId, MEMBER_USER_ID, orgId);
+        assertThat(member.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(member.getBody()).contains("STORY_READ", "DOCUMENT_READ", "CONSTRAINT_READ");
+        assertThat(member.getBody()).doesNotContain("STORY_WRITE", "CONSTRAINT_WRITE", "PROJECT_DELETE");
+
+        // Writer member → the READ floor plus the role's CONSTRAINT_WRITE, but no unrelated writes.
+        ResponseEntity<String> writer = myPermissions(projectId, ROLE_MEMBER_USER_ID, orgId);
+        assertThat(writer.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(writer.getBody()).contains("CONSTRAINT_WRITE", "STORY_READ");
+        assertThat(writer.getBody()).doesNotContain("STORY_WRITE", "PROJECT_DELETE");
+    }
+
+    @Test
+    @DisplayName("me/authorization returns the caller's org role and the base-permission floor")
+    void me_authorization_returns_role_and_floor() {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        String slug = "acme-" + suffix;
+        UUID orgId = createOrganizationAndReturnId(suffix, slug);
 
         createMember(orgId, OWNER_USER_ID, Map.of(
                 "userId", ADMIN_USER_ID, "email", "admin@example.com", "displayName", "Admin", "role", "ADMIN"));
         createMember(orgId, OWNER_USER_ID, Map.of(
                 "userId", MEMBER_USER_ID, "email", "member@example.com", "displayName", "Member", "role", "MEMBER"));
-        UUID memberId = memberId(orgId, "member@example.com");
 
-        UUID assigned = createProjectAndReturnId(orgId, slug, "Assigned Project");
-        UUID unassigned = createProjectAndReturnId(orgId, slug, "Unassigned Project");
+        assertThat(putBasePermission(orgId, OWNER_USER_ID, "NONE").getStatusCode()).isEqualTo(HttpStatus.OK);
 
-        String roleId = createRoleAndReturnId(orgId, assigned, OWNER_USER_ID, "Reader", List.of("MEMBER_READ"), schema);
-        assignMember(orgId, assigned, OWNER_USER_ID, memberId.toString(), roleId);
+        ResponseEntity<String> owner = myAuthorization(orgId, OWNER_USER_ID);
+        assertThat(owner.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(owner.getBody()).contains("\"orgRole\":\"OWNER\"", "\"memberBasePermission\":\"NONE\"");
 
-        // Owner sees both projects
-        ResponseEntity<String> ownerList = listProjects(orgId, OWNER_USER_ID);
-        assertThat(ownerList.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(ownerList.getBody()).contains("Assigned Project", "Unassigned Project");
+        ResponseEntity<String> admin = myAuthorization(orgId, ADMIN_USER_ID);
+        assertThat(admin.getBody()).contains("\"orgRole\":\"ADMIN\"");
 
-        // Admin sees both projects (implicit access, no explicit assignment)
-        ResponseEntity<String> adminList = listProjects(orgId, ADMIN_USER_ID);
-        assertThat(adminList.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(adminList.getBody()).contains("Assigned Project", "Unassigned Project");
-
-        // Member sees only the assigned project
-        ResponseEntity<String> memberList = listProjects(orgId, MEMBER_USER_ID);
-        assertThat(memberList.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(memberList.getBody()).contains("Assigned Project");
-        assertThat(memberList.getBody()).doesNotContain("Unassigned Project");
-
-        // Owner/admin can GET any project
-        assertThat(getProject(orgId, unassigned, OWNER_USER_ID).getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(getProject(orgId, unassigned, ADMIN_USER_ID).getStatusCode()).isEqualTo(HttpStatus.OK);
-
-        // Member can GET assigned project but is denied on the unassigned one
-        assertThat(getProject(orgId, assigned, MEMBER_USER_ID).getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(getProject(orgId, unassigned, MEMBER_USER_ID).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        ResponseEntity<String> member = myAuthorization(orgId, MEMBER_USER_ID);
+        assertThat(member.getBody()).contains("\"orgRole\":\"MEMBER\"", "\"memberBasePermission\":\"NONE\"");
     }
 
-    @Test
-    @DisplayName("project member with MEMBER_INVITE permission can manage members; without it (ROLE_CREATE) is denied")
-    void project_permission_enforced_on_member_management() {
-        String suffix = UUID.randomUUID().toString().substring(0, 8);
-        String slug = "acme-" + suffix;
-        String schema = "tenant_" + slug;
-        UUID orgId = createOrganizationAndReturnId(suffix, slug);
-        // This suite verifies assignment-based project access in isolation; pin the org's member base
-        // permission to NONE so members without an assignment have no implicit all-project access.
-        jdbcTemplate.update("UPDATE public.organizations SET member_base_permission = 'NONE' WHERE id = ?", orgId);
+    // --- request helpers --------------------------------------------------------------------------
 
-        // A manager (has MANAGE_MEMBERS via project role), a plain member (no manage permission), and a target.
-        createMember(orgId, OWNER_USER_ID, Map.of(
-                "userId", MANAGER_USER_ID, "email", "manager@example.com", "displayName", "Manager", "role", "MEMBER"));
-        createMember(orgId, OWNER_USER_ID, Map.of(
-                "userId", MEMBER_USER_ID, "email", "member@example.com", "displayName", "Member", "role", "MEMBER"));
-        createMember(orgId, OWNER_USER_ID, Map.of(
-                "userId", TARGET_USER_ID, "email", "target@example.com", "displayName", "Target", "role", "MEMBER"));
-
-        UUID managerId = memberId(orgId, "manager@example.com");
-        UUID plainMemberId = memberId(orgId, "member@example.com");
-        UUID targetId = memberId(orgId, "target@example.com");
-
-        UUID projectId = createProjectAndReturnId(orgId, slug, "RBAC Project");
-
-        String managerRoleId = createRoleAndReturnId(orgId, projectId, OWNER_USER_ID, "Lead",
-                List.of("MEMBER_READ", "MEMBER_INVITE"), schema);
-        String readerRoleId = createRoleAndReturnId(orgId, projectId, OWNER_USER_ID, "Reader",
-                List.of("MEMBER_READ"), schema);
-
-        // Assign the manager (with MANAGE_MEMBERS) and the plain member (read only) to the project.
-        assignMember(orgId, projectId, OWNER_USER_ID, managerId.toString(), managerRoleId);
-        assignMember(orgId, projectId, OWNER_USER_ID, plainMemberId.toString(), readerRoleId);
-
-        // Manager (project MANAGE_MEMBERS) can assign the target member.
-        ResponseEntity<String> byManager = client().post().uri("/api/organizations/{orgId}/projects/{projectId}/members", orgId, projectId)
-                .header("Authorization", TestJwtFactory.bearer(MANAGER_USER_ID, orgId.toString(), "ROLE_USER"))
+    private ResponseEntity<String> putBasePermission(UUID orgId, String userId, String value) {
+        return client().put().uri("/api/organizations/{orgId}/base-permission", orgId)
+                .header("Authorization", TestJwtFactory.bearer(userId, orgId.toString(), "ROLE_USER"))
                 .header("Api-Version", "1")
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(Map.of("memberId", targetId.toString(), "roleId", readerRoleId))
+                .body(Map.of("basePermission", value))
                 .exchange((req, res) -> ResponseEntity.status(res.getStatusCode()).body(res.bodyTo(String.class)));
-        assertThat(byManager.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-
-        // Plain member (only READ_PROJECT) cannot create a project role.
-        ResponseEntity<String> roleByPlainMember = client().post().uri("/api/organizations/{orgId}/projects/{projectId}/roles", orgId, projectId)
-                .header("Authorization", TestJwtFactory.bearer(MEMBER_USER_ID, orgId.toString(), "ROLE_USER"))
-                .header("Api-Version", "1")
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(Map.of("name", "Sneaky", "permissions", List.of("MEMBER_READ")))
-                .exchange((req, res) -> ResponseEntity.status(res.getStatusCode()).body(res.bodyTo(String.class)));
-        assertThat(roleByPlainMember.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
 
-    private ResponseEntity<String> listProjects(UUID orgId, String userId) {
-        return client().get().uri("/api/organizations/{orgId}/projects", orgId)
+    private ResponseEntity<String> getBasePermission(UUID orgId, String userId) {
+        return client().get().uri("/api/organizations/{orgId}/base-permission", orgId)
                 .header("Authorization", TestJwtFactory.bearer(userId, orgId.toString(), "ROLE_USER"))
                 .header("Api-Version", "1")
                 .exchange((req, res) -> ResponseEntity.status(res.getStatusCode()).body(res.bodyTo(String.class)));
     }
 
-    private ResponseEntity<String> getProject(UUID orgId, UUID projectId, String userId) {
-        return client().get().uri("/api/organizations/{orgId}/projects/{projectId}", orgId, projectId)
+    private ResponseEntity<String> myAuthorization(UUID orgId, String userId) {
+        return client().get().uri("/api/organizations/{orgId}/me/authorization", orgId)
+                .header("Authorization", TestJwtFactory.bearer(userId, orgId.toString(), "ROLE_USER"))
+                .header("Api-Version", "1")
+                .exchange((req, res) -> ResponseEntity.status(res.getStatusCode()).body(res.bodyTo(String.class)));
+    }
+
+    private ResponseEntity<String> myPermissions(UUID projectId, String userId, UUID orgId) {
+        return client().get().uri("/api/projects/{projectId}/me/permissions", projectId)
+                .header("Authorization", TestJwtFactory.bearer(userId, orgId.toString(), "ROLE_USER"))
+                .header("Api-Version", "1")
+                .exchange((req, res) -> ResponseEntity.status(res.getStatusCode()).body(res.bodyTo(String.class)));
+    }
+
+    private ResponseEntity<String> listConstraints(UUID orgId, UUID projectId, String userId) {
+        return client().get().uri("/api/organizations/{orgId}/projects/{projectId}/constraints", orgId, projectId)
                 .header("Authorization", TestJwtFactory.bearer(userId, orgId.toString(), "ROLE_USER"))
                 .header("Api-Version", "1")
                 .exchange((req, res) -> ResponseEntity.status(res.getStatusCode()).body(res.bodyTo(String.class)));

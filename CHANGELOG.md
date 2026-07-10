@@ -69,6 +69,41 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
   `.env.example` documents every billing/Stripe variable (provider flag, API key, per-plan Price ids,
   webhook secret, return-URL overrides).
 
+### Added (Member base permission — `feature/rbac-base-permission`)
+
+- **GitHub-style member base permission floor** — every organization now has a `memberBasePermission`
+  applied to **all** project members on top of their explicit project role (roles are additive on the
+  floor); owners/admins bypass it entirely. Values: `NONE` (members get only their project role) or
+  `READ` (a read-only baseline). Default `READ`. The `READ` floor grants exactly the workspace
+  `*_READ` permissions members need — `MEMBER_READ`, `ROLE_READ`, `DOCUMENT_READ`, `GLOSSARY_READ`,
+  `CONSTRAINT_READ`, `SESSION_READ`, `STORY_READ` (integration read is excluded; integrations are
+  org-admin configuration). Wired into `ProjectPermissionService.hasPermission`, so it flows through
+  `@authz.projectPermission` and `WorkspaceModuleApi.callerHasProjectPermission` — every gated
+  workspace/discovery endpoint honors the floor.
+- **New endpoints** (header `Api-Version: 1`):
+  - `GET /organizations/{orgId}/base-permission` → `{ "basePermission": "NONE"|"READ" }` (org
+    owner/admin).
+  - `PUT /organizations/{orgId}/base-permission` `{ "basePermission": "NONE"|"READ" }` → `200`
+    `{ "basePermission": … }` (org owner/admin).
+  - `GET /organizations/{orgId}/me/authorization` →
+    `{ "orgRole": "OWNER"|"ADMIN"|"MEMBER", "memberBasePermission": "NONE"|"READ" }` (any org member).
+  - `GET /projects/{projectId}/me/permissions` → `{ "permissions": ["STORY_READ", …] }` — the caller's
+    effective project permissions (the full catalog for owners/admins, else the base floor unioned with
+    their project role). Gated on active tenant membership so any member reads their own set.
+- Migration `V20260710090000__organization_member_base_permission.sql` (public schema): adds
+  `organizations.member_base_permission VARCHAR(16) NOT NULL DEFAULT 'READ'`.
+- **Project access honors the base floor** — `canAccessProject`/`accessibleProjectIds` now grant every
+  active member access to all projects when the floor is non-`NONE`, falling back to explicit assignments
+  only under `NONE`. Previously they always required an explicit assignment, so a `READ`-floor member
+  could load a project's stories yet be 403'd on the project itself.
+- **Members list embeds the role name** — `GET .../projects/{projectId}/members` now returns each
+  assignment's `roleName`, so a caller with only `MEMBER_READ` sees each member's role without also
+  needing `ROLE_READ` to resolve it.
+- **Roles list readable by member-managers** — listing project roles now accepts `ROLE_READ` **or**
+  `MEMBER_UPDATE_ROLE`/`MEMBER_INVITE` (new `@authz.projectAnyPermission`, which resolves the org once
+  and holds when any listed permission is granted), so the member-role editor's options load without a
+  separate `ROLE_READ` grant.
+
 ### Added (Live session presence — `feature/discovery-presence`)
 
 - **Real-time presence for live discovery sessions** — the users currently viewing a live session are

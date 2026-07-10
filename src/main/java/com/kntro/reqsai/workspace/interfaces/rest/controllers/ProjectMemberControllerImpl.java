@@ -59,7 +59,7 @@ public class ProjectMemberControllerImpl implements ProjectMemberController {
     public ResponseEntity<List<ProjectMemberResponse>> listAssignments(UUID orgId, UUID projectId, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
         return ResponseEntity.ok(listAssignments.handle(new ListProjectMembersQuery(orgId, projectId, requestedBy)).stream()
-                .map(ProjectMemberResponseMapper::toResponse).toList());
+                .map(a -> ProjectMemberResponseMapper.toResponse(a.assignment(), a.roleName())).toList());
     }
 
     @Override
