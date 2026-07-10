@@ -49,6 +49,7 @@ public enum Permission {
     // User stories (backlog)
     STORY_READ,
     STORY_WRITE,
+    STORY_DELETE,
 
     // Third-party integrations (e.g. Jira). Org-level connection administration is gated by the
     // org owner/admin check; these project-scoped permissions gate the per-project target + push.
