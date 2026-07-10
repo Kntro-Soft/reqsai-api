@@ -11,6 +11,30 @@ follows [Semantic Versioning](https://semver.org/).
 
 _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in progress._
 
+### Changed (Transactional email templates — `feature/improve-email-html-templates`)
+
+- **Redesigned every transactional email** (verification, password reset, org invitation, project
+  invitation, project assignment) from bare unstyled `<p>`/`<a>` tags into a proper, brand-consistent
+  HTML layout: table-based structure (renders correctly in Outlook's Word engine, unlike
+  flexbox/grid), all styling inlined per-element (webmail clients like Gmail strip `<style>`
+  blocks/stylesheets), a fixed 600px card width, a hidden preheader driving the inbox preview
+  snippet, and an accessible CTA button (descriptive label, not "click here"; ~48px tall; a raw-link
+  fallback underneath for when the button doesn't render).
+- **Plain-text fallback** — every email is now sent as a real `multipart/alternative` message (HTML +
+  plain text generated from the same structured content), so clients that can't or won't render HTML
+  still get a readable message, per standard transactional-email delivery practice.
+- **HTML-escaping of user-controlled values** — display names, organization names, and role/project
+  names are now HTML-escaped before insertion (`EmailTemplateRenderer`/`HtmlUtils.htmlEscape`). The
+  previous string-concatenation approach interpolated these raw, which meant a display name like
+  `<script>...</script>` would have been injected verbatim into the rendered email.
+- New `com.kntro.reqsai.iam.infrastructure.email.template` package: `EmailContent` (a single
+  structured source of truth — preheader, heading, paragraphs, optional CTA, optional footnote) and
+  `EmailTemplateRenderer`, which renders both the HTML and plain-text bodies from it so the two can
+  never drift out of sync.
+- Verification and password-reset emails now state their token's actual expiry (24h / 1h,
+  matching `IAM_EMAIL_VERIFICATION_EXPIRATION` / `IAM_PASSWORD_RESET_EXPIRATION` defaults) and a
+  clear "if this wasn't you" security note.
+
 ### Added (Billing / Stripe subscriptions — `feature/billing-subscription-payments-quota`)
 
 - **Paid subscription lifecycle** — the `Subscription` aggregate gains upgrade/cancel/reactivate/downgrade
