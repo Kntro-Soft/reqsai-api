@@ -5,8 +5,9 @@
  * pgvector embeddings. Owners: <strong>Jhosepmyr + Erick</strong>.
  * <p>
  * Layers: {@code api}, {@code domain}, {@code application}, {@code infrastructure}, {@code interfaces}.
- * Depends on the OPEN {@code shared} module and the {@code workspace::api} named interface for
- * project context enrichment in realtime suggestions.
+ * Depends on the OPEN {@code shared} module, the {@code workspace::api} named interface for project
+ * context enrichment in realtime suggestions, and the {@code billing::api} named interface to meter
+ * AI token consumption against the organization's plan quota.
  */
-@org.springframework.modulith.ApplicationModule(allowedDependencies = {"shared", "workspace::api"})
+@org.springframework.modulith.ApplicationModule(allowedDependencies = {"shared", "workspace::api", "billing::api"})
 package com.kntro.reqsai.discovery;

@@ -2,7 +2,7 @@ plugins {
     java
     id("org.springframework.boot") version "4.1.0"
     id("io.spring.dependency-management") version "1.1.7"
-    id("com.diffplug.spotless") version "8.6.0"
+    id("com.diffplug.spotless") version "8.8.0"
     id("org.owasp.dependencycheck") version "12.2.2"
     jacoco
 }
@@ -81,7 +81,7 @@ dependencies {
     // ==================================
     // OPENAPI
     // ==================================
-    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.2")
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3")
 
     // ==================================
     // SPRING AI
@@ -89,7 +89,7 @@ dependencies {
     implementation("org.springframework.ai:spring-ai-advisors-vector-store")
     implementation("org.springframework.ai:spring-ai-starter-model-ollama")
     implementation("org.springframework.ai:spring-ai-starter-model-openai")
-    implementation("com.deepgram:deepgram-java-sdk:0.5.0")
+    implementation("com.deepgram:deepgram-java-sdk:0.6.0")
     implementation("org.springframework.ai:spring-ai-starter-model-google-genai")
     implementation("org.springframework.ai:spring-ai-starter-vector-store-pgvector")
 
@@ -132,7 +132,7 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")
     testImplementation("org.testcontainers:testcontainers-postgresql")
-    testImplementation("net.datafaker:datafaker:2.5.4")
+    testImplementation("net.datafaker:datafaker:2.7.0")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     testCompileOnly("org.projectlombok:lombok")
     mockitoAgent("org.mockito:mockito-core") { isTransitive = false }

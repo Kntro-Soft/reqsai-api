@@ -130,6 +130,30 @@ reqsai:
       email-verification-expiration: ${IAM_EMAIL_VERIFICATION_EXPIRATION:24h}
   invitation:
     expiry: ${INVITATION_EXPIRY:7d}
+  billing:
+    # Active payment gateway: 'fake' (default, no real charges) or 'stripe'.
+    payment-provider: ${BILLING_PAYMENT_PROVIDER:fake}
+    # ISO-4217 display currency.
+    currency: ${BILLING_CURRENCY:USD}
+    # Per-plan DISPLAY pricing (minor units / cents) + the Stripe Price id actually charged.
+    # Defined prices: PRO USD 29.00/mo, ENTERPRISE USD 99.00/mo (FREE is $0, provisioned on signup).
+    # NOTE: amount-cents is display only; the CHARGED amount is the Stripe Price object, so the
+    # recurring Price you create in Stripe MUST match these amounts (keep the web plan catalog in sync).
+    plans:
+      pro:
+        amount-cents: ${BILLING_PRO_AMOUNT_CENTS:4900}
+        stripe-price-id: ${BILLING_PRO_STRIPE_PRICE_ID:}
+      enterprise:
+        amount-cents: ${BILLING_ENTERPRISE_AMOUNT_CENTS:14900}
+        stripe-price-id: ${BILLING_ENTERPRISE_STRIPE_PRICE_ID:}
+    # Stripe credentials + hosted-checkout return URLs (required only when payment-provider=stripe).
+    # Return URLs point at the WEB app (Angular, :4200), NOT the API — that is where the
+    # /billing/success and /billing/cancel landing routes live.
+    stripe:
+      api-key: ${STRIPE_API_KEY:}
+      webhook-secret: ${STRIPE_WEBHOOK_SECRET:}
+      success-url: ${STRIPE_SUCCESS_URL:${WEB_APP_URL:http://localhost:4200}/billing/success}
+      cancel-url: ${STRIPE_CANCEL_URL:${WEB_APP_URL:http://localhost:4200}/billing/cancel}
   jwt:
     private-key-path: ${JWT_PRIVATE_KEY_PATH:classpath:certs/private_key.pem}
     private-key-pem: ${JWT_PRIVATE_KEY_PEM:}

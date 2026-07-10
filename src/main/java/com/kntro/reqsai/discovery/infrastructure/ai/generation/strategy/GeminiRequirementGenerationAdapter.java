@@ -1,6 +1,7 @@
 package com.kntro.reqsai.discovery.infrastructure.ai.generation.strategy;
 
 import tools.jackson.databind.ObjectMapper;
+import com.kntro.reqsai.discovery.application.port.TokenUsageRecorderPort;
 import com.kntro.reqsai.discovery.infrastructure.exception.DiscoveryInfrastructureExceptions;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ChatModel;
@@ -15,8 +16,9 @@ public class GeminiRequirementGenerationAdapter extends AbstractLlmGenerationAda
 
     private final ObjectProvider<ChatModel> chatModel;
 
-    public GeminiRequirementGenerationAdapter(ObjectProvider<ChatModel> chatModel, ObjectMapper objectMapper) {
-        super(objectMapper);
+    public GeminiRequirementGenerationAdapter(ObjectProvider<ChatModel> chatModel, ObjectMapper objectMapper,
+                                              TokenUsageRecorderPort tokenUsageRecorder) {
+        super(objectMapper, tokenUsageRecorder);
         this.chatModel = chatModel;
     }
 

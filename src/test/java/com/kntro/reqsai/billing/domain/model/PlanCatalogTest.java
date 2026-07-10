@@ -6,7 +6,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @DisplayName("Domain: PlanCatalog")
 class PlanCatalogTest {
@@ -23,10 +22,21 @@ class PlanCatalogTest {
     }
 
     @Test
-    @DisplayName("should throw on unconfigured tiers")
-    void should_throw_on_unconfigured_tiers() {
-        assertThatThrownBy(() -> PlanCatalog.limitsFor(PlanType.PRO))
-                .isInstanceOf(UnsupportedOperationException.class)
-                .hasMessageContaining("not yet defined");
+    @DisplayName("should resolve richer limits for paid tiers")
+    void should_resolve_paid_tier_limits() {
+        PlanLimitsValues pro = PlanCatalog.limitsFor(PlanType.PRO);
+        PlanLimitsValues enterprise = PlanCatalog.limitsFor(PlanType.ENTERPRISE);
+
+        assertThat(pro.maxTokensPerMonth()).isGreaterThan(PlanCatalog.limitsFor(PlanType.FREE).maxTokensPerMonth());
+        assertThat(enterprise.maxTokensPerMonth()).isGreaterThan(pro.maxTokensPerMonth());
+        assertThat(enterprise.maxProjects()).isGreaterThan(pro.maxProjects());
+    }
+
+    @Test
+    @DisplayName("only paid tiers are purchasable")
+    void should_flag_paid_tiers_as_purchasable() {
+        assertThat(PlanCatalog.isPurchasable(PlanType.FREE)).isFalse();
+        assertThat(PlanCatalog.isPurchasable(PlanType.PRO)).isTrue();
+        assertThat(PlanCatalog.isPurchasable(PlanType.ENTERPRISE)).isTrue();
     }
 }

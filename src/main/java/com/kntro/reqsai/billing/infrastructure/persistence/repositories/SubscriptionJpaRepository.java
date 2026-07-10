@@ -14,5 +14,7 @@ public interface SubscriptionJpaRepository extends JpaRepository<Subscription, U
 
     Optional<Subscription> findByOrganizationId(UUID organizationId);
 
+    Optional<Subscription> findByProviderRefExternalId(String externalId);
+
     boolean existsByOrganizationId(UUID organizationId);
 }
