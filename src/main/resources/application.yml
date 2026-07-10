@@ -48,6 +48,13 @@ spring:
     validate-on-migrate: true
     out-of-order: true
 
+  # Spring Batch runs the async integration sync jobs (Jira import / push-all). Jobs are launched
+  # on demand by the API — never at startup, hence enabled: false. Metadata DDL is owned by the
+  # common Flyway migrations (public.batch_*); Boot 4 does not auto-initialize a batch schema.
+  batch:
+    job:
+      enabled: false
+
   mail:
     host: ${MAIL_HOST:smtp.gmail.com}
     port: ${MAIL_PORT:587}
