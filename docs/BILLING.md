@@ -108,10 +108,16 @@ For university presentations, demo environments, or staging deployments, **you s
 Since your deployed application has a public domain name, **you do not need the Stripe CLI (`stripe listen`) running on your server**. Stripe can send the webhook events directly to your public URL:
 
 1. In the Stripe Dashboard (with **Test Mode** turned ON), go to **Developers** ▸ **Webhooks** and click **Add endpoint**.
-2. Set the **Endpoint URL** to your deployed backend domain:
+2. Set the **Endpoint URL** to your deployed **frontend** domain, not the bare API domain:
    ```text
-   https://your-api-domain.com/api/billing/webhooks/stripe
+   https://app.tamci.app/api/billing/webhooks/stripe
    ```
+   > [!WARNING]
+   > `api.tamci.app` resolves directly to the ALB, which is locked down to CloudFront-only ingress
+   > (see [reqsai-infra](https://github.com/Kntro-Soft/reqsai-infra)'s security groups). Stripe's
+   > servers are not CloudFront, so a webhook pointed at `api.tamci.app` times out silently — no
+   > log entry on the backend at all, since the request never reaches it. Always use
+   > `app.tamci.app` (routed through CloudFront) for anything Stripe needs to reach.
 3. Click **Select events** and subscribe to:
    *   `checkout.session.completed`
    *   `customer.subscription.deleted`
@@ -132,7 +138,8 @@ When deploying to production, apply the following changes:
 2. **Products & Prices**: Create the production products and prices in the live dashboard catalog and update `BILLING_*_STRIPE_PRICE_ID` environment variables.
 3. **Webhook Registration**:
    - Go to **Developers** ▸ **Webhooks** ▸ **Add endpoint**.
-   - Set the URL to your live API endpoint: `https://your-api-domain.com/api/billing/webhooks/stripe`.
+   - Set the URL to `https://app.tamci.app/api/billing/webhooks/stripe` — **not** `api.tamci.app`
+     (see the warning above: the bare API domain is CloudFront-only and unreachable from Stripe).
    - Subscribe to these events:
      *   `checkout.session.completed` (handles purchase / upgrade activation).
      *   `customer.subscription.deleted` (handles cancellation/lapse).
