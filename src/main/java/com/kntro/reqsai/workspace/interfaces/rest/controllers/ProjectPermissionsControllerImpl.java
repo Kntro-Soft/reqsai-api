@@ -22,7 +22,7 @@ public class ProjectPermissionsControllerImpl implements ProjectPermissionsContr
     private final GetMyProjectPermissionsQueryHandler getMyPermissions;
 
     @Override
-    @PreAuthorize("@authz.projectAccess(#projectId, authentication)")
+    @PreAuthorize("@authz.tenantMember(authentication)")
     public ResponseEntity<MyProjectPermissionsResponse> getMyPermissions(
             UUID projectId, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());

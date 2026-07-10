@@ -42,12 +42,12 @@ public interface WorkspaceModuleApi {
     boolean callerHasProjectPermission(UUID projectId, UUID userId, String permission);
 
     /**
-     * Whether {@code userId} may access the given project of the <em>currently bound tenant</em>: org
-     * owners/admins always may; a regular member needs an explicit project assignment. Returns
-     * {@code false} when no tenant is bound or the organization is unknown. Coarse project-access gate
-     * for routes carrying no {@code orgId} path variable (e.g. {@code /api/projects/{projectId}/...}).
+     * Whether {@code userId} is an active member — the owner or an ACTIVE member row — of the
+     * <em>currently bound tenant</em>. Returns {@code false} when no tenant is bound or the organization
+     * is unknown. Coarse org-membership gate for member-scoped routes carrying no {@code orgId} path
+     * variable (e.g. {@code /api/projects/{projectId}/me/permissions}).
      */
-    boolean callerCanAccessProject(UUID projectId, UUID userId);
+    boolean callerIsActiveMember(UUID userId);
 
     /**
      * Resolves the roster display name of an active member by organization and user id. Used by

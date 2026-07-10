@@ -61,14 +61,14 @@ public class WorkspaceAuthorization {
     }
 
     /**
-     * Caller may access the given project of the <em>current tenant</em> (the JWT {@code orgId} bound by
-     * the authentication filter). For routes that carry no {@code orgId} path variable, e.g.
-     * {@code /api/projects/{projectId}/me/permissions}. Owner/admin bypass is identical to
-     * {@link #projectAccess(UUID, UUID, Authentication)}; denies when no tenant is bound to the request.
+     * Caller is an active member (or owner/admin) of the <em>current tenant</em> (the JWT {@code orgId}
+     * bound by the authentication filter). For member-scoped routes that carry no {@code orgId} path
+     * variable, e.g. {@code /api/projects/{projectId}/me/permissions} where any member may read their
+     * own effective permissions. Denies when no tenant is bound to the request.
      */
-    public boolean projectAccess(UUID projectId, Authentication authentication) {
+    public boolean tenantMember(Authentication authentication) {
         UUID userId = callerId(authentication);
-        return userId != null && moduleApi.callerCanAccessProject(projectId, userId);
+        return userId != null && moduleApi.callerIsActiveMember(userId);
     }
 
     /** Caller holds the named {@link Permission} on the given project. */

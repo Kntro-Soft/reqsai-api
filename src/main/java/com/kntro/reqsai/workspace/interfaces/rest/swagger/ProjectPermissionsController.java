@@ -38,8 +38,8 @@ public interface ProjectPermissionsController {
                     organization's member base-permission floor and the caller's project role. \
                     Owners/admins receive the full permission catalog.
 
-                    - Any member who can access the project (or an org owner/admin) may read their own \
-                    permissions.""")
+                    - Any active organization member may read their own effective permissions \
+                    (the set is empty for a member with neither a base floor nor a project role).""")
     @ApiResponse(
             responseCode = "200",
             description = "The caller's effective permissions",
