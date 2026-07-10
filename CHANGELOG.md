@@ -92,6 +92,17 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
     their project role). Gated on active tenant membership so any member reads their own set.
 - Migration `V20260710090000__organization_member_base_permission.sql` (public schema): adds
   `organizations.member_base_permission VARCHAR(16) NOT NULL DEFAULT 'READ'`.
+- **Project access honors the base floor** — `canAccessProject`/`accessibleProjectIds` now grant every
+  active member access to all projects when the floor is non-`NONE`, falling back to explicit assignments
+  only under `NONE`. Previously they always required an explicit assignment, so a `READ`-floor member
+  could load a project's stories yet be 403'd on the project itself.
+- **Members list embeds the role name** — `GET .../projects/{projectId}/members` now returns each
+  assignment's `roleName`, so a caller with only `MEMBER_READ` sees each member's role without also
+  needing `ROLE_READ` to resolve it.
+- **Roles list readable by member-managers** — listing project roles now accepts `ROLE_READ` **or**
+  `MEMBER_UPDATE_ROLE`/`MEMBER_INVITE` (new `@authz.projectAnyPermission`, which resolves the org once
+  and holds when any listed permission is granted), so the member-role editor's options load without a
+  separate `ROLE_READ` grant.
 
 ### Added (Live session presence — `feature/discovery-presence`)
 
