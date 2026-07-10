@@ -95,8 +95,8 @@ public class SmtpEmailAdapter implements EmailNotificationPort {
                 ? invitedByName + " te ha invitado"
                 : "Te han invitado";
         EmailContent content = new EmailContent(
-                inviter + " a unirte a " + organizationName + " en ReqsAI",
-                "Te invitaron a colaborar",
+                inviter + " a unirte a " + organizationName + " y al proyecto " + projectName + " en ReqsAI",
+                "Te invitaron a un proyecto",
                 List.of(
                         "Hola " + displayName + ",",
                         inviter + " a unirte a **" + organizationName + "** como **" + role + "**.",
@@ -106,7 +106,8 @@ public class SmtpEmailAdapter implements EmailNotificationPort {
                 "Aceptar invitación", link,
                 "Si no esperabas esta invitación, puedes ignorar este mensaje con seguridad."
         );
-        send(toEmail, "Te invitaron a " + organizationName + " — ReqsAI", content, "project invitation email");
+        send(toEmail, "Te invitaron a " + organizationName + " y al proyecto " + projectName + " — ReqsAI",
+                content, "project invitation email");
     }
 
     @Override
