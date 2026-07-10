@@ -1,6 +1,7 @@
 package com.kntro.reqsai.workspace.mothers;
 
 import com.kntro.reqsai.shared.domain.valueobjects.LanguageCode;
+import com.kntro.reqsai.workspace.domain.model.BasePermission;
 import com.kntro.reqsai.workspace.domain.model.Organization;
 import com.kntro.reqsai.workspace.domain.valueobjects.GenerationSettings;
 import com.kntro.reqsai.workspace.domain.valueobjects.PlanLimits;
@@ -23,6 +24,7 @@ public class OrganizationBuilder {
     private LanguageCode meetingLanguage = LanguageCode.of(FAKER.options().option("es-PE", "en-US", "pt-BR"));
     private int audioRetentionDays = FAKER.number().numberBetween(0, 90);
     private PlanLimits planLimits = new PlanLimits(3, 25, 10, 100_000L, 50);
+    private BasePermission memberBasePermission;
     private boolean active;
 
     public static OrganizationBuilder anOrganization() {
@@ -59,6 +61,12 @@ public class OrganizationBuilder {
         return this;
     }
 
+    /** Override the organization-wide member base permission floor (defaults to {@code READ}). */
+    public OrganizationBuilder withMemberBasePermission(BasePermission memberBasePermission) {
+        this.memberBasePermission = memberBasePermission;
+        return this;
+    }
+
     /** Build the org already {@code ACTIVE} (provisioning done), instead of the default {@code PENDING}. */
     public OrganizationBuilder active() {
         this.active = true;
@@ -68,6 +76,9 @@ public class OrganizationBuilder {
     public Organization build() {
         Organization organization = new Organization(
                 name, slug, ownerId, GenerationSettings.of(meetingLanguage, audioRetentionDays), planLimits);
+        if (memberBasePermission != null) {
+            organization.changeMemberBasePermission(memberBasePermission);
+        }
         if (active) {
             organization.activate();
         }
