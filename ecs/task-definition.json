@@ -114,6 +114,10 @@
           "valueFrom": "arn:aws:secretsmanager:us-east-1:418272789689:secret:reqsai/production/smtp-27o6Hf:password::"
         },
         {
+          "name": "MAIL_FROM",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:418272789689:secret:reqsai/production/smtp-27o6Hf:username::"
+        },
+        {
           "name": "DEEPGRAM_API_KEY",
           "valueFrom": "arn:aws:secretsmanager:us-east-1:418272789689:secret:reqsai/production/ai-GTSPn8:deepgram_api_key::"
         },
