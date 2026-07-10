@@ -42,6 +42,14 @@ public interface WorkspaceModuleApi {
     boolean callerHasProjectPermission(UUID projectId, UUID userId, String permission);
 
     /**
+     * Whether {@code userId} may access the given project of the <em>currently bound tenant</em>: org
+     * owners/admins always may; a regular member needs an explicit project assignment. Returns
+     * {@code false} when no tenant is bound or the organization is unknown. Coarse project-access gate
+     * for routes carrying no {@code orgId} path variable (e.g. {@code /api/projects/{projectId}/...}).
+     */
+    boolean callerCanAccessProject(UUID projectId, UUID userId);
+
+    /**
      * Resolves the roster display name of an active member by organization and user id. Used by
      * discovery's live-session presence to label participants without reaching into the workspace
      * member internals. Reads the {@code public.members} registry, so it does not require a tenant
