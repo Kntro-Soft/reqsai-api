@@ -4,6 +4,8 @@ import com.kntro.reqsai.discovery.domain.model.SuggestionStatus;
 import com.kntro.reqsai.shared.domain.exception.DomainException;
 import com.kntro.reqsai.shared.domain.exception.EntityNotFoundException;
 
+import java.util.Locale;
+
 /**
  * Factory for Requirement Discovery domain exceptions — the context-specific counterpart of the shared
  * {@code Exceptions} and a mirror of {@code WorkspaceExceptions}.
@@ -15,8 +17,11 @@ public final class DiscoveryExceptions {
     }
 
     public static DomainException duplicateUserStory(double similarity) {
+        // Format with Locale.ROOT so the decimal separator is always a dot: the client parses this
+        // similarity out of the ProblemDetail `detail` expecting "0.87", and a comma-decimal JVM locale
+        // would otherwise make it read the score as 0 (0%) on the duplicate-story surface.
         return new DomainException(DiscoveryError.DUPLICATE_USER_STORY,
-                "A near-duplicate user story already exists (similarity %.2f)".formatted(similarity));
+                String.format(Locale.ROOT, "A near-duplicate user story already exists (similarity %.2f)", similarity));
     }
 
     public static EntityNotFoundException sessionNotFound(java.util.UUID id) {
