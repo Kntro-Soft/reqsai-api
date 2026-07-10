@@ -11,6 +11,40 @@ follows [Semantic Versioning](https://semver.org/).
 
 _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in progress._
 
+### Added (Billing / Stripe subscriptions — `feature/billing-subscription-payments-quota`)
+
+- **Paid subscription lifecycle** — the `Subscription` aggregate gains upgrade/cancel/reactivate/downgrade
+  transitions plus AI token-quota accounting with automatic period rollover, driven by new lifecycle
+  domain events. `PlanCatalog` defines PRO/ENTERPRISE limits; pricing is config-driven via
+  `BillingProperties` (`reqsai.billing.*`, display amounts in minor units + currency) — currently PRO
+  USD 49.00/mo and ENTERPRISE USD 149.00/mo, matching the marketing landing page.
+  New REST endpoints on the subscription controller: `PUT .../upgrade`, `PUT .../cancel`,
+  `PUT .../reactivate`, `GET .../usage`.
+- **AI token metering** — `BillingModuleApi.recordTokenConsumption`/`hasTokenQuotaAvailable`/`planLimits`
+  let Discovery capture provider-reported token usage from each LLM response and meter it against the
+  tenant's subscription quota (best-effort — a metering failure never breaks generation).
+- **Stripe as a real payment gateway** (`PaymentGatewayPort`, swapped in by
+  `reqsai.billing.payment-provider=stripe`; `fake` — synchronous plan activation, no charge — stays the
+  default) implemented over Spring `RestClient` + a hand-rolled HMAC verifier, no Stripe SDK, to keep the
+  dependency surface minimal:
+  - `StripePaymentGatewayAdapter` creates a hosted Checkout Session (subscription mode) and returns its
+    URL; the plan is only activated from the webhook, honoring the same `PlanChangeResult` contract as
+    the fake gateway so domain/handlers are unchanged. Checkout return URLs derive from `WEB_APP_URL`
+    (`.../billing/success`, `.../billing/cancel`) rather than the API host.
+  - `StripeWebhookParser` verifies the `Stripe-Signature` header (HMAC-SHA256 over
+    `<timestamp>.<payload>`) and maps events to a gateway-agnostic `PaymentWebhookEvent`.
+  - `ProcessPaymentWebhookCommandHandler` de-duplicates by event id (new `public.billing_processed_events`,
+    common migration `V13__billing_processed_events.sql`) and applies plan activation / downgrade /
+    past-due. New endpoint `POST /api/billing/webhooks/stripe` (signature-verified, JWT-exempt in
+    `SecurityConfiguration`).
+- **Cross-module relay** — on upgrade/downgrade, Billing publishes a
+  `SubscriptionPlanChangedIntegrationEvent` on `billing::api`; Workspace mirrors the new plan limits onto
+  its `Organization` aggregate.
+- **Docs** — [docs/BILLING.md](docs/BILLING.md) covers Stripe test-mode setup, product/price
+  configuration, local webhook forwarding via the Stripe CLI, and deployed-environment webhooks;
+  `.env.example` documents every billing/Stripe variable (provider flag, API key, per-plan Price ids,
+  webhook secret, return-URL overrides).
+
 ### Added (Live session presence — `feature/discovery-presence`)
 
 - **Real-time presence for live discovery sessions** — the users currently viewing a live session are
@@ -83,7 +117,9 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
       refresh token is persisted (`JIRA_AUTH_FAILED` on refresh failure).
     - **Config** (all optional; the app boots when unset): `reqsai.integrations.jira.oauth.client-id`,
       `client-secret`, `redirect-uri` (from `JIRA_OAUTH_CLIENT_ID` / `JIRA_OAUTH_CLIENT_SECRET` /
-      `JIRA_OAUTH_CALLBACK_URL`) and a dedicated `state-secret` (`JIRA_OAUTH_STATE_SECRET`; generate with
+      `JIRA_OAUTH_CALLBACK_URL`, defaulting to `${FRONTEND_URL}/settings/integrations/jira/callback` when
+      unset — matching the `WEB_APP_URL`-derived pattern used by Stripe's checkout return URLs) and a
+      dedicated `state-secret` (`JIRA_OAUTH_STATE_SECRET`; generate with
       `scripts/generate-oauth-state-secret.sh`).
     - Migration `V20260708055820__integration_connections_oauth.sql` (tenant, additive): adds `credential_type`
       (default `API_TOKEN`), `cloud_id`, `oauth_refresh_ciphertext`, `oauth_access_ciphertext`,
