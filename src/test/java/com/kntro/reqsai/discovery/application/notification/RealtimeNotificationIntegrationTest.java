@@ -6,6 +6,7 @@ import com.kntro.reqsai.discovery.domain.event.UserStoryCreatedEvent;
 import com.kntro.reqsai.discovery.domain.model.Priority;
 import com.kntro.reqsai.discovery.interfaces.notification.SessionEventType;
 import com.kntro.reqsai.discovery.interfaces.notification.messages.SessionProcessingFailedMessage;
+import com.kntro.reqsai.discovery.interfaces.notification.messages.SessionRealtimeMessage;
 import com.kntro.reqsai.discovery.interfaces.notification.messages.SessionStatusChangedMessage;
 import com.kntro.reqsai.discovery.interfaces.notification.messages.SessionStoryGeneratedMessage;
 import com.kntro.reqsai.testsupport.AbstractIntegrationTest;
@@ -87,7 +88,8 @@ class RealtimeNotificationIntegrationTest extends AbstractIntegrationTest {
     void should_deliver_status_change() throws Exception {
         // Arrange
         UUID sessionId = UUID.randomUUID();
-        var received = subscribe(connectAuthenticated(), sessionId, SessionStatusChangedMessage.class);
+        var received = subscribe(connectAuthenticated(), sessionId, SessionStatusChangedMessage.class,
+                SessionEventType.RECORDING_STARTED);
 
         // Act & Assert
         SessionStatusChangedMessage msg = awaitFirst(received,
@@ -101,7 +103,8 @@ class RealtimeNotificationIntegrationTest extends AbstractIntegrationTest {
     void should_deliver_failure_reason() throws Exception {
         // Arrange
         UUID sessionId = UUID.randomUUID();
-        var received = subscribe(connectAuthenticated(), sessionId, SessionProcessingFailedMessage.class);
+        var received = subscribe(connectAuthenticated(), sessionId, SessionProcessingFailedMessage.class,
+                SessionEventType.FAILED);
 
         // Act & Assert
         SessionProcessingFailedMessage msg = awaitFirst(received,
@@ -116,7 +119,8 @@ class RealtimeNotificationIntegrationTest extends AbstractIntegrationTest {
         // Arrange
         UUID sessionId = UUID.randomUUID();
         UUID storyId = UUID.randomUUID();
-        var received = subscribe(connectAuthenticated(), sessionId, SessionStoryGeneratedMessage.class);
+        var received = subscribe(connectAuthenticated(), sessionId, SessionStoryGeneratedMessage.class,
+                SessionEventType.STORY_GENERATED);
 
         // Act & Assert
         SessionStoryGeneratedMessage msg = awaitFirst(received,
@@ -161,7 +165,15 @@ class RealtimeNotificationIntegrationTest extends AbstractIntegrationTest {
                 .get(5, TimeUnit.SECONDS);
     }
 
-    private <T> BlockingQueue<T> subscribe(StompSession session, UUID sessionId, Class<T> payloadType) {
+    /**
+     * Subscribes and filters incoming frames to {@code expectedType} before enqueuing. A subscriber
+     * to a session topic can now also receive an automatic {@code PRESENCE_STATE} broadcast (see
+     * {@code SessionPresenceTracker}) the instant it subscribes — the JSON still decodes cleanly into
+     * whatever {@code payloadType} the caller asked for (a record's extra unmapped fields are just
+     * ignored), so without this filter the spurious presence frame would race the real one under test.
+     */
+    private <T extends SessionRealtimeMessage> BlockingQueue<T> subscribe(
+            StompSession session, UUID sessionId, Class<T> payloadType, SessionEventType expectedType) {
         BlockingQueue<T> queue = new LinkedBlockingQueue<>();
         session.subscribe("/topic/" + SessionTopics.of(sessionId), new StompFrameHandler() {
             @Override
@@ -172,7 +184,10 @@ class RealtimeNotificationIntegrationTest extends AbstractIntegrationTest {
 
             @Override
             public void handleFrame(@NonNull StompHeaders headers, Object payload) {
-                queue.add(payloadType.cast(payload));
+                T message = payloadType.cast(payload);
+                if (message.type() == expectedType) {
+                    queue.add(message);
+                }
             }
         });
         return queue;
