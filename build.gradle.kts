@@ -90,7 +90,7 @@ dependencies {
     implementation("org.springframework.ai:spring-ai-advisors-vector-store")
     implementation("org.springframework.ai:spring-ai-starter-model-ollama")
     implementation("org.springframework.ai:spring-ai-starter-model-openai")
-    implementation("com.deepgram:deepgram-java-sdk:0.6.0")
+    implementation("com.deepgram:deepgram-java-sdk:0.6.1")
     implementation("org.springframework.ai:spring-ai-starter-model-google-genai")
     implementation("org.springframework.ai:spring-ai-starter-vector-store-pgvector")
 
