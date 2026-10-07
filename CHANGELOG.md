@@ -52,6 +52,17 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
   title. `SuggestionTitlesTest` (new) covers the title rules and formatting.
 - Against the previous code, 12 of the new tests fail; all pass with the fix.
 
+### Changed (CI — deploy through reqsai-infra — `feature/deploy-via-infra`)
+
+- **`deploy.yml` no longer targets ECS/ECR.** That AWS stack (ECR repository, ECS service, GitHub OIDC
+  role) no longer exists, so the old workflow would fail on the next push to `main`. A push to `main` now
+  asks `Kntro-Soft/reqsai-infra` to run its `deploy-mvp.yml` workflow with `api_ref` set to the pushed
+  commit; that workflow builds the linux/arm64 image and deploys it to the single-EC2 MVP host over SSM, and
+  leaves the running reqsai-web image untouched (`web_ref=keep`).
+- Needs the repository secret `INFRA_DEPLOY_TOKEN` (fine-grained PAT with Actions read and write on
+  `reqsai-infra` only). Without it the job logs a notice and succeeds, so `main` never goes red. Manual
+  runs only dispatch from `main`.
+
 ### Fixed (Business rules lost to the realtime duplicate filter — `bugfix/discovery-dedup-business-rules`)
 
 - **A distinct rule of the same domain is no longer dropped as a duplicate** — in a production meeting
