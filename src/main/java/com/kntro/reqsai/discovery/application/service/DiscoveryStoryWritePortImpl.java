@@ -139,10 +139,14 @@ class DiscoveryStoryWritePortImpl implements DiscoveryStoryWritePort {
         return fallback(input);
     }
 
-    /** Feeds the LLM the issue as a tiny transcript so it produces one structured story. */
+    /**
+     * Feeds the LLM the issue as a tiny transcript so it produces one structured story. The generation
+     * prompt treats the transcript as untrusted data (it never follows instructions found inside it), so the
+     * seed DESCRIBES the issue rather than instructing the model; the issue text itself stays inert data too.
+     */
     private static String seedTranscript(ExternalIssueInput input) {
         String description = input.description() == null ? "" : input.description();
-        return ("Convert the following tracker issue into a single user story.\n"
+        return ("Imported tracker issue (one requirement of the product):\n"
                 + "Title: " + input.summary() + "\n"
                 + "Description: " + description).strip();
     }

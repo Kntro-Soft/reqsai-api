@@ -1,7 +1,9 @@
 package com.kntro.reqsai.discovery.infrastructure.exception;
 
+import com.kntro.reqsai.discovery.application.port.UnparseableGenerationException;
 import com.kntro.reqsai.discovery.domain.exception.DiscoveryError;
 import com.kntro.reqsai.shared.domain.exception.InfrastructureException;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Factory for Discovery infrastructure exceptions — the infrastructure counterpart of
@@ -40,6 +42,15 @@ public final class DiscoveryInfrastructureExceptions {
                 DiscoveryError.REQUIREMENT_GENERATION_FAILED,
                 "Requirement generation failed: " + reason,
                 cause);
+    }
+
+    /**
+     * The model replied, but not with the JSON contract (empty, an answer, code, prose). Same code and
+     * message shape as {@link #generationFailed(String, Throwable)}; the dedicated type lets the realtime
+     * pass stop retrying a window that consistently makes the model misbehave.
+     */
+    public static UnparseableGenerationException generationOutputUnparseable(String reason, @Nullable Throwable cause) {
+        return new UnparseableGenerationException("Requirement generation failed: " + reason, cause);
     }
 
     // Transcription
