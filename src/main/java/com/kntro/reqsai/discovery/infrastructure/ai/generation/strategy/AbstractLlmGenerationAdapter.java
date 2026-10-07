@@ -537,7 +537,12 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
     }
 
     protected String callAndExtractText(ChatModel model, String promptText) {
-        ChatResponse response = model.call(new Prompt(promptText));
+        return callAndExtractText(model, new Prompt(promptText));
+    }
+
+    /** Variant for adapters that attach provider-specific options (e.g. a JSON response format). */
+    protected String callAndExtractText(ChatModel model, Prompt prompt) {
+        ChatResponse response = model.call(prompt);
         recordTokenUsage(response);
         var result = response != null ? response.getResult() : null;
         String text = result != null ? result.getOutput().getText() : null;

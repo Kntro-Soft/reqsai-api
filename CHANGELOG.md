@@ -45,6 +45,14 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
   so no per-session state is kept. Provider failures (network, timeout) still propagate and keep the
   watermark, as before.
 
+- **OpenAI replies forced to JSON** — production once got malformed JSON from OpenAI (`Unexpected close
+  marker ']'`), and only the retry recovered. `OpenAiRequirementGenerationAdapter` now requests
+  `response_format: json_object` on every call, so the reply is always one syntactically valid JSON
+  object. The configured model and temperature are kept, because Spring AI merges per-call options
+  over the defaults. Why not `json_schema`: Spring AI sends that one with `strict: true`, which would
+  require every field of the reply records to be listed as required, with the optional ones typed as
+  nullable. The Gemini adapter is unchanged.
+
 ### Tests (LLM prompt hardening — `feature/llm-prompt-hardening`)
 
 - `GenerationScenarioTest` (no network) now asserts, for both prompt variants, that the transcript is
@@ -52,6 +60,9 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
   or in project data) are neutralized, that the untrusted-data / off-topic / garbage / quality rules are
   present with the language rules intact, and that non-JSON replies (`2`, a code block, prose) raise
   `REQUIREMENT_GENERATION_FAILED` instead of yielding a story.
+- `GenerationCallOptionsTest` (no network) asserts that the OpenAI adapter sends
+  `response_format: json_object` and that the configured model and temperature survive the merge.
+  It also checks that Gemini still gets a plain prompt.
 - `RealLlmBehaviorMatrixE2ETest` gains an `AC` block (10 cases, tag `llm`): small talk, `1 + 1`, a Python
   request to the assistant, summarise/translate requests and three injection variants (including a
   forged `</transcript>`) must produce nothing (`OFF_TOPIC`), while off-topic talk or an injection mixed
