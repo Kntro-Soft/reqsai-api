@@ -37,10 +37,9 @@ public class SessionStatsRepositoryAdapter implements SessionStatsRepository {
         for (Object[] row : storyRows) {
             UUID sessionId = (UUID) row[0];
             long generated = toLong(row[1]);
-            long accepted = toLong(row[2]);
             SessionStats current = result.get(sessionId);
             result.put(sessionId, new SessionStats(
-                    generated, accepted, current.suggestionsPending(), current.questionsAsked()));
+                    generated, current.storiesAccepted(), current.suggestionsPending(), current.questionsAsked()));
         }
 
         List<Object[]> suggestionRows = jpa.suggestionCounts(sessionIds);
@@ -48,9 +47,10 @@ public class SessionStatsRepositoryAdapter implements SessionStatsRepository {
             UUID sessionId = (UUID) row[0];
             long pending = toLong(row[1]);
             long questions = toLong(row[2]);
+            long accepted = toLong(row[3]);
             SessionStats current = result.get(sessionId);
             result.put(sessionId, new SessionStats(
-                    current.storiesGenerated(), current.storiesAccepted(), pending, questions));
+                    current.storiesGenerated(), accepted, pending, questions));
         }
 
         return result;
