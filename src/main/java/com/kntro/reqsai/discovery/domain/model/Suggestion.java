@@ -138,6 +138,10 @@ public class Suggestion extends AggregateRoot {
     }
 
     // ── Factory methods ───────────────────────────────────────────────────────
+    //
+    // Every factory builds the whole aggregate first and registers its SuggestionCreatedEvent last:
+    // the event is a snapshot (SuggestionCreatedEvent.of reads the fields once), and it is what the live
+    // SUGGESTION_GENERATED message carries, so a field set after registering never reaches the analyst.
 
     /** Creates a NEW_STORY suggestion (no target, no draft criteria). */
     public static Suggestion newStory(UUID sessionId, UUID projectId,
@@ -151,9 +155,10 @@ public class Suggestion extends AggregateRoot {
                                       String title, String role, String action, String benefit,
                                       Priority priority, @Nullable Integer storyPoints,
                                       List<DraftCriterion> criteria) {
-        Suggestion s = newStory(sessionId, projectId, title, role, action, benefit, priority, storyPoints, null, null);
+        Suggestion s = storyDraft(sessionId, projectId, SuggestionType.NEW_STORY,
+                title, role, action, benefit, priority, storyPoints);
         s.draftCriteria = sanitizeCriteria(criteria);
-        return s;
+        return s.withCreatedEvent();
     }
 
     /**
@@ -166,10 +171,12 @@ public class Suggestion extends AggregateRoot {
                                       Priority priority, @Nullable Integer storyPoints,
                                       @Nullable String relatedTopic, @Nullable UUID targetStoryId,
                                       @Nullable DraftCriterion criterion) {
-        Suggestion s = newStory(sessionId, projectId, title, role, action, benefit, priority, storyPoints, relatedTopic, targetStoryId);
-        s.type = SuggestionType.EDGE_CASE;
+        Suggestion s = storyDraft(sessionId, projectId, SuggestionType.EDGE_CASE,
+                title, role, action, benefit, priority, storyPoints);
+        s.relatedTopic = relatedTopic;
+        s.targetStoryId = targetStoryId;
         s.draftCriteria = sanitizeCriteria(criterion == null ? List.of() : List.of(criterion));
-        return s;
+        return s.withCreatedEvent();
     }
 
     /** Creates an UPDATE_STORY suggestion for a near-duplicate (no criteria to add). */
@@ -189,33 +196,18 @@ public class Suggestion extends AggregateRoot {
                                          String title, String role, String action, String benefit,
                                          Priority priority, @Nullable Integer storyPoints,
                                          UUID targetStoryId, List<DraftCriterion> criteria) {
-        Suggestion s = new Suggestion();
-        s.sessionId = Assert.notNull(sessionId, "sessionId");
-        s.projectId = Assert.notNull(projectId, "projectId");
-        s.type = SuggestionType.UPDATE_STORY;
-        s.status = SuggestionStatus.PENDING;
-        s.draftTitle = title;
-        s.draftRole = role;
-        s.draftAction = action;
-        s.draftBenefit = benefit;
-        s.draftPriority = priority;
-        s.draftStoryPoints = storyPoints;
+        Suggestion s = storyDraft(sessionId, projectId, SuggestionType.UPDATE_STORY,
+                title, role, action, benefit, priority, storyPoints);
         s.targetStoryId = Assert.notNull(targetStoryId, "targetStoryId");
         s.draftCriteria = sanitizeCriteria(criteria);
-        s.registerEvent(SuggestionCreatedEvent.of(s));
-        return s;
+        return s.withCreatedEvent();
     }
 
     /** Creates a CLARIFYING_QUESTION suggestion. */
     public static Suggestion clarifyingQuestion(UUID sessionId, UUID projectId, String question) {
-        Suggestion s = new Suggestion();
-        s.sessionId = Assert.notNull(sessionId, "sessionId");
-        s.projectId = Assert.notNull(projectId, "projectId");
-        s.type = SuggestionType.CLARIFYING_QUESTION;
-        s.status = SuggestionStatus.PENDING;
+        Suggestion s = pending(sessionId, projectId, SuggestionType.CLARIFYING_QUESTION);
         s.question = Assert.maxLength(Assert.notBlank(question, "question"), "question", QUESTION_MAX);
-        s.registerEvent(SuggestionCreatedEvent.of(s));
-        return s;
+        return s.withCreatedEvent();
     }
 
     // ── State transitions ─────────────────────────────────────────────────────
@@ -254,25 +246,37 @@ public class Suggestion extends AggregateRoot {
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
-    private static Suggestion newStory(UUID sessionId, UUID projectId,
-                                       String title, String role, String action, String benefit,
-                                       Priority priority, @Nullable Integer storyPoints,
-                                       @Nullable String relatedTopic, @Nullable UUID targetStoryId) {
+    /** A PENDING suggestion of {@code type}, with no payload and no event yet. */
+    private static Suggestion pending(UUID sessionId, UUID projectId, SuggestionType type) {
         Suggestion s = new Suggestion();
         s.sessionId = Assert.notNull(sessionId, "sessionId");
         s.projectId = Assert.notNull(projectId, "projectId");
-        s.type = SuggestionType.NEW_STORY;
+        s.type = type;
         s.status = SuggestionStatus.PENDING;
+        return s;
+    }
+
+    /** A PENDING story suggestion of {@code type} with its draft story fields, and no event yet. */
+    private static Suggestion storyDraft(UUID sessionId, UUID projectId, SuggestionType type,
+                                         String title, String role, String action, String benefit,
+                                         Priority priority, @Nullable Integer storyPoints) {
+        Suggestion s = pending(sessionId, projectId, type);
         s.draftTitle = title;
         s.draftRole = role;
         s.draftAction = action;
         s.draftBenefit = benefit;
         s.draftPriority = priority;
         s.draftStoryPoints = storyPoints;
-        s.relatedTopic = relatedTopic;
-        s.targetStoryId = targetStoryId;
-        s.registerEvent(SuggestionCreatedEvent.of(s));
         return s;
+    }
+
+    /**
+     * Registers the {@link SuggestionCreatedEvent} of this fully built suggestion. Called last by every
+     * factory, since the event copies the fields at this moment.
+     */
+    private Suggestion withCreatedEvent() {
+        registerEvent(SuggestionCreatedEvent.of(this));
+        return this;
     }
 
     // ── Draft acceptance criteria (NEW_STORY, UPDATE_STORY, EDGE_CASE) ────────
