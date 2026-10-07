@@ -16,6 +16,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -86,7 +87,12 @@ public class StoryExtractionService {
         }
 
         UserStoryRepository.SimilarStory similar = match.get();
-        Suggestion alert = Suggestion.updateStory(sessionId, projectId, gen.title(), gen.role(), gen.action(), gen.benefit(), gen.priority(), gen.storyPoints(), similar.storyId());
+        // Carry the candidate's criteria so accepting the alert does not lose a rule it stated.
+        List<Suggestion.DraftCriterion> criteria = gen.acceptanceCriteria() == null ? List.of()
+                : gen.acceptanceCriteria().stream()
+                        .map(c -> new Suggestion.DraftCriterion(c.scenario(), c.given(), c.when(), c.then()))
+                        .toList();
+        Suggestion alert = Suggestion.updateStory(sessionId, projectId, gen.title(), gen.role(), gen.action(), gen.benefit(), gen.priority(), gen.storyPoints(), similar.storyId(), criteria);
         alert.recordSimilarity(similar.similarity());
         suggestions.save(alert);
         log.info("Near-duplicate story '{}' raised as a duplicate-alert suggestion (similarity={}, target={})", gen.title(), similar.similarity(), similar.storyId());

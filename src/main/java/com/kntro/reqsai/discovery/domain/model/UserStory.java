@@ -19,9 +19,11 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import org.jspecify.annotations.Nullable;
 
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 /**
@@ -155,6 +157,25 @@ public class UserStory extends AggregateRoot {
         AcceptanceCriterion criterion = new AcceptanceCriterion(this, scenario, given, when, then);
         acceptanceCriteria.add(criterion);
         return criterion;
+    }
+
+    /**
+     * True when the story already has a criterion with the same Given/When/Then text, ignoring case,
+     * accents, punctuation and spacing. Used to avoid appending the same criterion twice.
+     */
+    public boolean hasAcceptanceCriterion(String given, String when, String then) {
+        String wanted = comparable(given, when, then);
+        return acceptanceCriteria.stream()
+                .anyMatch(c -> comparable(c.getGiven(), c.getWhen(), c.getThen()).equals(wanted));
+    }
+
+    private static String comparable(String given, String when, String then) {
+        String joined = String.join(" ", given == null ? "" : given, when == null ? "" : when, then == null ? "" : then);
+        return Normalizer.normalize(joined, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "")
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("[^\\p{Alnum}]+", " ")
+                .strip();
     }
 
     /**
