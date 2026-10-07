@@ -11,6 +11,42 @@ follows [Semantic Versioning](https://semver.org/).
 
 _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in progress._
 
+### Fixed (Live STT stream resilience — `bugfix/stt-stream-resilience`)
+
+- **Live transcription no longer stalls silently when the provider drops the stream.** In
+  production, a 15–20 s JVM pause meant Deepgram received no audio for over 10 s. Deepgram sent its
+  last final result and closed the stream (`NET-0001`). `AbstractWebSocketStreamingAdapter` had no
+  `onClose` handling, no reconnect, and it ignored the `sendBinary` futures. So all later audio was
+  thrown away while the browser still showed "recording" (47 s of audio, no segments, no error).
+  Each live provider stream now:
+  - **Keeps the stream alive.** While idle, it sends Deepgram's `{"type":"KeepAlive"}` text frame
+    every 4 s (Deepgram recommends every 3–5 s). AssemblyAI gets no keepalive, since it applies no
+    inactivity timeout unless `inactivity_timeout` is set.
+  - **Sends one frame at a time.** Sends go through one queue, one frame at a time, because the
+    JDK socket fails a send issued while another is pending (`Send pending`). That error used to be
+    swallowed too. A failed send now marks the stream as broken.
+  - **Reconnects.** On an unexpected provider close, socket error or failed send, it logs a WARN
+    with the session id and close code. It then reconnects up to 3 times, after 0.5 s, 1 s and 2 s.
+    Meanwhile it buffers up to 30 s of audio (oldest dropped first) and sends it on the new
+    connection, after the WhisperLive config handshake when there is one.
+  - **Keeps one transcript timeline.** It shifts each new connection's `startMs`/`endMs` by the
+    audio that preceded it, so segments stay on one timeline. WhisperLive's deduplication of
+    repeated final segments keeps working across reconnects.
+  - **Closes the client when it gives up.** When the attempts run out, it reports the new
+    `StreamingTranscriptionPort.Listener#onStreamLost`. `SttStreamingWebSocketHandler` then closes
+    `/ws/stt` with **1011** `transcription stream lost`, and the frontend shows its "connection
+    closed" error. The attempt budget refills once a new connection delivers a transcript, so a
+    provider that accepts the connection and then drops it straight away cannot loop forever.
+  - **Leaves nothing running.** Pause, stop and client disconnect cancel the keepalive and any
+    pending reconnect, let queued audio drain (bounded), and close the provider socket. The JDK
+    client is released with `shutdownNow`, because `HttpClient.close()` can block for a long time.
+- New package-private seams in `streaming/strategy` (`StreamResilience`, `StreamScheduler`,
+  `ProviderConnector`) let the tests drive a fake provider socket and a manual clock: 18
+  `LiveStreamResilienceTest` cases, plus a 1011 case in `SttStreamingWebSocketHandlerTest`. The
+  public adapter constructors and the Spring wiring are unchanged.
+- [docs/WEBSOCKET_STT.md](docs/WEBSOCKET_STT.md) describes keepalive, reconnect, the timeline shift
+  and the new `1011` close code.
+
 ### Changed (Transactional email templates — `feature/improve-email-html-templates`)
 
 - **Redesigned every transactional email** (verification, password reset, org invitation, project

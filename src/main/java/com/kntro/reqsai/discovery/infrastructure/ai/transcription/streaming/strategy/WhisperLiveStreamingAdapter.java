@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.kntro.reqsai.discovery.application.port.StreamingTranscriptionPort;
 import com.kntro.reqsai.discovery.infrastructure.exception.DiscoveryInfrastructureExceptions;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.Nullable;
 
 import java.net.URI;
 import java.net.http.WebSocket;
@@ -23,8 +24,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * </ul>
  *
  * <p>WhisperLive sends <em>cumulative</em> {@code segments} arrays: each message re-includes all
- * previously completed segments. Finals are deduplicated per connection by {@code startMs} so the same
- * segment is never persisted twice.
+ * previously completed segments. Finals are deduplicated per stream by {@code startMs} so the same
+ * segment is never persisted twice. The offsets are already on the stream timeline (shifted after a
+ * reconnect), so a new connection's segments never collide with the previous connection's.
  *
  * <p>Audio must be float32 (not int16); {@link #prepareAudioFrame} converts automatically.
  */
@@ -36,6 +38,11 @@ public class WhisperLiveStreamingAdapter extends AbstractWebSocketStreamingAdapt
     private final String model;
 
     public WhisperLiveStreamingAdapter(String url, String apiKey, String model) {
+        this(url, apiKey, model, StreamResilience.defaults());
+    }
+
+    WhisperLiveStreamingAdapter(String url, String apiKey, String model, StreamResilience resilience) {
+        super(resilience);
         this.url = url;
         this.apiKey = apiKey;
         this.model = model;
@@ -75,19 +82,20 @@ public class WhisperLiveStreamingAdapter extends AbstractWebSocketStreamingAdapt
         }
     }
 
+    /** The session config WhisperLive expects as the first message of every connection. */
     @Override
-    protected void onConnected(WebSocket socket, Context context) {
+    protected @Nullable String handshakeMessage(Context context) {
         try {
             String language = context.language() != null ? context.language() : "es";
-            String config = JSON.writeValueAsString(Map.of(
+            return JSON.writeValueAsString(Map.of(
                     "uid", context.sessionId().toString(),
                     "language", language,
                     "task", "transcribe",
                     "use_vad", true,
                     "model", model));
-            socket.sendText(config, true);
         } catch (Exception e) {
-            log.warn("Failed to send WhisperLive config handshake: {}", e.getMessage());
+            log.warn("Failed to build WhisperLive config handshake: {}", e.getMessage());
+            return null;
         }
     }
 
@@ -126,7 +134,7 @@ public class WhisperLiveStreamingAdapter extends AbstractWebSocketStreamingAdapt
     }
 
     /**
-     * Per-connection deduplication: WhisperLive's cumulative protocol re-sends completed segments in
+     * Per-stream deduplication: WhisperLive's cumulative protocol re-sends completed segments in
      * every subsequent message. This wrapper forwards each final segment only once (keyed by startMs).
      * Partials are always forwarded so the UI gets live preview updates.
      */
@@ -146,6 +154,11 @@ public class WhisperLiveStreamingAdapter extends AbstractWebSocketStreamingAdapt
                 }
             }
             delegate.onTranscript(event);
+        }
+
+        @Override
+        public void onStreamLost(String reason) {
+            delegate.onStreamLost(reason);
         }
     }
 }

@@ -42,6 +42,10 @@ import java.util.concurrent.ConcurrentHashMap;
  *   <li><b>Close</b> — {@link #afterConnectionClosed} closes the provider session and unregisters
  *       from {@link SttSessionRegistry}. The lifecycle listener closes the channel when the
  *       session is paused or stopped via a domain event.</li>
+ *   <li><b>Provider lost</b> — the provider session reconnects on its own after a drop; if it
+ *       cannot, it reports {@code onStreamLost} and this handler closes the channel with
+ *       {@link #STREAM_LOST} (1011), so the client reports an error instead of recording into a
+ *       dead stream.</li>
  * </ol>
  *
  * <h2>Concurrency</h2>
@@ -53,6 +57,9 @@ import java.util.concurrent.ConcurrentHashMap;
 @RequiredArgsConstructor
 @Slf4j
 public class SttStreamingWebSocketHandler extends TenantAwareBinaryWebSocketHandler {
+
+    /** Sent when the provider stream could not be re-established. */
+    static final CloseStatus STREAM_LOST = CloseStatus.SERVER_ERROR.withReason("transcription stream lost");
 
     private final StartSttStreamCommandHandler startStream;
     private final AppendTranscriptSegmentCommandHandler appendHandler;
@@ -85,7 +92,7 @@ public class SttStreamingWebSocketHandler extends TenantAwareBinaryWebSocketHand
         }
         try {
             StreamingTranscriptionPort.Session recognizer = runWithTenantAndReturn(ws, () ->
-                    startStream.handle(new StartSttStreamCommand(sessionId, userId), event -> runWithTenant(ws, () -> onTranscript(sessionId, event))));
+                    startStream.handle(new StartSttStreamCommand(sessionId, userId), transcriptListener(ws, sessionId)));
             recognizers.put(ws.getId(), recognizer);
             wsToSession.put(ws.getId(), sessionId);
             registry.register(sessionId, ws);
@@ -127,6 +134,23 @@ public class SttStreamingWebSocketHandler extends TenantAwareBinaryWebSocketHand
         } catch (IllegalArgumentException e) {
             return null;
         }
+    }
+
+    /** Persists transcripts under the tenant context and ends the channel if the provider stream is lost. */
+    private StreamingTranscriptionPort.Listener transcriptListener(WebSocketSession ws, UUID sessionId) {
+        return new StreamingTranscriptionPort.Listener() {
+            @Override
+            public void onTranscript(StreamingTranscriptionPort.TranscriptEvent event) {
+                runWithTenant(ws, () -> SttStreamingWebSocketHandler.this.onTranscript(sessionId, event));
+            }
+
+            @Override
+            public void onStreamLost(String reason) {
+                log.warn("Live transcription for session {} lost ({}); closing the STT channel with {}",
+                        sessionId, reason, STREAM_LOST.getCode());
+                close(ws, STREAM_LOST);
+            }
+        };
     }
 
     private void onTranscript(UUID sessionId, StreamingTranscriptionPort.TranscriptEvent event) {
