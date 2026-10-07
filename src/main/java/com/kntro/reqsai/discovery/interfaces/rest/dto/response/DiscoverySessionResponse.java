@@ -45,13 +45,13 @@ public record DiscoverySessionResponse(
         @Schema(description = "Timestamp of the last update", example = "2026-06-15T15:30:05Z")
         Instant updatedAt,
 
-        @Schema(description = "Recording length in seconds, derived from startedAt/endedAt; null while a session has not both started and ended", example = "5400", nullable = true)
+        @Schema(description = "Recording length in seconds: the audio length of an uploaded recording, otherwise startedAt to endedAt of a live session; null while a live session has not both started and ended", example = "5400", nullable = true)
         @Nullable Long durationSeconds,
 
         @Schema(description = "User stories generated from this session; null on lifecycle responses that do not compute stats", example = "12", nullable = true)
         @Nullable Long storiesGenerated,
 
-        @Schema(description = "Of the generated stories, how many were accepted (APPROVED); null when stats are not computed", example = "9", nullable = true)
+        @Schema(description = "Story suggestions from this session the analyst accepted into the backlog (new stories, updates and edge cases; resolved questions excluded); null when stats are not computed", example = "9", nullable = true)
         @Nullable Long storiesAccepted,
 
         @Schema(description = "Suggestions still pending analyst review for this session; null when stats are not computed", example = "3", nullable = true)

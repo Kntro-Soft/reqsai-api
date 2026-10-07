@@ -17,14 +17,13 @@ import java.util.UUID;
 public interface SessionStatsJpaRepository extends JpaRepository<UserStory, UUID> {
 
     /**
-     * Per-session story counts: total generated and how many are {@code APPROVED}. Only sessions with at
+     * Per-session story counts: how many backlog stories came from each session. Only sessions with at
      * least one story appear; callers default the rest to zero.
-     * <p>Row shape: {@code [sessionId: UUID, generated: long, accepted: long]}.
+     * <p>Row shape: {@code [sessionId: UUID, generated: long]}.
      */
     @Query("""
             select s.sessionId,
-                   count(s),
-                   sum(case when s.status = com.kntro.reqsai.discovery.domain.model.StoryStatus.APPROVED then 1L else 0L end)
+                   count(s)
             from UserStory s
             where s.sessionId in :sessionIds
             group by s.sessionId
@@ -32,14 +31,18 @@ public interface SessionStatsJpaRepository extends JpaRepository<UserStory, UUID
     List<Object[]> storyCounts(@Param("sessionIds") Collection<UUID> sessionIds);
 
     /**
-     * Per-session suggestion counts: pending suggestions and clarifying questions asked. Only sessions
-     * with at least one suggestion appear; callers default the rest to zero.
-     * <p>Row shape: {@code [sessionId: UUID, pending: long, questions: long]}.
+     * Per-session suggestion counts: pending suggestions, clarifying questions asked, and story
+     * suggestions the analyst accepted into the backlog (a resolved clarifying question does not count:
+     * it never changes the backlog). Only sessions with at least one suggestion appear; callers default
+     * the rest to zero.
+     * <p>Row shape: {@code [sessionId: UUID, pending: long, questions: long, accepted: long]}.
      */
     @Query("""
             select g.sessionId,
                    sum(case when g.status = com.kntro.reqsai.discovery.domain.model.SuggestionStatus.PENDING then 1L else 0L end),
-                   sum(case when g.type = com.kntro.reqsai.discovery.domain.model.SuggestionType.CLARIFYING_QUESTION then 1L else 0L end)
+                   sum(case when g.type = com.kntro.reqsai.discovery.domain.model.SuggestionType.CLARIFYING_QUESTION then 1L else 0L end),
+                   sum(case when g.status = com.kntro.reqsai.discovery.domain.model.SuggestionStatus.ACCEPTED
+                             and g.type <> com.kntro.reqsai.discovery.domain.model.SuggestionType.CLARIFYING_QUESTION then 1L else 0L end)
             from com.kntro.reqsai.discovery.domain.model.Suggestion g
             where g.sessionId in :sessionIds
             group by g.sessionId
