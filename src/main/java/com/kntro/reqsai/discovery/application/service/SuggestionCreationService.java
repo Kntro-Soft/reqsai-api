@@ -29,6 +29,9 @@ import java.util.stream.Collectors;
  * Creates {@link Suggestion} entities from AI-generated output, applying embedding-based
  * postprocessing to override or refine the LLM's classification before persisting.
  *
+ * <p>Every draft first goes through {@link GeneratedStoryNormalizer}, which removes the user-story and
+ * Gherkin keywords ("Quiero …", "Dado que …") the model writes into the narrative and the criteria.
+ *
  * <h2>Duplicate filter</h2>
  * Each story draft is compared with the session's PENDING story suggestions and with the drafts already
  * kept in this pass. {@link SuggestionDedupPolicy#repeats} drops a draft only when it adds nothing — no
@@ -108,7 +111,9 @@ public class SuggestionCreationService {
         int skippedIncoherent = 0;
 
         for (GenerationResult.GeneratedStory generated : result.stories()) {
-            GenerationResult.GeneratedStory gen = generated;
+            // Clients add "Como / quiero / para" and "Dado / Cuando / Entonces" themselves: drop the copies
+            // the model wrote, before the drafts are compared, embedded or stored.
+            GenerationResult.GeneratedStory gen = GeneratedStoryNormalizer.normalize(generated);
             // Quality bar: the prompt asks the model to emit nothing for garbled fragments, but a
             // missing core field still slips through occasionally. A draft cannot become a valid
             // story without title/role/action/benefit, so drop it here rather than let the factory

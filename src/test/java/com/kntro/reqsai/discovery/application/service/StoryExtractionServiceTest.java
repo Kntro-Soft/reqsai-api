@@ -71,6 +71,64 @@ class StoryExtractionServiceTest {
     }
 
     @Test
+    @DisplayName("should store the narrative and Given/When/Then without the keywords the model wrote")
+    void should_strip_generated_keywords_before_persisting() {
+        UUID sessionId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        var gen = new GenerationResult.GeneratedStory(
+                "Reserva de citas en línea", "Como paciente.",
+                "Quiero reservar una cita desde la web o desde el celular.",
+                "Para evitar largas colas y llamadas sin contestar.", Priority.HIGH, 3,
+                List.of(new GenerationResult.GeneratedCriterion("Horario ocupado",
+                        "Dado que un paciente está reservando una cita en línea",
+                        "Cuando el primero confirma su reserva",
+                        "Entonces se queda con el horario.")));
+        when(stories.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        UserStory story = service.extractOne(gen, sessionId, projectId).orElseThrow();
+
+        assertThat(story.getTitle()).isEqualTo("Reserva de citas en línea");
+        assertThat(story.getRole()).isEqualTo("paciente");
+        assertThat(story.getAction()).isEqualTo("reservar una cita desde la web o desde el celular");
+        assertThat(story.getBenefit()).isEqualTo("evitar largas colas y llamadas sin contestar");
+        assertThat(story.getAcceptanceCriteria()).singleElement().satisfies(c -> {
+            assertThat(c.getScenario()).isEqualTo("Horario ocupado");
+            assertThat(c.getGiven()).isEqualTo("que un paciente está reservando una cita en línea");
+            assertThat(c.getWhen()).isEqualTo("el primero confirma su reserva");
+            assertThat(c.getThen()).isEqualTo("se queda con el horario");
+        });
+    }
+
+    @Test
+    @DisplayName("should strip the generated keywords from a duplicate-alert suggestion as well")
+    void should_strip_generated_keywords_from_duplicate_alert() {
+        UUID sessionId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        var gen = new GenerationResult.GeneratedStory(
+                "Dup story", "As a patient", "I want to book an appointment.", "So that I avoid queues.",
+                Priority.LOW, 1,
+                List.of(new GenerationResult.GeneratedCriterion(null, "Given a free slot",
+                        "When the patient books it", "Then the slot is held.")));
+        doThrow(new DomainException(DiscoveryError.DUPLICATE_USER_STORY, "sim"))
+                .when(deduplication).embedAndGuardDuplicates(any(UserStory.class));
+        when(embeddingPort.isAvailable()).thenReturn(true);
+        when(embeddingPort.embed(any())).thenReturn(new float[]{0.1f});
+        when(stories.findMostSimilar(eq(projectId), any()))
+                .thenReturn(Optional.of(new UserStoryRepository.SimilarStory(UUID.randomUUID(), 0.93)));
+
+        service.extractOne(gen, sessionId, projectId);
+
+        ArgumentCaptor<Suggestion> captor = ArgumentCaptor.forClass(Suggestion.class);
+        verify(suggestions).save(captor.capture());
+        Suggestion alert = captor.getValue();
+        assertThat(alert.getDraftRole()).isEqualTo("a patient");
+        assertThat(alert.getDraftAction()).isEqualTo("to book an appointment");
+        assertThat(alert.getDraftBenefit()).isEqualTo("I avoid queues");
+        assertThat(alert.getDraftAcceptanceCriteria()).containsExactly(
+                new Suggestion.DraftCriterion(null, "a free slot", "the patient books it", "the slot is held"));
+    }
+
+    @Test
     @DisplayName("should publish event and drop when a duplicate is detected but no target resolves")
     void should_drop_when_no_target_resolves() {
         UUID sessionId = UUID.randomUUID();

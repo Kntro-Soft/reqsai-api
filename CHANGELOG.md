@@ -11,6 +11,53 @@ follows [Semantic Versioning](https://semver.org/).
 
 _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in progress._
 
+### Fixed (Repeated story and Gherkin keywords — `bugfix/discovery-gherkin-keyword-normalization`)
+
+- **Generated stories no longer repeat the keywords the web already prints.** The web renders a story
+  as "Como {role}, quiero {action}, para {benefit}." and each criterion as "Dado / Cuando / Entonces
+  {step}", but the model wrote those keywords into the fields too. In production the analyst read
+  "quiero Quiero reservar una cita…", "para Para evitar largas colas….", "Dado Dado que un paciente…",
+  "Cuando Cuando el primero confirma…", "Entonces Entonces se queda con el horario…", and
+  "…disponible., para" from a role that ended with a period. Live suggestions and the batch
+  `/sessions/{id}/process` extraction were both affected. The realtime and batch prompts described the
+  criterion fields as "Given context…", "When this action…", "Then this outcome…", and nothing on the
+  server cleaned the output.
+- A new package-private `GeneratedStoryNormalizer` (`discovery.application.service`) cleans role,
+  action, benefit and the Given/When/Then of every criterion of generated text, in Spanish and English.
+  It removes a leading keyword in any case ("Como", "As"; "Quiero", "Yo quiero", "I want"; "Para", "so
+  that"; "Dado/Dada/Dados/Dadas", "Given"; "Cuando", "When"; "Entonces", "Then"; and a leading "Y" /
+  "And" on a step). The rest of the clause stays: "Dado que un paciente…" becomes "que un paciente…",
+  rendered "Dado que un paciente…". It removes trailing `.`, `;` and `,`, since the web adds its own
+  punctuation. It lowercases the first word only when it is a function word in title case ("Un
+  paciente" → "un paciente"); acronyms and names ("DNI", "SUNAT", "Yape", "María", "La Molina") keep
+  their case. It never empties a field: when nothing would be left, the original text is kept.
+- It runs where generated text becomes a suggestion or a story: `SuggestionCreationService` (live
+  `NEW_STORY` / `UPDATE_STORY` / `EDGE_CASE` drafts, before the duplicate filter and the embedding),
+  `StoryExtractionService` (batch extraction and its duplicate alert), and the LLM path of the Jira
+  import (`DiscoveryStoryWritePortImpl`). The story title, the scenario label, clarifying questions,
+  the import's deterministic fallback and anything an analyst types through the REST API are not
+  changed. Stories and suggestions already stored keep their text.
+- Both generation prompts now say that role, action, benefit and given/when/then must not start with
+  those keywords and must not end with a period (new `FIELD TEXT` rule, with Spanish and English
+  examples). The JSON schema no longer describes the steps as "Given context…" / "When this action…" /
+  "Then this outcome…", and the business-rule example is written as field values. The normalizer stays
+  as the safety net.
+- Side effect: an `UPDATE_STORY` whose only difference from its target was the keywords ("Dado un
+  horario disponible" for "un horario disponible") is now dropped as a no-op instead of reaching the
+  analyst as a new criterion.
+
+### Tests (Repeated story and Gherkin keywords — `bugfix/discovery-gherkin-keyword-normalization`)
+
+- `GeneratedStoryNormalizerTest` (new): every production example above, the English keywords, names
+  and acronyms, function words that open a name, the empty-field guard, and a whole generated story
+  (title, scenario and metadata unchanged).
+- `SuggestionCreationServiceTest`: a live `NEW_STORY` and an `EDGE_CASE` are stored without the
+  keywords; an `UPDATE_STORY` that only adds keywords to the target's criterion is dropped.
+  `StoryExtractionServiceTest`: the batch story and the duplicate alert are stored without them.
+  `DiscoveryStoryWritePortImplTest`: the Jira LLM path is cleaned and the fallback keeps the issue's
+  text. `GenerationScenarioTest`: both prompts carry the `FIELD TEXT` rule and the new schema wording.
+- Against the previous code, the 8 new mapping and prompt tests fail; all pass with the fix.
+
 ### Fixed (Live suggestion event and titles of kept drafts — `bugfix/discovery-suggestion-title-and-live-event`)
 
 - **The live `SUGGESTION_GENERATED` message carries the suggestion's real type and criteria.** In
