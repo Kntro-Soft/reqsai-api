@@ -3,12 +3,15 @@ package com.kntro.reqsai.discovery.application.service;
 import com.kntro.reqsai.discovery.application.port.GenerationResult;
 import com.kntro.reqsai.discovery.application.port.SuggestionRepository;
 import com.kntro.reqsai.discovery.application.port.UserStoryRepository;
+import com.kntro.reqsai.discovery.domain.event.SuggestionCreatedEvent;
 import com.kntro.reqsai.discovery.domain.model.Priority;
 import com.kntro.reqsai.discovery.domain.model.Suggestion;
 import com.kntro.reqsai.discovery.domain.model.SuggestionType;
 import com.kntro.reqsai.discovery.domain.model.UserStory;
 import com.kntro.reqsai.discovery.mothers.UserStoryMother;
 import com.kntro.reqsai.shared.application.port.EmbeddingPort;
+import com.kntro.reqsai.testsupport.AggregateEvents;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -295,6 +298,198 @@ class SuggestionCreationServiceTest {
             assertThat(s.getDraftAcceptanceCriteria()).singleElement()
                     .satisfies(c -> assertThat(c.then()).contains("10 %"));
         });
+    }
+
+    // ── Titles of kept drafts (production: three stories titled "Reserva de cita médica") ──
+
+    /** The pending booking of the production meeting, as the analyst's queue holds it. */
+    private Suggestion pendingBooking() {
+        return Suggestion.newStory(sessionId, projectId, "Reserva de cita médica", "paciente",
+                "reservar una cita médica desde el portal web eligiendo especialidad, médico y horario",
+                "ser atendido a tiempo", Priority.HIGH, 3,
+                List.of(new Suggestion.DraftCriterion("Reserva confirmada", "un horario disponible",
+                        "el paciente lo reserva", "la cita queda confirmada")));
+    }
+
+    /**
+     * The penalty draft as the model emitted it in production: an EDGE_CASE of the pending booking that
+     * copies the booking's title.
+     */
+    private GenerationResult.GeneratedStory penaltyLinkedTo(Suggestion booking, @Nullable String scenario) {
+        return new GenerationResult.GeneratedStory(SuggestionType.EDGE_CASE, booking.getDraftTitle(), "paciente",
+                "cancelar una cita médica con menos de 24 horas de anticipación", "se respeten los horarios",
+                Priority.HIGH, 2,
+                List.of(new GenerationResult.GeneratedCriterion(scenario, "una cita reservada",
+                        "el paciente la cancela con menos de 24 horas de anticipación",
+                        "se le cobra una penalidad del 10 %")),
+                "reserva de citas", booking.getId());
+    }
+
+    /** The doctor-notification draft: an UPDATE_STORY of the pending booking that copies its title. */
+    private GenerationResult.GeneratedStory notificationLinkedTo(Suggestion booking, @Nullable String scenario) {
+        return new GenerationResult.GeneratedStory(SuggestionType.UPDATE_STORY, booking.getDraftTitle(), "médico",
+                "recibir un correo cuando un paciente reserva una cita conmigo", "organizar mi agenda",
+                Priority.MEDIUM, 2,
+                List.of(new GenerationResult.GeneratedCriterion(scenario, "un paciente reserva una cita conmigo",
+                        "la reserva se registra", "recibo un correo con la fecha y la hora")),
+                null, booking.getId());
+    }
+
+    @Test
+    @DisplayName("production: the penalty and the notification linked to the pending booking get their own titles")
+    void linked_drafts_never_reuse_the_pending_title() {
+        Suggestion booking = pendingBooking();
+        when(embeddingPort.isAvailable()).thenReturn(true);
+        // Worst case, as in production: every draft of the meeting embeds to the same vector (cosine 1.0).
+        when(embeddingPort.embed(any())).thenReturn(new float[]{1f, 0f, 0f});
+        when(stories.findMostSimilar(any(), any())).thenReturn(Optional.empty());
+        when(suggestions.findAllBySessionIdAndStatus(any(), any())).thenReturn(List.of(booking));
+        when(suggestions.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        GenerationResult result = new GenerationResult(List.of(
+                penaltyLinkedTo(booking, "Penalidad por cancelación tardía"),
+                notificationLinkedTo(booking, "Notificación al médico al reservar una cita")), List.of());
+
+        List<Suggestion> created = service.createSuggestions(result, sessionId, projectId);
+
+        assertThat(created).extracting(Suggestion::getDraftTitle).containsExactly(
+                "Penalidad por cancelación tardía", "Notificación al médico al reservar una cita");
+        assertThat(created).allSatisfy(s -> {
+            assertThat(s.getType()).isEqualTo(SuggestionType.NEW_STORY);
+            assertThat(s.getTargetStoryId()).isNull();
+            assertThat(s.getDraftAcceptanceCriteria()).hasSize(1);
+        });
+        assertThat(created.get(0).getDraftAcceptanceCriteria().getFirst().then()).contains("10 %");
+        assertThat(created.get(1).getDraftAcceptanceCriteria().getFirst().then()).contains("correo");
+        // The live event carries the title and the criteria the database gets.
+        assertThat(created).allSatisfy(s -> {
+            SuggestionCreatedEvent event = createdEventOf(s);
+            assertThat(event.type()).isEqualTo(SuggestionType.NEW_STORY);
+            assertThat(event.draftTitle()).isEqualTo(s.getDraftTitle());
+            assertThat(event.draftAcceptanceCriteria()).isEqualTo(s.getDraftAcceptanceCriteria());
+        });
+    }
+
+    @Test
+    @DisplayName("production: without scenario labels, the linked drafts are titled from their own action")
+    void linked_drafts_without_scenario_are_titled_from_their_action() {
+        Suggestion booking = pendingBooking();
+        when(embeddingPort.isAvailable()).thenReturn(false);
+        when(suggestions.findAllBySessionIdAndStatus(any(), any())).thenReturn(List.of(booking));
+        when(suggestions.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        GenerationResult result = new GenerationResult(List.of(
+                penaltyLinkedTo(booking, null), notificationLinkedTo(booking, null)), List.of());
+
+        List<Suggestion> created = service.createSuggestions(result, sessionId, projectId);
+
+        assertThat(created).extracting(Suggestion::getDraftTitle).containsExactly(
+                "Cancelar una cita médica con menos de 24 horas de anticipación",
+                "Recibir un correo cuando un paciente reserva una cita conmigo");
+        assertThat(created).allSatisfy(s -> assertThat(s.getDraftAcceptanceCriteria()).hasSize(1));
+    }
+
+    @Test
+    @DisplayName("linked drafts that copy the whole booking narrative are titled from their criterion and both kept")
+    void linked_drafts_copying_the_narrative_are_titled_from_their_criterion() {
+        Suggestion booking = pendingBooking();
+        when(embeddingPort.isAvailable()).thenReturn(false);
+        when(suggestions.findAllBySessionIdAndStatus(any(), any())).thenReturn(List.of(booking));
+        when(suggestions.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        // UPDATE_STORYs that copy title, role, action and benefit unchanged and add one criterion each,
+        // as the prompt asks an update to do. With the booking's title, the second one used to be dropped
+        // as a same-title repeat of the first.
+        GenerationResult result = new GenerationResult(List.of(
+                copyOf(booking, new GenerationResult.GeneratedCriterion(null, "una cita reservada",
+                        "el paciente la cancela con menos de 24 horas de anticipación",
+                        "se le cobra una penalidad del 10 %")),
+                copyOf(booking, new GenerationResult.GeneratedCriterion(null, "un paciente reserva una cita",
+                        "la reserva se registra", "el médico recibe un correo de aviso"))), List.of());
+
+        List<Suggestion> created = service.createSuggestions(result, sessionId, projectId);
+
+        assertThat(created).extracting(Suggestion::getDraftTitle).containsExactly(
+                "Se le cobra una penalidad del 10 %", "El médico recibe un correo de aviso");
+        assertThat(created).allSatisfy(s -> {
+            assertThat(s.getType()).isEqualTo(SuggestionType.NEW_STORY);
+            assertThat(s.getDraftAcceptanceCriteria()).hasSize(1);
+        });
+    }
+
+    private static GenerationResult.GeneratedStory copyOf(Suggestion booking,
+                                                          GenerationResult.GeneratedCriterion criterion) {
+        return new GenerationResult.GeneratedStory(SuggestionType.UPDATE_STORY, booking.getDraftTitle(),
+                booking.getDraftRole(), booking.getDraftAction(), booking.getDraftBenefit(), Priority.HIGH, 3,
+                List.of(criterion), null, booking.getId());
+    }
+
+    @Test
+    @DisplayName("titles are deterministic: the same pass over the same queue yields the same titles")
+    void linked_titles_are_deterministic() {
+        Suggestion booking = pendingBooking();
+        when(embeddingPort.isAvailable()).thenReturn(false);
+        when(suggestions.findAllBySessionIdAndStatus(any(), any())).thenReturn(List.of(booking));
+        when(suggestions.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        GenerationResult result = new GenerationResult(List.of(
+                penaltyLinkedTo(booking, "Penalidad por cancelación tardía"),
+                notificationLinkedTo(booking, null)), List.of());
+
+        List<String> first = service.createSuggestions(result, sessionId, projectId).stream()
+                .map(Suggestion::getDraftTitle).toList();
+        List<String> second = service.createSuggestions(result, sessionId, projectId).stream()
+                .map(Suggestion::getDraftTitle).toList();
+
+        assertThat(first).isEqualTo(second).containsExactly("Penalidad por cancelación tardía",
+                "Recibir un correo cuando un paciente reserva una cita conmigo");
+    }
+
+    @Test
+    @DisplayName("two NEW_STORY drafts of one pass with the same title get distinct titles from their own content")
+    void same_pass_new_stories_never_share_a_title() {
+        when(embeddingPort.isAvailable()).thenReturn(false);
+        when(suggestions.findAllBySessionIdAndStatus(any(), any())).thenReturn(List.of());
+        when(suggestions.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        GenerationResult result = new GenerationResult(List.of(
+                new GenerationResult.GeneratedStory(SuggestionType.NEW_STORY, "Reserva de cita médica", "paciente",
+                        "reservar una cita médica desde el portal web", "ser atendido a tiempo", Priority.HIGH, 3,
+                        List.of(), null, null),
+                new GenerationResult.GeneratedStory(SuggestionType.NEW_STORY, "Reserva de cita médica", "médico",
+                        "recibir un correo cuando un paciente reserva una cita conmigo", "organizar mi agenda",
+                        Priority.MEDIUM, 2,
+                        List.of(new GenerationResult.GeneratedCriterion("Aviso de nueva reserva",
+                                "un paciente reserva una cita", "la reserva se registra",
+                                "el médico recibe un correo")), null, null)), List.of());
+
+        List<Suggestion> created = service.createSuggestions(result, sessionId, projectId);
+
+        assertThat(created).extracting(Suggestion::getDraftTitle)
+                .containsExactly("Reserva de cita médica", "Aviso de nueva reserva");
+    }
+
+    @Test
+    @DisplayName("a NEW_STORY kept next to a pending suggestion with the same title gets its own title")
+    void new_story_never_takes_a_pending_title() {
+        Suggestion booking = pendingBooking();
+        when(embeddingPort.isAvailable()).thenReturn(false);
+        when(suggestions.findAllBySessionIdAndStatus(any(), any())).thenReturn(List.of(booking));
+        when(suggestions.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        // Not linked: the model re-used the pending title for another requirement.
+        GenerationResult.GeneratedStory payment = new GenerationResult.GeneratedStory(SuggestionType.NEW_STORY,
+                "Reserva de cita médica", "paciente", "pagar la consulta en línea al reservar la cita",
+                "no hacer cola en la clínica", Priority.MEDIUM, 3, List.of(), null, null);
+
+        List<Suggestion> created = service.createSuggestions(resultOf(payment), sessionId, projectId);
+
+        assertThat(created).singleElement().satisfies(s -> {
+            assertThat(s.getType()).isEqualTo(SuggestionType.NEW_STORY);
+            assertThat(s.getDraftTitle()).isEqualTo("Pagar la consulta en línea al reservar la cita");
+        });
+    }
+
+    private static SuggestionCreatedEvent createdEventOf(Suggestion s) {
+        return AggregateEvents.of(s).stream()
+                .filter(SuggestionCreatedEvent.class::isInstance)
+                .map(SuggestionCreatedEvent.class::cast)
+                .findFirst()
+                .orElseThrow();
     }
 
     // ── Dedup ─────────────────────────────────────────────────────────────────
