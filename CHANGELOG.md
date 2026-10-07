@@ -11,6 +11,17 @@ follows [Semantic Versioning](https://semver.org/).
 
 _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in progress._
 
+### Changed (CI — deploy through reqsai-infra — `ci/deploy-via-infra`)
+
+- **`deploy.yml` no longer targets ECS/ECR.** That AWS stack (ECR repository, ECS service, GitHub OIDC
+  role) no longer exists, so the old workflow would fail on the next push to `main`. A push to `main` now
+  asks `Kntro-Soft/reqsai-infra` to run its `deploy-mvp.yml` workflow with `api_ref` set to the pushed
+  commit; that workflow builds the linux/arm64 image and deploys it to the single-EC2 MVP host over SSM, and
+  rebuilds reqsai-web from its `main`.
+- Needs the repository secret `INFRA_DEPLOY_TOKEN` (fine-grained PAT with Actions read and write on
+  `reqsai-infra` only). Without it the job logs a notice and succeeds, so `main` never goes red. Manual
+  runs only dispatch from `main`.
+
 ### Fixed (Live STT stream resilience — `bugfix/stt-stream-resilience`)
 
 - **Live transcription no longer stalls silently when the provider drops the stream.** In

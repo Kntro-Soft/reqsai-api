@@ -5,55 +5,24 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
-env:
-  AWS_REGION: ${{ vars.AWS_REGION }}
-  ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
-  ECS_CLUSTER: ${{ vars.ECS_CLUSTER }}
-  ECS_SERVICE: ${{ vars.ECS_SERVICE }}
-  ECS_TASK_DEFINITION: ${{ vars.ECS_TASK_DEFINITION }}
-  CONTAINER_NAME: ${{ vars.CONTAINER_NAME }}
+permissions:
+  contents: read
 
 jobs:
   deploy:
+    name: Trigger the MVP deploy
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v7
-
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v6
-        with:
-          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Log in to Amazon ECR
-        id: ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build and push image to ECR
-        id: build
+      - name: Dispatch deploy-mvp in reqsai-infra
         env:
-          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          GH_TOKEN: ${{ secrets.INFRA_DEPLOY_TOKEN }}
+          SHA: ${{ github.sha }}
         run: |
-          IMAGE="$REGISTRY/${ECR_REPOSITORY}:${GITHUB_SHA::8}"
-          docker build -t "$IMAGE" .
-          docker push "$IMAGE"
-          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
-
-      - name: Render new ECS task definition
-        id: taskdef
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
-        with:
-          task-definition: ${{ env.ECS_TASK_DEFINITION }}
-          container-name: ${{ env.CONTAINER_NAME }}
-          image: ${{ steps.build.outputs.image }}
-
-      - name: Deploy to Amazon ECS (Fargate)
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
-        with:
-          task-definition: ${{ steps.taskdef.outputs.task-definition }}
-          service: ${{ env.ECS_SERVICE }}
-          cluster: ${{ env.ECS_CLUSTER }}
-          wait-for-service-stability: true
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::notice title=Deploy not triggered::INFRA_DEPLOY_TOKEN is not set. Add a fine-grained PAT with Actions read and write on Kntro-Soft/reqsai-infra to deploy main automatically."
+            exit 0
+          fi
+          gh workflow run deploy-mvp.yml --repo Kntro-Soft/reqsai-infra --ref main -f api_ref="$SHA"
+          echo "Requested the deploy of reqsai-api $SHA: https://github.com/Kntro-Soft/reqsai-infra/actions/workflows/deploy-mvp.yml" >> "$GITHUB_STEP_SUMMARY"
