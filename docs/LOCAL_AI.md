@@ -290,6 +290,15 @@ it when you switch models (the real-vector fixture in `SuggestionDedupRealVector
 with the target's own narrative and no new criterion is dropped as noise. The realtime log line
 reports these drops as `no-op-update-skipped`.
 
+A draft the model links to a pending suggestion, and that adds something to it, is kept as a
+`NEW_STORY` (`kept despite a PENDING link` in the log). The model usually copies the pending
+suggestion's title into such a draft, so the kept story never keeps that title. It keeps its own title
+only when that title names something the pending one does not. Otherwise its title comes from its own
+content: a criterion's scenario label, the action, a criterion's Then, When or Given, or the benefit,
+whichever first says something the pending suggestion does not. A `NEW_STORY` also never takes a title
+that another story suggestion already has (pending, or kept earlier in the same pass). It gets one from
+its own content the same way (`SuggestionTitles`).
+
 ## Tips
 
 - **Keep models warm**: Ollama unloads idle models — `OLLAMA_KEEP_ALIVE=-1` keeps them resident during a

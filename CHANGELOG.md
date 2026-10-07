@@ -11,6 +11,47 @@ follows [Semantic Versioning](https://semver.org/).
 
 _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in progress._
 
+### Fixed (Live suggestion event and titles of kept drafts — `bugfix/discovery-suggestion-title-and-live-event`)
+
+- **The live `SUGGESTION_GENERATED` message carries the suggestion's real type and criteria.** In
+  production, all 12 live suggestion events received over 5 sessions had an empty
+  `draftAcceptanceCriteria`, and an `EDGE_CASE` reached the analyst as a `NEW_STORY` without its
+  criterion. REST and the database were correct. The private `Suggestion.newStory(...)` helper
+  registered `SuggestionCreatedEvent` before the public `newStory(..., criteria)` and `edgeCase(...)`
+  factories set the criteria, the type, the related topic and the target. The event is a snapshot, so
+  it kept the half-built values. Every factory (`NEW_STORY`, `EDGE_CASE`, `UPDATE_STORY`,
+  `CLARIFYING_QUESTION`) now builds the whole aggregate first and registers the event last.
+  `SuggestionNotificationMapper` already forwarded every event field and is unchanged.
+- **A draft kept despite a link to a pending suggestion no longer reuses that suggestion's title.**
+  In production, the late-cancellation penalty and the doctor's notification were both linked to the
+  pending booking and kept as `NEW_STORY`s (`kept despite a PENDING link`), and both were titled
+  "Reserva de cita médica", the booking's title. Accepting all three would have created three stories
+  with the same title. The model copies the linked suggestion's title into the update or edge case it
+  meant (the prompt asks an `UPDATE_STORY` to copy unchanged fields), and the draft was kept with that
+  title. Now the draft keeps its own title only when it names something the linked title does not.
+  Otherwise its title comes from its own content: a criterion's scenario label ("Penalidad por
+  cancelación tardía"), the action, a criterion's Then, When or Given, or the benefit. The first one
+  that says something the pending suggestion does not wins. The criteria are kept.
+- **No two story suggestions in the queue share a title.** A `NEW_STORY` whose title another story
+  suggestion already has (pending, or kept earlier in the same pass) gets a title from its own content
+  the same way. A numbered title ("… (2)") is the last resort. The choice is deterministic. As a side
+  effect, two linked drafts that both copied the booking's whole narrative and added different criteria
+  are now both kept; before, the second was dropped as a same-title repeat of the first.
+
+### Tests (Live suggestion event and titles of kept drafts — `bugfix/discovery-suggestion-title-and-live-event`)
+
+- `SuggestionTest`: each factory (`NEW_STORY`, `EDGE_CASE` with and without a criterion, `UPDATE_STORY`,
+  `CLARIFYING_QUESTION`) registers exactly one `SuggestionCreatedEvent` with the final type, title,
+  target and sanitized criteria. `SuggestionNotificationMapperTest` (new): the message built from a real
+  factory's event carries `EDGE_CASE` and its criterion, and every criterion of a `NEW_STORY`.
+- `SuggestionCreationServiceTest`: the production case (a pending booking, then the penalty as an
+  `EDGE_CASE` and the notification as an `UPDATE_STORY`, both titled like the booking) yields
+  "Penalidad por cancelación tardía" and "Notificación al médico al reservar una cita" with their
+  criteria, also when every draft embeds to the same vector. Further cases cover titles from the action,
+  drafts that copy the whole narrative, determinism, same-pass title clashes and a clash with a pending
+  title. `SuggestionTitlesTest` (new) covers the title rules and formatting.
+- Against the previous code, 12 of the new tests fail; all pass with the fix.
+
 ### Fixed (Business rules lost to the realtime duplicate filter — `bugfix/discovery-dedup-business-rules`)
 
 - **A distinct rule of the same domain is no longer dropped as a duplicate** — in a production meeting
