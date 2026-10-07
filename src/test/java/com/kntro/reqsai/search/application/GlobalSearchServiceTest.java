@@ -72,7 +72,7 @@ class GlobalSearchServiceTest {
     }
 
     @Test
-    @DisplayName("merges hits across all types and caps to the requested limit")
+    @DisplayName("interleaves hits across types (best of each first) and caps to the requested limit")
     void merges_and_caps() {
         TenantContext.setCurrentTenant(ORG_ID.toString());
         ProjectScope scope = ProjectScope.unrestricted();
@@ -89,10 +89,12 @@ class GlobalSearchServiceTest {
 
         List<SearchHit> result = service().search("checkout", 6, CALLER_ID);
 
-        assertThat(result).hasSize(6); // 5 projects + 1 story, orgs/members trimmed by cap
+        // Round-robin: the best hit of every type first, then the remaining projects up to the cap.
+        assertThat(result).hasSize(6);
         assertThat(result).extracting(SearchHit::type)
-                .containsExactly(SearchHitType.PROJECT, SearchHitType.PROJECT, SearchHitType.PROJECT,
-                        SearchHitType.PROJECT, SearchHitType.PROJECT, SearchHitType.USER_STORY);
+                .containsExactly(SearchHitType.PROJECT, SearchHitType.USER_STORY, SearchHitType.ORGANIZATION,
+                        SearchHitType.MEMBER, SearchHitType.PROJECT, SearchHitType.PROJECT);
+        assertThat(result).extracting(SearchHit::title).containsSubsequence("p0", "p1", "p2");
     }
 
     @Test

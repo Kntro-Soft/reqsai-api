@@ -15,7 +15,10 @@ import java.util.UUID;
 
 /**
  * Global-search aggregator. Fans out a term across every bounded context's {@code search} named
- * interface, taking the top-{@code limit} per type, then merges and caps the combined list.
+ * interface, taking the top-{@code limit} per type, then interleaves the per-type lists (best project,
+ * best story, best organization, … then the second of each) and caps the result. Interleaving keeps
+ * every type that matched visible: concatenating would let a long list of stories push glossary terms
+ * or members past the cap.
  *
  * <p>Runs sequentially on the request thread on purpose: there is a single connection pool and one
  * {@code search_path} bound per request, so parallel fan-out would fight over the tenant context.
@@ -57,14 +60,35 @@ public class GlobalSearchService {
         // Resolve the caller's project scope once; both project and story searches reuse it.
         ProjectScope projectScope = workspaceSearch.resolveProjectScope(orgId, callerId);
 
-        List<SearchHit> merged = new ArrayList<>();
-        merged.addAll(workspaceSearch.searchProjects(normalized, cappedLimit, orgId, projectScope));
-        merged.addAll(discoverySearch.searchUserStories(normalized, cappedLimit, projectScope));
-        merged.addAll(workspaceSearch.searchOrganizations(normalized, cappedLimit, callerId));
-        merged.addAll(workspaceSearch.searchMembers(normalized, cappedLimit, orgId, callerId));
-        merged.addAll(workspaceSearch.searchGlossaryTerms(normalized, cappedLimit, projectScope));
-        merged.addAll(workspaceSearch.searchDocuments(normalized, cappedLimit, projectScope));
+        List<List<SearchHit>> perType = List.of(
+                workspaceSearch.searchProjects(normalized, cappedLimit, orgId, projectScope),
+                discoverySearch.searchUserStories(normalized, cappedLimit, projectScope),
+                workspaceSearch.searchOrganizations(normalized, cappedLimit, callerId),
+                workspaceSearch.searchMembers(normalized, cappedLimit, orgId, callerId),
+                workspaceSearch.searchGlossaryTerms(normalized, cappedLimit, projectScope),
+                workspaceSearch.searchDocuments(normalized, cappedLimit, projectScope));
 
-        return merged.size() > cappedLimit ? merged.subList(0, cappedLimit) : merged;
+        return interleave(perType, cappedLimit);
+    }
+
+    /** Round-robin over the per-type lists (each already best-first), stopping at {@code limit} hits. */
+    private static List<SearchHit> interleave(List<List<SearchHit>> perType, int limit) {
+        List<SearchHit> merged = new ArrayList<>(limit);
+        for (int rank = 0; merged.size() < limit; rank++) {
+            boolean any = false;
+            for (List<SearchHit> hits : perType) {
+                if (rank < hits.size()) {
+                    any = true;
+                    merged.add(hits.get(rank));
+                    if (merged.size() == limit) {
+                        return merged;
+                    }
+                }
+            }
+            if (!any) {
+                break;
+            }
+        }
+        return merged;
     }
 }

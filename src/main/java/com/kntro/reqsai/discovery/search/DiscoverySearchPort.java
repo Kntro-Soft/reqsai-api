@@ -15,7 +15,7 @@ public interface DiscoverySearchPort {
 
     /**
      * Top-{@code limit} user stories whose title matches {@code term}, restricted to {@code scope}.
-     * Returns an empty list when the caller can see no projects. Ordered by trigram similarity, best first.
+     * Returns an empty list when the caller can see no projects. Best match first.
      */
     List<SearchHit> searchUserStories(String term, int limit, ProjectScope scope);
 }
