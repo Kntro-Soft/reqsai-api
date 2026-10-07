@@ -25,7 +25,8 @@ import java.util.UUID;
  * <ul>
  *   <li>{@code NEW_STORY}  — creates a new {@link UserStory} from the draft (or edited) fields and its
  *       draft (or edited) acceptance criteria.</li>
- *   <li>{@code UPDATE_STORY} — updates the target story's fields with the draft (or analyst edits).</li>
+ *   <li>{@code UPDATE_STORY} — updates the target story's fields with the draft (or analyst edits) and
+ *       appends the draft (or edited) acceptance criteria the story does not have yet.</li>
  *   <li>{@code EDGE_CASE}  — adds the draft (or edited) Given/When/Then criterion to the target story
  *       verbatim; when no target story is resolvable it is rejected with a domain error (kept PENDING)
  *       rather than minted as a granularity-violating standalone story.</li>
@@ -96,6 +97,13 @@ public class AcceptSuggestionCommandHandler {
         }
         target.updateFrom(title(s, cmd), role(s, cmd), action(s, cmd), benefit(s, cmd),
                 priority(s, cmd), storyPoints(s, cmd));
+        // Append the (possibly analyst-edited) criteria the update proposes, skipping any the story
+        // already states, so re-accepting a rule never duplicates it.
+        for (Suggestion.DraftCriterion c : s.getDraftAcceptanceCriteria()) {
+            if (!target.hasAcceptanceCriterion(c.given(), c.when(), c.then())) {
+                target.addAcceptanceCriterion(c.scenario(), c.given(), c.when(), c.then());
+            }
+        }
         embedIfAvailable(target);
         return storyRepo.save(target).getId();
     }

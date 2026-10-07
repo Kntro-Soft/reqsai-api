@@ -100,7 +100,9 @@ public class Suggestion extends AggregateRoot {
      *   <li>{@code NEW_STORY} — the 2-4 criteria proposed for the new story.</li>
      *   <li>{@code EDGE_CASE} — exactly one entry: the boundary/exceptional criterion to add to the
      *       target story (accepted verbatim, no field twisting).</li>
-     *   <li>{@code UPDATE_STORY} / {@code CLARIFYING_QUESTION} — empty.</li>
+     *   <li>{@code UPDATE_STORY} — the new criteria the update adds to the target story (may be empty
+     *       when only the story fields change).</li>
+     *   <li>{@code CLARIFYING_QUESTION} — empty.</li>
      * </ul>
      */
     @JdbcTypeCode(SqlTypes.JSON)
@@ -170,11 +172,23 @@ public class Suggestion extends AggregateRoot {
         return s;
     }
 
-    /** Creates an UPDATE_STORY suggestion for a near-duplicate. */
+    /** Creates an UPDATE_STORY suggestion for a near-duplicate (no criteria to add). */
     public static Suggestion updateStory(UUID sessionId, UUID projectId,
                                          String title, String role, String action, String benefit,
                                          Priority priority, @Nullable Integer storyPoints,
                                          UUID targetStoryId) {
+        return updateStory(sessionId, projectId, title, role, action, benefit, priority, storyPoints,
+                targetStoryId, List.of());
+    }
+
+    /**
+     * Creates an UPDATE_STORY suggestion: the proposed story fields for {@code targetStoryId} plus the
+     * acceptance criteria the update adds to it (accepting appends the ones the story does not have yet).
+     */
+    public static Suggestion updateStory(UUID sessionId, UUID projectId,
+                                         String title, String role, String action, String benefit,
+                                         Priority priority, @Nullable Integer storyPoints,
+                                         UUID targetStoryId, List<DraftCriterion> criteria) {
         Suggestion s = new Suggestion();
         s.sessionId = Assert.notNull(sessionId, "sessionId");
         s.projectId = Assert.notNull(projectId, "projectId");
@@ -187,6 +201,7 @@ public class Suggestion extends AggregateRoot {
         s.draftPriority = priority;
         s.draftStoryPoints = storyPoints;
         s.targetStoryId = Assert.notNull(targetStoryId, "targetStoryId");
+        s.draftCriteria = sanitizeCriteria(criteria);
         s.registerEvent(SuggestionCreatedEvent.of(s));
         return s;
     }
@@ -260,7 +275,7 @@ public class Suggestion extends AggregateRoot {
         return s;
     }
 
-    // ── Draft acceptance criteria (NEW_STORY) ─────────────────────────────────
+    // ── Draft acceptance criteria (NEW_STORY, UPDATE_STORY, EDGE_CASE) ────────
 
     /**
      * A proposed acceptance criterion in Gherkin form. {@code scenario} is an optional short label
@@ -273,7 +288,7 @@ public class Suggestion extends AggregateRoot {
 
     /**
      * The structured draft acceptance criteria (empty when none), never null. Holds the NEW_STORY
-     * criteria list or the single EDGE_CASE criterion.
+     * criteria list, the criteria an UPDATE_STORY adds, or the single EDGE_CASE criterion.
      */
     public List<DraftCriterion> getDraftAcceptanceCriteria() {
         return draftCriteria == null ? List.of() : List.copyOf(draftCriteria);

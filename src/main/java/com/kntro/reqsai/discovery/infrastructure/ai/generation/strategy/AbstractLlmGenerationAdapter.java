@@ -53,6 +53,59 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
             {"stories":[],"questions":[]}.
             """;
 
+    /**
+     * A stated business rule (an obligation, a condition with a consequence, a percentage, amount or
+     * deadline) is a testable requirement: it must reach the analyst as a story or an acceptance
+     * criterion, with at most an extra question — never only a question. Batch / import variant (no
+     * backlog, no UPDATE_STORY). Like the prompts it is part of, it goes through {@code formatted()},
+     * so a literal percent sign is written {@code %%}.
+     */
+    private static final String BUSINESS_RULES_BATCH = """
+            - BUSINESS RULES ARE REQUIREMENTS (STRICT): a CONCRETE business rule — a condition with its
+              consequence ("si…, entonces…", "si el cliente…, se le debe…", "if…, then…") or an obligation
+              ("se debe…", "tiene que…", "must…") that states its percentage, amount, deadline or time window
+              ("diez por ciento", "10 %%", "menos de veinticuatro horas", "48 horas") — is TESTABLE. It already
+              names its threshold, so it is NOT ambiguous just because an operational detail is still open:
+              NEVER answer it with ONLY a clarifying question. (An obligation that leaves the actor, amount or
+              format undefined — "alguien debe aprobar", "con qué monto" — is still AMBIGUITY → ASK.) Put it in "stories", keeping its numbers in a Given / When /
+              Then criterion: as a criterion of the story it governs when that story is extracted from this
+              same transcript, otherwise as its own NEW_STORY. A rule, condition or outcome on a capability
+              (a penalty, a cancellation, a notification, a limit) is NOT the same as that capability — never
+              drop it as already covered. If a detail is genuinely missing (e.g. how the penalty is charged),
+              ALSO add a clarifying question that names it — in addition to the story, not instead of it.
+              Example: "Si el paciente cancela con menos de veinticuatro horas, se le debe cobrar una penalidad
+              del diez por ciento" → the criterion "Given una cita reservada, When el paciente la cancela con
+              menos de 24 horas de anticipación, Then se le cobra una penalidad del 10 %%", optionally plus the
+              question "¿Cómo se cobra la penalidad?".
+            """;
+
+    /** Realtime variant of {@link #BUSINESS_RULES_BATCH}: routes the rule to the backlog story it governs. */
+    private static final String BUSINESS_RULES_CONTEXTUAL = """
+            - BUSINESS RULES ARE REQUIREMENTS (STRICT): a CONCRETE business rule — a condition with its
+              consequence ("si…, entonces…", "si el cliente…, se le debe…", "if…, then…") or an obligation
+              ("se debe…", "tiene que…", "must…") that states its percentage, amount, deadline or time window
+              ("diez por ciento", "10 %%", "menos de veinticuatro horas", "48 horas") — is TESTABLE. It already
+              names its threshold, so it is NOT case (b) of AMBIGUITY just because an operational detail is
+              still open: NEVER answer it with ONLY a CLARIFYING_QUESTION. (An obligation that leaves the
+              actor, amount or format undefined — "alguien debe aprobar", "con qué monto" — is still case (b):
+              ask.) Put it in "stories", keeping its numbers in a
+              Given / When / Then criterion:
+                · when it governs a story listed in EXISTING USER STORIES → UPDATE_STORY (or EDGE_CASE) with
+                  that story's id as "targetStoryId" and the rule as a NEW acceptance criterion;
+                · otherwise — also when the capability it governs is only in ALREADY SUGGESTED THIS SESSION
+                  (not a story yet) — its own NEW_STORY named after the rule (e.g. "Penalidad por cancelación
+                  tardía"), with the rule in its criteria; when the capability it governs is new in this same
+                  conversation, the rule may instead be a criterion of that NEW_STORY.
+              A rule, condition or outcome on a capability (a penalty, a cancellation, a notification, a
+              limit) is NOT the same capability — never drop it as already covered. If a detail is genuinely
+              missing (e.g. how the penalty is charged), ALSO add a clarifying question that names it — in
+              addition to the story, not instead of it. Example: "Si el paciente cancela con menos de
+              veinticuatro horas, se le debe cobrar una penalidad del diez por ciento" → a story or criterion
+              "Given una cita reservada, When el paciente la cancela con menos de 24 horas de anticipación,
+              Then se le cobra una penalidad del 10 %%", optionally plus the question "¿Cómo se cobra la
+              penalidad?".
+            """;
+
     static final String EXTRACTION_PROMPT = """
             You are an expert requirements analyst specializing in agile software development.
             Analyze the requirements meeting transcript given inside <transcript> tags at the end of this
@@ -100,6 +153,7 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
               pero cobrar el flete"). Name the specific missing detail in the question. Do NOT invent a
               plausible value and emit a NEW_STORY — asking is correct, guessing is a defect. A concrete
               requirement (e.g. "iniciar sesión con correo y contraseña") is testable — emit the story.
+            """ + BUSINESS_RULES_BATCH + """
             - DISTINCT CAPABILITIES STAY SEPARATE (STRICT): when the transcript mentions two or more
               genuinely DIFFERENT capabilities, emit a SEPARATE story for EACH. When the speaker EXPLICITLY
               SIGNALS separation — "y aparte", "por otro lado", "por separado", "distinto", "diferente",
@@ -260,7 +314,9 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
                   a story. questions: [{"question":"¿Qué rol aprueba los gastos y a partir de qué monto se
                   requiere aprobación?"}]
               Counter-example (do NOT over-clarify): a concrete requirement like "el usuario inicia sesión
-              con correo y contraseña" is testable — emit the NEW_STORY, do not ask.
+              con correo y contraseña" is testable — emit the NEW_STORY, do not ask. A stated business rule
+              (next rule) is testable too.
+            """ + BUSINESS_RULES_CONTEXTUAL + """
             - DISTINCT CAPABILITIES STAY SEPARATE (STRICT): when the transcript mentions two or more
               genuinely DIFFERENT capabilities (e.g. "exportar a PDF" AND "exportar a Excel"; "iniciar
               sesión" AND "registrarse"), emit a SEPARATE story for EACH. Never merge distinct capabilities
@@ -290,11 +346,16 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
                 · "the export must be encrypted" → EDGE_CASE / UPDATE_STORY of the export story.
             - Do NOT re-suggest anything equivalent (same meaning, any wording or language) to an item
               in ALREADY SUGGESTED THIS SESSION; those are pending analyst review and repeating them
-              floods the queue. This is a hard constraint, not a preference.
+              floods the queue. This is a hard constraint, not a preference. A new rule, condition or
+              outcome on one of those items is NOT equivalent to it — emit it (see BUSINESS RULES).
             - For every NEW_STORY, propose 2 to 4 acceptance criteria, each an explicit
               Given / When / Then triple in the SAME LANGUAGE as the transcript. Base them on what was
               actually said; do not fabricate. If you cannot form at least one complete Given/When/Then
               triple, return an empty "acceptanceCriteria" array rather than inventing one.
+            - For every UPDATE_STORY, put in "acceptanceCriteria" ONLY the criteria the conversation ADDS or
+              CHANGES (Given / When / Then, same language) — e.g. a new rule with its numbers — and copy
+              title / role / action / benefit from the EXISTING USER STORIES entry unchanged unless the
+              conversation changes them.
             - For every EDGE_CASE, provide EXACTLY ONE acceptance criterion in "acceptanceCriteria":
               the boundary/exceptional/validation/security rule itself, as an explicit
               Given / When / Then triple, plus the existing story it belongs to in "targetStoryId".
@@ -308,8 +369,9 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
             - "NEW_STORY"    — a new, standalone user story not covered by any existing story in the context.
                                "targetStoryId" must be null.
             - "UPDATE_STORY" — the conversation revisits, refines, extends, changes or duplicates an
-                               EXISTING user story from the list; set "targetStoryId" to that story's id
-                               and write the full updated story fields.
+                               EXISTING user story from the list; set "targetStoryId" to that story's id,
+                               write the full updated story fields, and put only the new or changed
+                               acceptance criteria in "acceptanceCriteria".
             - "EDGE_CASE"    — a boundary, exceptional scenario, or a session-maintenance / error /
                                validation / security constraint that belongs as an acceptance criterion
                                on an existing story rather than as a new standalone story; set
@@ -358,7 +420,8 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
               ]
             }
 
-            NEW_STORY: 2-4 acceptance criteria. EDGE_CASE: exactly one (the boundary rule).
+            NEW_STORY: 2-4 acceptance criteria. UPDATE_STORY: only the new or changed ones. EDGE_CASE:
+            exactly one (the boundary rule).
 
             %s
 
@@ -367,9 +430,11 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
             - If the capability is the SAME as a candidate — even in different words, synonyms, a regional
               variant, or another language — you MUST output "type":"UPDATE_STORY" with "targetStoryId"
               set to that candidate's id, COPIED VERBATIM from the list. Do NOT output NEW_STORY for it.
-            - If it ADDS a detail/criterion/constraint to a candidate, you MUST output "UPDATE_STORY" (or
-              "EDGE_CASE" for a boundary rule) with "targetStoryId" set to that candidate's id.
-            - Output "NEW_STORY" (with "targetStoryId": null) ONLY when NO candidate matches.
+            - If it ADDS a detail/criterion/constraint/rule to a candidate, you MUST output "UPDATE_STORY" (or
+              "EDGE_CASE" for a boundary rule) with "targetStoryId" set to that candidate's id, and put what it
+              adds as Given/When/Then in "acceptanceCriteria".
+            - Output "NEW_STORY" (with "targetStoryId": null) ONLY when NO candidate matches. Never drop a new
+              rule, condition or outcome as already covered by a candidate (see BUSINESS RULES).
             Worked example — if CANDIDATE EXISTING STORIES contains
               "11111111-1111-1111-1111-111111111111 | Exportar reportes a PDF"
             and the conversation says "necesito descargar mis informes en formato PDF para el equipo",
@@ -378,7 +443,9 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
                 "title":"Exportar reportes a PDF","role":"usuario","action":"descargar mis informes en PDF",
                 "benefit":"compartirlos con el equipo","priority":"HIGH","storyPoints":3,
                 "acceptanceCriteria":[]}],"questions":[]}
-            (targetStoryId is the candidate id echoed verbatim — that is the whole point.)
+            (targetStoryId is the candidate id echoed verbatim — that is the whole point.) Had the conversation
+            also said "y el PDF debe mostrar la fecha de generación", the same UPDATE_STORY would carry that
+            rule as one Given/When/Then entry in "acceptanceCriteria".
 
             Recent conversation:
             """ + TRANSCRIPT_BLOCK;
@@ -499,7 +566,8 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
               .append(" NOT emit anything equivalent to these (same meaning in any wording or language); they")
               .append(" are already in the queue. If the conversation REFINES or EXTENDS one of these pending")
               .append(" items, emit UPDATE_STORY (or EDGE_CASE) with that item's id as \"targetStoryId\"")
-              .append(" instead of a near-duplicate NEW_STORY:\n");
+              .append(" instead of a near-duplicate NEW_STORY; a new business rule on one of them is its own")
+              .append(" NEW_STORY instead (see BUSINESS RULES):\n");
             ctx.alreadySuggested().forEach(p -> sb.append("- ").append(p.id())
                     .append(" | ").append(p.summary()).append("\n"));
         }
