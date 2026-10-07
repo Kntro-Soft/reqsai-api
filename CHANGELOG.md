@@ -45,6 +45,9 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
     clinic examples (anticipation window → booking; 10 % penalty → cancellation; waitlist, rescheduling,
     reminders, payment and no-show blocking → their own stories), and lets the DEDUP DECISION attach only
     to a candidate's own capability. The business-rule examples from #92 still attach to the right story.
+
+### Fixed (Global search misses obvious matches — `bugfix/search-partial-word-matches`)
+
 - **The command palette now finds a word inside a long label, with or without accents.** Search
   matched with `label % term` only, i.e. whole-string trigram similarity ≥ 0.3, so a short query never
   reached a long title. In production, "Costo", "Pagar" and "delivery" returned nothing although stories
