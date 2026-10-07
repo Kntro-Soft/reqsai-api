@@ -22,7 +22,7 @@ public interface SessionStatsRepository {
      * Aggregate counts derivable from the stories/suggestions tables.
      *
      * @param storiesGenerated   user stories whose {@code session_id} is this session
-     * @param storiesAccepted    of those, how many reached {@code APPROVED}
+     * @param storiesAccepted    story suggestions of this session the analyst accepted (questions excluded)
      * @param suggestionsPending suggestions of this session still {@code PENDING}
      * @param questionsAsked     suggestions of this session of type {@code CLARIFYING_QUESTION}
      */

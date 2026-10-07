@@ -33,6 +33,17 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
   concatenated them, so nine matching stories pushed the glossary term and members out of the top 8.
   Now the best hit of each type comes first, then the second of each, and so on.
 
+### Fixed (Session history duration and accepted count — `bugfix/discovery-session-history-stats`)
+
+- **`durationSeconds` of an uploaded recording is now its audio length.** It was always
+  `startedAt → endedAt`. For an uploaded recording that only spans the upload: the session is
+  created, then the file is chosen and sent. In production, recordings of 1:35 to 2:18 reported 9 to
+  25 seconds. Now `audioDurationMs` wins when it is set. Live sessions, which have no audio length,
+  are still measured from start to stop.
+- **`storiesAccepted` now counts the story suggestions the analyst accepted** (new stories, updates
+  and edge cases; resolved clarifying questions excluded). It used to count stories in `APPROVED`,
+  a status no flow sets yet, so the history always showed 0.
+
 ### Fixed (Repeated story and Gherkin keywords — `bugfix/discovery-gherkin-keyword-normalization`)
 
 - **Generated stories no longer repeat the keywords the web already prints.** The web renders a story
