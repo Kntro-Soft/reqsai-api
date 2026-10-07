@@ -261,6 +261,35 @@ Everything is offline and free for development; flip to cloud by uncommenting th
 in `.env` (or set `SPRING_PROFILES_ACTIVE=prod` + env vars for a prod-equivalent run). Behaviour stays
 consistent because the abstractions and the 768-dim vector column are shared.
 
+## Realtime duplicate filter and embedding models
+
+Live suggestions pass through a duplicate filter before they reach the analyst
+(`SuggestionCreationService` + `SuggestionDedupPolicy`). The embedding cosine only says that two
+drafts are **related**: `discovery.realtime.dedup-similarity-threshold`
+(`DISCOVERY_REALTIME_DEDUP_SIMILARITY_THRESHOLD`, default `0.84`). It never decides alone, for two
+reasons:
+
+- Requirements of one domain share the actor, the nouns and the "As …, I want to …" scaffolding. They
+  can score above the bar, while a synonym paraphrase scores below it. Measured with
+  `nomic-embed-text`: the doctor's e-mail notification vs the appointment booking scored 0.88, a
+  cancellation vs the booking 0.85, and a synonym paraphrase of the booking 0.83. In production
+  (OpenAI `text-embedding-3-small`), the 10% cancellation penalty was dropped as a duplicate of the
+  booking.
+- A draft that repeats a story and adds one clause scores like a plain restatement. Adding "… and pay
+  it online" to the booking scored 0.996 against it; a plain restatement of a login story scored 0.995.
+
+So a draft is dropped only when it is related **and adds nothing**: no new number (digits or number
+words such as "diez por ciento"), no new acceptance criterion (for edge cases and updates), and no new
+content word in its title, role or action. A NEW draft becomes an `UPDATE_STORY` of an accepted
+story only when it is related and has the same intent (a near-identical title, or the same actor
+doing the same action). Because the word checks carry the decision, changing the embedding model
+does not change what counts as a duplicate. Only the relatedness bar is model-specific: re-measure
+it when you switch models (the real-vector fixture in `SuggestionDedupRealVectorsTest` shows how).
+
+`UPDATE_STORY` suggestions carry only the acceptance criteria their target story lacks. An update
+with the target's own narrative and no new criterion is dropped as noise. The realtime log line
+reports these drops as `no-op-update-skipped`.
+
 ## Tips
 
 - **Keep models warm**: Ollama unloads idle models — `OLLAMA_KEEP_ALIVE=-1` keeps them resident during a

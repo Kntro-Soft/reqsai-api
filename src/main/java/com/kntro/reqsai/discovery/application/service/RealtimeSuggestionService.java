@@ -108,6 +108,17 @@ public class RealtimeSuggestionService {
     @Value("${discovery.realtime.max-transcript-age-seconds:22}")
     private int maxTranscriptAgeSeconds;
 
+    /**
+     * How many times one pass asks the model about the SAME transcript window when it replies with
+     * something that is not the JSON contract ({@link UnparseableGenerationException}: an empty reply, an
+     * answer, code, prose). When every attempt is unparseable the window is skipped — the watermark moves
+     * past it — so one window that consistently makes the model misbehave (e.g. a prompt-injection attempt
+     * it obeys) cannot block every later suggestion of the session. Counted per pass, so there is no
+     * per-session state to keep or clean up.
+     */
+    @Value("${discovery.realtime.unparseable-attempts-per-window:2}")
+    private int unparseableAttemptsPerWindow;
+
     /** Incremental pass: generate only when enough new transcripts have accrued past the watermark. */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void suggest(UUID sessionId) {
@@ -120,7 +131,9 @@ public class RealtimeSuggestionService {
      * @param force when {@code true} (flush on stop) generate even if the accrued text is below the
      *              minimum — so the end of the meeting is never dropped. The watermark only advances
      *              on success, so a transient failure is retried rather than lost, and overlapping
-     *              triggers never re-process the same segments.
+     *              triggers never re-process the same segments. The one exception is a window whose
+     *              model replies stay unparseable for {@link #unparseableAttemptsPerWindow} attempts:
+     *              it is skipped (watermark advanced, nothing created) instead of blocking the session.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void suggest(UUID sessionId, boolean force) {
@@ -164,9 +177,12 @@ public class RealtimeSuggestionService {
 
         int maxSequence = pending.getLast().getSequence();
         GenerationContext context = buildContext(session, text);
-        GenerationResult result = generation.generate(text, session.getLanguage().value(), context);
+        Optional<GenerationResult> result = generateWindow(sessionId, text, session.getLanguage().value(), context,
+                watermark, maxSequence);
 
-        List<Suggestion> created = suggestionCreation.createSuggestions(result, sessionId, session.getProjectId());
+        List<Suggestion> created = result
+                .map(r -> suggestionCreation.createSuggestions(r, sessionId, session.getProjectId()))
+                .orElse(List.of());
 
         // Persist ONLY the watermark + cadence timestamp with a scoped UPDATE. Do NOT mutate + save the
         // whole aggregate here: this pass loaded the session seconds ago (before the LLM call), so a full
@@ -175,6 +191,35 @@ public class RealtimeSuggestionService {
         sessions.advanceSuggestionWatermark(sessionId, maxSequence, Instant.now());
 
         log.info("Realtime suggestion for session {}: {} suggestions from {} segments (watermark {} -> {}, force={})", sessionId, created.size(), pending.size(), watermark, maxSequence, force);
+    }
+
+    /**
+     * Generates for one transcript window. Only an {@link UnparseableGenerationException} (the model replied,
+     * but not with the JSON contract) is retried on the same window, up to
+     * {@link #unparseableAttemptsPerWindow} attempts; when all of them fail the window is given up
+     * ({@link Optional#empty()}) and a warning is logged, so the caller advances the watermark past it.
+     * Any other failure (network, timeout, provider error) propagates unchanged on the first attempt — the
+     * watermark stays put and the window is retried on the next pass, exactly as before.
+     */
+    private Optional<GenerationResult> generateWindow(UUID sessionId, String text, String language,
+                                                      @Nullable GenerationContext context,
+                                                      int watermark, int maxSequence) {
+        int attempts = Math.max(1, unparseableAttemptsPerWindow);
+        for (int attempt = 1; ; attempt++) {
+            try {
+                return Optional.of(generation.generate(text, language, context));
+            } catch (UnparseableGenerationException e) {
+                if (attempt >= attempts) {
+                    log.warn("Realtime suggestion for session {}: {} consecutive unparseable model replies for "
+                                    + "segments {}..{}; skipping that window so later suggestions are not blocked: {}",
+                            sessionId, attempt, watermark + 1, maxSequence, e.getMessage());
+                    return Optional.empty();
+                }
+                log.info("Realtime suggestion for session {}: unparseable model reply (attempt {}/{}) for segments "
+                        + "{}..{}; retrying the same window: {}", sessionId, attempt, attempts, watermark + 1,
+                        maxSequence, e.getMessage());
+            }
+        }
     }
 
     /**

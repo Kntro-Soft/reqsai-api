@@ -23,7 +23,11 @@ public interface StreamingTranscriptionPort {
      */
     Session open(Context context, Listener listener);
 
-    /** Per-connection streaming handle. Closing it flushes any pending audio and releases the provider. */
+    /**
+     * Per-connection streaming handle. Closing it flushes any pending audio and releases the provider.
+     * Implementations may transparently re-establish a dropped provider connection; when they cannot,
+     * they report it once through {@link Listener#onStreamLost} and discard any further audio.
+     */
     interface Session extends AutoCloseable {
 
         /** Forwards a chunk of raw audio (provider-specific encoding) to the recognizer. */
@@ -37,6 +41,18 @@ public interface StreamingTranscriptionPort {
     @FunctionalInterface
     interface Listener {
         void onTranscript(TranscriptEvent event);
+
+        /**
+         * The provider stream was lost and could not be re-established: no more transcripts follow and
+         * further audio is discarded. Invoked at most once, possibly off the request thread; the caller
+         * should end its client channel so the user sees the failure instead of a silent stall.
+         * Default: no-op.
+         *
+         * @param reason short description of the failure, safe to log
+         */
+        default void onStreamLost(String reason) {
+            // no-op by default
+        }
     }
 
     /**

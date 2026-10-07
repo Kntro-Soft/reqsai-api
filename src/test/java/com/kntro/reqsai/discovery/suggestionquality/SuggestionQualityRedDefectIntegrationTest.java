@@ -152,10 +152,11 @@ class SuggestionQualityRedDefectIntegrationTest extends AbstractIntegrationTest 
             return stories.save(story).getId();
         });
 
-        // The LLM emits a NEW_STORY that is a paraphrase of the seeded story (same concept ⇒ cosine ≈ 0.97).
+        // The LLM emits a NEW_STORY that rewords the seeded story (same concept ⇒ cosine ≈ 0.97) with the same
+        // actor and action — the same requirement, so it converges instead of minting a second story.
         script.setResult(new GenerationResult(List.of(
-                newStory(concept, "Restablecer contraseña olvidada", "usuario registrado",
-                        "recuperar el acceso restableciendo la clave", "no quede bloqueado fuera de la cuenta"))));
+                newStory(concept, "Recuperar contraseña por correo", "usuario registrado",
+                        "restablecer mi contraseña desde el correo", "no quede bloqueado fuera de la cuenta"))));
 
         List<Suggestion> created = inTenantTx(() ->
                 suggestionCreation.createSuggestions(script.next(), sessionId, projectId));
@@ -267,10 +268,11 @@ class SuggestionQualityRedDefectIntegrationTest extends AbstractIntegrationTest 
             return suggestions.save(pending).getId();
         });
 
-        // The LLM emits a NEW_STORY paraphrasing the pending one (same concept ⇒ embedding near-duplicate).
+        // The LLM emits a NEW_STORY restating the pending one (same concept ⇒ embedding near-duplicate, and no
+        // word the pending draft does not already use).
         script.setResult(new GenerationResult(List.of(
-                newStory(concept, "Actualizar imagen de perfil", "usuario registrado",
-                        "reemplazar la foto de mi perfil", "mostrar una imagen reciente"))));
+                newStory(concept, "Editar la foto de perfil", "usuario",
+                        "cambiar la foto de mi perfil", "mostrar una imagen reciente"))));
 
         // Run the full realtime pass so buildContext assembles the pending-suggestion ids for the prompt.
         inTenantTx(() -> {
@@ -278,10 +280,10 @@ class SuggestionQualityRedDefectIntegrationTest extends AbstractIntegrationTest 
             return null;
         });
 
-        // The paraphrase was dropped: still exactly one PENDING suggestion (the seeded one), no 2nd near-dup.
+        // The restatement was dropped: still exactly one PENDING suggestion (the seeded one), no 2nd near-dup.
         List<Suggestion> pending = inTenantTx(() ->
                 suggestions.findAllBySessionIdAndStatus(sessionId, SuggestionStatus.PENDING));
-        assertThat(pending).as("the pending-twin paraphrase must be dropped, not persisted").hasSize(1);
+        assertThat(pending).as("the pending-twin restatement must be dropped, not persisted").hasSize(1);
         assertThat(pending.getFirst().getId()).isEqualTo(pendingSuggestionId);
 
         // And the generation context carried the pending suggestion's id (so the model could target it).
