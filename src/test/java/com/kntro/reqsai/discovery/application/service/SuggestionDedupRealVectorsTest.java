@@ -189,6 +189,6 @@ class SuggestionDedupRealVectorsTest {
         when(suggestions.save(any())).thenAnswer(inv -> inv.getArgument(0));
         UserStoryRepository stories = mock(UserStoryRepository.class);
         when(stories.findMostSimilar(any(), any())).thenReturn(Optional.empty());
-        return new SuggestionCreationService(suggestions, stories, embeddings, policy);
+        return new SuggestionCreationService(suggestions, stories, embeddings, policy, new SuggestionTargetPolicy(0.60, 0.05));
     }
 }
