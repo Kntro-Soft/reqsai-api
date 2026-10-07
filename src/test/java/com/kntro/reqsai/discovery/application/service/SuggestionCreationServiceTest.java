@@ -12,7 +12,6 @@ import com.kntro.reqsai.shared.application.port.EmbeddingPort;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -39,12 +38,11 @@ class SuggestionCreationServiceTest {
     @Mock private UserStoryRepository stories;
     @Mock private EmbeddingPort embeddingPort;
 
-    @InjectMocks
     private SuggestionCreationService service;
 
     @org.junit.jupiter.api.BeforeEach
     void setUp() {
-        org.springframework.test.util.ReflectionTestUtils.setField(service, "dedupSimilarityThreshold", 0.84);
+        service = new SuggestionCreationService(suggestions, stories, embeddingPort, new SuggestionDedupPolicy(0.84));
     }
 
     private final UUID sessionId = UUID.randomUUID();
@@ -179,14 +177,21 @@ class SuggestionCreationServiceTest {
         assertThat(criterion.then()).isEqualTo("el sistema bloquea la cuenta");
     }
 
+    /** An accepted story of this project with the same intent as {@link #generated} (same title). */
+    private UserStory accepted2faStory() {
+        return new UserStory(projectId, "Login con 2FA", "usuario", "autenticarme con un segundo factor",
+                "proteger mi cuenta", Priority.HIGH, 3);
+    }
+
     @Test
     @DisplayName("should still upgrade a near-duplicate NEW_STORY to UPDATE_STORY via embedding similarity")
     void should_upgrade_near_duplicate_new_story() {
-        UUID existingId = UUID.randomUUID();
+        UserStory existing = accepted2faStory();
         when(embeddingPort.isAvailable()).thenReturn(true);
         when(embeddingPort.embed(any())).thenReturn(new float[]{0.1f});
         when(stories.findMostSimilar(any(), any()))
-                .thenReturn(Optional.of(new UserStoryRepository.SimilarStory(existingId, 0.93)));
+                .thenReturn(Optional.of(new UserStoryRepository.SimilarStory(existing.getId(), 0.93)));
+        when(stories.findByIdAndProjectId(existing.getId(), projectId)).thenReturn(Optional.of(existing));
         when(suggestions.findAllBySessionIdAndStatus(any(), any())).thenReturn(List.of());
         when(suggestions.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -195,19 +200,20 @@ class SuggestionCreationServiceTest {
 
         assertThat(created).hasSize(1);
         assertThat(created.getFirst().getType()).isEqualTo(SuggestionType.UPDATE_STORY);
-        assertThat(created.getFirst().getTargetStoryId()).isEqualTo(existingId);
+        assertThat(created.getFirst().getTargetStoryId()).isEqualTo(existing.getId());
     }
 
     @Test
     @DisplayName("should downgrade a NEW_STORY that near-duplicates an ACCEPTED story to UPDATE at the dedup bar")
     void should_downgrade_accepted_twin_to_update_at_dedup_threshold() {
-        UUID acceptedId = UUID.randomUUID();
+        UserStory accepted = accepted2faStory();
         when(embeddingPort.isAvailable()).thenReturn(true);
         when(embeddingPort.embed(any())).thenReturn(new float[]{0.1f});
         // 0.845 is below the strict 0.85 duplicate-story gate but at/above the 0.84 dedup bar:
         // the accepted-twin paraphrase that previously slipped through as a duplicate NEW is now caught.
         when(stories.findMostSimilar(any(), any()))
-                .thenReturn(Optional.of(new UserStoryRepository.SimilarStory(acceptedId, 0.845)));
+                .thenReturn(Optional.of(new UserStoryRepository.SimilarStory(accepted.getId(), 0.845)));
+        when(stories.findByIdAndProjectId(accepted.getId(), projectId)).thenReturn(Optional.of(accepted));
         when(suggestions.findAllBySessionIdAndStatus(any(), any())).thenReturn(List.of());
         when(suggestions.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -217,7 +223,7 @@ class SuggestionCreationServiceTest {
         assertThat(created).hasSize(1);
         Suggestion s = created.getFirst();
         assertThat(s.getType()).isEqualTo(SuggestionType.UPDATE_STORY);
-        assertThat(s.getTargetStoryId()).isEqualTo(acceptedId);
+        assertThat(s.getTargetStoryId()).isEqualTo(accepted.getId());
         // recordSimilarity fixes the "similarity always null" gap.
         assertThat(s.getSimilarity()).isEqualTo(0.845);
     }
@@ -240,23 +246,55 @@ class SuggestionCreationServiceTest {
     }
 
     @Test
-    @DisplayName("should drop a draft that targets a still-PENDING suggestion (converge, do not duplicate)")
+    @DisplayName("should drop a draft linked to a still-PENDING suggestion when it only restates it")
     void should_drop_draft_targeting_pending_suggestion() {
         Suggestion pending = Suggestion.newStory(sessionId, projectId,
                 "Login con 2FA", "usuario", "autenticarme con 2FA", "seguridad", Priority.HIGH, 3);
         when(embeddingPort.isAvailable()).thenReturn(false);
         when(suggestions.findAllBySessionIdAndStatus(any(), any())).thenReturn(List.of(pending));
 
-        // The LLM points a refinement at the PENDING suggestion's own id (shown in the prompt).
-        GenerationResult.GeneratedStory refinement = new GenerationResult.GeneratedStory(
-                SuggestionType.UPDATE_STORY, "Login con 2FA por SMS", "usuario",
-                "recibir el código por SMS", "más seguridad", Priority.HIGH, 3,
+        // The LLM points a restatement at the PENDING suggestion's own id (shown in the prompt).
+        GenerationResult.GeneratedStory restatement = new GenerationResult.GeneratedStory(
+                SuggestionType.UPDATE_STORY, "Login con 2FA", "usuario",
+                "autenticarme con 2FA", "más seguridad", Priority.HIGH, 3,
                 List.of(), null, pending.getId());
 
         List<Suggestion> created = service.createSuggestions(
-                new GenerationResult(List.of(refinement), List.of()), sessionId, projectId);
+                new GenerationResult(List.of(restatement), List.of()), sessionId, projectId);
 
         assertThat(created).isEmpty();
+    }
+
+    @Test
+    @DisplayName("should keep, as a NEW_STORY with its criterion, a rule the LLM linked to a still-PENDING suggestion")
+    void should_keep_rule_linked_to_pending_suggestion_as_new_story() {
+        Suggestion pendingBooking = Suggestion.newStory(sessionId, projectId,
+                "Reservar cita médica", "paciente", "reservar una cita médica desde el portal web",
+                "ser atendido a tiempo", Priority.HIGH, 3);
+        when(embeddingPort.isAvailable()).thenReturn(false);
+        when(suggestions.findAllBySessionIdAndStatus(any(), any())).thenReturn(List.of(pendingBooking));
+        when(suggestions.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        // The model attaches the penalty to the pending booking (as the prompt allows) — a pending suggestion
+        // is not a story yet, so the rule used to be dropped here and never reached the analyst.
+        GenerationResult.GeneratedStory penalty = new GenerationResult.GeneratedStory(
+                SuggestionType.EDGE_CASE, "Penalidad por cancelación tardía", "paciente",
+                "cancelar una cita médica", "se respeten los horarios", Priority.HIGH, 2,
+                List.of(new GenerationResult.GeneratedCriterion("Cancelación tardía", "una cita reservada",
+                        "el paciente la cancela con menos de 24 horas de anticipación",
+                        "se le cobra una penalidad del 10 %")),
+                "reserva de citas", pendingBooking.getId());
+
+        List<Suggestion> created = service.createSuggestions(
+                new GenerationResult(List.of(penalty), List.of()), sessionId, projectId);
+
+        assertThat(created).singleElement().satisfies(s -> {
+            assertThat(s.getType()).isEqualTo(SuggestionType.NEW_STORY);
+            assertThat(s.getTargetStoryId()).isNull();
+            assertThat(s.getDraftTitle()).isEqualTo("Penalidad por cancelación tardía");
+            assertThat(s.getDraftAcceptanceCriteria()).singleElement()
+                    .satisfies(c -> assertThat(c.then()).contains("10 %"));
+        });
     }
 
     // ── Dedup ─────────────────────────────────────────────────────────────────
@@ -285,11 +323,12 @@ class SuggestionCreationServiceTest {
     }
 
     @Test
-    @DisplayName("should drop a cross-pass paraphrase via embedding similarity even when titles differ")
+    @DisplayName("should drop a cross-pass restatement via embedding similarity even when titles differ")
     void should_drop_cross_pass_embedding_duplicate() {
-        // A pending suggestion from an earlier pass; the new draft paraphrases it.
+        // A pending suggestion from an earlier pass; the new draft restates it in other order and inflection.
         Suggestion pending = Suggestion.newStory(sessionId, projectId,
-                "Autenticación de dos factores", "usuario", "usar 2FO", "seguridad", Priority.HIGH, 3);
+                "Autenticación de dos factores", "usuario", "usar 2FA al iniciar sesión", "seguridad",
+                Priority.HIGH, 3);
         float[] twoFactorVec = new float[]{1f, 0f, 0f};
 
         when(embeddingPort.isAvailable()).thenReturn(true);
@@ -298,12 +337,70 @@ class SuggestionCreationServiceTest {
         when(suggestions.findAllBySessionIdAndStatus(any(), any())).thenReturn(List.of(pending));
 
         GenerationResult result = new GenerationResult(List.of(
-                story("Soporte para autenticación de dos factores en inicio de sesión", "habilitar 2FA al iniciar sesión")
+                story("Autenticación de dos factores en el inicio de sesión", "usar 2FA al iniciar la sesión")
         ), List.of());
 
         List<Suggestion> created = service.createSuggestions(result, sessionId, projectId);
 
-        assertThat(created).isEmpty(); // paraphrase suppressed
+        assertThat(created).isEmpty(); // restatement suppressed
+    }
+
+    @Test
+    @DisplayName("should keep the booking, its cancellation penalty and the doctor's notification even at cosine 1.0")
+    void should_keep_distinct_rules_of_one_domain_in_one_pass() {
+        when(embeddingPort.isAvailable()).thenReturn(true);
+        // Worst case: every draft of the meeting embeds to the SAME vector (cosine 1.0 between all of them).
+        when(embeddingPort.embed(any())).thenReturn(new float[]{1f, 0f, 0f});
+        when(stories.findMostSimilar(any(), any())).thenReturn(Optional.empty());
+        when(suggestions.findAllBySessionIdAndStatus(any(), any())).thenReturn(List.of());
+        when(suggestions.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        GenerationResult result = new GenerationResult(List.of(
+                new GenerationResult.GeneratedStory(SuggestionType.NEW_STORY, "Reservar cita médica", "paciente",
+                        "reservar una cita médica desde el portal web eligiendo especialidad, médico y horario",
+                        "ser atendido a tiempo", Priority.HIGH, 3, List.of(), null, null),
+                new GenerationResult.GeneratedStory(SuggestionType.NEW_STORY, "Penalidad por cancelación tardía",
+                        "paciente", "cancelar una cita médica con menos de 24 horas pagando una penalidad del 10 %",
+                        "se respeten los horarios", Priority.HIGH, 2, List.of(), null, null),
+                new GenerationResult.GeneratedStory(SuggestionType.NEW_STORY, "Notificar reserva al médico",
+                        "médico", "recibir un correo cuando se reserve una cita conmigo", "organizar mi agenda",
+                        Priority.MEDIUM, 2, List.of(), null, null),
+                // A restatement of the booking: the only draft that must be dropped.
+                new GenerationResult.GeneratedStory(SuggestionType.NEW_STORY, "Reserva de citas médicas",
+                        "paciente", "reservar una cita médica en el portal web", "ser atendido",
+                        Priority.HIGH, 3, List.of(), null, null)
+        ), List.of());
+
+        List<Suggestion> created = service.createSuggestions(result, sessionId, projectId);
+
+        assertThat(created).extracting(Suggestion::getDraftTitle).containsExactly(
+                "Reservar cita médica", "Penalidad por cancelación tardía", "Notificar reserva al médico");
+    }
+
+    @Test
+    @DisplayName("should keep a NEW penalty story instead of downgrading it to an UPDATE of the accepted booking")
+    void should_not_downgrade_a_distinct_rule_into_the_similar_accepted_story() {
+        UserStory booking = new UserStory(projectId, "Reservar cita médica", "paciente",
+                "reservar una cita médica desde el portal web", "ser atendido a tiempo", Priority.HIGH, 3);
+        when(embeddingPort.isAvailable()).thenReturn(true);
+        when(embeddingPort.embed(any())).thenReturn(new float[]{0.1f});
+        when(stories.findMostSimilar(any(), any()))
+                .thenReturn(Optional.of(new UserStoryRepository.SimilarStory(booking.getId(), 0.90)));
+        when(stories.findByIdAndProjectId(booking.getId(), projectId)).thenReturn(Optional.of(booking));
+        when(suggestions.findAllBySessionIdAndStatus(any(), any())).thenReturn(List.of());
+        when(suggestions.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        GenerationResult.GeneratedStory penalty = new GenerationResult.GeneratedStory(SuggestionType.NEW_STORY,
+                "Penalidad por cancelación tardía", "paciente",
+                "que se me cobre una penalidad del 10 % si cancelo con menos de 24 horas",
+                "se respeten los horarios", Priority.HIGH, 2, List.of(), null, null);
+
+        List<Suggestion> created = service.createSuggestions(resultOf(penalty), sessionId, projectId);
+
+        assertThat(created).singleElement().satisfies(s -> {
+            assertThat(s.getType()).isEqualTo(SuggestionType.NEW_STORY);
+            assertThat(s.getTargetStoryId()).isNull();
+        });
     }
 
     @Test
@@ -349,6 +446,85 @@ class SuggestionCreationServiceTest {
         assertThat(SuggestionCreationService.normalize("  Iniciar Sesión!! "))
                 .isEqualTo(SuggestionCreationService.normalize("iniciar sesion"));
         assertThat(SuggestionCreationService.normalize("   ")).isNull();
+    }
+
+    // ── UPDATE_STORY criteria and no-op filter ────────────────────────────────
+
+    private UserStory bookingWithCriterion() {
+        UserStory booking = new UserStory(projectId, "Reservar cita médica", "paciente",
+                "reservar una cita médica desde el portal web", "ser atendido a tiempo", Priority.HIGH, 3);
+        booking.addAcceptanceCriterion("Reserva confirmada", "un horario disponible", "el paciente lo reserva",
+                "la cita queda confirmada");
+        return booking;
+    }
+
+    private GenerationResult.GeneratedStory updateOf(UserStory target, String action,
+                                                     GenerationResult.GeneratedCriterion... criteria) {
+        return new GenerationResult.GeneratedStory(SuggestionType.UPDATE_STORY,
+                target.getTitle(), target.getRole(), action, target.getBenefit(), Priority.HIGH, 3,
+                List.of(criteria), null, target.getId());
+    }
+
+    private void givenTarget(UserStory target) {
+        when(embeddingPort.isAvailable()).thenReturn(false);
+        when(stories.findByIdAndProjectId(target.getId(), projectId)).thenReturn(Optional.of(target));
+        when(suggestions.findAllBySessionIdAndStatus(any(), any())).thenReturn(List.of());
+    }
+
+    @Test
+    @DisplayName("should drop a no-op UPDATE_STORY: same narrative and no new acceptance criteria")
+    void should_drop_noop_update() {
+        UserStory booking = bookingWithCriterion();
+        givenTarget(booking);
+
+        // Same narrative (only case/punctuation differ) and a criterion the story already has.
+        GenerationResult.GeneratedStory noop = updateOf(booking, "Reservar una cita médica, desde el portal web.",
+                new GenerationResult.GeneratedCriterion(null, "Un horario disponible", "el paciente lo reserva",
+                        "la cita queda confirmada"));
+
+        List<Suggestion> created = service.createSuggestions(resultOf(noop), sessionId, projectId);
+
+        assertThat(created).isEmpty();
+        org.mockito.Mockito.verify(suggestions, org.mockito.Mockito.never()).save(any());
+    }
+
+    @Test
+    @DisplayName("should keep an UPDATE_STORY with the same narrative that adds a criterion, carrying only that one")
+    void should_keep_update_that_adds_a_criterion() {
+        UserStory booking = bookingWithCriterion();
+        givenTarget(booking);
+        when(suggestions.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        GenerationResult.GeneratedStory update = updateOf(booking, booking.getAction(),
+                new GenerationResult.GeneratedCriterion(null, "un horario disponible", "el paciente lo reserva",
+                        "la cita queda confirmada"),
+                new GenerationResult.GeneratedCriterion("Cancelación tardía", "una cita reservada",
+                        "el paciente la cancela con menos de 24 horas", "se le cobra una penalidad del 10 %"));
+
+        List<Suggestion> created = service.createSuggestions(resultOf(update), sessionId, projectId);
+
+        assertThat(created).singleElement().satisfies(s -> {
+            assertThat(s.getType()).isEqualTo(SuggestionType.UPDATE_STORY);
+            assertThat(s.getTargetStoryId()).isEqualTo(booking.getId());
+            assertThat(s.getDraftAcceptanceCriteria()).singleElement()
+                    .satisfies(c -> assertThat(c.scenario()).isEqualTo("Cancelación tardía"));
+        });
+    }
+
+    @Test
+    @DisplayName("should keep an UPDATE_STORY that changes the narrative even without criteria")
+    void should_keep_update_that_changes_the_narrative() {
+        UserStory booking = bookingWithCriterion();
+        givenTarget(booking);
+        when(suggestions.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        GenerationResult.GeneratedStory update = updateOf(booking,
+                "reservar una cita médica desde el portal web o desde la app móvil");
+
+        List<Suggestion> created = service.createSuggestions(resultOf(update), sessionId, projectId);
+
+        assertThat(created).singleElement()
+                .satisfies(s -> assertThat(s.getType()).isEqualTo(SuggestionType.UPDATE_STORY));
     }
 
     // ── Quality bar ────────────────────────────────────────────────────────────

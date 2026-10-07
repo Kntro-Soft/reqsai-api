@@ -169,6 +169,58 @@ class AcceptSuggestionCommandHandlerTest {
     }
 
     @Test
+    @DisplayName("UPDATE_STORY accept appends the criteria the target lacks and skips the ones it already states")
+    void should_append_new_update_criteria_to_target() {
+        UUID projectId = UUID.randomUUID();
+        UserStory target = new UserStory(UUID.randomUUID(), projectId,
+                "Reservar cita médica", "paciente", "reservar una cita", "ser atendido", Priority.HIGH, 3);
+        target.addAcceptanceCriterion("Reserva confirmada", "un horario disponible", "el paciente lo reserva",
+                "la cita queda confirmada");
+        Suggestion suggestion = Suggestion.updateStory(UUID.randomUUID(), projectId,
+                "Reservar cita médica", "paciente", "reservar una cita", "ser atendido", Priority.HIGH, 3,
+                target.getId(), List.of(
+                        new Suggestion.DraftCriterion(null, "Un horario disponible", "el paciente lo reserva.",
+                                "La cita queda confirmada"),
+                        new Suggestion.DraftCriterion("Cancelación tardía", "una cita reservada",
+                                "el paciente la cancela con menos de 24 horas", "se le cobra una penalidad del 10 %")));
+        when(suggestions.findByIdAndSessionIdForUpdate(any(), any())).thenReturn(Optional.of(suggestion));
+        when(storyRepo.findById(target.getId())).thenReturn(Optional.of(target));
+        when(embeddingPort.isAvailable()).thenReturn(false);
+        when(storyRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        Suggestion result = handler.handle(accept(suggestion));
+
+        assertThat(result.getStatus()).isEqualTo(SuggestionStatus.ACCEPTED);
+        assertThat(result.getResolvedStoryId()).isEqualTo(target.getId());
+        assertThat(target.getAcceptanceCriteria())
+                .extracting(c -> c.getScenario())
+                .containsExactly("Reserva confirmada", "Cancelación tardía");
+    }
+
+    @Test
+    @DisplayName("UPDATE_STORY accept with edited criteria appends the edited set, not the draft")
+    void should_append_edited_update_criteria() {
+        UUID projectId = UUID.randomUUID();
+        UserStory target = new UserStory(UUID.randomUUID(), projectId,
+                "Reservar cita médica", "paciente", "reservar una cita", "ser atendido", Priority.HIGH, 3);
+        Suggestion suggestion = Suggestion.updateStory(UUID.randomUUID(), projectId,
+                "Reservar cita médica", "paciente", "reservar una cita", "ser atendido", Priority.HIGH, 3,
+                target.getId(), List.of(new Suggestion.DraftCriterion(null, "draft given", "draft when", "draft then")));
+        when(suggestions.findByIdAndSessionIdForUpdate(any(), any())).thenReturn(Optional.of(suggestion));
+        when(storyRepo.findById(target.getId())).thenReturn(Optional.of(target));
+        when(embeddingPort.isAvailable()).thenReturn(false);
+        when(storyRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        handler.handle(new AcceptSuggestionCommand(suggestion.getSessionId(), suggestion.getId(),
+                null, null, null, null, null, null,
+                List.of(new AcceptSuggestionCommand.Criterion("Penalidad", "una cita reservada",
+                        "el paciente la cancela tarde", "se le cobra una penalidad"))));
+
+        assertThat(target.getAcceptanceCriteria()).singleElement()
+                .satisfies(c -> assertThat(c.getScenario()).isEqualTo("Penalidad"));
+    }
+
+    @Test
     @DisplayName("EDGE_CASE accept without a resolvable target is rejected, not minted as a standalone story")
     void should_reject_edge_case_without_target() {
         UUID projectId = UUID.randomUUID();
