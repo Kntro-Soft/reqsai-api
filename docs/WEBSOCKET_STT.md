@@ -99,6 +99,36 @@ Client                     Server                        STT Provider
 opening a new connection after `POST .../resume`. The server accepts it because the session is
 back in RECORDING status.
 
+### Provider drops the stream (keepalive and reconnect)
+
+The provider connection behind `/ws/stt` can drop while the client keeps recording. Deepgram,
+for example, closes a stream after 10 s without audio (`NET-0001`), and a long JVM pause is
+enough to cause that. The server handles it without the client noticing:
+
+- **Keepalive.** While the provider socket is idle, the server sends the provider's keepalive
+  every 4 s. Deepgram gets `{"type":"KeepAlive"}` as a text frame (its docs recommend every
+  3–5 s). AssemblyAI needs none, because it only ends idle sessions when `inactivity_timeout`
+  is set, and we don't set it. WhisperLive needs none either.
+- **One frame at a time.** Frames go to the provider one at a time, because the JDK WebSocket
+  rejects a send while another is pending. A failed send counts as a broken stream.
+- **Reconnect.** When the provider closes the stream or fails, or a send fails, the server logs a
+  WARN with the session id and close code. It then opens a new provider connection after 0.5 s,
+  1 s and 2 s (3 attempts). While it reconnects, it buffers up to 30 s of audio, dropping the
+  oldest audio first, and sends that audio on the new connection. WhisperLive gets its config
+  handshake again before any audio.
+- **Transcript continuity.** Provider offsets restart at 0 on each connection, so the server adds
+  the duration of the audio that came before it. `startMs`/`endMs` stay on one timeline, and
+  segment order is unchanged.
+- **Giving up.** If all 3 attempts fail, the server closes the client socket with
+  `1011` / `transcription stream lost`. The client shows its "connection closed" error, instead
+  of recording audio that nobody transcribes. The attempt budget refills once a new connection
+  delivers a transcript. So a provider that accepts the connection and then drops it straight
+  away cannot cause an endless loop of reconnects.
+- **Cleanup.** Pausing, stopping or disconnecting cancels the keepalive and any pending
+  reconnect, and closes the provider socket.
+
+The policy values live in `StreamResilience` (provider adapters, `streaming/strategy`).
+
 ---
 
 ## Audio format
@@ -207,6 +237,7 @@ Each command prints the action taken and the confirmed new state from the server
 | `1000 Normal`           | session stopped                 | `DiscoverySessionRecordingStoppedEvent` fired         |
 | `1009 Message Too Big`  | audio frame > 512 KB            | Client sent a frame larger than the configured buffer |
 | `1006 Abnormal`         | provider unreachable            | Network error connecting to the STT provider          |
+| `1011 Server Error`     | transcription stream lost       | Provider stream dropped and 3 reconnect attempts failed |
 
 ---
 

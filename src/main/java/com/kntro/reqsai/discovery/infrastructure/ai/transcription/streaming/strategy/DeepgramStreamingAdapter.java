@@ -14,14 +14,24 @@ import java.nio.charset.StandardCharsets;
  * as binary frames; Deepgram returns {@code Results} messages with interim and {@code is_final} hypotheses
  * plus optional diarization. Selected by {@code reqsai.ai.stt.streaming.provider=deepgram}.
  *
+ * <p>Deepgram closes a stream that receives no audio for 10 s (error {@code NET-0001}); a
+ * {@code {"type":"KeepAlive"}} text frame resets that window, so an idle stream sends one every few
+ * seconds (see {@link StreamResilience}).
  */
 @Slf4j
 public class DeepgramStreamingAdapter extends AbstractWebSocketStreamingAdapter {
+
+    private static final String KEEP_ALIVE = "{\"type\":\"KeepAlive\"}";
 
     private final String apiKey;
     private final String model;
 
     public DeepgramStreamingAdapter(String apiKey, String model) {
+        this(apiKey, model, StreamResilience.defaults());
+    }
+
+    DeepgramStreamingAdapter(String apiKey, String model, StreamResilience resilience) {
+        super(resilience);
         this.apiKey = apiKey;
         this.model = model;
     }
@@ -58,6 +68,11 @@ public class DeepgramStreamingAdapter extends AbstractWebSocketStreamingAdapter 
     @Override
     protected void applyHeaders(WebSocket.Builder builder) {
         builder.header("Authorization", "Token " + apiKey);
+    }
+
+    @Override
+    protected String keepAliveMessage() {
+        return KEEP_ALIVE;
     }
 
     @Override
