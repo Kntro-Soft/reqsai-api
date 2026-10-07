@@ -13,9 +13,10 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Trigram lexical search over the tenant {@code glossary_terms} table for the global palette. Native
- * for the pg_trgm {@code %} operator and {@code similarity()} ranking; runs on the tenant connection so
- * {@code search_path} already targets the right schema. The owning project id is resolved through the
+ * Lexical search over the tenant {@code glossary_terms} table for the global palette, with the same
+ * case- and accent-insensitive substring/word/fuzzy matching and ranking as
+ * {@link ProjectSearchJpaRepository}. Runs on the tenant connection so {@code search_path} already targets
+ * the right schema. The owning project id is resolved through the
  * {@code glossaries} table ({@code glossary_terms.glossary_id -> glossaries.id -> glossaries.project_id}),
  * so the row shape is {@code (id, term, definition, project_id)}.
  */
@@ -27,8 +28,10 @@ public interface GlossaryTermSearchJpaRepository extends JpaRepository<GlossaryT
             select t.id, t.term, t.definition, g.project_id
             from glossary_terms t
               join glossaries g on g.id = t.glossary_id
-            where t.term % :term
-            order by similarity(t.term, :term) desc, t.term asc
+            where (public.search_normalize(t.term) like public.search_like_pattern(:term)
+                   or public.search_normalize(:term) <% public.search_normalize(t.term)
+                   or public.search_normalize(t.term) % public.search_normalize(:term))
+            order by public.search_score(t.term, :term) desc, t.term asc
             """, nativeQuery = true)
     List<Object[]> searchAll(@Param("term") String term, Pageable pageable);
 
@@ -39,8 +42,10 @@ public interface GlossaryTermSearchJpaRepository extends JpaRepository<GlossaryT
             from glossary_terms t
               join glossaries g on g.id = t.glossary_id
             where g.project_id in (:projectIds)
-              and t.term % :term
-            order by similarity(t.term, :term) desc, t.term asc
+              and (public.search_normalize(t.term) like public.search_like_pattern(:term)
+                   or public.search_normalize(:term) <% public.search_normalize(t.term)
+                   or public.search_normalize(t.term) % public.search_normalize(:term))
+            order by public.search_score(t.term, :term) desc, t.term asc
             """, nativeQuery = true)
     List<Object[]> searchInProjects(
             @Param("projectIds") Collection<UUID> projectIds,

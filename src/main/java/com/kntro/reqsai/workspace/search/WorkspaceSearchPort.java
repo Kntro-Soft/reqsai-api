@@ -24,34 +24,34 @@ public interface WorkspaceSearchPort {
 
     /**
      * Top-{@code limit} active projects in {@code organizationId} whose name matches {@code term},
-     * filtered to the caller's {@code scope}. Ordered by trigram similarity, best first.
+     * filtered to the caller's {@code scope}. Best match first.
      */
     List<SearchHit> searchProjects(String term, int limit, UUID organizationId, ProjectScope scope);
 
     /**
      * Top-{@code limit} organizations the caller belongs to (owns or is an active member of) whose name
-     * or slug matches {@code term}. Ordered by trigram similarity, best first.
+     * or slug matches {@code term}. Best match first.
      */
     List<SearchHit> searchOrganizations(String term, int limit, UUID callerId);
 
     /**
      * Top-{@code limit} members of {@code organizationId} whose display name or email matches
      * {@code term}. The caller must be an active member (or owner/admin) of the organization; otherwise
-     * an empty list is returned. Ordered by trigram similarity, best first.
+     * an empty list is returned. Best match first.
      */
     List<SearchHit> searchMembers(String term, int limit, UUID organizationId, UUID callerId);
 
     /**
      * Top-{@code limit} glossary terms whose term matches {@code term}, filtered to the caller's
-     * {@code scope} (the same accessible-project scope used for projects and user stories). Ordered by
-     * trigram similarity, best first.
+     * {@code scope} (the same accessible-project scope used for projects and user stories). Best
+     * match first.
      */
     List<SearchHit> searchGlossaryTerms(String term, int limit, ProjectScope scope);
 
     /**
      * Top-{@code limit} project documents whose name matches {@code term}, filtered to the caller's
-     * {@code scope} (the same accessible-project scope used for projects and user stories). Ordered by
-     * trigram similarity, best first.
+     * {@code scope} (the same accessible-project scope used for projects and user stories). Best
+     * match first.
      */
     List<SearchHit> searchDocuments(String term, int limit, ProjectScope scope);
 }
