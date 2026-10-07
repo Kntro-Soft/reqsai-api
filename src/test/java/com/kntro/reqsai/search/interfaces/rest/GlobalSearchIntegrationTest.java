@@ -23,7 +23,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * End-to-end tests for GET /api/search. Provisions a tenant org (which also creates the owner member),
- * a project and a user story, then exercises the trigram palette search across types.
+ * a project and a user story, then exercises the palette search across types (substring, word,
+ * accent-insensitive and fuzzy matching).
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
@@ -174,7 +175,7 @@ class GlobalSearchIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("matches the organization by name via trigram similarity")
+    @DisplayName("matches the organization by name")
     void finds_organization() {
         String suffix = UUID.randomUUID().toString().substring(0, 8);
         String orgId = createOrg(suffix);
@@ -190,13 +191,91 @@ class GlobalSearchIntegrationTest extends AbstractIntegrationTest {
         assertThat(body).contains("\"id\":\"" + orgId + "\"");
     }
 
+    private void createMember(String orgId, String email, String displayName) {
+        ResponseEntity<String> res = client().post().uri("/api/organizations/{orgId}/members", orgId)
+                .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId, "ROLE_USER"))
+                .header("Api-Version", "1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("email", email, "displayName", displayName, "role", "MEMBER"))
+                .exchange((req, response) -> ResponseEntity.status(response.getStatusCode())
+                        .body(response.bodyTo(String.class)), false);
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    }
+
+    @Test
+    @DisplayName("matches a single word inside a long story title, ignoring case")
+    void finds_story_by_a_word_inside_a_long_title() {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        String orgId = createOrg(suffix);
+        UUID projectId = createProject(orgId, "Bodega Express " + suffix);
+        createStory(orgId, projectId, "Costo de delivery según la zona de reparto");
+        createStory(orgId, projectId, "Pagar la cita en línea al reservar");
+
+        assertThat(get(orgId, "/api/search?q=Costo&limit=10")).contains("Costo de delivery según la zona de reparto");
+        assertThat(get(orgId, "/api/search?q=delivery&limit=10")).contains("Costo de delivery según la zona de reparto");
+        assertThat(get(orgId, "/api/search?q=pagar&limit=10")).contains("Pagar la cita en línea al reservar");
+    }
+
+    @Test
+    @DisplayName("matches names with or without accents")
+    void accent_insensitive_matching() {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        String orgId = createOrg(suffix);
+        createProject(orgId, "Clínica Santa Lucía — Portal de citas");
+
+        for (String q : List.of("Clinica", "Clínica", "clinica santa", "LUCIA")) {
+            String body = get(orgId, "/api/search?q=" + q + "&limit=10");
+            assertThat(body).as("query %s", q).contains("\"type\":\"PROJECT\"");
+            assertThat(body).as("query %s", q).contains("Clínica Santa Lucía — Portal de citas");
+        }
+    }
+
+    @Test
+    @DisplayName("finds a member by a first name inside the display name")
+    void finds_member_by_first_name() {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        String orgId = createOrg(suffix);
+        createMember(orgId, "valeria." + suffix + "@example.com", "Valeria Ríos Paredes");
+
+        String body = get(orgId, "/api/search?q=valeria&limit=10");
+
+        assertThat(body).contains("\"type\":\"MEMBER\"");
+        assertThat(body).contains("Valeria Ríos Paredes");
+    }
+
+    @Test
+    @DisplayName("keeps a glossary term visible when many stories match the same word")
+    void interleaves_types_instead_of_letting_stories_fill_the_cap() {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        String orgId = createOrg(suffix);
+        UUID projectId = createProject(orgId, "Portal " + suffix);
+        for (int i = 1; i <= 9; i++) {
+            createStory(orgId, projectId, "Cita número " + i + " del paciente");
+        }
+        createGlossaryTerm(orgId, projectId, "Cita", "Reserva de atención con un médico.");
+
+        String body = get(orgId, "/api/search?q=cita&limit=8");
+
+        assertThat(body).contains("\"type\":\"GLOSSARY_TERM\"");
+        assertThat(body).contains("\"type\":\"USER_STORY\"");
+        long hitCount = body.split("\"type\"", -1).length - 1;
+        assertThat(hitCount).isLessThanOrEqualTo(8);
+    }
+
     @Test
     @DisplayName("blank query returns an empty JSON array")
     void blank_query_returns_empty_array() {
         String suffix = UUID.randomUUID().toString().substring(0, 8);
         String orgId = createOrg(suffix);
 
-        String body = get(orgId, "/api/search?q=%20%20");
+        // Pass the blanks as a URI variable: a literal "%20%20" in the template is re-encoded by the client
+        // and reaches the API as the non-blank text "%20%20".
+        String body = client().get().uri("/api/search?q={q}", "   ")
+                .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId, "ROLE_USER"))
+                .header("Api-Version", "1")
+                .exchange((req, response) -> ResponseEntity.status(response.getStatusCode())
+                        .body(response.bodyTo(String.class)), false)
+                .getBody();
 
         assertThat(body).isEqualTo("[]");
     }

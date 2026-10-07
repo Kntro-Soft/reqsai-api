@@ -11,9 +11,12 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Trigram lexical search over the tenant {@code projects} table for the global palette. Native because
- * the {@code %} operator and {@code similarity()} come from pg_trgm; runs on the tenant connection so
- * {@code search_path} already targets the right schema. Returns {@code (id, name)} rows.
+ * Lexical search over the tenant {@code projects} table for the global palette. Native because it relies
+ * on the SQL search functions ({@code public.search_normalize}, {@code public.search_like_pattern},
+ * {@code public.search_score}) and the pg_trgm {@code <%} / {@code %} operators: a name matches when it
+ * contains the term (substring), has a word close to it, or is close as a whole, ignoring case and
+ * accents. Exact, prefix and word-start matches rank above substring and fuzzy ones. Runs on the tenant
+ * connection so {@code search_path} already targets the right schema. Returns {@code (id, name)} rows.
  */
 public interface ProjectSearchJpaRepository extends JpaRepository<Project, UUID> {
 
@@ -24,8 +27,10 @@ public interface ProjectSearchJpaRepository extends JpaRepository<Project, UUID>
             from projects
             where organization_id = :organizationId
               and status = 'ACTIVE'
-              and name % :term
-            order by similarity(name, :term) desc, name asc
+              and (public.search_normalize(name) like public.search_like_pattern(:term)
+                   or public.search_normalize(:term) <% public.search_normalize(name)
+                   or public.search_normalize(name) % public.search_normalize(:term))
+            order by public.search_score(name, :term) desc, name asc
             """, nativeQuery = true)
     List<Object[]> searchByOrganization(
             @Param("organizationId") UUID organizationId,
@@ -40,8 +45,10 @@ public interface ProjectSearchJpaRepository extends JpaRepository<Project, UUID>
             where organization_id = :organizationId
               and status = 'ACTIVE'
               and id in (:projectIds)
-              and name % :term
-            order by similarity(name, :term) desc, name asc
+              and (public.search_normalize(name) like public.search_like_pattern(:term)
+                   or public.search_normalize(:term) <% public.search_normalize(name)
+                   or public.search_normalize(name) % public.search_normalize(:term))
+            order by public.search_score(name, :term) desc, name asc
             """, nativeQuery = true)
     List<Object[]> searchByOrganizationAndIdIn(
             @Param("organizationId") UUID organizationId,

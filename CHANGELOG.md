@@ -11,6 +11,28 @@ follows [Semantic Versioning](https://semver.org/).
 
 _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in progress._
 
+### Fixed (Global search misses obvious matches — `bugfix/search-partial-word-matches`)
+
+- **The command palette now finds a word inside a long label, with or without accents.** Search
+  matched with `label % term` only, i.e. whole-string trigram similarity ≥ 0.3, so a short query never
+  reached a long title. In production, "Costo", "Pagar" and "delivery" returned nothing although stories
+  "Costo de delivery según la zona de reparto" and "Pagar la cita en línea al reservar" existed. "Clínica"
+  and "Clinica" missed the project "Clínica Santa Lucía — Portal de citas". "Valeria" missed the member
+  "Valeria Ríos Paredes". Accents counted as different trigrams.
+- A common migration adds three immutable SQL functions:
+  - `public.search_normalize` lowercases and removes accents with `translate()`, so it needs no extra
+    extension.
+  - `public.search_like_pattern` builds an escaped `%term%`.
+  - `public.search_score` ranks exact matches first, then prefix, word-start, substring and fuzzy
+    matches.
+- Every palette query (projects, user stories, organizations, members, glossary terms, documents)
+  now matches the normalized label by substring (`LIKE`), word similarity (`<%`) or the original
+  whole-string similarity (`%`). It orders by `search_score`. The trigram GIN indexes are rebuilt on
+  `search_normalize(column)`, in public and in every tenant schema.
+- `GlobalSearchService` now interleaves the per-type lists before applying the cap. Before, it
+  concatenated them, so nine matching stories pushed the glossary term and members out of the top 8.
+  Now the best hit of each type comes first, then the second of each, and so on.
+
 ### Fixed (Session history duration and accepted count — `bugfix/discovery-session-history-stats`)
 
 - **`durationSeconds` of an uploaded recording is now its audio length.** It was always
