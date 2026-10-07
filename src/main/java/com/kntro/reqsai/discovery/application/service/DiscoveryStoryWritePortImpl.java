@@ -34,8 +34,9 @@ import java.util.Optional;
  * <ol>
  *   <li><em>LLM path</em> — when {@link RequirementGenerationPort#isAvailable()} the issue's summary +
  *       plain-text description are fed to Discovery's existing generation as a short transcript; the first
- *       generated story (already role/action/benefit + acceptance criteria) is used. This is the requested
- *       behaviour: no regex parsing of Jira text.</li>
+ *       generated story (already role/action/benefit + acceptance criteria) is used, without the user-story
+ *       and Gherkin keywords the model may write into it ({@link GeneratedStoryNormalizer}). This is the
+ *       requested behaviour: no regex parsing of Jira text.</li>
  *   <li><em>Deterministic fallback</em> — when the model is unconfigured or generation fails/returns
  *       nothing, a safe mapping is used: {@code title = summary}, a minimal valid role/action, and the
  *       description (or a default) as the benefit. This guarantees the required story fields are always
@@ -127,7 +128,8 @@ class DiscoveryStoryWritePortImpl implements DiscoveryStoryWritePort {
             try {
                 GenerationResult result = generationPort.generate(seedTranscript(input), language(input));
                 if (result != null && result.stories() != null && !result.stories().isEmpty()) {
-                    return sanitize(result.stories().getFirst(), input);
+                    // Generated text only: the fallback below keeps the issue's own words.
+                    return sanitize(GeneratedStoryNormalizer.normalize(result.stories().getFirst()), input);
                 }
                 log.info("Generation returned no story for imported issue '{}'; using safe fallback mapping",
                         input.summary());

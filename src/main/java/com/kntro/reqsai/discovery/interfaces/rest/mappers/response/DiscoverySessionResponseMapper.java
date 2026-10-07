@@ -16,7 +16,8 @@ public final class DiscoverySessionResponseMapper {
 
     /**
      * Response without aggregate stats — used by lifecycle transitions (start/pause/resume/stop/upload/
-     * process). {@code durationSeconds} is still derived from the timestamps; the count fields are null.
+     * process). {@code durationSeconds} is still computed (see {@link #durationSeconds}); the count fields
+     * are null.
      */
     public static DiscoverySessionResponse toResponse(DiscoverySession session) {
         return toResponse(session, null);
@@ -46,8 +47,15 @@ public final class DiscoverySessionResponseMapper {
                 stats != null ? stats.questionsAsked() : null);
     }
 
-    /** Recording length in seconds, derivable only once a session has both started and ended. */
+    /**
+     * Recording length in seconds. An uploaded recording knows its real length ({@code audioDurationMs});
+     * its timestamps only span the upload (the session is created, then the file is chosen and sent), so
+     * the audio length wins. A live session has no audio length and is measured from start to stop.
+     */
     private static @Nullable Long durationSeconds(DiscoverySession session) {
+        if (session.getAudioDurationMs() > 0) {
+            return Math.round(session.getAudioDurationMs() / 1000.0);
+        }
         if (session.getStartedAt() == null || session.getEndedAt() == null) {
             return null;
         }

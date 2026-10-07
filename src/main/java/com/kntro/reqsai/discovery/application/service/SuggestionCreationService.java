@@ -21,6 +21,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -28,6 +29,9 @@ import java.util.stream.Collectors;
 /**
  * Creates {@link Suggestion} entities from AI-generated output, applying embedding-based
  * postprocessing to override or refine the LLM's classification before persisting.
+ *
+ * <p>Every draft first goes through {@link GeneratedStoryNormalizer}, which removes the user-story and
+ * Gherkin keywords ("Quiero …", "Dado que …") the model writes into the narrative and the criteria.
  *
  * <h2>Duplicate filter</h2>
  * Each story draft is compared with the session's PENDING story suggestions and with the drafts already
@@ -40,7 +44,11 @@ import java.util.stream.Collectors;
  * <ol>
  *   <li>The LLM sees the backlog (with story ids) in its prompt and may return a {@code targetStoryId}
  *       for {@code UPDATE_STORY}/{@code EDGE_CASE}. A returned target is validated against the project
- *       (hallucinated/foreign ids are discarded) and, when valid, wins over embedding search.</li>
+ *       (hallucinated/foreign ids are discarded) and, when embeddings are available, against the draft:
+ *       {@link SuggestionTargetPolicy} keeps it only when the draft is close to that story and that story
+ *       is the closest one or nearly so. A draft whose target fails the check is a new capability the
+ *       model attached to the nearest-sounding story, so it becomes a {@code NEW_STORY} (never re-attached
+ *       to another story).</li>
  *   <li>A draft whose {@code targetStoryId} is one of this session's PENDING suggestions is dropped when
  *       it only restates that suggestion; when it adds something it is kept as a {@code NEW_STORY}
  *       (a pending suggestion is not a story yet, so nothing can be updated). It never keeps the linked
@@ -51,7 +59,10 @@ import java.util.stream.Collectors;
  *       intent ({@link SuggestionDedupPolicy#sameRequirementAs})? → downgrade to {@code UPDATE_STORY}
  *       against it (recording the similarity); otherwise keep as {@code NEW_STORY}.</li>
  *   <li>LLM emits {@code UPDATE_STORY}/{@code EDGE_CASE} without a usable target: resolve it by
- *       embedding search; an {@code UPDATE_STORY} that still has no target degrades to {@code NEW_STORY}.</li>
+ *       embedding search ({@code UPDATE_STORY}: the closest story when it clears the target floor;
+ *       {@code EDGE_CASE}: when it clears the dedup bar). A draft that still has no target never stays a
+ *       targetless edge case, which could not be accepted: it becomes a {@code NEW_STORY}, or a
+ *       {@code CLARIFYING_QUESTION} when its title is a question and it carries no criterion.</li>
  *   <li>An {@code UPDATE_STORY} carries only the acceptance criteria its target does not have yet, and
  *       is dropped when it would change nothing: same narrative and no new criteria.</li>
  *   <li>LLM emits {@code CLARIFYING_QUESTION}: forward as-is (no embedding needed).</li>
@@ -73,6 +84,7 @@ public class SuggestionCreationService {
     private final UserStoryRepository stories;
     private final EmbeddingPort embeddingPort;
     private final SuggestionDedupPolicy dedupPolicy;
+    private final SuggestionTargetPolicy targetPolicy;
 
     /**
      * Processes a {@link GenerationResult} and creates one {@link Suggestion} per LLM output item.
@@ -108,7 +120,9 @@ public class SuggestionCreationService {
         int skippedIncoherent = 0;
 
         for (GenerationResult.GeneratedStory generated : result.stories()) {
-            GenerationResult.GeneratedStory gen = generated;
+            // Clients add "Como / quiero / para" and "Dado / Cuando / Entonces" themselves: drop the copies
+            // the model wrote, before the drafts are compared, embedded or stored.
+            GenerationResult.GeneratedStory gen = GeneratedStoryNormalizer.normalize(generated);
             // Quality bar: the prompt asks the model to emit nothing for garbled fragments, but a
             // missing core field still slips through occasionally. A draft cannot become a valid
             // story without title/role/action/benefit, so drop it here rather than let the factory
@@ -355,6 +369,7 @@ public class SuggestionCreationService {
         // The LLM saw the backlog with ids; validate what it returned before trusting it.
         UserStory llmTarget = validatedTarget(gen.targetStoryId(), projectId);
         UUID llmTargetId = llmTarget != null ? llmTarget.getId() : null;
+        GenerationResult.GeneratedStory draft = gen;
 
         // Diagnostic: the raw LLM decision before any server-side re-classification. When UPDATE_STORY
         // is "never chosen" this line proves whether it is the model or our validation dropping it.
@@ -364,6 +379,34 @@ public class SuggestionCreationService {
         if (embeddingPort.isAvailable()) {
             float[] embedding = precomputedEmbedding != null ? precomputedEmbedding
                     : embeddingPort.embed(candidateText(gen));
+
+            Double targetSimilarity = null;
+            if (llmTarget != null && (llmType == SuggestionType.UPDATE_STORY || llmType == SuggestionType.EDGE_CASE)) {
+                Optional<Double> similarity = stories.similarityTo(projectId, llmTarget.getId(), embedding);
+                if (similarity.isPresent()) {
+                    double best = stories.findMostSimilar(projectId, embedding)
+                            .map(UserStoryRepository.SimilarStory::similarity)
+                            .orElse(similarity.get());
+                    if (!targetPolicy.accepts(similarity.get(), best)) {
+                        // A new capability of the same domain attached to the nearest-sounding listed
+                        // story (a waitlist onto "dependants"). Treat it as the NEW_STORY it is: the
+                        // NEW_STORY branch still converges it onto a story it truly repeats.
+                        log.debug("LLM {} '{}' detached from story {} (sim={}, closest={}, floor={}) (session={})",
+                                llmType, gen.title(), llmTarget.getId(), similarity.get(), best,
+                                targetPolicy.floor(), sessionId);
+                        if (isBareQuestion(gen)) {
+                            return Suggestion.clarifyingQuestion(sessionId, projectId, gen.title().strip());
+                        }
+                        draft = asNewStory(gen, ownTitle(gen));
+                        llmType = SuggestionType.NEW_STORY;
+                        llmTarget = null;
+                        llmTargetId = null;
+                    } else {
+                        targetSimilarity = similarity.get();
+                    }
+                }
+                // No embedding on the target yet: nothing to compare against, so the model's pick stands.
+            }
 
             return switch (llmType) {
                 case NEW_STORY -> {
@@ -377,51 +420,64 @@ public class SuggestionCreationService {
                         UserStory twin = stories.findByIdAndProjectId(closest.storyId(), projectId).orElse(null);
                         if (twin != null) {
                             SuggestionDedupPolicy.Verdict verdict = dedupPolicy.sameRequirementAs(
-                                    SuggestionDedupPolicy.Draft.of(gen), SuggestionDedupPolicy.Draft.of(twin),
+                                    SuggestionDedupPolicy.Draft.of(draft), SuggestionDedupPolicy.Draft.of(twin),
                                     closest.similarity());
                             if (verdict.duplicate()) {
                                 log.debug("LLM NEW_STORY downgraded to UPDATE_STORY against accepted backlog "
                                         + "(sim={}, target={}): {}", closest.similarity(), closest.storyId(),
                                         verdict.reason());
-                                yield updateOf(gen, sessionId, projectId, twin, closest.similarity());
+                                yield updateOf(draft, sessionId, projectId, twin, closest.similarity());
                             }
                             log.debug("LLM NEW_STORY '{}' kept although similar to story {} (sim={}): {}",
-                                    gen.title(), closest.storyId(), closest.similarity(), verdict.reason());
+                                    draft.title(), closest.storyId(), closest.similarity(), verdict.reason());
                         }
                     }
-                    yield newStoryOf(gen, sessionId, projectId, titles);
+                    yield newStoryOf(draft, sessionId, projectId, titles);
                 }
                 case EDGE_CASE -> {
                     // Resolve the target: the LLM's validated pick, else the closest story BUT only when
-                    // it clears the dedup floor. Without a floor a weak nearest-neighbor (0.4) got
-                    // attached, and — worse — a targetless edge case became a standalone story on accept,
-                    // violating granularity. Leaving targetStoryId null lets the accept handler surface a
-                    // clear "no target" error instead of minting a spurious story.
+                    // it clears the dedup floor — a weak nearest neighbor (0.4) is not "belongs to this
+                    // story". An edge case left without a target could never be accepted, so it is kept as
+                    // its own story (or as a question when that is what it is) instead.
                     UUID targetStoryId = llmTargetId != null ? llmTargetId
                             : resolveEdgeCaseTargetByEmbedding(projectId, embedding);
-                    yield edgeCaseOf(gen, sessionId, projectId, targetStoryId);
+                    if (targetStoryId == null) {
+                        log.debug("LLM EDGE_CASE '{}' has no story to belong to; keeping it as {} (session={})",
+                                draft.title(), looksLikeQuestion(draft) ? "a question" : "a NEW_STORY", sessionId);
+                        yield unattached(draft, sessionId, projectId, titles);
+                    }
+                    yield edgeCaseOf(draft, sessionId, projectId, targetStoryId);
                 }
                 case UPDATE_STORY -> {
-                    // The model explicitly said "this refines an existing story". Honor that intent:
-                    // resolve to its target, else the closest existing story by embedding — only demote
-                    // to NEW_STORY when the project genuinely has no story to point at.
-                    UserStory target = llmTarget != null ? llmTarget
-                            : stories.findMostSimilar(projectId, embedding)
-                                    .flatMap(s -> stories.findByIdAndProjectId(s.storyId(), projectId))
-                                    .orElse(null);
+                    // The model said "this refines an existing story" but may not say which: resolve to its
+                    // (validated) target, else the closest story when it clears the target floor. Without
+                    // the floor a draft about a new capability was attached to whatever story was nearest.
+                    UserStory target = llmTarget;
+                    Double similarity = targetSimilarity;
                     if (target == null) {
-                        log.debug("LLM UPDATE_STORY has no target (backlog empty), creating as NEW_STORY");
-                        yield newStoryOf(gen, sessionId, projectId, titles);
+                        UserStoryRepository.SimilarStory closest = stories.findMostSimilar(projectId, embedding)
+                                .filter(s -> s.similarity() >= targetPolicy.floor())
+                                .orElse(null);
+                        if (closest != null) {
+                            target = stories.findByIdAndProjectId(closest.storyId(), projectId).orElse(null);
+                            similarity = closest.similarity();
+                        }
                     }
-                    yield updateOf(gen, sessionId, projectId, target, null);
+                    if (target == null) {
+                        log.debug("LLM UPDATE_STORY '{}' has no story close enough to update, creating as NEW_STORY "
+                                + "(session={})", draft.title(), sessionId);
+                        yield newStoryOf(draft, sessionId, projectId, titles);
+                    }
+                    yield updateOf(draft, sessionId, projectId, target, similarity);
                 }
-                default -> newStoryOf(gen, sessionId, projectId, titles);
+                default -> newStoryOf(draft, sessionId, projectId, titles);
             };
         }
 
         // No embedding available — trust the LLM classification, using its (validated) target
         return switch (llmType) {
-            case EDGE_CASE -> edgeCaseOf(gen, sessionId, projectId, llmTargetId);
+            case EDGE_CASE -> llmTargetId != null ? edgeCaseOf(gen, sessionId, projectId, llmTargetId)
+                    : unattached(gen, sessionId, projectId, titles);
             case UPDATE_STORY -> {
                 if (llmTarget == null) {
                     log.debug("LLM UPDATE_STORY has no usable target and no embedding model; creating as NEW_STORY");
@@ -431,6 +487,37 @@ public class SuggestionCreationService {
             }
             default -> newStoryOf(gen, sessionId, projectId, titles);
         };
+    }
+
+    /**
+     * A story draft left with no story to attach to. A draft titled as a question with no criterion is the
+     * model asking something in the wrong array, so it becomes a {@code CLARIFYING_QUESTION}; anything else
+     * becomes its own {@code NEW_STORY}.
+     */
+    private static Suggestion unattached(GenerationResult.GeneratedStory gen, UUID sessionId, UUID projectId,
+                                         SuggestionTitles titles) {
+        if (isBareQuestion(gen)) {
+            return Suggestion.clarifyingQuestion(sessionId, projectId, gen.title().strip());
+        }
+        return newStoryOf(asNewStory(gen, ownTitle(gen)), sessionId, projectId, titles);
+    }
+
+    /** True when the draft's title is phrased as a question ("¿Cómo se realiza …?"). */
+    private static boolean looksLikeQuestion(GenerationResult.GeneratedStory gen) {
+        String title = gen.title() == null ? "" : gen.title().strip();
+        return title.startsWith("¿") || title.endsWith("?");
+    }
+
+    /** A question-titled draft with no acceptance criterion: a clarifying question in the wrong array. */
+    private static boolean isBareQuestion(GenerationResult.GeneratedStory gen) {
+        return looksLikeQuestion(gen) && (gen.acceptanceCriteria() == null || gen.acceptanceCriteria().isEmpty());
+    }
+
+    /** The draft's title, or one from its action when the title is phrased as a question. */
+    private static String ownTitle(GenerationResult.GeneratedStory gen) {
+        return looksLikeQuestion(gen)
+                ? Objects.requireNonNullElse(SuggestionTitles.asTitle(gen.action()), gen.title())
+                : gen.title();
     }
 
     /**
@@ -460,8 +547,7 @@ public class SuggestionCreationService {
     /**
      * The closest story to {@code embedding} for an EDGE_CASE fallback, but only when it clears the
      * dedup floor — a weak nearest neighbor is not a real "belongs to this story" match, so return null
-     * and let the accept handler surface a no-target error rather than attach the edge case to (or, on
-     * accept, mint a standalone story from) a story it does not belong to.
+     * rather than attach the edge case to a story it does not belong to.
      */
     private @Nullable UUID resolveEdgeCaseTargetByEmbedding(UUID projectId, float[] embedding) {
         return stories.findMostSimilar(projectId, embedding)

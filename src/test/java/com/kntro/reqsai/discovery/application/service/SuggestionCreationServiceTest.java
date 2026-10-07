@@ -24,6 +24,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 /**
@@ -45,7 +46,8 @@ class SuggestionCreationServiceTest {
 
     @org.junit.jupiter.api.BeforeEach
     void setUp() {
-        service = new SuggestionCreationService(suggestions, stories, embeddingPort, new SuggestionDedupPolicy(0.84));
+        service = new SuggestionCreationService(suggestions, stories, embeddingPort, new SuggestionDedupPolicy(0.84),
+                new SuggestionTargetPolicy(0.60, 0.05));
     }
 
     private final UUID sessionId = UUID.randomUUID();
@@ -114,8 +116,8 @@ class SuggestionCreationServiceTest {
     }
 
     @Test
-    @DisplayName("EDGE_CASE with no LLM target and only a weak embedding match leaves the target null")
-    void edge_case_below_floor_has_no_target() {
+    @DisplayName("EDGE_CASE with no LLM target and only a weak embedding match becomes its own NEW_STORY")
+    void edge_case_below_floor_becomes_new_story() {
         when(embeddingPort.isAvailable()).thenReturn(true);
         when(embeddingPort.embed(any())).thenReturn(new float[]{0.1f});
         // Nearest story is only 0.5 similar — below the 0.84 dedup floor, so it is NOT attached.
@@ -127,8 +129,9 @@ class SuggestionCreationServiceTest {
         List<Suggestion> created = service.createSuggestions(
                 resultOf(generated(SuggestionType.EDGE_CASE, null)), sessionId, projectId);
 
+        // A targetless edge case could never be accepted; it is kept as the story it describes.
         assertThat(created).hasSize(1);
-        assertThat(created.getFirst().getType()).isEqualTo(SuggestionType.EDGE_CASE);
+        assertThat(created.getFirst().getType()).isEqualTo(SuggestionType.NEW_STORY);
         assertThat(created.getFirst().getTargetStoryId()).isNull();
     }
 
@@ -743,4 +746,280 @@ class SuggestionCreationServiceTest {
         assertThat(created).hasSize(1);
         assertThat(created.getFirst().getDraftTitle()).isEqualTo("Iniciar sesión en el sistema");
     }
+
+    // ── Generated keywords ────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("should store a NEW_STORY's narrative and Given/When/Then without the keywords the model wrote")
+    void should_strip_generated_keywords_from_new_story() {
+        when(embeddingPort.isAvailable()).thenReturn(false);
+        when(suggestions.findAllBySessionIdAndStatus(any(), any())).thenReturn(List.of());
+        when(suggestions.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        var gen = new GenerationResult.GeneratedStory(SuggestionType.NEW_STORY,
+                "Reserva de citas en línea", "Paciente que busca un horario disponible.",
+                "Quiero reservar una cita desde la web o desde el celular.",
+                "Para evitar largas colas y llamadas sin contestar.", Priority.HIGH, 3,
+                List.of(new GenerationResult.GeneratedCriterion("Horario ocupado",
+                                "Dado que un paciente está reservando una cita en línea",
+                                "Cuando el primero confirma su reserva", "Entonces se queda con el horario."),
+                        new GenerationResult.GeneratedCriterion("Planes de seguro",
+                                "Dados los planes de seguro configurados", "cuando la devolución se procesa",
+                                "entonces el reembolso se acredita en 5 días.")),
+                null, null);
+
+        List<Suggestion> created = service.createSuggestions(resultOf(gen), sessionId, projectId);
+
+        assertThat(created).singleElement().satisfies(s -> {
+            assertThat(s.getDraftTitle()).isEqualTo("Reserva de citas en línea");
+            assertThat(s.getDraftRole()).isEqualTo("Paciente que busca un horario disponible");
+            assertThat(s.getDraftAction()).isEqualTo("reservar una cita desde la web o desde el celular");
+            assertThat(s.getDraftBenefit()).isEqualTo("evitar largas colas y llamadas sin contestar");
+            assertThat(s.getDraftAcceptanceCriteria()).containsExactly(
+                    new Suggestion.DraftCriterion("Horario ocupado",
+                            "que un paciente está reservando una cita en línea", "el primero confirma su reserva",
+                            "se queda con el horario"),
+                    new Suggestion.DraftCriterion("Planes de seguro",
+                            "los planes de seguro configurados", "la devolución se procesa",
+                            "el reembolso se acredita en 5 días"));
+        });
+    }
+
+    @Test
+    @DisplayName("should store an EDGE_CASE criterion without the keywords the model wrote")
+    void should_strip_generated_keywords_from_edge_case() {
+        UserStory target = bookingWithCriterion();
+        givenTarget(target);
+        when(suggestions.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        var gen = new GenerationResult.GeneratedStory(SuggestionType.EDGE_CASE,
+                "Pago fallido", "Como paciente", "Quiero reintentar el pago", "Para no perder la cita",
+                Priority.HIGH, 2,
+                List.of(new GenerationResult.GeneratedCriterion(null, "Dada una cita reservada",
+                        "Cuando la pasarela de pago falla", "Entonces la cita queda separada 10 minutos.")),
+                "pagos", target.getId());
+
+        List<Suggestion> created = service.createSuggestions(resultOf(gen), sessionId, projectId);
+
+        assertThat(created).singleElement().satisfies(s -> {
+            assertThat(s.getType()).isEqualTo(SuggestionType.EDGE_CASE);
+            assertThat(s.getDraftRole()).isEqualTo("paciente");
+            assertThat(s.getDraftAction()).isEqualTo("reintentar el pago");
+            assertThat(s.getDraftBenefit()).isEqualTo("no perder la cita");
+            assertThat(s.getDraftAcceptanceCriteria()).containsExactly(new Suggestion.DraftCriterion(null,
+                    "una cita reservada", "la pasarela de pago falla", "la cita queda separada 10 minutos"));
+        });
+    }
+
+    @Test
+    @DisplayName("should drop an UPDATE_STORY that only restates the story's criterion with Gherkin keywords")
+    void should_drop_update_that_only_adds_keywords() {
+        UserStory booking = bookingWithCriterion();
+        givenTarget(booking);
+
+        // The story says "un horario disponible / el paciente lo reserva / la cita queda confirmada". The
+        // keywords alone used to make this criterion look new, so the no-op update reached the analyst.
+        GenerationResult.GeneratedStory noop = updateOf(booking,
+                "Quiero reservar una cita médica desde el portal web.",
+                new GenerationResult.GeneratedCriterion(null, "Dado un horario disponible",
+                        "Cuando el paciente lo reserva", "Entonces la cita queda confirmada."));
+
+        List<Suggestion> created = service.createSuggestions(resultOf(noop), sessionId, projectId);
+
+        assertThat(created).isEmpty();
+        org.mockito.Mockito.verify(suggestions, org.mockito.Mockito.never()).save(any());
+    }
+
+    // ── Target validation (SuggestionTargetPolicy: floor 0.60, within 0.05 of the closest story) ──
+
+    private GenerationResult.GeneratedStory draft(SuggestionType type, String title, UUID targetStoryId,
+                                                  List<GenerationResult.GeneratedCriterion> criteria) {
+        return new GenerationResult.GeneratedStory(type, title, "paciente",
+                "inscribirme en una lista de espera cuando no hay horarios", "conseguir una cita",
+                Priority.MEDIUM, 3, criteria, null, targetStoryId);
+    }
+
+    private GenerationResult.GeneratedCriterion criterion() {
+        return new GenerationResult.GeneratedCriterion("Cupo liberado",
+                "que el paciente está en la lista de espera", "se libera un horario", "recibe un aviso");
+    }
+
+    @Test
+    @DisplayName("detaches an UPDATE_STORY from a target the draft is not about (waitlist → dependants) and keeps it as a NEW_STORY")
+    void detaches_update_from_unrelated_target() {
+        UserStory dependants = UserStoryMother.draft().withProjectId(projectId).build();
+        when(embeddingPort.isAvailable()).thenReturn(true);
+        when(embeddingPort.embed(any())).thenReturn(new float[]{0.1f});
+        when(stories.findByIdAndProjectId(dependants.getId(), projectId)).thenReturn(Optional.of(dependants));
+        when(stories.similarityTo(eq(projectId), eq(dependants.getId()), any())).thenReturn(Optional.of(0.491));
+        when(stories.findMostSimilar(any(), any()))
+                .thenReturn(Optional.of(new UserStoryRepository.SimilarStory(UUID.randomUUID(), 0.700)));
+        when(suggestions.findAllBySessionIdAndStatus(any(), any())).thenReturn(List.of());
+        when(suggestions.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        List<Suggestion> created = service.createSuggestions(
+                resultOf(draft(SuggestionType.UPDATE_STORY, "Lista de espera", dependants.getId(), List.of(criterion()))),
+                sessionId, projectId);
+
+        assertThat(created).hasSize(1);
+        assertThat(created.getFirst().getType()).isEqualTo(SuggestionType.NEW_STORY);
+        assertThat(created.getFirst().getTargetStoryId()).isNull();
+        assertThat(created.getFirst().getDraftTitle()).isEqualTo("Lista de espera");
+        assertThat(created.getFirst().getDraftAcceptanceCriteria()).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("detaches an EDGE_CASE whose target is far below the closest story (rescheduling → doctor's blocked hours)")
+    void detaches_edge_case_far_from_closest() {
+        UserStory blocked = UserStoryMother.draft().withProjectId(projectId).build();
+        when(embeddingPort.isAvailable()).thenReturn(true);
+        when(embeddingPort.embed(any())).thenReturn(new float[]{0.1f});
+        when(stories.findByIdAndProjectId(blocked.getId(), projectId)).thenReturn(Optional.of(blocked));
+        when(stories.similarityTo(eq(projectId), eq(blocked.getId()), any())).thenReturn(Optional.of(0.594));
+        // The closest story (0.947) is not a near-duplicate by the dedup policy here (different wording),
+        // so the detached draft stays a NEW_STORY.
+        when(stories.findMostSimilar(any(), any()))
+                .thenReturn(Optional.of(new UserStoryRepository.SimilarStory(UUID.randomUUID(), 0.947)));
+        when(suggestions.findAllBySessionIdAndStatus(any(), any())).thenReturn(List.of());
+        when(suggestions.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        List<Suggestion> created = service.createSuggestions(
+                resultOf(draft(SuggestionType.EDGE_CASE, "Reprogramación de citas", blocked.getId(), List.of(criterion()))),
+                sessionId, projectId);
+
+        assertThat(created).hasSize(1);
+        assertThat(created.getFirst().getType()).isEqualTo(SuggestionType.NEW_STORY);
+        assertThat(created.getFirst().getTargetStoryId()).isNull();
+    }
+
+    @Test
+    @DisplayName("keeps an EDGE_CASE on the story it refines (10 % penalty on 'Cancelar una cita')")
+    void keeps_edge_case_on_matching_target() {
+        UserStory cancel = UserStoryMother.draft().withProjectId(projectId).build();
+        when(embeddingPort.isAvailable()).thenReturn(true);
+        when(embeddingPort.embed(any())).thenReturn(new float[]{0.1f});
+        when(stories.findByIdAndProjectId(cancel.getId(), projectId)).thenReturn(Optional.of(cancel));
+        when(stories.similarityTo(eq(projectId), eq(cancel.getId()), any())).thenReturn(Optional.of(0.701));
+        when(stories.findMostSimilar(any(), any()))
+                .thenReturn(Optional.of(new UserStoryRepository.SimilarStory(cancel.getId(), 0.701)));
+        when(suggestions.findAllBySessionIdAndStatus(any(), any())).thenReturn(List.of());
+        when(suggestions.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        List<Suggestion> created = service.createSuggestions(
+                resultOf(draft(SuggestionType.EDGE_CASE, "Penalidad por cancelación tardía", cancel.getId(), List.of(criterion()))),
+                sessionId, projectId);
+
+        assertThat(created).hasSize(1);
+        assertThat(created.getFirst().getType()).isEqualTo(SuggestionType.EDGE_CASE);
+        assertThat(created.getFirst().getTargetStoryId()).isEqualTo(cancel.getId());
+    }
+
+    @Test
+    @DisplayName("keeps an UPDATE_STORY whose target is within the margin of the closest story")
+    void keeps_update_within_margin() {
+        UserStory cancel = UserStoryMother.draft().withProjectId(projectId).build();
+        when(embeddingPort.isAvailable()).thenReturn(true);
+        when(embeddingPort.embed(any())).thenReturn(new float[]{0.1f});
+        when(stories.findByIdAndProjectId(cancel.getId(), projectId)).thenReturn(Optional.of(cancel));
+        when(stories.similarityTo(eq(projectId), eq(cancel.getId()), any())).thenReturn(Optional.of(0.653));
+        when(stories.findMostSimilar(any(), any()))
+                .thenReturn(Optional.of(new UserStoryRepository.SimilarStory(UUID.randomUUID(), 0.675)));
+        when(suggestions.findAllBySessionIdAndStatus(any(), any())).thenReturn(List.of());
+        when(suggestions.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        List<Suggestion> created = service.createSuggestions(
+                resultOf(draft(SuggestionType.UPDATE_STORY, "Devolución al cancelar", cancel.getId(), List.of(criterion()))),
+                sessionId, projectId);
+
+        assertThat(created).hasSize(1);
+        assertThat(created.getFirst().getType()).isEqualTo(SuggestionType.UPDATE_STORY);
+        assertThat(created.getFirst().getTargetStoryId()).isEqualTo(cancel.getId());
+    }
+
+    @Test
+    @DisplayName("trusts the model's target when that story has no embedding yet")
+    void keeps_target_without_embedding() {
+        UserStory fresh = UserStoryMother.draft().withProjectId(projectId).build();
+        when(embeddingPort.isAvailable()).thenReturn(true);
+        when(embeddingPort.embed(any())).thenReturn(new float[]{0.1f});
+        when(stories.findByIdAndProjectId(fresh.getId(), projectId)).thenReturn(Optional.of(fresh));
+        when(stories.similarityTo(eq(projectId), eq(fresh.getId()), any())).thenReturn(Optional.empty());
+        when(suggestions.findAllBySessionIdAndStatus(any(), any())).thenReturn(List.of());
+        when(suggestions.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        List<Suggestion> created = service.createSuggestions(
+                resultOf(draft(SuggestionType.EDGE_CASE, "Penalidad por cancelación tardía", fresh.getId(), List.of(criterion()))),
+                sessionId, projectId);
+
+        assertThat(created.getFirst().getType()).isEqualTo(SuggestionType.EDGE_CASE);
+        assertThat(created.getFirst().getTargetStoryId()).isEqualTo(fresh.getId());
+    }
+
+    @Test
+    @DisplayName("an UPDATE_STORY with no target becomes a NEW_STORY when no story clears the target floor")
+    void update_without_target_below_floor_is_new_story() {
+        when(embeddingPort.isAvailable()).thenReturn(true);
+        when(embeddingPort.embed(any())).thenReturn(new float[]{0.1f});
+        when(stories.findMostSimilar(any(), any()))
+                .thenReturn(Optional.of(new UserStoryRepository.SimilarStory(UUID.randomUUID(), 0.55)));
+        when(suggestions.findAllBySessionIdAndStatus(any(), any())).thenReturn(List.of());
+        when(suggestions.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        List<Suggestion> created = service.createSuggestions(
+                resultOf(draft(SuggestionType.UPDATE_STORY, "Lista de espera", null, List.of(criterion()))),
+                sessionId, projectId);
+
+        assertThat(created).hasSize(1);
+        assertThat(created.getFirst().getType()).isEqualTo(SuggestionType.NEW_STORY);
+        assertThat(created.getFirst().getTargetStoryId()).isNull();
+    }
+
+    @Test
+    @DisplayName("a targetless EDGE_CASE titled as a question with no criterion becomes a CLARIFYING_QUESTION")
+    void question_titled_edge_case_becomes_question() {
+        when(embeddingPort.isAvailable()).thenReturn(true);
+        when(embeddingPort.embed(any())).thenReturn(new float[]{0.1f});
+        when(stories.findMostSimilar(any(), any())).thenReturn(Optional.empty());
+        when(suggestions.findAllBySessionIdAndStatus(any(), any())).thenReturn(List.of());
+        when(suggestions.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        List<Suggestion> created = service.createSuggestions(
+                resultOf(draft(SuggestionType.EDGE_CASE, "¿Cómo se realiza el proceso de devolución del pago?", null, List.of())),
+                sessionId, projectId);
+
+        assertThat(created).hasSize(1);
+        assertThat(created.getFirst().getType()).isEqualTo(SuggestionType.CLARIFYING_QUESTION);
+        assertThat(created.getFirst().getQuestion()).isEqualTo("¿Cómo se realiza el proceso de devolución del pago?");
+    }
+
+    @Test
+    @DisplayName("a targetless question-titled EDGE_CASE that carries a rule becomes a NEW_STORY titled from its action")
+    void question_titled_edge_case_with_rule_becomes_story() {
+        when(embeddingPort.isAvailable()).thenReturn(true);
+        when(embeddingPort.embed(any())).thenReturn(new float[]{0.1f});
+        when(stories.findMostSimilar(any(), any())).thenReturn(Optional.empty());
+        when(suggestions.findAllBySessionIdAndStatus(any(), any())).thenReturn(List.of());
+        when(suggestions.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        List<Suggestion> created = service.createSuggestions(
+                resultOf(draft(SuggestionType.EDGE_CASE, "¿Cómo se realiza la lista de espera?", null, List.of(criterion()))),
+                sessionId, projectId);
+
+        assertThat(created).hasSize(1);
+        assertThat(created.getFirst().getType()).isEqualTo(SuggestionType.NEW_STORY);
+        assertThat(created.getFirst().getDraftTitle()).isEqualTo("Inscribirme en una lista de espera cuando no hay horarios");
+    }
+
+    @Test
+    @DisplayName("without embeddings, an EDGE_CASE with no usable target becomes a NEW_STORY")
+    void edge_case_without_target_and_embeddings_is_new_story() {
+        when(embeddingPort.isAvailable()).thenReturn(false);
+        when(suggestions.findAllBySessionIdAndStatus(any(), any())).thenReturn(List.of());
+        when(suggestions.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        List<Suggestion> created = service.createSuggestions(
+                resultOf(draft(SuggestionType.EDGE_CASE, "Lista de espera", null, List.of(criterion()))),
+                sessionId, projectId);
+
+        assertThat(created.getFirst().getType()).isEqualTo(SuggestionType.NEW_STORY);
+    }
+
 }

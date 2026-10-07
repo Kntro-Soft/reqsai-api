@@ -127,10 +127,13 @@ class DiscoverySessionControlIntegrationTest extends AbstractIntegrationTest {
         assertThat(start(orgId, projectId, sessionId).getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(stop(orgId, projectId, sessionId).getStatusCode()).isEqualTo(HttpStatus.OK);
 
-        // One accepted (APPROVED) story + one pending suggestion + one clarifying question.
-        insertStory(schema, UUID.randomUUID(), sessionId, projectId, "APPROVED");
+        // One backlog story + one accepted story suggestion + one pending suggestion + one pending
+        // clarifying question + one resolved question (resolving a question never counts as accepted).
+        insertStory(schema, UUID.randomUUID(), sessionId, projectId, "DRAFT");
+        insertNewStory(schema, UUID.randomUUID(), sessionId, projectId, "ACCEPTED");
         insertPendingNewStory(schema, UUID.randomUUID(), sessionId, projectId);
         insertPendingQuestion(schema, UUID.randomUUID(), sessionId, projectId);
+        insertQuestion(schema, UUID.randomUUID(), sessionId, projectId, "ACCEPTED");
 
         ResponseEntity<String> res = client().get()
                 .uri("/api/projects/{p}/sessions/{s}", projectId, sessionId)
@@ -144,7 +147,7 @@ class DiscoverySessionControlIntegrationTest extends AbstractIntegrationTest {
         assertThat(body).contains("\"storiesGenerated\":1");
         assertThat(body).contains("\"storiesAccepted\":1");
         assertThat(body).contains("\"suggestionsPending\":2");
-        assertThat(body).contains("\"questionsAsked\":1");
+        assertThat(body).contains("\"questionsAsked\":2");
         assertThat(body).contains("\"durationSeconds\":");
     }
 
@@ -196,11 +199,23 @@ class DiscoverySessionControlIntegrationTest extends AbstractIntegrationTest {
     }
 
     private void insertPendingNewStory(String schema, UUID id, UUID sessionId, UUID projectId) {
+        insertNewStory(schema, id, sessionId, projectId, "PENDING");
+    }
+
+    private void insertNewStory(String schema, UUID id, UUID sessionId, UUID projectId, String status) {
         jdbcTemplate.update(
                 "INSERT INTO \"" + schema + "\".suggestions "
                         + "(id, session_id, project_id, type, status, draft_title, draft_role, draft_action, draft_benefit, draft_priority, created_at, updated_at) "
-                        + "VALUES (?::uuid, ?::uuid, ?::uuid, 'NEW_STORY', 'PENDING', 'Login', 'user', 'log in', 'access', 'HIGH', ?, ?)",
-                id.toString(), sessionId.toString(), projectId.toString(), now(), now());
+                        + "VALUES (?::uuid, ?::uuid, ?::uuid, 'NEW_STORY', ?, 'Login', 'user', 'log in', 'access', 'HIGH', ?, ?)",
+                id.toString(), sessionId.toString(), projectId.toString(), status, now(), now());
+    }
+
+    private void insertQuestion(String schema, UUID id, UUID sessionId, UUID projectId, String status) {
+        jdbcTemplate.update(
+                "INSERT INTO \"" + schema + "\".suggestions "
+                        + "(id, session_id, project_id, type, status, question, created_at, updated_at) "
+                        + "VALUES (?::uuid, ?::uuid, ?::uuid, 'CLARIFYING_QUESTION', ?, 'Which auth provider?', ?, ?)",
+                id.toString(), sessionId.toString(), projectId.toString(), status, now(), now());
     }
 
     private void insertPendingQuestion(String schema, UUID id, UUID sessionId, UUID projectId) {

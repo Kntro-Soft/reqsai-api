@@ -74,9 +74,9 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
               drop it as already covered. If a detail is genuinely missing (e.g. how the penalty is charged),
               ALSO add a clarifying question that names it — in addition to the story, not instead of it.
               Example: "Si el paciente cancela con menos de veinticuatro horas, se le debe cobrar una penalidad
-              del diez por ciento" → the criterion "Given una cita reservada, When el paciente la cancela con
-              menos de 24 horas de anticipación, Then se le cobra una penalidad del 10 %%", optionally plus the
-              question "¿Cómo se cobra la penalidad?".
+              del diez por ciento" → the criterion with given "una cita reservada", when "el paciente la cancela
+              con menos de 24 horas de anticipación" and then "se le cobra una penalidad del 10 %%", optionally
+              plus the question "¿Cómo se cobra la penalidad?".
             """;
 
     /** Realtime variant of {@link #BUSINESS_RULES_BATCH}: routes the rule to the backlog story it governs. */
@@ -90,8 +90,10 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
               actor, amount or format undefined — "alguien debe aprobar", "con qué monto" — is still case (b):
               ask.) Put it in "stories", keeping its numbers in a
               Given / When / Then criterion:
-                · when it governs a story listed in EXISTING USER STORIES → UPDATE_STORY (or EDGE_CASE) with
-                  that story's id as "targetStoryId" and the rule as a NEW acceptance criterion;
+                · when it governs the capability of a story listed in EXISTING USER STORIES (the rule is about
+                  THAT story's own action, e.g. a cancellation penalty on "Cancelar una cita") → UPDATE_STORY
+                  (or EDGE_CASE) with that story's id as "targetStoryId" and the rule as a NEW acceptance
+                  criterion;
                 · otherwise — also when the capability it governs is only in ALREADY SUGGESTED THIS SESSION
                   (not a story yet) — its own NEW_STORY named after the rule (e.g. "Penalidad por cancelación
                   tardía"), with the rule in its criteria; when the capability it governs is new in this same
@@ -101,9 +103,29 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
               missing (e.g. how the penalty is charged), ALSO add a clarifying question that names it — in
               addition to the story, not instead of it. Example: "Si el paciente cancela con menos de
               veinticuatro horas, se le debe cobrar una penalidad del diez por ciento" → a story or criterion
-              "Given una cita reservada, When el paciente la cancela con menos de 24 horas de anticipación,
-              Then se le cobra una penalidad del 10 %%", optionally plus the question "¿Cómo se cobra la
-              penalidad?".
+              with given "una cita reservada", when "el paciente la cancela con menos de 24 horas de
+              anticipación" and then "se le cobra una penalidad del 10 %%", optionally plus the question
+              "¿Cómo se cobra la penalidad?".
+            """;
+
+    /**
+     * Clients print the user-story and Gherkin keywords around each field themselves, so every field is a
+     * bare clause. Shared by both prompts; {@code GeneratedStoryNormalizer} removes what the model still
+     * writes. Like the prompts it is part of, it goes through {@code formatted()}, so a literal percent sign
+     * is written {@code %%}.
+     */
+    private static final String FIELD_TEXT = """
+            - FIELD TEXT (STRICT): the app prints the keywords itself — "Como <role>, quiero <action>, para
+              <benefit>." and "Dado <given>" / "Cuando <when>" / "Entonces <then>" (in English "As <role>, I
+              want <action>, so that <benefit>." and "Given" / "When" / "Then"). So "role", "action" and
+              "benefit" must NOT start with "Como", "As", "Quiero", "Yo quiero", "I want", "Para" or "so
+              that", and "given", "when" and "then" must NOT start with "Dado", "Dada", "Dados", "Dadas",
+              "Given", "Cuando", "When", "Entonces", "Then", "Y" or "And". None of these six fields ends with
+              a period. Start each one in lowercase unless its first word is a name or an acronym. Example:
+              role "paciente", action "reservar una cita desde la web", benefit "evitar largas colas", given
+              "un paciente con una cita reservada", when "la cancela con menos de 24 horas de anticipación",
+              then "se le cobra una penalidad del 10 %%". In English: role "a patient", action "to book an
+              appointment online", benefit "I avoid long queues", given "a booked appointment".
             """;
 
     static final String EXTRACTION_PROMPT = """
@@ -164,6 +186,7 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
               contraseña"; "ver la lista de pedidos … y aparte, distinto, abrir el detalle de un pedido" →
               TWO stories, NOT "Ver lista y detalle de pedidos". Do NOT over-split a SINGLE capability that
               merely has two delivery channels (e.g. notificaciones por correo Y push is ONE story).
+            """ + FIELD_TEXT + """
             - CRITICAL: Return ONLY valid JSON — no markdown, no code fences, no explanation.
 
             Classify each item with a "type":
@@ -194,18 +217,18 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
                 {
                   "type": "NEW_STORY | EDGE_CASE",
                   "title": "Short descriptive title (max 200 chars)",
-                  "role": "User role / actor (max 500 chars)",
-                  "action": "What they want to do (max 500 chars)",
-                  "benefit": "Expected benefit or reason (max 500 chars)",
+                  "role": "The user role / actor, without 'Como' / 'As' (max 500 chars)",
+                  "action": "What they want to do, without 'Quiero' / 'I want', no final period (max 500 chars)",
+                  "benefit": "Expected benefit or reason, without 'Para' / 'so that', no final period (max 500 chars)",
                   "priority": "CRITICAL | HIGH | MEDIUM | LOW",
                   "storyPoints": 1,
                   "relatedTopic": "Only for EDGE_CASE: brief topic hint (max 200 chars) or null",
                   "acceptanceCriteria": [
                     {
                       "scenario": "Brief label for this criterion in the transcript language (max 200 chars); null only if impossible",
-                      "given": "Given context / precondition (max 1000 chars)",
-                      "when": "When this action is performed (max 1000 chars)",
-                      "then": "Then this outcome should occur (max 1000 chars)"
+                      "given": "The context / precondition, without 'Dado' / 'Given' (max 1000 chars)",
+                      "when": "The action or event, without 'Cuando' / 'When' (max 1000 chars)",
+                      "then": "The expected outcome, without 'Entonces' / 'Then' (max 1000 chars)"
                     }
                   ]
                 }
@@ -248,9 +271,9 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
               "contracheque" → "boleta de pago", "férias" → "vacaciones". Tech loanwords Spanish uses
               as-is (email, login, push, online, web, app) may stay. (When the transcript is already in
               the session language, this is a no-op.)
-            - CRITICAL — EXISTING BACKLOG (candidate matches): the EXISTING USER STORIES list below is a
-              set of candidate existing stories retrieved as most similar to this conversation. Check it
-              BEFORE emitting anything. If the transcript describes the SAME capability as one of these —
+            - CRITICAL — EXISTING BACKLOG: the EXISTING USER STORIES list below holds stories of the current
+              backlog that MAY relate to this conversation, plus the newest ones; most of them are NOT about
+              what is being said. Check it BEFORE emitting anything. If the transcript describes the SAME capability as one of these —
               EVEN IN DIFFERENT WORDS, SYNONYMS, A REGIONAL VARIANT, OR ANOTHER LANGUAGE (e.g. "exportar
               reportes a PDF" ≡ "descargar informes en PDF"; "pagar el carrito" ≡ "cancelar/abonar la
               cesta"; "iniciar sesión" ≡ "autenticarse con credenciales") — do NOT create a NEW_STORY:
@@ -258,6 +281,20 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
               ADDS a new detail, criterion, constraint, or refinement to a capability already in the
               list, ALSO emit UPDATE_STORY (or EDGE_CASE for a boundary rule) targeting that story.
               Emit NEW_STORY ONLY for a genuinely new capability that none of the listed stories covers.
+              SAME CAPABILITY ONLY: use "targetStoryId" only when the new information is about THAT story's own
+              capability (the same actor doing the same action). Another capability of the same domain is a
+              NEW_STORY even when a listed story is about the same entity (the same appointment, order or
+              enrolment) — never attach it to the nearest-sounding story. With a backlog of "Reserva de citas
+              en línea", "Cancelar una cita" and "Registro de menores como dependientes":
+                · "las citas se reservan con máximo treinta días de anticipación" → UPDATE_STORY / EDGE_CASE of
+                  "Reserva de citas en línea" (a rule of booking itself);
+                · "si cancela con menos de veinticuatro horas se cobra una penalidad del diez por ciento" →
+                  EDGE_CASE / UPDATE_STORY of "Cancelar una cita";
+                · "si no hay horarios, el paciente entra a una lista de espera", "el paciente puede reprogramar
+                  su cita", "le enviamos recordatorios por WhatsApp", "si el pago falla la cita queda separada
+                  diez minutos", "si falta tres veces se le bloquea la reserva" → each its own NEW_STORY
+                  (waitlist, rescheduling, reminders, payment, no-show blocking are other capabilities), NOT an
+                  update of booking, cancellation or dependants.
               Examples:
                 · Backlog has "<id> | Exportar reportes a PDF"; transcript says "necesito descargar mis
                   informes en formato PDF para remitirlos al equipo" → UPDATE_STORY, targetStoryId=<id>
@@ -363,6 +400,7 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
             - For EACH acceptance criterion (NEW_STORY list and the single EDGE_CASE one), also give a
               concise "scenario" label (max 200 chars) in the SAME LANGUAGE as the transcript. Omit it
               (null) only if you truly cannot; never fabricate one.
+            """ + FIELD_TEXT + """
             - CRITICAL: Return ONLY valid JSON — no markdown, no code fences, no explanation.
 
             Classify each item with a "type":
@@ -373,8 +411,9 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
                                write the full updated story fields, and put only the new or changed
                                acceptance criteria in "acceptanceCriteria".
             - "EDGE_CASE"    — a boundary, exceptional scenario, or a session-maintenance / error /
-                               validation / security constraint that belongs as an acceptance criterion
-                               on an existing story rather than as a new standalone story; set
+                               validation / security constraint OF an existing story's own capability,
+                               which belongs as an acceptance criterion on that story rather than as a
+                               new standalone story; set
                                "targetStoryId" to that story's id when you can identify it, include a
                                "relatedTopic" hint (a glossary term or a concept already mentioned in the
                                context), and put the boundary rule itself as EXACTLY ONE Given/When/Then
@@ -399,18 +438,18 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
                   "type": "NEW_STORY | UPDATE_STORY | EDGE_CASE",
                   "targetStoryId": "id of the existing story for UPDATE_STORY / EDGE_CASE, or null",
                   "title": "Short descriptive title (max 200 chars)",
-                  "role": "User role / actor (max 500 chars)",
-                  "action": "What they want to do (max 500 chars)",
-                  "benefit": "Expected benefit or reason (max 500 chars)",
+                  "role": "The user role / actor, without 'Como' / 'As' (max 500 chars)",
+                  "action": "What they want to do, without 'Quiero' / 'I want', no final period (max 500 chars)",
+                  "benefit": "Expected benefit or reason, without 'Para' / 'so that', no final period (max 500 chars)",
                   "priority": "CRITICAL | HIGH | MEDIUM | LOW",
                   "storyPoints": 1,
                   "relatedTopic": "Only for EDGE_CASE: glossary term or concept the edge case belongs to, or null",
                   "acceptanceCriteria": [
                     {
                       "scenario": "Brief label for this criterion in the transcript language (max 200 chars); null only if impossible",
-                      "given": "Given context / precondition (max 1000 chars)",
-                      "when": "When this action is performed (max 1000 chars)",
-                      "then": "Then this outcome should occur (max 1000 chars)"
+                      "given": "The context / precondition, without 'Dado' / 'Given' (max 1000 chars)",
+                      "when": "The action or event, without 'Cuando' / 'When' (max 1000 chars)",
+                      "then": "The expected outcome, without 'Entonces' / 'Then' (max 1000 chars)"
                     }
                   ]
                 }
@@ -430,11 +469,14 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
             - If the capability is the SAME as a candidate — even in different words, synonyms, a regional
               variant, or another language — you MUST output "type":"UPDATE_STORY" with "targetStoryId"
               set to that candidate's id, COPIED VERBATIM from the list. Do NOT output NEW_STORY for it.
-            - If it ADDS a detail/criterion/constraint/rule to a candidate, you MUST output "UPDATE_STORY" (or
-              "EDGE_CASE" for a boundary rule) with "targetStoryId" set to that candidate's id, and put what it
-              adds as Given/When/Then in "acceptanceCriteria".
-            - Output "NEW_STORY" (with "targetStoryId": null) ONLY when NO candidate matches. Never drop a new
-              rule, condition or outcome as already covered by a candidate (see BUSINESS RULES).
+            - If it ADDS a detail/criterion/constraint/rule to a candidate's OWN capability, you MUST output
+              "UPDATE_STORY" (or "EDGE_CASE" for a boundary rule) with "targetStoryId" set to that candidate's
+              id, and put what it adds as Given/When/Then in "acceptanceCriteria".
+            - A capability that is not one of the candidates — even in the same domain, about the same entity,
+              or sounding close to a candidate — is a "NEW_STORY" (with "targetStoryId": null). Do not pick
+              the closest candidate just because one is listed: the server rejects a target the draft is not
+              actually about. Never drop a new rule, condition or outcome as already covered by a candidate
+              (see BUSINESS RULES).
             Worked example — if CANDIDATE EXISTING STORIES contains
               "11111111-1111-1111-1111-111111111111 | Exportar reportes a PDF"
             and the conversation says "necesito descargar mis informes en formato PDF para el equipo",
@@ -547,10 +589,11 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
             sb.append("Domain glossary:\n");
             ctx.glossaryTerms().forEach(g -> sb.append("- ").append(g.term()).append(": ").append(g.definition()).append("\n"));
         }
-        sb.append("\nEXISTING USER STORIES (candidate matches from the current backlog, most similar first;")
-          .append(" format: id | title | as <role> I want <action> so that <benefit>). If the transcript")
-          .append(" describes the SAME capability as one of these — even in different words — emit")
-          .append(" UPDATE_STORY targeting its id, do NOT create a NEW_STORY:\n");
+        sb.append("\nEXISTING USER STORIES (stories of the current backlog that may relate to the conversation,")
+          .append(" plus the newest ones — most are NOT about it; format: id | title | as <role> I want <action>")
+          .append(" so that <benefit>). If the transcript describes the SAME capability as one of these — even")
+          .append(" in different words — emit UPDATE_STORY targeting its id, do NOT create a NEW_STORY; another")
+          .append(" capability of the same domain is a NEW_STORY:\n");
         if (ctx.existingStories().isEmpty()) {
             sb.append("- none yet\n");
         } else {
@@ -583,8 +626,8 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
      */
     private static String buildCandidatesBlock(GenerationContext ctx) {
         StringBuilder sb = new StringBuilder();
-        sb.append("CANDIDATE EXISTING STORIES (copy an id verbatim into \"targetStoryId\" when the")
-          .append(" conversation matches or extends one; format: <id> | <title>):\n");
+        sb.append("CANDIDATE EXISTING STORIES (copy an id verbatim into \"targetStoryId\" only when the")
+          .append(" conversation is about that story's own capability; format: <id> | <title>):\n");
         if (ctx.existingStories().isEmpty() && ctx.alreadySuggested().isEmpty()) {
             sb.append("- (none — the backlog is empty; every capability is a NEW_STORY)\n");
             return sb.toString().strip();

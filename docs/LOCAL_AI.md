@@ -299,6 +299,36 @@ whichever first says something the pending suggestion does not. A `NEW_STORY` al
 that another story suggestion already has (pending, or kept earlier in the same pass). It gets one from
 its own content the same way (`SuggestionTitles`).
 
+A draft attached to a story (`UPDATE_STORY` / `EDGE_CASE`) must actually be about that story
+(`SuggestionTargetPolicy`). The model sees part of the backlog and tends to attach a new capability of the
+same domain to the nearest-sounding listed story: a waitlist to "Registro de menores como dependientes", a
+delivery fee to "Mostrar productos disponibles en la bodega más cercana". The draft keeps its target only
+when its similarity to that story clears `discovery.realtime.target-similarity-floor`
+(`DISCOVERY_REALTIME_TARGET_SIMILARITY_FLOOR`, default `0.60`) and is within
+`discovery.realtime.target-similarity-margin` (`DISCOVERY_REALTIME_TARGET_SIMILARITY_MARGIN`, default
+`0.05`) of the closest story.
+
+Otherwise it is handled as a `NEW_STORY`, so it still converges onto a story it truly repeats; it is
+never re-attached to another story. An `UPDATE_STORY` with no target only falls back to the closest story
+above the floor. An edge case that ends with no target is kept as a `NEW_STORY`, or as a clarifying
+question when its title is a question and it has no criterion, because a targetless edge case cannot be
+accepted.
+
+The defaults were measured on production `text-embedding-3-small` vectors:
+- refinements of the right story scored 0.62–0.82 and were the closest story or within 0.05 of it;
+- the wrong targets seen in production scored 0.40–0.60, or far below the closest story.
+
+The table is in `SuggestionTargetPolicyTest`. Re-measure it when you change the embedding model.
+
+Generated text is cleaned before it is compared, embedded or stored (`GeneratedStoryNormalizer`). The
+web prints "Como / quiero / para" around the narrative and "Dado / Cuando / Entonces" before each
+step, so a leading keyword the model wrote into role, action, benefit, given, when or then is removed,
+in Spanish or English ("Dado que un paciente…" becomes "que un paciente…"), and so is a trailing
+period. A function word that opens a field is lowercased ("Un paciente" → "un paciente"); names and
+acronyms keep their case, and a field is never emptied. The title, the scenario label and anything an
+analyst types are not changed. The same cleaning applies to the batch extraction and to the LLM path of
+the Jira import. The prompts ask for bare fields too (`FIELD TEXT` rule); the cleaning is the safety net.
+
 ## Tips
 
 - **Keep models warm**: Ollama unloads idle models — `OLLAMA_KEEP_ALIVE=-1` keeps them resident during a

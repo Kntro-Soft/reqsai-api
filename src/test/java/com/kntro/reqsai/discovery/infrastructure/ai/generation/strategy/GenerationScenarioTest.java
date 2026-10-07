@@ -127,7 +127,9 @@ class GenerationScenarioTest {
             assertThat(prompt).contains("mantener la sesión activa"); // granularity example
             assertThat(prompt).contains("Given / When / Then");   // criteria instruction
             // Retrieval-augmented dedup/UPDATE + the quality fixes.
-            assertThat(prompt).contains("candidate matches");     // candidate-existing-story framing
+            assertThat(prompt).contains("most of them are NOT about"); // backlog is context, not "the matches"
+            assertThat(prompt).contains("SAME CAPABILITY ONLY");  // target only for that story's own capability
+            assertThat(prompt).contains("lista de espera");       // a same-domain capability is a NEW_STORY
             assertThat(prompt).contains("SAME capability");       // synonym-paraphrase → UPDATE rule
             assertThat(prompt).contains("Output language")        // session-language enforcement
                     .contains("es-PE");                            // the session language is injected
@@ -230,7 +232,7 @@ class GenerationScenarioTest {
                     .contains("is NOT the same")
                     .contains("never drop it as already covered");
             // The rule's example keeps its numbers; the percent sign survives the prompt formatting.
-            assertThat(flat).contains("Then se le cobra una penalidad del 10 %\"").doesNotContain("%%");
+            assertThat(flat).contains("then \"se le cobra una penalidad del 10 %\"").doesNotContain("%%");
             // Genuinely vague asks still get a question: the AMBIGUITY rule is untouched.
             assertThat(flat).contains("AMBIGUITY").contains("ustedes ya saben");
             if (contextual) {
@@ -242,6 +244,29 @@ class GenerationScenarioTest {
                         .contains("A new rule, condition or outcome on one of those items is NOT equivalent")
                         .contains("Never drop a new rule, condition or outcome as already covered");
             }
+        }
+
+        @ParameterizedTest(name = "contextual={0}")
+        @ValueSource(booleans = {false, true})
+        @DisplayName("both variants ask for bare field text: no user-story or Gherkin keyword, no final period")
+        void both_variants_forbid_keywords_in_fields(boolean contextual) {
+            String flat = promptFor(contextual, "hola").replaceAll("\\s+", " ");
+
+            assertThat(flat).contains("FIELD TEXT (STRICT)")
+                    .contains("must NOT start with \"Como\", \"As\", \"Quiero\", \"Yo quiero\", \"I want\", "
+                            + "\"Para\" or \"so that\"")
+                    .contains("must NOT start with \"Dado\", \"Dada\", \"Dados\", \"Dadas\", \"Given\", "
+                            + "\"Cuando\", \"When\", \"Entonces\", \"Then\", \"Y\" or \"And\"")
+                    .contains("None of these six fields ends with a period")
+                    .contains("\"action\": \"What they want to do, without 'Quiero' / 'I want', no final period")
+                    .contains("\"given\": \"The context / precondition, without 'Dado' / 'Given'")
+                    .contains("\"then\": \"The expected outcome, without 'Entonces' / 'Then'")
+                    .contains("then \"se le cobra una penalidad del 10 %\"");
+            // The old schema descriptions opened with the keywords themselves.
+            assertThat(flat).doesNotContain("Given context / precondition").doesNotContain("Then this outcome");
+            assertThat(flat.indexOf("FIELD TEXT (STRICT)"))
+                    .as("the rule sits with the other rules, before the JSON schema")
+                    .isLessThan(flat.indexOf("Return ONLY this JSON structure"));
         }
 
         @ParameterizedTest(name = "contextual={0}")

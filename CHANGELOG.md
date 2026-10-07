@@ -11,6 +11,118 @@ follows [Semantic Versioning](https://semver.org/).
 
 _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in progress._
 
+### Fixed (Live suggestions attached to unrelated stories — `bugfix/discovery-suggestion-target-matching`)
+
+- **A live suggestion now stays on an existing story only when it is about that story.** Once a project
+  had a backlog, almost every live draft came back as an `UPDATE_STORY` or `EDGE_CASE` of the
+  nearest-sounding story. Production examples:
+  - a waitlist attached to "Registro de menores como dependientes";
+  - rescheduling to "Cálculo de tarifas según aseguradora" and to "Bloqueo de horarios por el médico";
+  - a delivery fee to "Mostrar productos disponibles en la bodega más cercana";
+  - assigning a courier to "Gestión de productos agotados";
+  - a payment hold to "Reprogramar una cita".
+
+  Accepting them appended unrelated criteria to those stories. On a replay of two clinic meetings, 15
+  of 17 drafts were updates or edge cases and only one was a new story.
+- **Cause:**
+  - The prompt called the listed backlog "candidate matches … most similar first", although it also holds
+    the newest stories. It also said every rule that "adds" to a candidate MUST be an update.
+  - The server trusted any target id that existed in the project.
+  - An `UPDATE_STORY` without a target fell back to the nearest story with no floor.
+  - A targetless `EDGE_CASE` was stored and could never be accepted.
+- **Fix:**
+  - The new `SuggestionTargetPolicy` keeps the model's target only when the draft's similarity to it clears
+    `discovery.realtime.target-similarity-floor` (default 0.60) and is within
+    `discovery.realtime.target-similarity-margin` (default 0.05) of the closest story. The defaults were
+    calibrated on production `text-embedding-3-small` vectors; the table is in `SuggestionTargetPolicyTest`.
+  - A detached draft goes through the `NEW_STORY` path, so it still converges onto a story it truly
+    repeats.
+  - The `UPDATE_STORY` fallback uses the same floor.
+  - A targetless `EDGE_CASE` becomes a `NEW_STORY`, or a `CLARIFYING_QUESTION` when its title is a
+    question and it has no criterion.
+  - `UserStoryRepository.similarityTo` returns the similarity between a draft and one story.
+  - The prompt describes the list as stories that may relate, adds a "SAME CAPABILITY ONLY" rule with
+    clinic examples (anticipation window → booking; 10 % penalty → cancellation; waitlist, rescheduling,
+    reminders, payment and no-show blocking → their own stories), and lets the DEDUP DECISION attach only
+    to a candidate's own capability. The business-rule examples from #92 still attach to the right story.
+- **The command palette now finds a word inside a long label, with or without accents.** Search
+  matched with `label % term` only, i.e. whole-string trigram similarity ≥ 0.3, so a short query never
+  reached a long title. In production, "Costo", "Pagar" and "delivery" returned nothing although stories
+  "Costo de delivery según la zona de reparto" and "Pagar la cita en línea al reservar" existed. "Clínica"
+  and "Clinica" missed the project "Clínica Santa Lucía — Portal de citas". "Valeria" missed the member
+  "Valeria Ríos Paredes". Accents counted as different trigrams.
+- A common migration adds three immutable SQL functions:
+  - `public.search_normalize` lowercases and removes accents with `translate()`, so it needs no extra
+    extension.
+  - `public.search_like_pattern` builds an escaped `%term%`.
+  - `public.search_score` ranks exact matches first, then prefix, word-start, substring and fuzzy
+    matches.
+- Every palette query (projects, user stories, organizations, members, glossary terms, documents)
+  now matches the normalized label by substring (`LIKE`), word similarity (`<%`) or the original
+  whole-string similarity (`%`). It orders by `search_score`. The trigram GIN indexes are rebuilt on
+  `search_normalize(column)`, in public and in every tenant schema.
+- `GlobalSearchService` now interleaves the per-type lists before applying the cap. Before, it
+  concatenated them, so nine matching stories pushed the glossary term and members out of the top 8.
+  Now the best hit of each type comes first, then the second of each, and so on.
+
+### Fixed (Session history duration and accepted count — `bugfix/discovery-session-history-stats`)
+
+- **`durationSeconds` of an uploaded recording is now its audio length.** It was always
+  `startedAt → endedAt`. For an uploaded recording that only spans the upload: the session is
+  created, then the file is chosen and sent. In production, recordings of 1:35 to 2:18 reported 9 to
+  25 seconds. Now `audioDurationMs` wins when it is set. Live sessions, which have no audio length,
+  are still measured from start to stop.
+- **`storiesAccepted` now counts the story suggestions the analyst accepted** (new stories, updates
+  and edge cases; resolved clarifying questions excluded). It used to count stories in `APPROVED`,
+  a status no flow sets yet, so the history always showed 0.
+
+### Fixed (Repeated story and Gherkin keywords — `bugfix/discovery-gherkin-keyword-normalization`)
+
+- **Generated stories no longer repeat the keywords the web already prints.** The web renders a story
+  as "Como {role}, quiero {action}, para {benefit}." and each criterion as "Dado / Cuando / Entonces
+  {step}", but the model wrote those keywords into the fields too. In production the analyst read
+  "quiero Quiero reservar una cita…", "para Para evitar largas colas….", "Dado Dado que un paciente…",
+  "Cuando Cuando el primero confirma…", "Entonces Entonces se queda con el horario…", and
+  "…disponible., para" from a role that ended with a period. Live suggestions and the batch
+  `/sessions/{id}/process` extraction were both affected. The realtime and batch prompts described the
+  criterion fields as "Given context…", "When this action…", "Then this outcome…", and nothing on the
+  server cleaned the output.
+- A new package-private `GeneratedStoryNormalizer` (`discovery.application.service`) cleans role,
+  action, benefit and the Given/When/Then of every criterion of generated text, in Spanish and English.
+  It removes a leading keyword in any case ("Como", "As"; "Quiero", "Yo quiero", "I want"; "Para", "so
+  that"; "Dado/Dada/Dados/Dadas", "Given"; "Cuando", "When"; "Entonces", "Then"; and a leading "Y" /
+  "And" on a step). The rest of the clause stays: "Dado que un paciente…" becomes "que un paciente…",
+  rendered "Dado que un paciente…". It removes trailing `.`, `;` and `,`, since the web adds its own
+  punctuation. It lowercases the first word only when it is a function word in title case ("Un
+  paciente" → "un paciente"); acronyms and names ("DNI", "SUNAT", "Yape", "María", "La Molina") keep
+  their case. It never empties a field: when nothing would be left, the original text is kept.
+- It runs where generated text becomes a suggestion or a story: `SuggestionCreationService` (live
+  `NEW_STORY` / `UPDATE_STORY` / `EDGE_CASE` drafts, before the duplicate filter and the embedding),
+  `StoryExtractionService` (batch extraction and its duplicate alert), and the LLM path of the Jira
+  import (`DiscoveryStoryWritePortImpl`). The story title, the scenario label, clarifying questions,
+  the import's deterministic fallback and anything an analyst types through the REST API are not
+  changed. Stories and suggestions already stored keep their text.
+- Both generation prompts now say that role, action, benefit and given/when/then must not start with
+  those keywords and must not end with a period (new `FIELD TEXT` rule, with Spanish and English
+  examples). The JSON schema no longer describes the steps as "Given context…" / "When this action…" /
+  "Then this outcome…", and the business-rule example is written as field values. The normalizer stays
+  as the safety net.
+- Side effect: an `UPDATE_STORY` whose only difference from its target was the keywords ("Dado un
+  horario disponible" for "un horario disponible") is now dropped as a no-op instead of reaching the
+  analyst as a new criterion.
+
+### Tests (Repeated story and Gherkin keywords — `bugfix/discovery-gherkin-keyword-normalization`)
+
+- `GeneratedStoryNormalizerTest` (new): every production example above, the English keywords, names
+  and acronyms, function words that open a name, the empty-field guard, and a whole generated story
+  (title, scenario and metadata unchanged).
+- `SuggestionCreationServiceTest`: a live `NEW_STORY` and an `EDGE_CASE` are stored without the
+  keywords; an `UPDATE_STORY` that only adds keywords to the target's criterion is dropped.
+  `StoryExtractionServiceTest`: the batch story and the duplicate alert are stored without them.
+  `DiscoveryStoryWritePortImplTest`: the Jira LLM path is cleaned and the fallback keeps the issue's
+  text. `GenerationScenarioTest`: both prompts carry the `FIELD TEXT` rule and the new schema wording.
+- Against the previous code, the 8 new mapping and prompt tests fail; all pass with the fix.
+
 ### Fixed (Live suggestion event and titles of kept drafts — `bugfix/discovery-suggestion-title-and-live-event`)
 
 - **The live `SUGGESTION_GENERATED` message carries the suggestion's real type and criteria.** In
