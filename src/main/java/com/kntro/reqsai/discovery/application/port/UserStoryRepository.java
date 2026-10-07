@@ -67,6 +67,13 @@ public interface UserStoryRepository {
     Optional<SimilarStory> findMostSimilar(UUID projectId, float[] embedding);
 
     /**
+     * Cosine similarity (0..1) between {@code embedding} and one story of the project, or empty when the
+     * story does not exist in the project or has no embedding yet. Used to check that the story an AI
+     * draft says it refines is actually close to that draft.
+     */
+    Optional<Double> similarityTo(UUID projectId, UUID storyId, float[] embedding);
+
+    /**
      * Returns up to {@code limit} indexed stories of the project ordered by ascending cosine distance
      * to {@code embedding}. Used to ground the realtime generation prompt in the most relevant part
      * of the backlog. Empty when the project has no indexed stories.

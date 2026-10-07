@@ -11,6 +11,41 @@ follows [Semantic Versioning](https://semver.org/).
 
 _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in progress._
 
+### Fixed (Live suggestions attached to unrelated stories — `bugfix/discovery-suggestion-target-matching`)
+
+- **A live suggestion now stays on an existing story only when it is about that story.** Once a project
+  had a backlog, almost every live draft came back as an `UPDATE_STORY` or `EDGE_CASE` of the
+  nearest-sounding story. Production examples:
+  - a waitlist attached to "Registro de menores como dependientes";
+  - rescheduling to "Cálculo de tarifas según aseguradora" and to "Bloqueo de horarios por el médico";
+  - a delivery fee to "Mostrar productos disponibles en la bodega más cercana";
+  - assigning a courier to "Gestión de productos agotados";
+  - a payment hold to "Reprogramar una cita".
+
+  Accepting them appended unrelated criteria to those stories. On a replay of two clinic meetings, 15
+  of 17 drafts were updates or edge cases and only one was a new story.
+- **Cause:**
+  - The prompt called the listed backlog "candidate matches … most similar first", although it also holds
+    the newest stories. It also said every rule that "adds" to a candidate MUST be an update.
+  - The server trusted any target id that existed in the project.
+  - An `UPDATE_STORY` without a target fell back to the nearest story with no floor.
+  - A targetless `EDGE_CASE` was stored and could never be accepted.
+- **Fix:**
+  - The new `SuggestionTargetPolicy` keeps the model's target only when the draft's similarity to it clears
+    `discovery.realtime.target-similarity-floor` (default 0.60) and is within
+    `discovery.realtime.target-similarity-margin` (default 0.05) of the closest story. The defaults were
+    calibrated on production `text-embedding-3-small` vectors; the table is in `SuggestionTargetPolicyTest`.
+  - A detached draft goes through the `NEW_STORY` path, so it still converges onto a story it truly
+    repeats.
+  - The `UPDATE_STORY` fallback uses the same floor.
+  - A targetless `EDGE_CASE` becomes a `NEW_STORY`, or a `CLARIFYING_QUESTION` when its title is a
+    question and it has no criterion.
+  - `UserStoryRepository.similarityTo` returns the similarity between a draft and one story.
+  - The prompt describes the list as stories that may relate, adds a "SAME CAPABILITY ONLY" rule with
+    clinic examples (anticipation window → booking; 10 % penalty → cancellation; waitlist, rescheduling,
+    reminders, payment and no-show blocking → their own stories), and lets the DEDUP DECISION attach only
+    to a candidate's own capability. The business-rule examples from #92 still attach to the right story.
+
 ### Fixed (Repeated story and Gherkin keywords — `bugfix/discovery-gherkin-keyword-normalization`)
 
 - **Generated stories no longer repeat the keywords the web already prints.** The web renders a story

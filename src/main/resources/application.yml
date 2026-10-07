@@ -202,6 +202,8 @@ discovery:
     max-transcript-age-seconds: ${DISCOVERY_REALTIME_MAX_TRANSCRIPT_AGE_SECONDS:22}
     context-top-k: ${DISCOVERY_REALTIME_CONTEXT_TOP_K:5}
     dedup-similarity-threshold: ${DISCOVERY_REALTIME_DEDUP_SIMILARITY_THRESHOLD:0.84}
+    target-similarity-floor: ${DISCOVERY_REALTIME_TARGET_SIMILARITY_FLOOR:0.60}
+    target-similarity-margin: ${DISCOVERY_REALTIME_TARGET_SIMILARITY_MARGIN:0.05}
 
 server:
   port: ${PORT:${SERVER_PORT:8080}}

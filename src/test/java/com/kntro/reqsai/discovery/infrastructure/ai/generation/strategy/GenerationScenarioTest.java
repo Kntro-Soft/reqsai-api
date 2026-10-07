@@ -127,7 +127,9 @@ class GenerationScenarioTest {
             assertThat(prompt).contains("mantener la sesión activa"); // granularity example
             assertThat(prompt).contains("Given / When / Then");   // criteria instruction
             // Retrieval-augmented dedup/UPDATE + the quality fixes.
-            assertThat(prompt).contains("candidate matches");     // candidate-existing-story framing
+            assertThat(prompt).contains("most of them are NOT about"); // backlog is context, not "the matches"
+            assertThat(prompt).contains("SAME CAPABILITY ONLY");  // target only for that story's own capability
+            assertThat(prompt).contains("lista de espera");       // a same-domain capability is a NEW_STORY
             assertThat(prompt).contains("SAME capability");       // synonym-paraphrase → UPDATE rule
             assertThat(prompt).contains("Output language")        // session-language enforcement
                     .contains("es-PE");                            // the session language is injected
