@@ -168,6 +168,21 @@ class SttStreamingWebSocketHandlerTest {
         assertThat(streaming.openCount).isZero();
     }
 
+    @Test
+    @DisplayName("should close the client channel with 1011 when the provider stream is lost for good")
+    void should_close_client_with_1011_when_stream_lost() throws Exception {
+        stubRecording(sessionId);
+        WebSocketSession ws = wsSession("ws-9", "session=" + sessionId, "org-1", "tenant_acme");
+        handler.afterConnectionEstablished(ws);
+
+        streaming.listener.onStreamLost("transcription provider unreachable after 3 reconnect attempts");
+
+        ArgumentCaptor<CloseStatus> captor = ArgumentCaptor.forClass(CloseStatus.class);
+        verify(ws).close(captor.capture());
+        assertThat(captor.getValue().getCode()).isEqualTo(1011);
+        assertThat(captor.getValue().getReason()).isEqualTo("transcription stream lost");
+    }
+
     // ----- helpers -----
 
     private void stubRecording(UUID sessionId) {
@@ -199,10 +214,12 @@ class SttStreamingWebSocketHandlerTest {
         boolean closed = false;
         boolean emitFinal = true;
         int openCount = 0;
+        Listener listener;
 
         @Override
         public Session open(Context context, Listener listener) {
             openCount++;
+            this.listener = listener;
             return new Session() {
                 @Override
                 public void sendAudio(byte[] frame) {

@@ -14,6 +14,8 @@ import java.util.concurrent.TimeUnit;
  * {@code end_of_turn=true} is treated as a final segment. Selected by
  * {@code reqsai.ai.stt.streaming.provider=assemblyai}.
  *
+ * <p>No keepalive: AssemblyAI only ends an idle session when the {@code inactivity_timeout} query
+ * parameter is set, and this adapter does not set it.
  */
 @Slf4j
 public class AssemblyAiStreamingAdapter extends AbstractWebSocketStreamingAdapter {
@@ -23,6 +25,11 @@ public class AssemblyAiStreamingAdapter extends AbstractWebSocketStreamingAdapte
     private final String apiKey;
 
     public AssemblyAiStreamingAdapter(String apiKey) {
+        this(apiKey, StreamResilience.defaults());
+    }
+
+    AssemblyAiStreamingAdapter(String apiKey, StreamResilience resilience) {
+        super(resilience);
         this.apiKey = apiKey;
     }
 
