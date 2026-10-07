@@ -268,7 +268,14 @@ class GlobalSearchIntegrationTest extends AbstractIntegrationTest {
         String suffix = UUID.randomUUID().toString().substring(0, 8);
         String orgId = createOrg(suffix);
 
-        String body = get(orgId, "/api/search?q=%20%20");
+        // Pass the blanks as a URI variable: a literal "%20%20" in the template is re-encoded by the client
+        // and reaches the API as the non-blank text "%20%20".
+        String body = client().get().uri("/api/search?q={q}", "   ")
+                .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId, "ROLE_USER"))
+                .header("Api-Version", "1")
+                .exchange((req, response) -> ResponseEntity.status(response.getStatusCode())
+                        .body(response.bodyTo(String.class)), false)
+                .getBody();
 
         assertThat(body).isEqualTo("[]");
     }
