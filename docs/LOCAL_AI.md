@@ -299,6 +299,15 @@ whichever first says something the pending suggestion does not. A `NEW_STORY` al
 that another story suggestion already has (pending, or kept earlier in the same pass). It gets one from
 its own content the same way (`SuggestionTitles`).
 
+Generated text is cleaned before it is compared, embedded or stored (`GeneratedStoryNormalizer`). The
+web prints "Como / quiero / para" around the narrative and "Dado / Cuando / Entonces" before each
+step, so a leading keyword the model wrote into role, action, benefit, given, when or then is removed,
+in Spanish or English ("Dado que un paciente…" becomes "que un paciente…"), and so is a trailing
+period. A function word that opens a field is lowercased ("Un paciente" → "un paciente"); names and
+acronyms keep their case, and a field is never emptied. The title, the scenario label and anything an
+analyst types are not changed. The same cleaning applies to the batch extraction and to the LLM path of
+the Jira import. The prompts ask for bare fields too (`FIELD TEXT` rule); the cleaning is the safety net.
+
 ## Tips
 
 - **Keep models warm**: Ollama unloads idle models — `OLLAMA_KEEP_ALIVE=-1` keeps them resident during a

@@ -74,9 +74,9 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
               drop it as already covered. If a detail is genuinely missing (e.g. how the penalty is charged),
               ALSO add a clarifying question that names it — in addition to the story, not instead of it.
               Example: "Si el paciente cancela con menos de veinticuatro horas, se le debe cobrar una penalidad
-              del diez por ciento" → the criterion "Given una cita reservada, When el paciente la cancela con
-              menos de 24 horas de anticipación, Then se le cobra una penalidad del 10 %%", optionally plus the
-              question "¿Cómo se cobra la penalidad?".
+              del diez por ciento" → the criterion with given "una cita reservada", when "el paciente la cancela
+              con menos de 24 horas de anticipación" and then "se le cobra una penalidad del 10 %%", optionally
+              plus the question "¿Cómo se cobra la penalidad?".
             """;
 
     /** Realtime variant of {@link #BUSINESS_RULES_BATCH}: routes the rule to the backlog story it governs. */
@@ -101,9 +101,29 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
               missing (e.g. how the penalty is charged), ALSO add a clarifying question that names it — in
               addition to the story, not instead of it. Example: "Si el paciente cancela con menos de
               veinticuatro horas, se le debe cobrar una penalidad del diez por ciento" → a story or criterion
-              "Given una cita reservada, When el paciente la cancela con menos de 24 horas de anticipación,
-              Then se le cobra una penalidad del 10 %%", optionally plus the question "¿Cómo se cobra la
-              penalidad?".
+              with given "una cita reservada", when "el paciente la cancela con menos de 24 horas de
+              anticipación" and then "se le cobra una penalidad del 10 %%", optionally plus the question
+              "¿Cómo se cobra la penalidad?".
+            """;
+
+    /**
+     * Clients print the user-story and Gherkin keywords around each field themselves, so every field is a
+     * bare clause. Shared by both prompts; {@code GeneratedStoryNormalizer} removes what the model still
+     * writes. Like the prompts it is part of, it goes through {@code formatted()}, so a literal percent sign
+     * is written {@code %%}.
+     */
+    private static final String FIELD_TEXT = """
+            - FIELD TEXT (STRICT): the app prints the keywords itself — "Como <role>, quiero <action>, para
+              <benefit>." and "Dado <given>" / "Cuando <when>" / "Entonces <then>" (in English "As <role>, I
+              want <action>, so that <benefit>." and "Given" / "When" / "Then"). So "role", "action" and
+              "benefit" must NOT start with "Como", "As", "Quiero", "Yo quiero", "I want", "Para" or "so
+              that", and "given", "when" and "then" must NOT start with "Dado", "Dada", "Dados", "Dadas",
+              "Given", "Cuando", "When", "Entonces", "Then", "Y" or "And". None of these six fields ends with
+              a period. Start each one in lowercase unless its first word is a name or an acronym. Example:
+              role "paciente", action "reservar una cita desde la web", benefit "evitar largas colas", given
+              "un paciente con una cita reservada", when "la cancela con menos de 24 horas de anticipación",
+              then "se le cobra una penalidad del 10 %%". In English: role "a patient", action "to book an
+              appointment online", benefit "I avoid long queues", given "a booked appointment".
             """;
 
     static final String EXTRACTION_PROMPT = """
@@ -164,6 +184,7 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
               contraseña"; "ver la lista de pedidos … y aparte, distinto, abrir el detalle de un pedido" →
               TWO stories, NOT "Ver lista y detalle de pedidos". Do NOT over-split a SINGLE capability that
               merely has two delivery channels (e.g. notificaciones por correo Y push is ONE story).
+            """ + FIELD_TEXT + """
             - CRITICAL: Return ONLY valid JSON — no markdown, no code fences, no explanation.
 
             Classify each item with a "type":
@@ -194,18 +215,18 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
                 {
                   "type": "NEW_STORY | EDGE_CASE",
                   "title": "Short descriptive title (max 200 chars)",
-                  "role": "User role / actor (max 500 chars)",
-                  "action": "What they want to do (max 500 chars)",
-                  "benefit": "Expected benefit or reason (max 500 chars)",
+                  "role": "The user role / actor, without 'Como' / 'As' (max 500 chars)",
+                  "action": "What they want to do, without 'Quiero' / 'I want', no final period (max 500 chars)",
+                  "benefit": "Expected benefit or reason, without 'Para' / 'so that', no final period (max 500 chars)",
                   "priority": "CRITICAL | HIGH | MEDIUM | LOW",
                   "storyPoints": 1,
                   "relatedTopic": "Only for EDGE_CASE: brief topic hint (max 200 chars) or null",
                   "acceptanceCriteria": [
                     {
                       "scenario": "Brief label for this criterion in the transcript language (max 200 chars); null only if impossible",
-                      "given": "Given context / precondition (max 1000 chars)",
-                      "when": "When this action is performed (max 1000 chars)",
-                      "then": "Then this outcome should occur (max 1000 chars)"
+                      "given": "The context / precondition, without 'Dado' / 'Given' (max 1000 chars)",
+                      "when": "The action or event, without 'Cuando' / 'When' (max 1000 chars)",
+                      "then": "The expected outcome, without 'Entonces' / 'Then' (max 1000 chars)"
                     }
                   ]
                 }
@@ -363,6 +384,7 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
             - For EACH acceptance criterion (NEW_STORY list and the single EDGE_CASE one), also give a
               concise "scenario" label (max 200 chars) in the SAME LANGUAGE as the transcript. Omit it
               (null) only if you truly cannot; never fabricate one.
+            """ + FIELD_TEXT + """
             - CRITICAL: Return ONLY valid JSON — no markdown, no code fences, no explanation.
 
             Classify each item with a "type":
@@ -399,18 +421,18 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
                   "type": "NEW_STORY | UPDATE_STORY | EDGE_CASE",
                   "targetStoryId": "id of the existing story for UPDATE_STORY / EDGE_CASE, or null",
                   "title": "Short descriptive title (max 200 chars)",
-                  "role": "User role / actor (max 500 chars)",
-                  "action": "What they want to do (max 500 chars)",
-                  "benefit": "Expected benefit or reason (max 500 chars)",
+                  "role": "The user role / actor, without 'Como' / 'As' (max 500 chars)",
+                  "action": "What they want to do, without 'Quiero' / 'I want', no final period (max 500 chars)",
+                  "benefit": "Expected benefit or reason, without 'Para' / 'so that', no final period (max 500 chars)",
                   "priority": "CRITICAL | HIGH | MEDIUM | LOW",
                   "storyPoints": 1,
                   "relatedTopic": "Only for EDGE_CASE: glossary term or concept the edge case belongs to, or null",
                   "acceptanceCriteria": [
                     {
                       "scenario": "Brief label for this criterion in the transcript language (max 200 chars); null only if impossible",
-                      "given": "Given context / precondition (max 1000 chars)",
-                      "when": "When this action is performed (max 1000 chars)",
-                      "then": "Then this outcome should occur (max 1000 chars)"
+                      "given": "The context / precondition, without 'Dado' / 'Given' (max 1000 chars)",
+                      "when": "The action or event, without 'Cuando' / 'When' (max 1000 chars)",
+                      "then": "The expected outcome, without 'Entonces' / 'Then' (max 1000 chars)"
                     }
                   ]
                 }

@@ -743,4 +743,85 @@ class SuggestionCreationServiceTest {
         assertThat(created).hasSize(1);
         assertThat(created.getFirst().getDraftTitle()).isEqualTo("Iniciar sesión en el sistema");
     }
+
+    // ── Generated keywords ────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("should store a NEW_STORY's narrative and Given/When/Then without the keywords the model wrote")
+    void should_strip_generated_keywords_from_new_story() {
+        when(embeddingPort.isAvailable()).thenReturn(false);
+        when(suggestions.findAllBySessionIdAndStatus(any(), any())).thenReturn(List.of());
+        when(suggestions.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        var gen = new GenerationResult.GeneratedStory(SuggestionType.NEW_STORY,
+                "Reserva de citas en línea", "Paciente que busca un horario disponible.",
+                "Quiero reservar una cita desde la web o desde el celular.",
+                "Para evitar largas colas y llamadas sin contestar.", Priority.HIGH, 3,
+                List.of(new GenerationResult.GeneratedCriterion("Horario ocupado",
+                                "Dado que un paciente está reservando una cita en línea",
+                                "Cuando el primero confirma su reserva", "Entonces se queda con el horario."),
+                        new GenerationResult.GeneratedCriterion("Planes de seguro",
+                                "Dados los planes de seguro configurados", "cuando la devolución se procesa",
+                                "entonces el reembolso se acredita en 5 días.")),
+                null, null);
+
+        List<Suggestion> created = service.createSuggestions(resultOf(gen), sessionId, projectId);
+
+        assertThat(created).singleElement().satisfies(s -> {
+            assertThat(s.getDraftTitle()).isEqualTo("Reserva de citas en línea");
+            assertThat(s.getDraftRole()).isEqualTo("Paciente que busca un horario disponible");
+            assertThat(s.getDraftAction()).isEqualTo("reservar una cita desde la web o desde el celular");
+            assertThat(s.getDraftBenefit()).isEqualTo("evitar largas colas y llamadas sin contestar");
+            assertThat(s.getDraftAcceptanceCriteria()).containsExactly(
+                    new Suggestion.DraftCriterion("Horario ocupado",
+                            "que un paciente está reservando una cita en línea", "el primero confirma su reserva",
+                            "se queda con el horario"),
+                    new Suggestion.DraftCriterion("Planes de seguro",
+                            "los planes de seguro configurados", "la devolución se procesa",
+                            "el reembolso se acredita en 5 días"));
+        });
+    }
+
+    @Test
+    @DisplayName("should store an EDGE_CASE criterion without the keywords the model wrote")
+    void should_strip_generated_keywords_from_edge_case() {
+        UserStory target = bookingWithCriterion();
+        givenTarget(target);
+        when(suggestions.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        var gen = new GenerationResult.GeneratedStory(SuggestionType.EDGE_CASE,
+                "Pago fallido", "Como paciente", "Quiero reintentar el pago", "Para no perder la cita",
+                Priority.HIGH, 2,
+                List.of(new GenerationResult.GeneratedCriterion(null, "Dada una cita reservada",
+                        "Cuando la pasarela de pago falla", "Entonces la cita queda separada 10 minutos.")),
+                "pagos", target.getId());
+
+        List<Suggestion> created = service.createSuggestions(resultOf(gen), sessionId, projectId);
+
+        assertThat(created).singleElement().satisfies(s -> {
+            assertThat(s.getType()).isEqualTo(SuggestionType.EDGE_CASE);
+            assertThat(s.getDraftRole()).isEqualTo("paciente");
+            assertThat(s.getDraftAction()).isEqualTo("reintentar el pago");
+            assertThat(s.getDraftBenefit()).isEqualTo("no perder la cita");
+            assertThat(s.getDraftAcceptanceCriteria()).containsExactly(new Suggestion.DraftCriterion(null,
+                    "una cita reservada", "la pasarela de pago falla", "la cita queda separada 10 minutos"));
+        });
+    }
+
+    @Test
+    @DisplayName("should drop an UPDATE_STORY that only restates the story's criterion with Gherkin keywords")
+    void should_drop_update_that_only_adds_keywords() {
+        UserStory booking = bookingWithCriterion();
+        givenTarget(booking);
+
+        // The story says "un horario disponible / el paciente lo reserva / la cita queda confirmada". The
+        // keywords alone used to make this criterion look new, so the no-op update reached the analyst.
+        GenerationResult.GeneratedStory noop = updateOf(booking,
+                "Quiero reservar una cita médica desde el portal web.",
+                new GenerationResult.GeneratedCriterion(null, "Dado un horario disponible",
+                        "Cuando el paciente lo reserva", "Entonces la cita queda confirmada."));
+
+        List<Suggestion> created = service.createSuggestions(resultOf(noop), sessionId, projectId);
+
+        assertThat(created).isEmpty();
+        org.mockito.Mockito.verify(suggestions, org.mockito.Mockito.never()).save(any());
+    }
 }

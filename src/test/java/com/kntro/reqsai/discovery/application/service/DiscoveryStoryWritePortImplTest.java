@@ -80,6 +80,48 @@ class DiscoveryStoryWritePortImplTest {
     }
 
     @Test
+    @DisplayName("LLM path: the story is stored without the user-story and Gherkin keywords the model wrote")
+    void llm_path_strips_generated_keywords() {
+        when(generationPort.isAvailable()).thenReturn(true);
+        when(generationPort.generate(any(), any())).thenReturn(new GenerationResult(List.of(
+                new GeneratedStory("Login con Google", "Como usuario registrado",
+                        "Quiero iniciar sesión con Google.", "Para no recordar otra contraseña.",
+                        Priority.HIGH, 3,
+                        List.of(new GeneratedCriterion("ok", "Dado que estoy en el login",
+                                "Cuando hago clic en Google", "Entonces se abre OAuth."))))));
+        when(stories.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        port.importFromExternalIssue(new ExternalIssueInput(
+                PROJECT, "Login con Google", "Como usuario quiero entrar con Google", "es-PE"));
+
+        ArgumentCaptor<UserStory> saved = ArgumentCaptor.forClass(UserStory.class);
+        verify(stories, org.mockito.Mockito.atLeastOnce()).save(saved.capture());
+        UserStory story = saved.getValue();
+        assertThat(story.getRole()).isEqualTo("usuario registrado");
+        assertThat(story.getAction()).isEqualTo("iniciar sesión con Google");
+        assertThat(story.getBenefit()).isEqualTo("no recordar otra contraseña");
+        assertThat(story.getAcceptanceCriteria()).singleElement().satisfies(c -> {
+            assertThat(c.getGiven()).isEqualTo("que estoy en el login");
+            assertThat(c.getWhen()).isEqualTo("hago clic en Google");
+            assertThat(c.getThen()).isEqualTo("se abre OAuth");
+        });
+    }
+
+    @Test
+    @DisplayName("fallback path: the issue's own text is not normalized (only generated text is)")
+    void fallback_path_keeps_issue_text() {
+        when(generationPort.isAvailable()).thenReturn(false);
+        when(stories.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        port.importFromExternalIssue(new ExternalIssueInput(
+                PROJECT, "Colas", "Para evitar largas colas.", "es-PE"));
+
+        ArgumentCaptor<UserStory> saved = ArgumentCaptor.forClass(UserStory.class);
+        verify(stories).save(saved.capture());
+        assertThat(saved.getValue().getBenefit()).isEqualTo("Para evitar largas colas.");
+    }
+
+    @Test
     @DisplayName("fallback path: no LLM configured -> safe deterministic mapping still satisfies validation")
     void fallback_path_when_llm_unavailable() {
         when(generationPort.isAvailable()).thenReturn(false);

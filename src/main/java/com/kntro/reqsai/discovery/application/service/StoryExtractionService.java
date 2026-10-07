@@ -31,6 +31,9 @@ import java.util.UUID;
  * proxy intercepts the call and the transaction boundary is enforced. Self-invocation bypasses
  * the proxy and makes {@code REQUIRES_NEW} a no-op — the loop belongs in the caller.
  *
+ * <p>The generated narrative and criteria first go through {@link GeneratedStoryNormalizer}, which removes
+ * the user-story and Gherkin keywords the model writes into them ("Quiero …", "Dado que …").
+ *
  * <p>When a near-duplicate is detected it is surfaced as an {@code UPDATE_STORY} suggestion (the
  * "Duplication Alert") pointing at the existing story, so the analyst can merge/update or dismiss
  * it rather than the candidate being silently dropped. A {@link UserStoryNearDuplicateDetectedEvent}
@@ -49,7 +52,9 @@ public class StoryExtractionService {
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public Optional<UserStory> extractOne(GenerationResult.GeneratedStory gen, UUID sessionId, UUID projectId) {
+    public Optional<UserStory> extractOne(GenerationResult.GeneratedStory generated, UUID sessionId, UUID projectId) {
+        // Clients add "Como / quiero / para" and "Dado / Cuando / Entonces" themselves.
+        GenerationResult.GeneratedStory gen = GeneratedStoryNormalizer.normalize(generated);
         try {
             UserStory story = new UserStory(sessionId, projectId, gen.title(), gen.role(), gen.action(), gen.benefit(), gen.priority(), gen.storyPoints());
             if (gen.acceptanceCriteria() != null) {
