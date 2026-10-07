@@ -43,7 +43,9 @@ import java.util.stream.Collectors;
  *       (hallucinated/foreign ids are discarded) and, when valid, wins over embedding search.</li>
  *   <li>A draft whose {@code targetStoryId} is one of this session's PENDING suggestions is dropped when
  *       it only restates that suggestion; when it adds something it is kept as a {@code NEW_STORY}
- *       (a pending suggestion is not a story yet, so nothing can be updated).</li>
+ *       (a pending suggestion is not a story yet, so nothing can be updated). It never keeps the linked
+ *       suggestion's title, which the model copies into the update or edge case it meant: the title comes
+ *       from the draft's own content ({@link SuggestionTitles#forLinkedDraft}).</li>
  *   <li>LLM emits {@code NEW_STORY}: embed candidate text → closest accepted+indexed story at or above
  *       the dedup threshold ({@code discovery.realtime.dedup-similarity-threshold}) AND with the same
  *       intent ({@link SuggestionDedupPolicy#sameRequirementAs})? → downgrade to {@code UPDATE_STORY}
@@ -53,6 +55,9 @@ import java.util.stream.Collectors;
  *   <li>An {@code UPDATE_STORY} carries only the acceptance criteria its target does not have yet, and
  *       is dropped when it would change nothing: same narrative and no new criteria.</li>
  *   <li>LLM emits {@code CLARIFYING_QUESTION}: forward as-is (no embedding needed).</li>
+ *   <li>A {@code NEW_STORY} never takes a title another story suggestion of the queue already has (pending,
+ *       or kept earlier in this pass); it gets one from its own content instead
+ *       ({@link SuggestionTitles#uniqueNewStoryTitle}).</li>
  * </ol>
  *
  * <p>Each suggestion is persisted in its own {@link Propagation#REQUIRES_NEW} transaction so that
@@ -91,6 +96,9 @@ public class SuggestionCreationService {
         // The prompt lists the PENDING suggestions with their ids, so the model may point a draft at one.
         Map<UUID, EarlierDraft> pendingById = new HashMap<>();
         earlierDrafts.forEach(d -> pendingById.put(d.suggestionId(), d));
+        // Story titles already in the queue; a NEW_STORY of this pass never takes one of them.
+        SuggestionTitles titles = new SuggestionTitles();
+        earlierDrafts.forEach(d -> titles.reserve(d.draft()));
 
         int skippedDuplicate = 0;
         int skippedNoOpUpdate = 0;
@@ -117,7 +125,9 @@ public class SuggestionCreationService {
 
             // The model pointed this draft at a PENDING suggestion. Drop it when it only restates that
             // suggestion; when it adds something (a rule, another actor or action), keep it as a NEW_STORY
-            // — a pending suggestion is not a story yet, so there is nothing to update.
+            // — a pending suggestion is not a story yet, so there is nothing to update. The model copies the
+            // linked suggestion's title into the update or edge case it meant, so the kept story gets a title
+            // of its own: otherwise accepting it would create a second story with the pending one's title.
             EarlierDraft linked = gen.targetStoryId() == null ? null : pendingById.get(gen.targetStoryId());
             if (linked != null) {
                 SuggestionDedupPolicy.Verdict verdict = dedupPolicy.repeats(SuggestionDedupPolicy.Draft.of(gen),
@@ -129,9 +139,10 @@ public class SuggestionCreationService {
                     continue;
                 }
                 keptLinkedToPending++;
-                log.debug("Keeping story suggestion '{}' linked to PENDING suggestion {} as NEW_STORY ({}) (session={})",
-                        gen.title(), linked.suggestionId(), verdict.reason(), sessionId);
-                gen = asNewStory(gen);
+                String title = titles.forLinkedDraft(gen, linked.draft());
+                log.debug("Keeping story suggestion '{}' linked to PENDING suggestion {} as NEW_STORY '{}' ({}) "
+                        + "(session={})", gen.title(), linked.suggestionId(), title, verdict.reason(), sessionId);
+                gen = asNewStory(gen, title);
             }
 
             EarlierDraft twin = findDuplicate(gen, draftEmbedding, earlierDrafts, linked, sessionId);
@@ -141,15 +152,16 @@ public class SuggestionCreationService {
             }
 
             try {
-                Suggestion suggestion = classifyAndCreate(gen, sessionId, projectId, draftEmbedding);
+                Suggestion suggestion = classifyAndCreate(gen, sessionId, projectId, draftEmbedding, titles);
                 if (suggestion == null) {
                     skippedNoOpUpdate++;
                     continue;
                 }
                 created.add(suggestions.save(suggestion)); // Spring Data publishes events on commit
-                // Guard the rest of this same pass against a repeat of what was just kept.
-                earlierDrafts.add(new EarlierDraft(suggestion.getId(), SuggestionDedupPolicy.Draft.of(suggestion),
-                        draftEmbedding));
+                // Guard the rest of this same pass against a repeat of what was just kept, and its title.
+                SuggestionDedupPolicy.Draft kept = SuggestionDedupPolicy.Draft.of(suggestion);
+                earlierDrafts.add(new EarlierDraft(suggestion.getId(), kept, draftEmbedding));
+                titles.reserve(kept);
                 log.debug("Suggestion created: type={} session={} title='{}'",
                         suggestion.getType(), sessionId, suggestion.getDraftTitle());
             } catch (Exception e) {
@@ -246,10 +258,10 @@ public class SuggestionCreationService {
         return null;
     }
 
-    /** The draft as an untargeted NEW_STORY, keeping its fields and criteria. */
-    private static GenerationResult.GeneratedStory asNewStory(GenerationResult.GeneratedStory gen) {
+    /** The draft as an untargeted NEW_STORY titled {@code title}, keeping its other fields and criteria. */
+    private static GenerationResult.GeneratedStory asNewStory(GenerationResult.GeneratedStory gen, String title) {
         return new GenerationResult.GeneratedStory(SuggestionType.NEW_STORY,
-                gen.title(), gen.role(), gen.action(), gen.benefit(), gen.priority(), gen.storyPoints(),
+                title, gen.role(), gen.action(), gen.benefit(), gen.priority(), gen.storyPoints(),
                 gen.acceptanceCriteria(), null, null);
     }
 
@@ -295,10 +307,19 @@ public class SuggestionCreationService {
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
-    /** Builds a NEW_STORY suggestion, carrying the LLM's proposed acceptance criteria on the draft. */
-    private static Suggestion newStoryOf(GenerationResult.GeneratedStory gen, UUID sessionId, UUID projectId) {
+    /**
+     * Builds a NEW_STORY suggestion, carrying the LLM's proposed acceptance criteria on the draft, under a
+     * title no other story suggestion of the queue has (see {@link SuggestionTitles#uniqueNewStoryTitle}).
+     */
+    private static Suggestion newStoryOf(GenerationResult.GeneratedStory gen, UUID sessionId, UUID projectId,
+                                         SuggestionTitles titles) {
+        String title = titles.uniqueNewStoryTitle(gen);
+        if (!title.equals(gen.title())) {
+            log.debug("NEW_STORY '{}' retitled '{}': another suggestion of the queue has that title (session={})",
+                    gen.title(), title, sessionId);
+        }
         return Suggestion.newStory(sessionId, projectId,
-                gen.title(), gen.role(), gen.action(), gen.benefit(),
+                title, gen.role(), gen.action(), gen.benefit(),
                 gen.priority(), gen.storyPoints(), draftCriteriaOf(gen));
     }
 
@@ -328,7 +349,8 @@ public class SuggestionCreationService {
      * {@code UPDATE_STORY} that would change nothing (see {@link #updateOf}).
      */
     private @Nullable Suggestion classifyAndCreate(GenerationResult.GeneratedStory gen, UUID sessionId,
-                                                   UUID projectId, float @Nullable [] precomputedEmbedding) {
+                                                   UUID projectId, float @Nullable [] precomputedEmbedding,
+                                                   SuggestionTitles titles) {
         SuggestionType llmType = gen.type() != null ? gen.type() : SuggestionType.NEW_STORY;
         // The LLM saw the backlog with ids; validate what it returned before trusting it.
         UserStory llmTarget = validatedTarget(gen.targetStoryId(), projectId);
@@ -367,7 +389,7 @@ public class SuggestionCreationService {
                                     gen.title(), closest.storyId(), closest.similarity(), verdict.reason());
                         }
                     }
-                    yield newStoryOf(gen, sessionId, projectId);
+                    yield newStoryOf(gen, sessionId, projectId, titles);
                 }
                 case EDGE_CASE -> {
                     // Resolve the target: the LLM's validated pick, else the closest story BUT only when
@@ -389,11 +411,11 @@ public class SuggestionCreationService {
                                     .orElse(null);
                     if (target == null) {
                         log.debug("LLM UPDATE_STORY has no target (backlog empty), creating as NEW_STORY");
-                        yield newStoryOf(gen, sessionId, projectId);
+                        yield newStoryOf(gen, sessionId, projectId, titles);
                     }
                     yield updateOf(gen, sessionId, projectId, target, null);
                 }
-                default -> newStoryOf(gen, sessionId, projectId);
+                default -> newStoryOf(gen, sessionId, projectId, titles);
             };
         }
 
@@ -403,11 +425,11 @@ public class SuggestionCreationService {
             case UPDATE_STORY -> {
                 if (llmTarget == null) {
                     log.debug("LLM UPDATE_STORY has no usable target and no embedding model; creating as NEW_STORY");
-                    yield newStoryOf(gen, sessionId, projectId);
+                    yield newStoryOf(gen, sessionId, projectId, titles);
                 }
                 yield updateOf(gen, sessionId, projectId, llmTarget, null);
             }
-            default -> newStoryOf(gen, sessionId, projectId);
+            default -> newStoryOf(gen, sessionId, projectId, titles);
         };
     }
 
