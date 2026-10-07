@@ -36,6 +36,14 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
   untrusted-transcript rule would now ignore; it labels the issue as an imported requirement instead.
   Non-JSON replies (an answer, code, prose) still fail parsing as before, so they can never become a
   story.
+- **A bad live window no longer stalls the session** — when the model replied with non-JSON in a live
+  session, the pass failed, the watermark stayed put and the same window was resent on every later pass,
+  so suggestions could stop for good. Unparseable replies (empty, an answer, code, prose) now raise a
+  dedicated `UnparseableGenerationException` (same `REQUIREMENT_GENERATION_FAILED` code); the realtime
+  pass retries such a window up to `discovery.realtime.unparseable-attempts-per-window` (default 2) times,
+  then skips it — advancing the watermark and logging a warning with the session id. Counted per pass,
+  so no per-session state is kept. Provider failures (network, timeout) still propagate and keep the
+  watermark, as before.
 
 ### Tests (LLM prompt hardening — `feature/llm-prompt-hardening`)
 

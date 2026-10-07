@@ -542,7 +542,7 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
         var result = response != null ? response.getResult() : null;
         String text = result != null ? result.getOutput().getText() : null;
         if (text == null || text.isBlank()) {
-            throw DiscoveryInfrastructureExceptions.generationFailed("Empty response from AI model");
+            throw DiscoveryInfrastructureExceptions.generationOutputUnparseable("Empty response from AI model", null);
         }
         return text;
     }
@@ -601,7 +601,8 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
         } catch (Exception e) {
             log.error("Failed to parse {} response: {}", modelName(), e.getMessage());
             log.debug("Full {} response was: {}", modelName(), json);
-            throw DiscoveryInfrastructureExceptions.generationFailed("Invalid JSON from " + modelName() + ": " + e.getMessage(), e);
+            throw DiscoveryInfrastructureExceptions.generationOutputUnparseable(
+                    "Invalid JSON from " + modelName() + ": " + e.getMessage(), e);
         }
     }
 

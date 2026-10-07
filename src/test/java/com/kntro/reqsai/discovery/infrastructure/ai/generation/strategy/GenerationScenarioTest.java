@@ -2,6 +2,7 @@ package com.kntro.reqsai.discovery.infrastructure.ai.generation.strategy;
 
 import com.kntro.reqsai.discovery.application.port.GenerationContext;
 import com.kntro.reqsai.discovery.application.port.GenerationResult;
+import com.kntro.reqsai.discovery.application.port.UnparseableGenerationException;
 import com.kntro.reqsai.discovery.domain.exception.DiscoveryError;
 import com.kntro.reqsai.discovery.domain.model.SuggestionType;
 import com.kntro.reqsai.shared.domain.exception.InfrastructureException;
@@ -11,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.ai.chat.model.ChatModel;
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
@@ -18,6 +20,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
 
 /**
  * Scenario tests over prompt-assembly and response-parsing of {@link AbstractLlmGenerationAdapter}
@@ -286,13 +289,27 @@ class GenerationScenarioTest {
         void non_json_reply_is_a_generation_failure(String reply) {
             StubAdapter adapter = new StubAdapter(reply);
 
+            // Typed as unparseable (so the realtime pass can stop retrying the window) but still the same
+            // REQUIREMENT_GENERATION_FAILED code every other generation failure carries.
             assertThatThrownBy(() -> adapter.generate("¿cuánto es 1 + 1?", "es-PE"))
-                    .isInstanceOf(InfrastructureException.class)
+                    .isInstanceOf(UnparseableGenerationException.class)
+                    .hasMessageStartingWith("Requirement generation failed: Invalid JSON from Stub")
                     .satisfies(e -> assertThat(((InfrastructureException) e).error())
                             .isEqualTo(DiscoveryError.REQUIREMENT_GENERATION_FAILED));
             assertThatThrownBy(() -> adapter.generate("¿cuánto es 1 + 1?", "es-PE",
                     contextWithLoginStory(UUID.randomUUID())))
-                    .isInstanceOf(InfrastructureException.class);
+                    .isInstanceOf(UnparseableGenerationException.class);
+        }
+
+        @Test
+        @DisplayName("an empty model reply is unparseable too")
+        void empty_model_reply_is_unparseable() {
+            StubAdapter adapter = new StubAdapter("unused");
+            ChatModel silentModel = mock(ChatModel.class); // call(Prompt) returns null → no text at all
+
+            assertThatThrownBy(() -> adapter.callAndExtractText(silentModel, "prompt"))
+                    .isInstanceOf(UnparseableGenerationException.class)
+                    .hasMessage("Requirement generation failed: Empty response from AI model");
         }
 
         @Test
