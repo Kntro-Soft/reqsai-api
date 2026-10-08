@@ -25,7 +25,8 @@ public final class ProjectResponseMapper {
                 project.getStatus().name(),
                 AvatarPaths.project(project.getOrganizationId(), project.getId()),
                 project.getCreatedAt(),
-                project.getUpdatedAt()
+                project.getUpdatedAt(),
+                project.isDemo()
         );
     }
 }

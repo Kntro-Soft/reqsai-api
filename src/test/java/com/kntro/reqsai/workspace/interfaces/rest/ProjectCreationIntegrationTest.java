@@ -74,7 +74,7 @@ class ProjectCreationIntegrationTest extends AbstractIntegrationTest {
         // Find created project ID from response or DB
         String schema = "tenant_" + expectedSlug;
         Map<String, Object> projectRow = jdbcTemplate.queryForMap(
-                "SELECT id::text as id, name FROM \"" + schema + "\".projects WHERE organization_id = ?::uuid",
+                "SELECT id::text as id, name FROM \"" + schema + "\".projects WHERE organization_id = ?::uuid AND NOT demo",
                 orgId
         );
         assertThat(projectRow.get("name")).isEqualTo("My First Project");
@@ -287,7 +287,8 @@ class ProjectCreationIntegrationTest extends AbstractIntegrationTest {
         assertThat(listRes.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(listRes.getBody()).contains("\"name\":\"Org A Project\"");
         assertThat(listRes.getBody()).doesNotContain("\"name\":\"Org B Project\"");
-        assertThat(listRes.getBody()).contains("\"totalElements\":1");
+        // Org A's own project plus the demo project every new organization receives.
+        assertThat(listRes.getBody()).contains("\"totalElements\":2");
     }
 
     @Test
