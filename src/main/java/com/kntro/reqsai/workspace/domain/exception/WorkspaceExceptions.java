@@ -101,6 +101,30 @@ public final class WorkspaceExceptions {
                 "Project document limit reached for this plan: " + maxDocuments);
     }
 
+    public static DomainException projectDocumentNotPending(UUID documentId) {
+        return new DomainException(WorkspaceError.PROJECT_DOCUMENT_NOT_PENDING,
+                "Project document is not awaiting review: " + documentId);
+    }
+
+    public static DomainException documentTypeNotAllowed(String reason) {
+        return new DomainException(WorkspaceError.DOCUMENT_TYPE_NOT_ALLOWED,
+                "Only PDF (.pdf) and Word (.docx) documents are accepted: " + reason);
+    }
+
+    public static DomainException documentTooLarge(long sizeBytes, long maxBytes) {
+        return new DomainException(WorkspaceError.DOCUMENT_TOO_LARGE,
+                "Document of " + sizeBytes + " bytes exceeds the maximum of " + maxBytes + " bytes");
+    }
+
+    public static DomainException documentEmpty(String reason) {
+        return new DomainException(WorkspaceError.DOCUMENT_EMPTY, reason);
+    }
+
+    public static DomainException documentUnreadable(String reason) {
+        return new DomainException(WorkspaceError.DOCUMENT_UNREADABLE,
+                "The document could not be read: " + reason);
+    }
+
     public static EntityNotFoundException memberNotFound(UUID memberId) {
         return new EntityNotFoundException(WorkspaceError.MEMBER_NOT_FOUND,
                 "Member not found: " + memberId);

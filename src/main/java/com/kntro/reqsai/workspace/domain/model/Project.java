@@ -108,6 +108,15 @@ public class Project extends AggregateRoot {
         return Collections.unmodifiableList(constraints);
     }
 
+    /** Whether the project already records {@code description}, ignoring case and surrounding spaces. */
+    public boolean hasConstraint(String description) {
+        if (description == null || description.isBlank()) {
+            return false;
+        }
+        String normalized = description.trim();
+        return constraints.stream().anyMatch(existing -> existing.getDescription().equalsIgnoreCase(normalized));
+    }
+
     public ProjectConstraint addConstraint(String description) {
         String normalizedDescription = ProjectConstraint.normalizeDescription(description);
         boolean exists = constraints.stream()

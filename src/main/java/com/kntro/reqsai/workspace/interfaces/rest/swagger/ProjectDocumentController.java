@@ -42,7 +42,7 @@ public interface ProjectDocumentController {
             description = """
                     Creates a new metadata-only project document under the given active project.
 
-                    - This v1 does not upload or store a file yet
+                    - No file is stored here; to upload a client PDF/Word document use `POST …/documents/upload`
                     - Duplicate names are rejected ignoring leading/trailing spaces and case
                     - The organization's plan limit for project documents is enforced""")
     @ApiResponse(
@@ -112,7 +112,7 @@ public interface ProjectDocumentController {
             @Valid @RequestBody UpdateProjectDocumentRequest request,
             Authentication authentication);
 
-    @Operation(summary = "Delete project document metadata", description = "Permanently deletes one active project document metadata record.")
+    @Operation(summary = "Delete project document metadata", description = "Permanently deletes one active project document (with its extracted text), or discards an uploaded document still pending review.")
     @ApiResponse(responseCode = "204", description = "Project document deleted successfully")
     @ApiResponseNotFound
     @ApiStandardErrorResponses

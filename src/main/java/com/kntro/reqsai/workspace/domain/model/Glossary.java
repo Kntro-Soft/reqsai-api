@@ -41,11 +41,19 @@ public class Glossary extends AggregateRoot {
         return Collections.unmodifiableList(terms);
     }
 
+    /** Whether the glossary already defines {@code term}, ignoring case and surrounding spaces. */
+    public boolean hasTerm(String term) {
+        if (term == null || term.isBlank()) {
+            return false;
+        }
+        String normalizedTerm = term.trim();
+        return terms.stream()
+                .anyMatch(existing -> existing.getTerm().trim().equalsIgnoreCase(normalizedTerm));
+    }
+
     public GlossaryTerm addTerm(String term, String definition, UUID addedBy) {
         String normalizedTerm = Assert.notBlank(term, "term");
-        boolean exists = terms.stream()
-                .anyMatch(existing -> existing.getTerm().trim().equalsIgnoreCase(normalizedTerm));
-        if (exists) {
+        if (hasTerm(normalizedTerm)) {
             throw WorkspaceExceptions.glossaryTermAlreadyExists(normalizedTerm);
         }
 
