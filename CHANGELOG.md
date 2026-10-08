@@ -11,6 +11,24 @@ follows [Semantic Versioning](https://semver.org/).
 
 _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in progress._
 
+### Fixed (Billing guide matches the current deployment — `bugfix/docs-billing-current-deploy`)
+
+- **`docs/BILLING.md` described an old AWS layout**, with CloudFront, an ALB and the `app.tamci.app`
+  domain. The MVP now runs on `reqsai.tech`, where Caddy serves the web and proxies `/api/*` from one
+  origin, so the Stripe webhook is `https://reqsai.tech/api/billing/webhooks/stripe`.
+- **The guide now says where the MVP host keeps the Stripe settings:** the infra vault and
+  `app_api_settings`.
+- **The Stripe prices to create are USD 49 (Pro) and USD 149 (Enterprise)**, the amounts the app
+  displays (`BILLING_*_AMOUNT_CENTS`). The guide said USD 29 and USD 99.
+
+### Fixed (Jira OAuth callback in the dev profile — `bugfix/jira-dev-callback-url`)
+
+- **The `dev` profile pointed the Atlassian callback at `/integrations/jira/callback`, a route the web
+  does not have.** The web callback lives at `/settings/integrations/jira/callback`, which is what the
+  base config, `.env.example` and `docs/JIRA_INTEGRATION.md` use. A local "Conectar con Atlassian" without
+  `JIRA_OAUTH_CALLBACK_URL` sent Atlassian a redirect that did not match the registered one. Production
+  was not affected: it derives the URL from `FRONTEND_URL`.
+
 ### Added (Story approval — `feature/discovery-story-approval`)
 
 - **A story can now be approved, rejected or sent back to draft.** Until now every story stayed in
