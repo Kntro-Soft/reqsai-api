@@ -21,7 +21,8 @@ public enum DiscoveryError implements ErrorCatalog {
     SUGGESTION_ALREADY_RESOLVED(HttpStatus.CONFLICT),
     EDGE_CASE_WITHOUT_TARGET(HttpStatus.UNPROCESSABLE_CONTENT),
     SESSION_ACCESS_DENIED(HttpStatus.FORBIDDEN),
-    SESSION_ALREADY_ACTIVE(HttpStatus.CONFLICT);
+    SESSION_ALREADY_ACTIVE(HttpStatus.CONFLICT),
+    SPEAKER_NOT_FOUND(HttpStatus.NOT_FOUND);
 
     private final HttpStatus status;
 

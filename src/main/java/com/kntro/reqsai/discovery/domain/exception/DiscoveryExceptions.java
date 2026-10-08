@@ -71,4 +71,9 @@ public final class DiscoveryExceptions {
                 "Project '%s' already has an active session '%s' (RECORDING or PAUSED); stop it before starting another"
                         .formatted(projectId, activeSessionId));
     }
+
+    public static EntityNotFoundException speakerNotFound(java.util.UUID sessionId, String speakerLabel) {
+        return new EntityNotFoundException(DiscoveryError.SPEAKER_NOT_FOUND,
+                "Speaker '%s' did not speak in discovery session '%s'".formatted(speakerLabel, sessionId));
+    }
 }

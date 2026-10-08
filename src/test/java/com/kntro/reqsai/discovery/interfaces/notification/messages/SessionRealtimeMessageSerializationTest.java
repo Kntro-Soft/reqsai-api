@@ -72,7 +72,10 @@ class SessionRealtimeMessageSerializationTest {
                 org.junit.jupiter.params.provider.Arguments.of(
                         new SessionLifecycleMessage(sessionId, UUID.randomUUID(), SessionEventType.SESSION_CREATED,
                                 SessionStatus.DRAFT, "Title", "es-PE", null, now),
-                        SessionEventType.SESSION_CREATED)
+                        SessionEventType.SESSION_CREATED),
+                org.junit.jupiter.params.provider.Arguments.of(
+                        new SessionSpeakerUpdatedMessage(sessionId, "0", "Ana", "CLIENT", now),
+                        SessionEventType.SPEAKER_UPDATED)
         );
     }
 
