@@ -2,6 +2,7 @@ package com.kntro.reqsai.discovery.domain.model;
 
 import com.kntro.reqsai.shared.application.port.EmbeddingPort;
 import com.kntro.reqsai.discovery.domain.event.UserStoryCreatedEvent;
+import com.kntro.reqsai.discovery.domain.exception.DiscoveryError;
 import com.kntro.reqsai.discovery.domain.exception.DiscoveryExceptions;
 import com.kntro.reqsai.shared.domain.model.AggregateRoot;
 import com.kntro.reqsai.shared.domain.support.Assert;
@@ -208,6 +209,21 @@ public class UserStory extends AggregateRoot {
             Assert.isTrue(storyPoints >= 0, "storyPoints", "must be >= 0");
         }
         this.storyPoints = storyPoints;
+    }
+
+    /**
+     * Records the team's review decision: approve, reject, or send the story back to draft. Only
+     * {@code DRAFT}, {@code APPROVED} and {@code REJECTED} can be set here, and only while the story is
+     * in one of them; a merged or exported story has left review. Setting the current status again is a
+     * no-op.
+     */
+    public void changeReviewStatus(StoryStatus target) {
+        Assert.notNull(target, "status");
+        Assert.isTrue(target.isReviewable(), "status",
+                "a review can only set DRAFT, APPROVED or REJECTED but was " + target, DiscoveryError.INVALID_STORY_STATUS);
+        Assert.isTrue(this.status.isReviewable(), "status",
+                "a review requires DRAFT, APPROVED or REJECTED but the story is " + this.status, DiscoveryError.INVALID_STORY_STATUS);
+        this.status = target;
     }
 
     /**

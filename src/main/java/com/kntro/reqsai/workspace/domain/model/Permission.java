@@ -46,10 +46,12 @@ public enum Permission {
     SESSION_RUN,
     SESSION_DECIDE,
 
-    // User stories (backlog)
+    // User stories (backlog). STORY_APPROVE gates the review decision (approve, reject, back to draft),
+    // kept apart from STORY_WRITE so editing a story never implies accepting it into the backlog.
     STORY_READ,
     STORY_WRITE,
     STORY_DELETE,
+    STORY_APPROVE,
 
     // Third-party integrations (e.g. Jira). Org-level connection administration is gated by the
     // org owner/admin check; these project-scoped permissions gate the per-project target + push.

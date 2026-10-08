@@ -1,10 +1,12 @@
 package com.kntro.reqsai.discovery.interfaces.rest.mappers.request;
 
 import com.kntro.reqsai.discovery.application.command.BatchDeleteUserStoriesCommand;
+import com.kntro.reqsai.discovery.application.command.ChangeUserStoryStatusCommand;
 import com.kntro.reqsai.discovery.application.command.CreateUserStoryCommand;
 import com.kntro.reqsai.discovery.application.command.DeleteUserStoryCommand;
 import com.kntro.reqsai.discovery.application.command.UpdateUserStoryCommand;
 import com.kntro.reqsai.discovery.interfaces.rest.dto.request.BatchDeleteUserStoriesRequest;
+import com.kntro.reqsai.discovery.interfaces.rest.dto.request.ChangeUserStoryStatusRequest;
 import com.kntro.reqsai.discovery.interfaces.rest.dto.request.CreateUserStoryRequest;
 import com.kntro.reqsai.discovery.interfaces.rest.dto.request.UpdateUserStoryRequest;
 
@@ -23,6 +25,10 @@ public final class UserStoryRequestMapper {
 
     public static UpdateUserStoryCommand toUpdateCommand(UUID projectId, UUID storyId, UpdateUserStoryRequest request) {
         return new UpdateUserStoryCommand(projectId, storyId, request.title(), request.role(), request.action(), request.benefit(), request.priority(), request.storyPoints());
+    }
+
+    public static ChangeUserStoryStatusCommand toStatusCommand(UUID projectId, UUID storyId, ChangeUserStoryStatusRequest request) {
+        return new ChangeUserStoryStatusCommand(projectId, storyId, request.status());
     }
 
     public static DeleteUserStoryCommand toDeleteCommand(UUID projectId, UUID storyId) {
