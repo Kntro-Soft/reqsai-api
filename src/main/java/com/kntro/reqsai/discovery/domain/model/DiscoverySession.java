@@ -95,9 +95,19 @@ public class DiscoverySession extends AggregateRoot {
 
     /** Batch/demo path: saves the pre-recorded transcript and transitions {@code DRAFT → STOPPED}. */
     public void uploadTranscript(String transcript, long audioDurationMs) {
+        uploadTranscript(transcript, audioDurationMs, 0);
+    }
+
+    /**
+     * Batch path with the recording's diarized utterances kept as {@code segmentCount} final segments,
+     * numbered 1..{@code segmentCount}: {@code lastSequence} points at the last one, as after a live capture.
+     */
+    public void uploadTranscript(String transcript, long audioDurationMs, int segmentCount) {
         Assert.isTrue(this.status == SessionStatus.DRAFT, "status", "uploadTranscript requires DRAFT but was " + this.status, DiscoveryError.INVALID_SESSION_STATUS);
+        Assert.isTrue(segmentCount >= 0, "segmentCount", "segmentCount must be >= 0");
         this.transcript = Assert.notBlank(transcript, "transcript");
         this.audioDurationMs = audioDurationMs;
+        this.lastSequence = segmentCount;
         this.status = SessionStatus.STOPPED;
         this.endedAt = Instant.now();
         registerEvent(DiscoverySessionTranscriptUploadedEvent.of(getId(), projectId));

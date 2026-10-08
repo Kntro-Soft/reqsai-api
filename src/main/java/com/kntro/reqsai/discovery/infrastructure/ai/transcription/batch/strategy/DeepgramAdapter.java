@@ -15,7 +15,8 @@ import java.util.List;
 /**
  * STT adapter backed by the official Deepgram Java SDK. Submits pre-recorded audio with
  * speaker diarization and returns full transcript + per-utterance {@link TranscriptionResult.SpeakerSegment}s
- * (the speaker labels "0", "1", …).
+ * (the speaker labels "0", "1", …). {@code utterances=true} is what makes Deepgram return those
+ * utterances: with {@code diarize} alone it only labels the words.
  *
  * <p>Configure via {@code DEEPGRAM_API_KEY} env var and set {@code STT_PROVIDER=deepgram}.
  *
@@ -44,6 +45,7 @@ public class DeepgramAdapter {
         var requestBuilder = MediaTranscribeRequestOctetStream.builder()
                 .body(audio)
                 .diarize(true)
+                .utterances(true)
                 .punctuate(true);
         if (language != null && !language.isBlank()) {
             requestBuilder.language(language);

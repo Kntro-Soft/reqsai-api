@@ -63,6 +63,11 @@ public enum SessionEventType {
     /** The analyst dismissed a suggestion (no backlog change). */
     SUGGESTION_DISMISSED,
 
+    // Speakers (diarization)
+
+    /** The analyst named a diarized speaker or set their side (client / team); carries the new description. */
+    SPEAKER_UPDATED,
+
     // Live presence
 
     /**

@@ -3,9 +3,13 @@ package com.kntro.reqsai.discovery.application.handler;
 import com.kntro.reqsai.discovery.application.command.StartDiscoveryProcessingCommand;
 import com.kntro.reqsai.discovery.application.port.DiscoverySessionRepository;
 import com.kntro.reqsai.discovery.application.port.RequirementGenerationPort;
+import com.kntro.reqsai.discovery.application.port.TranscriptSegmentRepository;
+import com.kntro.reqsai.discovery.application.service.SessionSpeakerService;
+import com.kntro.reqsai.discovery.application.service.SpeakerTranscriptFormatter;
 import com.kntro.reqsai.discovery.application.service.StoryExtractionService;
 import com.kntro.reqsai.discovery.domain.exception.DiscoveryExceptions;
 import com.kntro.reqsai.discovery.domain.model.DiscoverySession;
+import com.kntro.reqsai.discovery.domain.model.TranscriptSegment;
 import com.kntro.reqsai.discovery.domain.model.UserStory;
 import com.kntro.reqsai.shared.domain.exception.DomainException;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +29,10 @@ import java.util.UUID;
  * Story persistence happens in per-story nested transactions (REQUIRES_NEW inside
  * {@code StoryExtractionService}), so WebSocket streaming events fire incrementally rather
  * than all at once when this outer transaction commits.
+ * <p>
+ * When the session's transcript is diarized (an uploaded recording whose provider labelled the speakers),
+ * the model reads it as tagged speaker turns with the names and client/team sides the analyst gave
+ * ({@link SpeakerTranscriptFormatter}), so it prioritizes what the client says (US40).
  */
 @Component
 @RequiredArgsConstructor
@@ -34,6 +42,8 @@ public class StartDiscoveryProcessingCommandHandler {
     private final DiscoverySessionRepository sessions;
     private final RequirementGenerationPort requirementGeneration;
     private final StoryExtractionService storyExtraction;
+    private final TranscriptSegmentRepository segments;
+    private final SessionSpeakerService sessionSpeakers;
 
     @Transactional
     public ProcessingResult handle(StartDiscoveryProcessingCommand command) {
@@ -61,11 +71,22 @@ public class StartDiscoveryProcessingCommandHandler {
     }
 
     private List<UserStory> generateAndPersistStories(DiscoverySession session) {
-        var result = requirementGeneration.generate(session.getTranscript(), session.getLanguage().value());
+        var result = requirementGeneration.generate(transcriptFor(session), session.getLanguage().value());
         return result.stories().stream()
                 .map(gen -> storyExtraction.extractOne(gen, session.getId(), session.getProjectId()))
                 .flatMap(Optional::stream)
                 .toList();
+    }
+
+    /** The diarized transcript as tagged speaker turns when its segments carry speakers, else the stored text. */
+    private String transcriptFor(DiscoverySession session) {
+        List<TranscriptSegment> finals = segments.findAllBySessionId(session.getId()).stream()
+                .filter(TranscriptSegment::isFinal)
+                .toList();
+        if (!SpeakerTranscriptFormatter.hasSpeakers(finals)) {
+            return session.getTranscript();
+        }
+        return SpeakerTranscriptFormatter.format(finals, sessionSpeakers.rosterOf(session.getId()));
     }
 
     private ProcessingResult complete(DiscoverySession session, List<UserStory> created) {
