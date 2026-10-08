@@ -27,6 +27,6 @@ public class StubTranscriptionConfig {
     @Bean
     @Primary
     public TranscriptionPort stubTranscriptionPort() {
-        return (_, _) -> TranscriptionResult.textOnly(STUB_TRANSCRIPT, 60_000L);
+        return (_, _, _) -> TranscriptionResult.textOnly(STUB_TRANSCRIPT, 60_000L);
     }
 }

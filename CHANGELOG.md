@@ -48,6 +48,27 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
   - When the copied title is the target's own, the new story takes a title from its action.
 - **Applies to meetings and to the chat alike.**
 
+### Changed (Uploaded audio is transcribed in the session's language — `feature/discovery-batch-stt-language`)
+
+- **Batch transcription of an uploaded recording now gets the session's meeting language as a hint**
+  (`POST /api/sessions/{sessionId}/upload`).
+  - Before, Deepgram, AssemblyAI and Whisper had to detect the language from the audio, which can
+    fail on short or noisy clips.
+  - `UploadTranscriptCommandHandler` passes the primary language of the session's tag (`es-PE` →
+    `es`, via the new `LanguageCode.primaryLanguage()`).
+  - How each provider receives it:
+    - Deepgram: `language` instead of `detect_language`;
+    - AssemblyAI: `language_code`;
+    - Whisper: the transcription `language` option.
+- **`TranscriptionPort.transcribe` takes a third, nullable `language` argument.** `null` or blank keeps
+  the previous auto-detection.
+- **Tests:**
+  - new `UploadTranscriptCommandHandlerTest` (an `es-PE` session hints `es`);
+  - new `AssemblyAiAdapterTest` against a mocked API (`language_code` is sent only when there is a hint);
+  - `LanguageCodeTest` covers `primaryLanguage()`.
+- **Checked against the real Deepgram:** a 24.7 s Spanish recording uploaded to an `es-PE` session came
+  back with an exact transcript and duration.
+
 ### Fixed (Billing guide matches the current deployment — `bugfix/docs-billing-current-deploy`)
 
 - **`docs/BILLING.md` described an old AWS layout**, with CloudFront, an ALB and the `app.tamci.app`
