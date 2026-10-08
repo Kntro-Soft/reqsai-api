@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
@@ -131,6 +132,20 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         pd.setProperty("correlationId", correlationId());
         pd.setInstance(URI.create(uri(request)));
         return handleExceptionInternal(ex, pd, headers, HttpStatus.BAD_REQUEST, request);
+    }
+
+    // Multipart upload over spring.servlet.multipart.max-file-size / max-request-size: rejected before any
+    // controller runs, so it gets the generic PAYLOAD_TOO_LARGE code for clients to translate.
+    @Override
+    protected ResponseEntity<Object> handleMaxUploadSizeExceededException(
+            MaxUploadSizeExceededException ex, @NonNull HttpHeaders headers, @NonNull HttpStatusCode status, @NonNull WebRequest request) {
+        log.warn("[{}] Upload too large on {}: {}", tenantId(), uri(request), ex.getMessage());
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(CommonError.PAYLOAD_TOO_LARGE.status(),
+                "The uploaded file exceeds the maximum allowed size");
+        pd.setProperty("code", CommonError.PAYLOAD_TOO_LARGE.code());
+        pd.setProperty("correlationId", correlationId());
+        pd.setInstance(URI.create(uri(request)));
+        return handleExceptionInternal(ex, pd, headers, CommonError.PAYLOAD_TOO_LARGE.status(), request);
     }
 
     // Tenant schema missing — org token is valid, but org is not provisioned (deleted or pending)

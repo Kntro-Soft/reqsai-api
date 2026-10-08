@@ -33,7 +33,7 @@ public class CreateProjectCommandHandler {
             throw WorkspaceExceptions.projectNameAlreadyExists(command.name());
         }
 
-        int currentCount = projects.countActiveByOrganizationId(command.organizationId());
+        int currentCount = projects.countActiveNonDemoByOrganizationId(command.organizationId());
         int maxProjects = organization.getPlanLimits().maxProjects();
         if (maxProjects != -1 && currentCount >= maxProjects) {
             throw WorkspaceExceptions.projectPlanLimitExceeded(maxProjects);

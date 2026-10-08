@@ -11,6 +11,120 @@ follows [Semantic Versioning](https://semver.org/).
 
 _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in progress._
 
+### Added (Client documents — `feature/workspace-client-documents`, US22)
+
+- **The analyst uploads client documents (PDF or Word `.docx`) to a project and ReqsAI turns them into
+  project context.**
+  - `POST /api/organizations/{orgId}/projects/{projectId}/documents/upload` (multipart `file`,
+    `DOCUMENT_CREATE`) extracts the text (Apache PDFBox 3.0.8 / Apache POI 5.5.1) and asks the AI for
+    a context summary, glossary terms (term + definition), constraints and the document type. The reply
+    flags the terms and constraints the project already has (`exists`).
+  - The document is stored `PENDING` until the analyst reviews it.
+    `POST …/documents/{documentId}/apply` (`DOCUMENT_CREATE`, plus `GLOSSARY_TERM_WRITE` /
+    `CONSTRAINT_WRITE` for what it adds) adds the selected terms and constraints, skipping duplicates
+    and enforcing the glossary plan limit. It then makes the document `ACTIVE` with the reviewed name,
+    type and summary.
+  - `DELETE …/documents/{documentId}` also discards a pending analysis. Re-uploading the same file
+    replaces its unapplied analysis, and analyses left for 24 hours are dropped on the next upload.
+- **The applied summaries feed the AI.** `ProjectSnapshot.documents` carries the five newest ones, and
+  discovery adds them to the project context of realtime suggestions, extraction and the assistant chat.
+- **Uploads are checked before any parsing.**
+  - The extension, the declared content type and the magic bytes must all say PDF or `.docx`.
+    Executables, also renamed ones, and any other format are `415 DOCUMENT_TYPE_NOT_ALLOWED`.
+  - A file over 50 MB is `413 DOCUMENT_TOO_LARGE`. When the multipart limit stops it first, it is
+    `413 PAYLOAD_TOO_LARGE`, a new shared code.
+  - An empty file, or a scan without text, is `422 DOCUMENT_EMPTY`. A damaged or password-protected
+    file is `422 DOCUMENT_UNREADABLE`.
+  - A `.docx` is streamed once to cap what it really inflates to (zip bombs), and must declare a
+    WordprocessingML package, so a renamed Excel or macro-enabled file is refused.
+- **Extracted text is capped at 200,000 characters** (`truncated`), and the model reads the first
+  60,000. The document text is untrusted: the prompt delimits it in `<document>` and neutralizes
+  look-alike tags.
+  - Without an AI model, or when the model fails, the upload still succeeds with `classified: false`,
+    no suggestions and an excerpt as the summary.
+- **Storage.** Tenant migration `V20261009110000__project_document_uploads.sql`:
+  - `project_documents` gains file name, media type, size, extracted characters, summary and a
+    `content_id`;
+  - the text lives in the new `project_document_contents`, loaded only on demand.
+  - Pending documents are left out of listings, global search and the AI context.
+- **Every new organization gets a demo project** with static Spanish sample data and no AI call:
+  "Demo · Restaurante La Tradición — Reservas en línea".
+  - Workspace part: profile (domain, platforms, stack), 5 glossary terms and 3 constraints.
+  - Discovery part: a `COMPLETED` session with a 12-segment diarized transcript, 6 stories (3 `APPROVED`,
+    3 `DRAFT`) with Given/When/Then criteria, and 2 `PENDING` suggestions (a new story and a clarifying
+    question).
+  - Stories are left without an embedding; the lazy re-index pass indexes them on the first live
+    session.
+- **Seeding is synchronous, right after the organization commits.**
+  - `DemoProjectProvisioningListener` listens to `OrganizationCreatedEvent` (`@TransactionalEventListener`,
+    after commit) and binds the new tenant. The `POST /api/organizations` response already includes the
+    demo.
+  - Best-effort: a seeding failure is logged and never fails the organization creation.
+  - Idempotent: one demo per organization, also enforced by the partial unique index
+    `uq_projects_org_demo`.
+- **Discovery seeds its own part** through the new `workspace::api` integration event
+  `DemoProjectSeededIntegrationEvent`.
+  - A synchronous `@EventListener` in the same transaction, so the whole (re)seed is atomic.
+  - Workspace never reaches into Discovery.
+- **`POST /api/organizations/{orgId}/projects/{projectId}/demo/restore`** (`PROJECT_UPDATE`; owners and
+  admins bypass) restores the original sample data and returns `200` with the project.
+  - Wipes the project's sessions, segments, stories, criteria, client feedback, suggestions and
+    assistant chat, then seeds them again. Share links are kept.
+  - Resets the profile, glossary and constraints. The name is kept.
+  - `409 PROJECT_NOT_DEMO` on any other project; `409 SESSION_ALREADY_ACTIVE` while a session records.
+- **The demo does not count against the plan's project limit.**
+  - `projects.demo` (tenant migration `V20261009120000__project_demo_flag.sql`).
+  - `ProjectResponse.demo` (appended).
+  - `PROJECT_PLAN_LIMIT_EXCEEDED` counts only non-demo active projects.
+- Existing organizations are not back-filled; only organizations created from now on get the demo.
+- **Tests:**
+  - `DemoProjectTemplateTest`, `DemoDiscoveryContentTest`: the sample aggregates are valid;
+  - seeder and handler unit tests;
+  - `DemoProjectIntegrationTest`: seeding, plan limit, modify then restore, `PROJECT_NOT_DEMO`, `403` for
+    a READ member.
+
+### Added (US40 — Identify the speakers of a meeting — `feature/discovery-speaker-labels`)
+
+- **The diarized speakers of a session can be listed and described.**
+  - `GET /api/projects/{projectId}/sessions/{sessionId}/speakers` (`SESSION_READ`) lists them by first
+    appearance in the transcript: `label`, `index`, `displayName`, `name` ("Hablante N" until named),
+    `side` and `segmentCount`.
+  - `PUT /api/projects/{projectId}/sessions/{sessionId}/speakers/{label}` (`SESSION_RUN`) takes
+    `{displayName, side}`; `side` is `CLIENT` or `TEAM`. A blank name goes back to "Hablante N". The
+    description applies to every segment of that speaker, past and future.
+  - A label that never spoke in the session answers 404 `SPEAKER_NOT_FOUND`.
+  - Tenant migration `V20261009100000__session_speakers.sql` adds `session_speakers`, unique per
+    `(session_id, speaker_label)`.
+  - Each change is pushed live on the session topic as `SPEAKER_UPDATED`.
+- **Overlapping speech is reported.** The same response carries `overlaps` (`count`, `totalMs`, up to 50
+  `ranges`): stretches where two different speakers' segments overlap for at least 500 ms, where the
+  speaker attribution may be wrong. Shorter overlaps (a quick "ajá") are ignored.
+- **The AI puts the client first.**
+  - When the transcript is diarized, it reaches the model as one line per speaker turn:
+    `[Ana (Cliente)]: …`, `[Hablante 2 (Equipo)]: …`.
+  - Both prompts gain a rule: what the client asks for, rules or decides is the requirement. What the
+    team says is context, and only becomes a story when the client confirms it. When they disagree,
+    the model follows the client.
+  - Applies to the realtime suggestion passes, the flush on stop, and processing an uploaded
+    recording. Cadence and backlog retrieval still use the plain text.
+  - Names are analyst input: brackets and line breaks are neutralized so they cannot forge a tag, and
+    the transcript delimiters are neutralized as before.
+- **Uploaded recordings keep their speakers.**
+  - Deepgram batch now requests `utterances=true`. With `diarize` alone it labelled the words but
+    returned no utterances, so the speakers were lost.
+  - The diarized utterances of an upload are stored as final segments. The session then shows its
+    speakers like a live one. Uploads without speaker labels (Whisper) keep only the text, as before.
+- **Live Deepgram results are split by speaker.** A final result whose words change speaker becomes one
+  segment per speaker turn, with each turn's own timing. Before, the whole result went to the first
+  word's speaker.
+- **Tests:**
+  - domain: `SessionSpeakerTest`, `SpeakerRosterTest`, `SpeakerOverlapDetectorTest`;
+  - application: `SpeakerTranscriptFormatterTest`, `UpdateSessionSpeakerCommandHandlerTest`, and the
+    speaker cases of the realtime, processing and upload tests;
+  - prompts and parsing: `GenerationScenarioTest` and `DeepgramStreamingAdapterTest`;
+  - `SessionSpeakersIntegrationTest`: upload a diarized meeting, list, name, refuse and process, over
+    HTTP and the tenant schema.
+
 ### Added (US50 — Share stories with the client — `feature/discovery-share-with-client`)
 
 - **Share links.** The team opens a link a client uses without an account.

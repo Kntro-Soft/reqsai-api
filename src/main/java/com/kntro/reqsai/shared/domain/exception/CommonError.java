@@ -12,11 +12,12 @@ import org.springframework.http.HttpStatus;
  */
 public enum CommonError implements ErrorCatalog {
 
-    // ── Validation ─────────────────────────────── 400 / 422
+    // ── Validation ─────────────────────────────── 400 / 413 / 422
     VALIDATION_FAILED(HttpStatus.BAD_REQUEST),
     INVALID_FIELD(HttpStatus.BAD_REQUEST),
     INVALID_VALUE(HttpStatus.BAD_REQUEST),
     UNPROCESSABLE_REQUEST(HttpStatus.UNPROCESSABLE_CONTENT),
+    PAYLOAD_TOO_LARGE(HttpStatus.CONTENT_TOO_LARGE),
 
     // ── Authentication ─────────────────────────── 401
     NOT_AUTHENTICATED(HttpStatus.UNAUTHORIZED),

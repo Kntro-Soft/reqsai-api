@@ -4,6 +4,10 @@ import com.kntro.reqsai.discovery.application.port.*;
 import com.kntro.reqsai.discovery.domain.model.DiscoverySession;
 import com.kntro.reqsai.shared.application.port.EmbeddingPort;
 import com.kntro.reqsai.discovery.domain.model.Priority;
+import com.kntro.reqsai.discovery.domain.model.SessionSpeaker;
+import com.kntro.reqsai.discovery.domain.model.SpeakerRoster;
+import com.kntro.reqsai.discovery.domain.model.SpeakerSide;
+import com.kntro.reqsai.discovery.domain.model.SpeakerSpan;
 import com.kntro.reqsai.discovery.domain.model.Suggestion;
 import com.kntro.reqsai.discovery.domain.model.SuggestionStatus;
 import com.kntro.reqsai.discovery.domain.model.TranscriptSegment;
@@ -49,6 +53,7 @@ class RealtimeSuggestionServiceTest {
     @Mock private SuggestionRepository suggestions;
     @Mock private UserStoryReindexService reindexService;
     @Mock private SessionLockPort sessionLock;
+    @Mock private SessionSpeakerService sessionSpeakers;
 
     @InjectMocks
     private RealtimeSuggestionService service;
@@ -254,6 +259,40 @@ class RealtimeSuggestionServiceTest {
             ArgumentCaptor<String> transcriptCaptor = ArgumentCaptor.forClass(String.class);
             verify(generation).generate(transcriptCaptor.capture(), any(), any());
             assertThat(transcriptCaptor.getValue()).isEqualTo("FIRST. SECOND. THIRD.");
+            verifyNoInteractions(sessionSpeakers);
+        }
+
+        @Test
+        @DisplayName("should tag diarized segments with the speakers' names and sides, keeping the plain text for retrieval (US40)")
+        void should_tag_diarized_window_with_speakers() {
+            UUID projectId = UUID.randomUUID();
+            DiscoverySession session = buildSession(projectId);
+            UUID sessionId = session.getId();
+            List<TranscriptSegment> window = List.of(
+                    new TranscriptSegment(sessionId, 4, "1", "Podríamos agregar pagos con tarjeta.", 0, 2_000, true),
+                    new TranscriptSegment(sessionId, 5, "0", "Sí, exacto,", 2_100, 3_000, true),
+                    new TranscriptSegment(sessionId, 6, "0", "y también con Yape.", 3_000, 4_500, true));
+            SessionSpeaker client = new SessionSpeaker(sessionId, "0");
+            client.describe("Ana", SpeakerSide.CLIENT);
+            SessionSpeaker team = new SessionSpeaker(sessionId, "1");
+            team.describe(null, SpeakerSide.TEAM);
+            SpeakerRoster roster = SpeakerRoster.of(List.of(
+                    new SpeakerSpan("0", 0, 1_000), new SpeakerSpan("1", 1_000, 2_000)), List.of(client, team));
+
+            when(sessions.findById(sessionId)).thenReturn(Optional.of(session));
+            when(segments.findFinalBySessionIdAfter(sessionId, 0)).thenReturn(window);
+            when(sessionSpeakers.rosterOf(sessionId)).thenReturn(roster);
+            when(generation.isAvailable()).thenReturn(true);
+            when(embeddingPort.isAvailable()).thenReturn(true);
+            when(embeddingPort.embed(any())).thenReturn(new float[]{0.1f});
+            when(workspaceApi.findRelevantContext(any(), any(), anyInt())).thenReturn(Optional.empty());
+            when(generation.generate(any(), any(), any())).thenReturn(new GenerationResult(List.of()));
+
+            service.suggest(sessionId);
+
+            verify(generation).generate(eq("[Hablante 2 (Equipo)]: Podríamos agregar pagos con tarjeta.\n"
+                    + "[Ana (Cliente)]: Sí, exacto, y también con Yape."), any(), any());
+            verify(embeddingPort).embed("Podríamos agregar pagos con tarjeta. Sí, exacto, y también con Yape.");
         }
     }
 

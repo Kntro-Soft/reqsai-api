@@ -20,6 +20,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -47,7 +48,8 @@ class DeleteProjectDocumentCommandHandlerTest {
         when(organizations.findById(orgId)).thenReturn(Optional.of(organization));
         when(projects.findByIdAndOrganizationIdAndStatus(projectId, orgId, ProjectStatus.ACTIVE))
                 .thenReturn(Optional.of(ProjectMother.standard().withOrganizationId(orgId).build()));
-        when(documents.findByIdAndProjectIdAndStatus(document.getId(), projectId, DocumentStatus.ACTIVE))
+        when(documents.findByIdAndProjectIdAndStatusIn(
+                document.getId(), projectId, Set.of(DocumentStatus.ACTIVE, DocumentStatus.PENDING)))
                 .thenReturn(Optional.of(document));
 
         handler.handle(command);
@@ -67,7 +69,8 @@ class DeleteProjectDocumentCommandHandlerTest {
         when(organizations.findById(orgId)).thenReturn(Optional.of(organization));
         when(projects.findByIdAndOrganizationIdAndStatus(projectId, orgId, ProjectStatus.ACTIVE))
                 .thenReturn(Optional.of(ProjectMother.standard().withOrganizationId(orgId).build()));
-        when(documents.findByIdAndProjectIdAndStatus(documentId, projectId, DocumentStatus.ACTIVE))
+        when(documents.findByIdAndProjectIdAndStatusIn(
+                documentId, projectId, Set.of(DocumentStatus.ACTIVE, DocumentStatus.PENDING)))
                 .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> handler.handle(command))

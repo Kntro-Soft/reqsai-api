@@ -9,6 +9,8 @@ import com.kntro.reqsai.discovery.domain.model.AssistantMessageRole;
 import com.kntro.reqsai.discovery.domain.model.Priority;
 import com.kntro.reqsai.discovery.domain.model.SessionStatus;
 import com.kntro.reqsai.discovery.domain.model.StoryStatus;
+import com.kntro.reqsai.workspace.api.ProjectDocumentSnapshot;
+import com.kntro.reqsai.workspace.api.ProjectSnapshot;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.ObjectMapper;
@@ -91,6 +93,26 @@ class AssistantChatPromptTest {
                 .contains("Analyst: Hola")
                 .contains("ReqsAI: ¡Hola! ¿En qué te ayudo?")
                 .contains("<message>\n¿Cuántas historias están aprobadas?\n</message>");
+    }
+
+    @Test
+    @DisplayName("gives the model the summaries of the client documents the analyst applied")
+    void prompt_includes_client_documents() {
+        StubAdapter adapter = new StubAdapter("{\"reply\":\"Es una cadena de restaurantes.\",\"requirement\":null}");
+        ProjectSnapshot snapshot = new ProjectSnapshot(UUID.randomUUID(), "Restaurante", null, List.of(), List.of(),
+                List.of(), List.of(), null, null, List.of(), List.of(),
+                List.of(new ProjectDocumentSnapshot("TdR.pdf", "TECHNICAL_SPEC",
+                        "La Tradición es una cadena de restaurantes de Lima.\nQuiere reservas en línea.")));
+        GenerationContext context = GenerationContext.from(snapshot);
+
+        adapter.converse("¿Quién es el cliente?", List.of(), context, OVERVIEW);
+
+        assertThat(context.documents()).containsExactly(new GenerationContext.DocumentEntry("TdR.pdf",
+                "La Tradición es una cadena de restaurantes de Lima.\nQuiere reservas en línea."));
+        assertThat(adapter.capturedPrompt)
+                .contains("Client documents")
+                .contains("- TdR.pdf: La Tradición es una cadena de restaurantes de Lima. Quiere reservas en línea.");
+        assertThat(CONTEXT.documents()).isEmpty();
     }
 
     @Test

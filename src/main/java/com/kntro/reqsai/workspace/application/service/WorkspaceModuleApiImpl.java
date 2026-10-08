@@ -1,12 +1,14 @@
 package com.kntro.reqsai.workspace.application.service;
 
 import com.kntro.reqsai.workspace.api.GlossaryTermSnapshot;
+import com.kntro.reqsai.workspace.api.ProjectDocumentSnapshot;
 import com.kntro.reqsai.workspace.api.ProjectSnapshot;
 import com.kntro.reqsai.workspace.api.WorkspaceModuleApi;
 import com.kntro.reqsai.shared.infrastructure.persistence.multitenancy.TenantContext;
 import com.kntro.reqsai.workspace.application.port.GlossaryRepository;
 import com.kntro.reqsai.workspace.application.port.MemberRepository;
 import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
+import com.kntro.reqsai.workspace.application.port.ProjectDocumentRepository;
 import com.kntro.reqsai.workspace.application.port.ProjectRepository;
 import com.kntro.reqsai.workspace.application.port.WorkspaceSearchRepository;
 import com.kntro.reqsai.workspace.domain.model.Glossary;
@@ -28,6 +30,9 @@ import java.util.UUID;
 @RequiredArgsConstructor
 class WorkspaceModuleApiImpl implements WorkspaceModuleApi {
 
+    /** Newest client-document summaries given to the AI as project context. */
+    static final int CONTEXT_DOCUMENTS = 5;
+
     private final ProjectRepository projects;
     private final GlossaryRepository glossaries;
     private final WorkspaceSearchRepository searchRepository;
@@ -35,6 +40,7 @@ class WorkspaceModuleApiImpl implements WorkspaceModuleApi {
     private final ProjectPermissionService projectPermissions;
     private final OrganizationAdminAccessService orgAccess;
     private final MemberRepository members;
+    private final ProjectDocumentRepository documents;
 
     @Override
     @Transactional(readOnly = true)
@@ -73,7 +79,8 @@ class WorkspaceModuleApiImpl implements WorkspaceModuleApi {
                     tp.architecture(),
                     tp.domain(),
                     constraints,
-                    terms
+                    terms,
+                    documentSnapshots(projectId)
             );
         });
     }
@@ -146,7 +153,14 @@ class WorkspaceModuleApiImpl implements WorkspaceModuleApi {
                 tp.architecture(),
                 tp.domain(),
                 constraints,
-                terms
+                terms,
+                documentSnapshots(project.getId())
         );
+    }
+
+    private List<ProjectDocumentSnapshot> documentSnapshots(UUID projectId) {
+        return documents.findContextSummaries(projectId, CONTEXT_DOCUMENTS).stream()
+                .map(d -> new ProjectDocumentSnapshot(d.name(), d.documentType(), d.summary()))
+                .toList();
     }
 }

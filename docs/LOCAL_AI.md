@@ -6,7 +6,7 @@ the cloud, in any combination:
 
 | Capability                | What it does in Reqs-AI                                              | Spring AI abstraction      |
 |---------------------------|----------------------------------------------------------------------|----------------------------|
-| **Generation (LLM/chat)** | suggest user stories, propose edits, detect edge cases, Gherkin AC   | `ChatClient` / `ChatModel` |
+| **Generation (LLM/chat)** | suggest user stories, propose edits, detect edge cases, Gherkin AC; classify uploaded client documents | `ChatClient` / `ChatModel` |
 | **Embeddings (768-dim)**  | semantic search over stories, dedup, enrich generation (pgvector)    | `EmbeddingModel`           |
 | **Speech-to-Text (STT)**  | incremental live transcription + diarization of elicitation sessions | `AudioTranscriptionModel`  |
 
@@ -23,6 +23,12 @@ explodes combinatorially). Instead:
    **mix** (e.g. local LLM but cloud STT). Same jar, no rebuild.
 
 This gives you full variety from three switches rather than a maze of profiles.
+
+The `workspace` context reuses the generation capability for client documents (US22): its
+`DocumentClassificationPort` reads the text of an uploaded PDF/Word file and proposes glossary terms,
+constraints and a context summary. It follows the same `reqsai.ai.generation.provider` switch
+(`openai` → `OpenAiChatModel` in JSON mode, otherwise the configured `ChatModel`). With no chat model
+configured the upload still works: the document is stored unclassified, with an excerpt as summary.
 
 ## Provider options per capability
 

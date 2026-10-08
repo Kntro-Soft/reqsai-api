@@ -47,6 +47,14 @@ public class Project extends AggregateRoot {
     @Column(name = "status", nullable = false, length = 16)
     private ProjectStatus status;
 
+    /**
+     * Whether this is the organization's demo project, seeded automatically on onboarding with static
+     * sample content. A demo project does not count against the plan's project limit and can be restored
+     * to its original content. Fixed at creation.
+     */
+    @Column(name = "demo", nullable = false, updatable = false)
+    private boolean demo;
+
     @Basic(fetch = FetchType.LAZY)
     @Column(name = "avatar", columnDefinition = "bytea")
     private byte[] avatar;
@@ -72,6 +80,24 @@ public class Project extends AggregateRoot {
         registerEvent(ProjectCreatedEvent.of(getId(), organizationId, createdBy));
     }
 
+    /**
+     * Creates the organization's demo project: a regular active project flagged as demo, so it is excluded
+     * from the plan's project count and can be restored to its sample content.
+     */
+    public static Project createDemo(UUID organizationId, String name, @Nullable String description,
+                                     TechnicalProfile technicalProfile, UUID createdBy) {
+        Project project = new Project(organizationId, name, description, technicalProfile, createdBy);
+        project.demo = true;
+        return project;
+    }
+
+    /** Guards demo-only operations (restoring the sample content); fails with {@code PROJECT_NOT_DEMO}. */
+    public void requireDemo() {
+        if (!demo) {
+            throw WorkspaceExceptions.projectNotDemo(getId());
+        }
+    }
+
     public void updateDetails(String name, @Nullable String description, TechnicalProfile technicalProfile) {
         this.name = Assert.maxLength(Assert.notBlank(name, "name"), "name", NAME_MAX);
         this.description = description == null ? null : Assert.maxLength(description.strip(), "description", DESC_MAX);
@@ -80,6 +106,15 @@ public class Project extends AggregateRoot {
 
     public List<ProjectConstraint> getConstraints() {
         return Collections.unmodifiableList(constraints);
+    }
+
+    /** Whether the project already records {@code description}, ignoring case and surrounding spaces. */
+    public boolean hasConstraint(String description) {
+        if (description == null || description.isBlank()) {
+            return false;
+        }
+        String normalized = description.trim();
+        return constraints.stream().anyMatch(existing -> existing.getDescription().equalsIgnoreCase(normalized));
     }
 
     public ProjectConstraint addConstraint(String description) {
@@ -114,6 +149,31 @@ public class Project extends AggregateRoot {
 
         constraint.update(normalizedDescription);
         return constraint;
+    }
+
+    /**
+     * Replaces the project's constraints with {@code descriptions}. A current constraint matching one of them
+     * (case-insensitively, like the uniqueness rule) is kept and its text aligned; the rest are removed and
+     * the missing ones added. Keeping the matching rows, instead of clearing and re-adding everything, never
+     * deletes and re-inserts the same unique key within one flush.
+     */
+    public void replaceConstraints(List<String> descriptions) {
+        List<String> wanted = Assert.notNull(descriptions, "descriptions").stream()
+                .map(ProjectConstraint::normalizeDescription)
+                .toList();
+        constraints.removeIf(existing -> wanted.stream().noneMatch(existing::sameDescription));
+        for (String description : wanted) {
+            constraints.stream()
+                    .filter(existing -> existing.sameDescription(description))
+                    .findFirst()
+                    .ifPresentOrElse(
+                            existing -> {
+                                if (!existing.getDescription().equals(description)) {
+                                    existing.update(description);
+                                }
+                            },
+                            () -> addConstraint(description));
+        }
     }
 
     public void removeConstraint(UUID constraintId) {

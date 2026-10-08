@@ -14,6 +14,7 @@ import lombok.Getter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Entity
@@ -40,11 +41,19 @@ public class Glossary extends AggregateRoot {
         return Collections.unmodifiableList(terms);
     }
 
+    /** Whether the glossary already defines {@code term}, ignoring case and surrounding spaces. */
+    public boolean hasTerm(String term) {
+        if (term == null || term.isBlank()) {
+            return false;
+        }
+        String normalizedTerm = term.trim();
+        return terms.stream()
+                .anyMatch(existing -> existing.getTerm().trim().equalsIgnoreCase(normalizedTerm));
+    }
+
     public GlossaryTerm addTerm(String term, String definition, UUID addedBy) {
         String normalizedTerm = Assert.notBlank(term, "term");
-        boolean exists = terms.stream()
-                .anyMatch(existing -> existing.getTerm().trim().equalsIgnoreCase(normalizedTerm));
-        if (exists) {
+        if (hasTerm(normalizedTerm)) {
             throw WorkspaceExceptions.glossaryTermAlreadyExists(normalizedTerm);
         }
 
@@ -69,6 +78,32 @@ public class Glossary extends AggregateRoot {
 
         glossaryTerm.update(normalizedTerm, definition);
         return glossaryTerm;
+    }
+
+    /**
+     * Replaces the glossary's terms with {@code definitionsByTerm} (iteration order is kept for the added
+     * ones). A current term matching one of them (case-insensitively, like the uniqueness rule) is kept and
+     * its text aligned; the rest are removed and the missing ones added by {@code addedBy}. Keeping the
+     * matching rows, instead of clearing and re-adding everything, never deletes and re-inserts the same
+     * unique key within one flush.
+     */
+    public void replaceTerms(Map<String, String> definitionsByTerm, UUID addedBy) {
+        Assert.notNull(definitionsByTerm, "definitionsByTerm");
+        terms.removeIf(existing -> definitionsByTerm.keySet().stream().noneMatch(term -> sameTerm(existing, term)));
+        definitionsByTerm.forEach((term, definition) -> terms.stream()
+                .filter(existing -> sameTerm(existing, term))
+                .findFirst()
+                .ifPresentOrElse(
+                        existing -> {
+                            if (!existing.getTerm().equals(term) || !existing.getDefinition().equals(definition)) {
+                                existing.update(term, definition);
+                            }
+                        },
+                        () -> addTerm(term, definition, addedBy)));
+    }
+
+    private static boolean sameTerm(GlossaryTerm existing, String term) {
+        return existing.getTerm().trim().equalsIgnoreCase(Assert.notBlank(term, "term").trim());
     }
 
     public void removeTerm(UUID termId) {

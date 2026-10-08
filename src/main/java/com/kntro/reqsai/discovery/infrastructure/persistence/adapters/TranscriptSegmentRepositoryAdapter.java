@@ -1,6 +1,7 @@
 package com.kntro.reqsai.discovery.infrastructure.persistence.adapters;
 
 import com.kntro.reqsai.discovery.application.port.TranscriptSegmentRepository;
+import com.kntro.reqsai.discovery.domain.model.SpeakerSpan;
 import com.kntro.reqsai.discovery.domain.model.TranscriptSegment;
 import com.kntro.reqsai.discovery.infrastructure.persistence.repositories.TranscriptSegmentJpaRepository;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +22,11 @@ public class TranscriptSegmentRepositoryAdapter implements TranscriptSegmentRepo
     @Override
     public TranscriptSegment save(TranscriptSegment segment) {
         return jpa.save(segment);
+    }
+
+    @Override
+    public List<TranscriptSegment> saveAll(List<TranscriptSegment> segments) {
+        return jpa.saveAll(segments);
     }
 
     @Override
@@ -46,6 +52,11 @@ public class TranscriptSegmentRepositoryAdapter implements TranscriptSegmentRepo
     @Override
     public long countFinalBySessionId(UUID sessionId) {
         return jpa.countBySessionIdAndIsFinalTrue(sessionId);
+    }
+
+    @Override
+    public List<SpeakerSpan> findSpeakerSpans(UUID sessionId) {
+        return jpa.findSpeakerSpans(sessionId);
     }
 
     @Override

@@ -16,6 +16,11 @@ public final class ProjectDocumentResponseMapper {
                 document.getName(),
                 document.getDocumentType().name(),
                 document.getStatus().name(),
+                document.getFileName(),
+                document.getMediaType(),
+                document.getSizeBytes(),
+                document.getExtractedChars(),
+                document.getSummary(),
                 document.getCreatedAt(),
                 document.getUpdatedAt());
     }

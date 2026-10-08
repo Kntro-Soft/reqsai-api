@@ -18,6 +18,8 @@ import java.util.UUID;
  *   <li>{@link #alreadySuggested()} — this session's suggestions still pending analyst review, each
  *       with its id, so the model does not re-suggest what it just suggested and CAN target a pending
  *       item (e.g. refine an as-yet-unreviewed story draft) instead of spawning a near-duplicate.</li>
+ *   <li>{@link #documents()} — the context summaries of the client documents the analyst uploaded and
+ *       applied (newest first), so the model knows the client's business beyond the meeting.</li>
  * </ul>
  */
 public record GenerationContext(
@@ -31,10 +33,28 @@ public record GenerationContext(
         List<String> constraints,
         List<GlossaryEntry> glossaryTerms,
         List<StorySummary> existingStories,
-        List<PendingSuggestion> alreadySuggested
+        List<PendingSuggestion> alreadySuggested,
+        List<DocumentEntry> documents
 ) {
 
+    public GenerationContext {
+        documents = documents == null ? List.of() : List.copyOf(documents);
+    }
+
+    /** A context without client documents. */
+    public GenerationContext(String projectName, @Nullable String projectDescription,
+                             List<String> programmingLanguages, List<String> frameworks, List<String> databases,
+                             @Nullable String architecture, @Nullable String domain, List<String> constraints,
+                             List<GlossaryEntry> glossaryTerms, List<StorySummary> existingStories,
+                             List<PendingSuggestion> alreadySuggested) {
+        this(projectName, projectDescription, programmingLanguages, frameworks, databases, architecture, domain,
+                constraints, glossaryTerms, existingStories, alreadySuggested, List.of());
+    }
+
     public record GlossaryEntry(String term, String definition) {}
+
+    /** The analyst-approved context summary of a client document uploaded to the project (US22). */
+    public record DocumentEntry(String name, String summary) {}
 
     /** Compact view of an existing backlog story, id included so the LLM can target it. */
     public record StorySummary(UUID id, String title, String role, String action, String benefit) {}
@@ -65,7 +85,10 @@ public record GenerationContext(
                         .map(t -> new GlossaryEntry(t.term(), t.definition()))
                         .toList(),
                 List.copyOf(existingStories),
-                List.copyOf(alreadySuggested)
+                List.copyOf(alreadySuggested),
+                snapshot.documents().stream()
+                        .map(d -> new DocumentEntry(d.name(), d.summary()))
+                        .toList()
         );
     }
 }

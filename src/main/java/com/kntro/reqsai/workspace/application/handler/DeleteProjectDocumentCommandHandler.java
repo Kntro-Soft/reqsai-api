@@ -12,9 +12,13 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Set;
+
 @Component
 @RequiredArgsConstructor
 public class DeleteProjectDocumentCommandHandler {
+
+    private static final Set<DocumentStatus> DELETABLE = Set.of(DocumentStatus.ACTIVE, DocumentStatus.PENDING);
 
     private final OrganizationRepository organizations;
     private final ProjectRepository projects;
@@ -29,8 +33,9 @@ public class DeleteProjectDocumentCommandHandler {
                         command.projectId(), command.organizationId(), ProjectStatus.ACTIVE)
                 .orElseThrow(() -> WorkspaceExceptions.projectNotFound(command.projectId()));
 
-        ProjectDocument document = documents.findByIdAndProjectIdAndStatus(
-                        command.documentId(), command.projectId(), DocumentStatus.ACTIVE)
+        // A PENDING document is an uploaded client document the analyst discards instead of applying.
+        ProjectDocument document = documents.findByIdAndProjectIdAndStatusIn(
+                        command.documentId(), command.projectId(), DELETABLE)
                 .orElseThrow(() -> WorkspaceExceptions.projectDocumentNotFound(command.documentId()));
 
         documents.delete(document);

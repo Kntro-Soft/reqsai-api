@@ -60,8 +60,13 @@ public class ProjectRepositoryAdapter implements ProjectRepository {
     }
 
     @Override
-    public int countActiveByOrganizationId(UUID organizationId) {
-        return jpa.countActiveByOrganizationId(organizationId);
+    public int countActiveNonDemoByOrganizationId(UUID organizationId) {
+        return jpa.countActiveNonDemoByOrganizationId(organizationId);
+    }
+
+    @Override
+    public boolean existsDemoByOrganizationId(UUID organizationId) {
+        return jpa.existsByOrganizationIdAndDemoTrue(organizationId);
     }
 
     @Override

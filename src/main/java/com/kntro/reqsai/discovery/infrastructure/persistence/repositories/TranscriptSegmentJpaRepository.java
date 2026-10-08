@@ -1,5 +1,6 @@
 package com.kntro.reqsai.discovery.infrastructure.persistence.repositories;
 
+import com.kntro.reqsai.discovery.domain.model.SpeakerSpan;
 import com.kntro.reqsai.discovery.domain.model.TranscriptSegment;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -24,6 +25,11 @@ public interface TranscriptSegmentJpaRepository extends JpaRepository<Transcript
     List<TranscriptSegment> findFinalBySessionIdBefore(@Param("sessionId") UUID sessionId, @Param("beforeSequence") int beforeSequence, Pageable pageable);
 
     long countBySessionIdAndIsFinalTrue(UUID sessionId);
+
+    @Query("SELECT new com.kntro.reqsai.discovery.domain.model.SpeakerSpan(ts.speakerLabel, ts.startMs, ts.endMs) "
+            + "FROM TranscriptSegment ts WHERE ts.sessionId = :sessionId AND ts.isFinal = true "
+            + "AND ts.speakerLabel IS NOT NULL ORDER BY ts.sequence ASC")
+    List<SpeakerSpan> findSpeakerSpans(@Param("sessionId") UUID sessionId);
 
     void deleteAllBySessionId(UUID sessionId);
 }

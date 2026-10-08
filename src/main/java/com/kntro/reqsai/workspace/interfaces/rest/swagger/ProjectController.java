@@ -4,6 +4,7 @@ import com.kntro.reqsai.shared.interfaces.pagination.PageResponse;
 import com.kntro.reqsai.shared.infrastructure.configuration.ApiVersioning;
 import com.kntro.reqsai.shared.infrastructure.documentation.openapi.OpenApiConfiguration;
 import com.kntro.reqsai.shared.infrastructure.documentation.openapi.annotations.ApiResponseBadRequest;
+import com.kntro.reqsai.shared.infrastructure.documentation.openapi.annotations.ApiResponseConflict;
 import com.kntro.reqsai.shared.infrastructure.documentation.openapi.annotations.ApiResponseNotFound;
 import com.kntro.reqsai.shared.infrastructure.documentation.openapi.annotations.ApiStandardErrorResponses;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.request.CreateProjectRequest;
@@ -110,6 +111,24 @@ public interface ProjectController {
     @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
     @PostMapping(value = "/{projectId}/restore", version = ApiVersioning.V1)
     ResponseEntity<Void> restore(
+            @Parameter(description = "Organization context UUID") @PathVariable UUID orgId,
+            @Parameter(description = "Project UUID") @PathVariable UUID projectId,
+            Authentication authentication
+    );
+
+    @Operation(summary = "Restore the demo project's sample data",
+            description = "Wipes the demo project's sessions, transcripts, user stories, suggestions, assistant chat, "
+                    + "glossary and constraints, resets its profile and seeds the original sample content again, "
+                    + "in one transaction. Only allowed on the organization's demo project (409 PROJECT_NOT_DEMO "
+                    + "otherwise) and while no session is recording (409 SESSION_ALREADY_ACTIVE).")
+    @ApiResponse(responseCode = "200", description = "Demo data restored",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE, schema = @Schema(implementation = ProjectResponse.class)))
+    @ApiResponseNotFound
+    @ApiResponseConflict
+    @ApiStandardErrorResponses
+    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
+    @PostMapping(value = "/{projectId}/demo/restore", version = ApiVersioning.V1)
+    ResponseEntity<ProjectResponse> restoreDemo(
             @Parameter(description = "Organization context UUID") @PathVariable UUID orgId,
             @Parameter(description = "Project UUID") @PathVariable UUID projectId,
             Authentication authentication

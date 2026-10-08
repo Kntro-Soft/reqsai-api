@@ -71,6 +71,11 @@ public final class WorkspaceExceptions {
                 "Project limit reached for this plan: " + maxProjects);
     }
 
+    public static DomainException projectNotDemo(UUID projectId) {
+        return new DomainException(WorkspaceError.PROJECT_NOT_DEMO,
+                "Project is not a demo project: " + projectId);
+    }
+
     public static DomainException projectConstraintAlreadyExists(String description) {
         return new DomainException(WorkspaceError.PROJECT_CONSTRAINT_ALREADY_EXISTS,
                 "Project constraint already exists in this project: " + description);
@@ -94,6 +99,30 @@ public final class WorkspaceExceptions {
     public static DomainException projectDocumentPlanLimitExceeded(int maxDocuments) {
         return new DomainException(WorkspaceError.PROJECT_DOCUMENT_PLAN_LIMIT_EXCEEDED,
                 "Project document limit reached for this plan: " + maxDocuments);
+    }
+
+    public static DomainException projectDocumentNotPending(UUID documentId) {
+        return new DomainException(WorkspaceError.PROJECT_DOCUMENT_NOT_PENDING,
+                "Project document is not awaiting review: " + documentId);
+    }
+
+    public static DomainException documentTypeNotAllowed(String reason) {
+        return new DomainException(WorkspaceError.DOCUMENT_TYPE_NOT_ALLOWED,
+                "Only PDF (.pdf) and Word (.docx) documents are accepted: " + reason);
+    }
+
+    public static DomainException documentTooLarge(long sizeBytes, long maxBytes) {
+        return new DomainException(WorkspaceError.DOCUMENT_TOO_LARGE,
+                "Document of " + sizeBytes + " bytes exceeds the maximum of " + maxBytes + " bytes");
+    }
+
+    public static DomainException documentEmpty(String reason) {
+        return new DomainException(WorkspaceError.DOCUMENT_EMPTY, reason);
+    }
+
+    public static DomainException documentUnreadable(String reason) {
+        return new DomainException(WorkspaceError.DOCUMENT_UNREADABLE,
+                "The document could not be read: " + reason);
     }
 
     public static EntityNotFoundException memberNotFound(UUID memberId) {
