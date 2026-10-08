@@ -1,21 +1,27 @@
 package com.kntro.reqsai.discovery.interfaces.rest.swagger;
 
 import com.kntro.reqsai.discovery.domain.model.SuggestionStatus;
+import com.kntro.reqsai.discovery.interfaces.rest.dto.request.AcceptSuggestionRequest;
 import com.kntro.reqsai.discovery.interfaces.rest.dto.response.SuggestionResponse;
 import com.kntro.reqsai.shared.infrastructure.configuration.ApiVersioning;
 import com.kntro.reqsai.shared.infrastructure.documentation.openapi.OpenApiConfiguration;
+import com.kntro.reqsai.shared.infrastructure.documentation.openapi.annotations.ApiResponseNotFound;
 import com.kntro.reqsai.shared.infrastructure.documentation.openapi.annotations.ApiStandardErrorResponses;
 import com.kntro.reqsai.shared.interfaces.pagination.PageResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
@@ -57,4 +63,36 @@ public interface ProjectSuggestionController {
             @RequestParam(required = false) String sortBy,
             @Parameter(description = "Sort direction: ASC | DESC", example = "DESC")
             @RequestParam(required = false) String sortDirection);
+
+    @Operation(
+            summary = "Accept a suggestion of the project",
+            description = """
+                    Accepts any suggestion of the project, including those raised from the assistant chat, \
+                    which belong to no session. Same behaviour and optional edits as the session-scoped \
+                    accept. Requires SESSION_DECIDE.""")
+    @ApiResponse(responseCode = "200", description = "Suggestion accepted",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    schema = @Schema(implementation = SuggestionResponse.class)))
+    @ApiResponseNotFound
+    @ApiStandardErrorResponses
+    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
+    @PostMapping(path = "/{suggestionId}/accept", version = ApiVersioning.V1)
+    ResponseEntity<SuggestionResponse> accept(
+            @Parameter(description = "Project of the suggestion", required = true) @PathVariable UUID projectId,
+            @Parameter(description = "Suggestion identifier", required = true) @PathVariable UUID suggestionId,
+            @Valid @RequestBody(required = false) AcceptSuggestionRequest request);
+
+    @Operation(
+            summary = "Dismiss a suggestion of the project",
+            description = "Dismisses any suggestion of the project, including those raised from the assistant chat. Requires SESSION_DECIDE.")
+    @ApiResponse(responseCode = "200", description = "Suggestion dismissed",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    schema = @Schema(implementation = SuggestionResponse.class)))
+    @ApiResponseNotFound
+    @ApiStandardErrorResponses
+    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
+    @PostMapping(path = "/{suggestionId}/dismiss", version = ApiVersioning.V1)
+    ResponseEntity<SuggestionResponse> dismiss(
+            @Parameter(description = "Project of the suggestion", required = true) @PathVariable UUID projectId,
+            @Parameter(description = "Suggestion identifier", required = true) @PathVariable UUID suggestionId);
 }

@@ -11,6 +11,64 @@ follows [Semantic Versioning](https://semver.org/).
 
 _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in progress._
 
+### Added (Assistant chat — `feature/discovery-assistant-chat`)
+
+- **The analyst can type to ReqsAI from the capture page, with or without a live session.**
+  - `POST /api/projects/{projectId}/assistant/messages` (`SESSION_RUN`) stores the message and the reply.
+  - `GET` (`SESSION_READ`) lists the newest messages, oldest first.
+- **Questions** about the backlog, glossary, constraints or sessions are answered from the project:
+  - the project context: profile, glossary, constraints and related stories;
+  - a backlog overview: counts by status, the newest stories with status, priority, points and criteria,
+    pending suggestions and recent sessions;
+  - the last ten messages, so follow-up questions work.
+- **Requirements** ("quiero que el comensal pueda cancelar…") are restated by the model so they read on
+  their own. They then go through the regular contextual extraction and suggestion pipeline
+  (duplicate detection, targeting existing stories). The reply carries the suggestions it raised, or a
+  note when the requirement is already covered.
+- **Chat suggestions belong to the project but to no session.**
+  - `suggestions.session_id` is now nullable (tenant migration `V20261008220000__assistant_chat.sql`,
+    which also adds `assistant_messages`).
+  - The analyst decides them with the new `POST /api/projects/{projectId}/suggestions/{suggestionId}/accept|dismiss`
+    (`SESSION_DECIDE`), which also works for session suggestions.
+  - Accepting a chat NEW_STORY creates a story with no originating session.
+  - Session-less suggestions are not broadcast to any session topic.
+- **The model's message is untrusted data:** the chat prompt delimits it in `<message>` and neutralizes
+  look-alike tags, like meeting transcripts. A reply that is not the JSON contract is retried once.
+
+### Fixed (An update suggestion could rewrite what a story does)
+
+- **An `UPDATE_STORY` whose action changes the capability is now raised as a NEW_STORY.**
+  - What happened: the model sometimes proposed a different capability as an update of the
+    nearest-sounding story. For example, "cancelar su reserva…" was proposed as an update of "Reservar mesa
+    por Internet" with the same title and the cancellation as its action. Accepting it would have
+    overwritten the booking story.
+  - The rule: `SuggestionDedupPolicy.changesCapability` flags an update whose action starts with another
+    verb and shares few words with the story's action (Jaccard < 0.34). Same-verb refinements and
+    rewordings stay updates.
+  - When the copied title is the target's own, the new story takes a title from its action.
+- **Applies to meetings and to the chat alike.**
+
+### Changed (Uploaded audio is transcribed in the session's language — `feature/discovery-batch-stt-language`)
+
+- **Batch transcription of an uploaded recording now gets the session's meeting language as a hint**
+  (`POST /api/sessions/{sessionId}/upload`).
+  - Before, Deepgram, AssemblyAI and Whisper had to detect the language from the audio, which can
+    fail on short or noisy clips.
+  - `UploadTranscriptCommandHandler` passes the primary language of the session's tag (`es-PE` →
+    `es`, via the new `LanguageCode.primaryLanguage()`).
+  - How each provider receives it:
+    - Deepgram: `language` instead of `detect_language`;
+    - AssemblyAI: `language_code`;
+    - Whisper: the transcription `language` option.
+- **`TranscriptionPort.transcribe` takes a third, nullable `language` argument.** `null` or blank keeps
+  the previous auto-detection.
+- **Tests:**
+  - new `UploadTranscriptCommandHandlerTest` (an `es-PE` session hints `es`);
+  - new `AssemblyAiAdapterTest` against a mocked API (`language_code` is sent only when there is a hint);
+  - `LanguageCodeTest` covers `primaryLanguage()`.
+- **Checked against the real Deepgram:** a 24.7 s Spanish recording uploaded to an `es-PE` session came
+  back with an exact transcript and duration.
+
 ### Fixed (Billing guide matches the current deployment — `bugfix/docs-billing-current-deploy`)
 
 - **`docs/BILLING.md` described an old AWS layout**, with CloudFront, an ALB and the `app.tamci.app`

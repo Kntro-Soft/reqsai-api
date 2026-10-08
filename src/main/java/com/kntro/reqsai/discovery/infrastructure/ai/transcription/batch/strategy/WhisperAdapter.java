@@ -2,9 +2,11 @@ package com.kntro.reqsai.discovery.infrastructure.ai.transcription.batch.strateg
 
 import com.kntro.reqsai.discovery.application.port.TranscriptionResult;
 import com.kntro.reqsai.discovery.infrastructure.exception.DiscoveryInfrastructureExceptions;
+import org.jspecify.annotations.Nullable;
 import org.springframework.ai.audio.transcription.AudioTranscriptionPrompt;
 import org.springframework.ai.audio.transcription.AudioTranscriptionResponse;
 import org.springframework.ai.openai.OpenAiAudioTranscriptionModel;
+import org.springframework.ai.openai.OpenAiAudioTranscriptionOptions;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.core.io.ByteArrayResource;
 
@@ -24,17 +26,20 @@ public class WhisperAdapter {
         this.model = model;
     }
 
-    public TranscriptionResult transcribe(byte[] audio, String filename) {
+    public TranscriptionResult transcribe(byte[] audio, String filename, @Nullable String language) {
         OpenAiAudioTranscriptionModel transcriptionModel = model.getIfAvailable();
         if (transcriptionModel == null) {
             throw DiscoveryInfrastructureExceptions.transcriptionUnavailable();
         }
-        AudioTranscriptionResponse response = transcriptionModel.call(
-                new AudioTranscriptionPrompt(namedResource(audio, filename)));
+        AudioTranscriptionPrompt prompt = (language != null && !language.isBlank())
+                ? new AudioTranscriptionPrompt(namedResource(audio, filename),
+                        OpenAiAudioTranscriptionOptions.builder().language(language).build())
+                : new AudioTranscriptionPrompt(namedResource(audio, filename));
+        AudioTranscriptionResponse response = transcriptionModel.call(prompt);
         String text = response.getResult().getOutput();
-        String language = extractString(response);
+        String detectedLanguage = extractString(response);
         long durationMs = extractDurationMs(response);
-        return new TranscriptionResult(text, language, durationMs, null, null);
+        return new TranscriptionResult(text, detectedLanguage, durationMs, null, null);
     }
 
     private static String extractString(AudioTranscriptionResponse response) {

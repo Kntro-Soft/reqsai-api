@@ -8,6 +8,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.UUID;
+
 @Component
 @RequiredArgsConstructor
 public class DismissSuggestionCommandHandler {
@@ -18,6 +20,15 @@ public class DismissSuggestionCommandHandler {
     public Suggestion handle(DismissSuggestionCommand cmd) {
         Suggestion suggestion = suggestions.findByIdAndSessionIdForUpdate(cmd.suggestionId(), cmd.sessionId())
                 .orElseThrow(() -> DiscoveryExceptions.suggestionNotFound(cmd.suggestionId()));
+        suggestion.dismiss();
+        return suggestions.save(suggestion);
+    }
+
+    /** Dismisses a suggestion looked up by its project — the entry point for assistant-chat suggestions. */
+    @Transactional
+    public Suggestion handleInProject(UUID projectId, UUID suggestionId) {
+        Suggestion suggestion = suggestions.findByIdAndProjectIdForUpdate(suggestionId, projectId)
+                .orElseThrow(() -> DiscoveryExceptions.suggestionNotFound(suggestionId));
         suggestion.dismiss();
         return suggestions.save(suggestion);
     }

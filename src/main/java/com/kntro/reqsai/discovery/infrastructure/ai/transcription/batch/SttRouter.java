@@ -6,6 +6,7 @@ import com.kntro.reqsai.discovery.infrastructure.ai.transcription.batch.strategy
 import com.kntro.reqsai.discovery.infrastructure.ai.transcription.batch.strategy.DeepgramAdapter;
 import com.kntro.reqsai.discovery.infrastructure.ai.transcription.batch.strategy.WhisperAdapter;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.Nullable;
 
 /**
  * The single {@link TranscriptionPort} registered in the application context. Selects the batch STT
@@ -38,12 +39,12 @@ public class SttRouter implements TranscriptionPort {
     }
 
     @Override
-    public TranscriptionResult transcribe(byte[] audio, String filename) {
-        log.debug("Routing transcription to provider '{}' for file '{}'", provider, filename);
+    public TranscriptionResult transcribe(byte[] audio, String filename, @Nullable String language) {
+        log.debug("Routing transcription to provider '{}' for file '{}' (language={})", provider, filename, language);
         return switch (provider) {
-            case "deepgram"   -> deepgram.transcribe(audio, filename);
-            case "assemblyai" -> assemblyAi.transcribe(audio, filename);
-            default -> whisper.transcribe(audio, filename);
+            case "deepgram"   -> deepgram.transcribe(audio, filename, language);
+            case "assemblyai" -> assemblyAi.transcribe(audio, filename, language);
+            default -> whisper.transcribe(audio, filename, language);
         };
     }
 }

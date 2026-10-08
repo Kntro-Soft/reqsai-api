@@ -1,5 +1,8 @@
 package com.kntro.reqsai.discovery.infrastructure.ai.generation;
 
+import com.kntro.reqsai.discovery.application.port.AssistantReply;
+import com.kntro.reqsai.discovery.application.port.BacklogOverview;
+import com.kntro.reqsai.discovery.application.port.ChatTurn;
 import com.kntro.reqsai.discovery.application.port.GenerationContext;
 import com.kntro.reqsai.discovery.application.port.GenerationResult;
 import com.kntro.reqsai.discovery.application.port.RequirementGenerationPort;
@@ -7,6 +10,8 @@ import com.kntro.reqsai.discovery.infrastructure.ai.generation.strategy.GeminiRe
 import com.kntro.reqsai.discovery.infrastructure.ai.generation.strategy.OpenAiRequirementGenerationAdapter;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
+
+import java.util.List;
 
 /**
  * The single {@link RequirementGenerationPort} registered in the application context.
@@ -55,6 +60,14 @@ public class RequirementGenerationRouter implements RequirementGenerationPort {
     public GenerationResult generate(String transcript, String language, @Nullable GenerationContext context) {
         log.debug("Routing contextual requirement generation to provider '{}'", provider);
         return activeAdapter().generate(transcript, language, context);
+    }
+
+    /** Forwards the assistant chat to the active adapter, so its chat prompt (not the interface default) runs. */
+    @Override
+    public AssistantReply converse(String message, List<ChatTurn> history, GenerationContext context,
+                                   BacklogOverview overview) {
+        log.debug("Routing assistant chat to provider '{}'", provider);
+        return activeAdapter().converse(message, history, context, overview);
     }
 
     private RequirementGenerationPort activeAdapter() {

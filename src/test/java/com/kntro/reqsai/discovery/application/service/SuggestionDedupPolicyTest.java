@@ -185,6 +185,57 @@ class SuggestionDedupPolicyTest {
     }
 
     @Nested
+    @DisplayName("an update that changes what the story does")
+    class ChangesCapability {
+
+        private static final Draft TABLE_BOOKING = newStory("Reservar mesa por Internet", "comensal",
+                "reservar una mesa desde la web eligiendo fecha, hora y número de personas",
+                "no tener que llamar al restaurante");
+
+        @Test
+        @DisplayName("cancelling a booking proposed as an update of making it is another capability")
+        void cancel_is_not_a_refinement_of_booking() {
+            Draft proposal = newStory("Reservar mesa por Internet", "comensal",
+                    "cancelar su reserva desde la web hasta 2 horas antes de la hora reservada",
+                    "liberar la mesa para otros clientes");
+
+            assertThat(policy.changesCapability(proposal, TABLE_BOOKING)).isTrue();
+        }
+
+        @Test
+        @DisplayName("the same verb with more detail is a refinement")
+        void same_verb_is_a_refinement() {
+            Draft proposal = newStory("Reservar mesa por Internet", "comensal",
+                    "reservar una mesa desde la web o el celular eligiendo fecha, hora, personas y zona",
+                    "no tener que llamar al restaurante");
+
+            assertThat(policy.changesCapability(proposal, TABLE_BOOKING)).isFalse();
+        }
+
+        @Test
+        @DisplayName("another verb that keeps most of the words is a rewording, not a new capability")
+        void reworded_verb_keeping_the_words_is_a_refinement() {
+            Draft proposal = newStory("Reservar mesa por Internet", "comensal",
+                    "apartar una mesa desde la web eligiendo fecha, hora y número de personas",
+                    "no tener que llamar al restaurante");
+
+            assertThat(policy.changesCapability(proposal, TABLE_BOOKING)).isFalse();
+        }
+
+        @Test
+        @DisplayName("the penalty rule on a cancellation keeps the cancellation's verb")
+        void penalty_on_cancellation_is_a_refinement() {
+            Draft cancellation = newStory("Cancelar reserva", "comensal", "cancelar mi reserva desde la web",
+                    "liberar la mesa");
+            Draft proposal = newStory("Cancelar reserva", "comensal",
+                    "cancelar mi reserva desde la web pagando una penalidad si faltan menos de 2 horas",
+                    "liberar la mesa");
+
+            assertThat(policy.changesCapability(proposal, cancellation)).isFalse();
+        }
+    }
+
+    @Nested
     @DisplayName("no-op update detection")
     class NoOpUpdate {
 

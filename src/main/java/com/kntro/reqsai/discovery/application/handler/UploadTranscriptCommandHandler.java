@@ -11,8 +11,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Transcribes the uploaded audio via {@link TranscriptionPort} (Whisper) and saves the result in
- * the session, transitioning it from {@code DRAFT} to {@code STOPPED}.
+ * Transcribes the uploaded audio via {@link TranscriptionPort} and saves the result in the session,
+ * transitioning it from {@code DRAFT} to {@code STOPPED}. The session's meeting language is passed as a
+ * hint ({@code es-PE} → {@code es}), so the provider does not have to guess it from the audio.
  */
 @Component
 @RequiredArgsConstructor
@@ -27,7 +28,8 @@ public class UploadTranscriptCommandHandler {
         DiscoverySession session = sessions.findById(command.sessionId())
                 .orElseThrow(() -> DiscoveryExceptions.sessionNotFound(command.sessionId()));
 
-        var result = transcription.transcribe(command.audioBytes(), command.filename());
+        var result = transcription.transcribe(
+                command.audioBytes(), command.filename(), session.getLanguage().primaryLanguage());
 
         session.uploadTranscript(result.text(), result.durationMs());
         DiscoverySession saved = sessions.save(session);

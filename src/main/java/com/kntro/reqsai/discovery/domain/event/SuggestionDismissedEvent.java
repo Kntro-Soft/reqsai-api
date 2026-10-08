@@ -16,7 +16,7 @@ import java.util.UUID;
  */
 public record SuggestionDismissedEvent(
         UUID suggestionId,
-        UUID sessionId,
+        @Nullable UUID sessionId,
         UUID projectId,
         SuggestionType type,
         @Nullable String draftTitle,

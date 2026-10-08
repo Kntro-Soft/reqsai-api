@@ -15,8 +15,9 @@ public record SuggestionResponse(
         @Schema(description = "Suggestion unique identifier")
         UUID id,
 
-        @Schema(description = "Discovery session that produced this suggestion")
-        UUID sessionId,
+        @Schema(description = "Discovery session that produced this suggestion; null when it was raised from the assistant chat",
+                nullable = true)
+        @Nullable UUID sessionId,
 
         @Schema(description = "Project the suggestion belongs to")
         UUID projectId,
