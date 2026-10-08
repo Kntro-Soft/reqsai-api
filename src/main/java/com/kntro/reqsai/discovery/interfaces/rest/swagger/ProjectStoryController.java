@@ -1,6 +1,7 @@
 package com.kntro.reqsai.discovery.interfaces.rest.swagger;
 
 import com.kntro.reqsai.discovery.interfaces.rest.dto.request.BatchDeleteUserStoriesRequest;
+import com.kntro.reqsai.discovery.interfaces.rest.dto.request.ChangeUserStoryStatusRequest;
 import com.kntro.reqsai.discovery.interfaces.rest.dto.request.CreateUserStoryRequest;
 import com.kntro.reqsai.discovery.interfaces.rest.dto.request.UpdateUserStoryRequest;
 import com.kntro.reqsai.discovery.interfaces.rest.dto.response.BatchDeleteUserStoriesResponse;
@@ -25,6 +26,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -160,6 +162,34 @@ public interface ProjectStoryController {
             @Parameter(description = "Story to update", required = true)
             @PathVariable UUID storyId,
             @Valid @RequestBody UpdateUserStoryRequest request);
+
+    @Operation(
+            summary = "Approve, reject or reopen a user story",
+            description = """
+                    Records the team's review decision on a story of the given project, scoped to the \
+                    authenticated tenant: APPROVED accepts it into the backlog, REJECTED discards it and \
+                    DRAFT sends it back for review. The decision can be revised later. Requires the \
+                    STORY_APPROVE project permission, which is separate from STORY_WRITE so editing a \
+                    story never implies approving it. Story fields, acceptance criteria and the \
+                    similarity embedding are not changed.""")
+    @ApiResponse(
+            responseCode = "200",
+            description = "Status changed (or already in that status)",
+            content = @Content(
+                    mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    schema = @Schema(implementation = UserStoryResponse.class)))
+    @ApiResponse(responseCode = "422", description = "Target is not DRAFT, APPROVED or REJECTED, or the story is MERGED or EXPORTED")
+    @ApiResponseBadRequest
+    @ApiResponseNotFound
+    @ApiStandardErrorResponses
+    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
+    @PatchMapping(path = "/{storyId}/status", version = ApiVersioning.V1)
+    ResponseEntity<UserStoryResponse> changeStatus(
+            @Parameter(description = "Project the story belongs to", required = true)
+            @PathVariable UUID projectId,
+            @Parameter(description = "Story to review", required = true)
+            @PathVariable UUID storyId,
+            @Valid @RequestBody ChangeUserStoryStatusRequest request);
 
     @Operation(
             summary = "Delete a user story",

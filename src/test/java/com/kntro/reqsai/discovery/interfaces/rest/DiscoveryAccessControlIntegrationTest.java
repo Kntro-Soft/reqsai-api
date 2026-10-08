@@ -6,12 +6,15 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.web.client.RestClient;
 
 import java.util.List;
 import java.util.Map;
@@ -36,6 +39,9 @@ class DiscoveryAccessControlIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Value("${local.server.port:0}")
+    private int serverPort;
 
     @Test
     @DisplayName("owner passes; reader (SESSION_READ/STORY_READ) can read but not run/write; unassigned member denied")
@@ -154,6 +160,63 @@ class DiscoveryAccessControlIntegrationTest extends AbstractIntegrationTest {
         assertThat(batch.getBody()).contains("\"deleted\":1");
     }
 
+    @Test
+    @DisplayName("story review requires STORY_APPROVE: a writer gets 403; an approver approves, rejects and reopens; MERGED is 422")
+    void story_status_endpoint_enforces_story_approve_permission() {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        String slug = "acme-" + suffix;
+        String schema = "tenant_" + slug;
+        UUID orgId = createOrganizationAndReturnId(suffix, slug);
+
+        createMember(orgId, Map.of(
+                "userId", READER_USER_ID, "email", "reviewer@example.com", "displayName", "Reviewer", "role", "MEMBER"));
+        UUID reviewerId = memberId(orgId, "reviewer@example.com");
+
+        UUID projectId = createProjectAndReturnId(orgId, slug);
+        // A writer role that can create/edit but NOT approve stories.
+        String roleId = createRoleAndReturnId(orgId, projectId, "Story Writer",
+                List.of("STORY_READ", "STORY_WRITE"), schema);
+        assignMember(orgId, projectId, reviewerId.toString(), roleId);
+
+        UUID storyId = createStory(orgId, projectId, "Bulk import suppliers via CSV upload");
+        String statusUri = "/api/projects/" + projectId + "/stories/" + storyId + "/status";
+
+        // STORY_WRITE alone does not allow a review decision.
+        assertThat(patch(READER_USER_ID, orgId, statusUri, Map.of("status", "APPROVED")).getStatusCode())
+                .isEqualTo(HttpStatus.FORBIDDEN);
+
+        // Grant STORY_APPROVE (the Product Owner's permission) by updating the role.
+        put(OWNER_USER_ID, orgId,
+                "/api/organizations/" + orgId + "/projects/" + projectId + "/roles/" + roleId,
+                Map.of("name", "Story Writer", "permissions", List.of("STORY_READ", "STORY_WRITE", "STORY_APPROVE")));
+
+        ResponseEntity<String> approved = patch(READER_USER_ID, orgId, statusUri, Map.of("status", "APPROVED"));
+        assertThat(approved.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(approved.getBody()).contains("\"status\":\"APPROVED\"");
+        assertThat(get(READER_USER_ID, orgId, "/api/projects/" + projectId + "/stories/" + storyId).getBody())
+                .contains("\"status\":\"APPROVED\"");
+
+        ResponseEntity<String> rejected = patch(READER_USER_ID, orgId, statusUri, Map.of("status", "REJECTED"));
+        assertThat(rejected.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(rejected.getBody()).contains("\"status\":\"REJECTED\"");
+
+        ResponseEntity<String> reopened = patch(READER_USER_ID, orgId, statusUri, Map.of("status", "DRAFT"));
+        assertThat(reopened.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(reopened.getBody()).contains("\"status\":\"DRAFT\"");
+
+        // MERGED and EXPORTED are not review decisions; an unknown value is a bad request.
+        ResponseEntity<String> merged = patch(READER_USER_ID, orgId, statusUri, Map.of("status", "MERGED"));
+        assertThat(merged.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT);
+        assertThat(merged.getBody()).contains("INVALID_STORY_STATUS");
+        assertThat(patch(READER_USER_ID, orgId, statusUri, Map.of("status", "SHIPPED")).getStatusCode())
+                .isEqualTo(HttpStatus.BAD_REQUEST);
+
+        // A story outside the project is a 404 for an authorized caller.
+        assertThat(patch(OWNER_USER_ID, orgId,
+                "/api/projects/" + projectId + "/stories/" + UUID.randomUUID() + "/status",
+                Map.of("status", "APPROVED")).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
     // ----- helpers -----
 
     private UUID createStory(UUID orgId, UUID projectId, String action) {
@@ -167,6 +230,19 @@ class DiscoveryAccessControlIntegrationTest extends AbstractIntegrationTest {
         return client().method(org.springframework.http.HttpMethod.DELETE).uri(uri)
                 .header("Authorization", TestJwtFactory.bearer(userId, orgId.toString(), "ROLE_USER"))
                 .header("Api-Version", "1")
+                .exchange((req, res) -> ResponseEntity.status(res.getStatusCode()).body(res.bodyTo(String.class)));
+    }
+
+    /** JDK HttpClient supports PATCH (SimpleClientHttpRequestFactory does not). */
+    private ResponseEntity<String> patch(String userId, UUID orgId, String uri, Map<String, Object> body) {
+        RestClient patchClient = RestClient.builder()
+                .baseUrl("http://localhost:" + serverPort)
+                .requestFactory(new JdkClientHttpRequestFactory())
+                .build();
+        return patchClient.patch().uri(uri)
+                .header("Authorization", TestJwtFactory.bearer(userId, orgId.toString(), "ROLE_USER"))
+                .header("Api-Version", "1")
+                .contentType(MediaType.APPLICATION_JSON).body(body)
                 .exchange((req, res) -> ResponseEntity.status(res.getStatusCode()).body(res.bodyTo(String.class)));
     }
 

@@ -11,6 +11,21 @@ follows [Semantic Versioning](https://semver.org/).
 
 _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in progress._
 
+### Added (Story approval — `feature/discovery-story-approval`)
+
+- **A story can now be approved, rejected or sent back to draft.** Until now every story stayed in
+  `DRAFT`: the status existed but no use case changed it, so the backlog showed "Borrador" everywhere.
+- **New endpoint `PATCH /api/projects/{projectId}/stories/{storyId}/status`** with body
+  `{"status": "APPROVED" | "REJECTED" | "DRAFT"}`. It returns the updated story.
+  - The decision can be revised: the three review statuses move freely between each other, and
+    repeating the current status is a no-op.
+  - `MERGED` and `EXPORTED` are not review decisions. Asking for them, or reviewing a story that is
+    already merged or exported, returns 422 `INVALID_STORY_STATUS`.
+  - Only the status changes: title, narrative, criteria and the similarity embedding are untouched.
+- **New project permission `STORY_APPROVE`.** It is separate from `STORY_WRITE`, so a member who can
+  edit stories cannot approve them unless their project role grants it (the Product Owner's role).
+  Org owners and admins pass as with every other permission.
+
 ### Fixed (Live suggestions attached to unrelated stories — `bugfix/discovery-suggestion-target-matching`)
 
 - **A live suggestion now stays on an existing story only when it is about that story.** Once a project

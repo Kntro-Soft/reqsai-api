@@ -1,6 +1,7 @@
 package com.kntro.reqsai.discovery.interfaces.rest.controllers;
 
 import com.kntro.reqsai.discovery.application.handler.BatchDeleteUserStoriesCommandHandler;
+import com.kntro.reqsai.discovery.application.handler.ChangeUserStoryStatusCommandHandler;
 import com.kntro.reqsai.discovery.application.handler.CreateUserStoryCommandHandler;
 import com.kntro.reqsai.discovery.application.handler.DeleteUserStoryCommandHandler;
 import com.kntro.reqsai.discovery.application.handler.GetProjectStoryQueryHandler;
@@ -13,6 +14,7 @@ import com.kntro.reqsai.discovery.domain.model.Priority;
 import com.kntro.reqsai.discovery.domain.model.StoryStatus;
 import com.kntro.reqsai.discovery.domain.model.UserStory;
 import com.kntro.reqsai.discovery.interfaces.rest.dto.request.BatchDeleteUserStoriesRequest;
+import com.kntro.reqsai.discovery.interfaces.rest.dto.request.ChangeUserStoryStatusRequest;
 import com.kntro.reqsai.discovery.interfaces.rest.dto.request.CreateUserStoryRequest;
 import com.kntro.reqsai.discovery.interfaces.rest.dto.request.UpdateUserStoryRequest;
 import com.kntro.reqsai.discovery.interfaces.rest.dto.response.BatchDeleteUserStoriesResponse;
@@ -41,6 +43,7 @@ public class ProjectStoryControllerImpl implements ProjectStoryController {
     private final GetProjectStoryQueryHandler getUserStory;
     private final ListProjectStoriesQueryHandler listUserStories;
     private final UpdateUserStoryCommandHandler updateUserStory;
+    private final ChangeUserStoryStatusCommandHandler changeUserStoryStatus;
     private final DeleteUserStoryCommandHandler deleteUserStory;
     private final BatchDeleteUserStoriesCommandHandler batchDeleteUserStories;
 
@@ -85,6 +88,14 @@ public class ProjectStoryControllerImpl implements ProjectStoryController {
     public ResponseEntity<UserStoryResponse> update(UUID projectId, UUID storyId, UpdateUserStoryRequest request) {
         UserStory story = updateUserStory.handle(
                 UserStoryRequestMapper.toUpdateCommand(projectId, storyId, request));
+        return ResponseEntity.ok(UserStoryResponseMapper.toResponse(story));
+    }
+
+    @Override
+    @PreAuthorize("@authz.projectPermission(#projectId, 'STORY_APPROVE', authentication)")
+    public ResponseEntity<UserStoryResponse> changeStatus(UUID projectId, UUID storyId, ChangeUserStoryStatusRequest request) {
+        UserStory story = changeUserStoryStatus.handle(
+                UserStoryRequestMapper.toStatusCommand(projectId, storyId, request));
         return ResponseEntity.ok(UserStoryResponseMapper.toResponse(story));
     }
 
