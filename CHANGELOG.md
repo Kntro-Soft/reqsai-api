@@ -11,6 +11,43 @@ follows [Semantic Versioning](https://semver.org/).
 
 _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in progress._
 
+### Added (Client documents — `feature/workspace-client-documents`, US22)
+
+- **The analyst uploads client documents (PDF or Word `.docx`) to a project and ReqsAI turns them into
+  project context.**
+  - `POST /api/organizations/{orgId}/projects/{projectId}/documents/upload` (multipart `file`,
+    `DOCUMENT_CREATE`) extracts the text (Apache PDFBox 3.0.8 / Apache POI 5.5.1) and asks the AI for
+    a context summary, glossary terms (term + definition), constraints and the document type. The reply
+    flags the terms and constraints the project already has (`exists`).
+  - The document is stored `PENDING` until the analyst reviews it.
+    `POST …/documents/{documentId}/apply` (`DOCUMENT_CREATE`, plus `GLOSSARY_TERM_WRITE` /
+    `CONSTRAINT_WRITE` for what it adds) adds the selected terms and constraints, skipping duplicates
+    and enforcing the glossary plan limit. It then makes the document `ACTIVE` with the reviewed name,
+    type and summary.
+  - `DELETE …/documents/{documentId}` also discards a pending analysis. Re-uploading the same file
+    replaces its unapplied analysis, and analyses left for 24 hours are dropped on the next upload.
+- **The applied summaries feed the AI.** `ProjectSnapshot.documents` carries the five newest ones, and
+  discovery adds them to the project context of realtime suggestions, extraction and the assistant chat.
+- **Uploads are checked before any parsing.**
+  - The extension, the declared content type and the magic bytes must all say PDF or `.docx`.
+    Executables, also renamed ones, and any other format are `415 DOCUMENT_TYPE_NOT_ALLOWED`.
+  - A file over 50 MB is `413 DOCUMENT_TOO_LARGE`. When the multipart limit stops it first, it is
+    `413 PAYLOAD_TOO_LARGE`, a new shared code.
+  - An empty file, or a scan without text, is `422 DOCUMENT_EMPTY`. A damaged or password-protected
+    file is `422 DOCUMENT_UNREADABLE`.
+  - A `.docx` is streamed once to cap what it really inflates to (zip bombs), and must declare a
+    WordprocessingML package, so a renamed Excel or macro-enabled file is refused.
+- **Extracted text is capped at 200,000 characters** (`truncated`), and the model reads the first
+  60,000. The document text is untrusted: the prompt delimits it in `<document>` and neutralizes
+  look-alike tags.
+  - Without an AI model, or when the model fails, the upload still succeeds with `classified: false`,
+    no suggestions and an excerpt as the summary.
+- **Storage.** Tenant migration `V20261009100000__project_document_uploads.sql`:
+  - `project_documents` gains file name, media type, size, extracted characters, summary and a
+    `content_id`;
+  - the text lives in the new `project_document_contents`, loaded only on demand.
+  - Pending documents are left out of listings, global search and the AI context.
+
 ### Added (Assistant chat — `feature/discovery-assistant-chat`)
 
 - **The analyst can type to ReqsAI from the capture page, with or without a live session.**

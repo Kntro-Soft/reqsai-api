@@ -13,6 +13,18 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @DisplayName("Domain: Glossary Aggregate")
 class GlossaryTest {
 
+    @Test
+    @DisplayName("hasTerm matches ignoring case and surrounding spaces")
+    void has_term_ignores_case_and_spaces() {
+        Glossary glossary = new Glossary(UUID.randomUUID());
+        glossary.addTerm("Comensal", "Cliente del restaurante", UUID.randomUUID());
+
+        assertThat(glossary.hasTerm("  comensal ")).isTrue();
+        assertThat(glossary.hasTerm("Reserva")).isFalse();
+        assertThat(glossary.hasTerm(" ")).isFalse();
+        assertThat(glossary.hasTerm(null)).isFalse();
+    }
+
     @Nested
     @DisplayName("Add term")
     class AddTerm {

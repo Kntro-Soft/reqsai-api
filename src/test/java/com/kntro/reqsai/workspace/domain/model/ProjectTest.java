@@ -216,6 +216,18 @@ class ProjectTest {
         }
 
         @Test
+        @DisplayName("hasConstraint matches ignoring case and surrounding spaces")
+        void has_constraint_ignores_case_and_spaces() {
+            Project project = ProjectMother.standard().build();
+            project.addConstraint("Debe cumplir PCI-DSS.");
+
+            assertThat(project.hasConstraint("  debe cumplir pci-dss. ")).isTrue();
+            assertThat(project.hasConstraint("Debe funcionar sin conexión.")).isFalse();
+            assertThat(project.hasConstraint("")).isFalse();
+            assertThat(project.hasConstraint("x".repeat(2000))).isFalse();
+        }
+
+        @Test
         @DisplayName("should remove a constraint")
         void should_remove_constraint() {
             Project project = ProjectMother.standard().build();

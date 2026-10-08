@@ -4,6 +4,7 @@ import com.kntro.reqsai.shared.infrastructure.persistence.multitenancy.TenantCon
 import com.kntro.reqsai.workspace.api.ProjectSnapshot;
 import com.kntro.reqsai.workspace.application.port.GlossaryRepository;
 import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
+import com.kntro.reqsai.workspace.application.port.ProjectDocumentRepository;
 import com.kntro.reqsai.workspace.application.port.ProjectRepository;
 import com.kntro.reqsai.workspace.domain.model.Glossary;
 import com.kntro.reqsai.workspace.domain.model.Organization;
@@ -46,12 +47,31 @@ class WorkspaceModuleApiImplTest {
     @Mock
     private ProjectPermissionService projectPermissions;
 
+    @Mock
+    private ProjectDocumentRepository documents;
+
     @InjectMocks
     private WorkspaceModuleApiImpl api;
 
     @Nested
     @DisplayName("findProjectSnapshot")
     class FindProjectSnapshot {
+
+        @Test
+        @DisplayName("should include the context summaries of the project's client documents")
+        void should_include_client_document_summaries() {
+            Project project = ProjectMother.standard().build();
+            when(projects.findById(project.getId())).thenReturn(Optional.of(project));
+            when(glossaries.findByProjectId(project.getId())).thenReturn(Optional.empty());
+            when(documents.findContextSummaries(project.getId(), WorkspaceModuleApiImpl.CONTEXT_DOCUMENTS))
+                    .thenReturn(java.util.List.of(new ProjectDocumentRepository.DocumentContextSummary(
+                            "TdR.pdf", "TECHNICAL_SPEC", "Cadena de restaurantes de Lima.")));
+
+            ProjectSnapshot snap = api.findProjectSnapshot(project.getId()).orElseThrow();
+
+            assertThat(snap.documents()).containsExactly(new com.kntro.reqsai.workspace.api.ProjectDocumentSnapshot(
+                    "TdR.pdf", "TECHNICAL_SPEC", "Cadena de restaurantes de Lima."));
+        }
 
         @Test
         @DisplayName("should return snapshot with constraints and glossary terms")

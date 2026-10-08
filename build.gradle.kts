@@ -109,6 +109,12 @@ dependencies {
     implementation("com.github.f4b6a3:uuid-creator:6.1.1")
 
     // ==================================
+    // CLIENT DOCUMENTS (text extraction)
+    // ==================================
+    implementation("org.apache.pdfbox:pdfbox:3.0.8")
+    implementation("org.apache.poi:poi-ooxml:5.5.1")
+
+    // ==================================
     // ANNOTATION PROCESSORS
     // ==================================
     annotationProcessor("org.projectlombok:lombok")
