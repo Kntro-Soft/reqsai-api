@@ -143,7 +143,7 @@ reqsai:
     # ISO-4217 display currency.
     currency: ${BILLING_CURRENCY:USD}
     # Per-plan DISPLAY pricing (minor units / cents) + the Stripe Price id actually charged.
-    # Defined prices: PRO USD 29.00/mo, ENTERPRISE USD 99.00/mo (FREE is $0, provisioned on signup).
+    # Defined prices: PRO USD 49.00/mo, ENTERPRISE USD 149.00/mo (FREE is $0, provisioned on signup).
     # NOTE: amount-cents is display only; the CHARGED amount is the Stripe Price object, so the
     # recurring Price you create in Stripe MUST match these amounts (keep the web plan catalog in sync).
     plans:

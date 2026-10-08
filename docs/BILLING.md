@@ -35,12 +35,12 @@ Create the plans in Stripe to map them to your system:
 2. Create **"ReqsAI Pro"**:
    - Pricing: **Recurring**
    - Interval: **Monthly**
-   - Amount: **USD 29.00**
+   - Amount: **USD 49.00**
    - Save the product and copy the **Price ID** (looks like `price_1AbPro...`).
 3. Create **"ReqsAI Enterprise"**:
    - Pricing: **Recurring**
    - Interval: **Monthly**
-   - Amount: **USD 99.00**
+   - Amount: **USD 149.00**
    - Save and copy the **Price ID** (looks like `price_1AbEnt...`).
 4. Set these in your `.env` file:
    ```env
@@ -108,23 +108,22 @@ For university presentations, demo environments, or staging deployments, **you s
 Since your deployed application has a public domain name, **you do not need the Stripe CLI (`stripe listen`) running on your server**. Stripe can send the webhook events directly to your public URL:
 
 1. In the Stripe Dashboard (with **Test Mode** turned ON), go to **Developers** ▸ **Webhooks** and click **Add endpoint**.
-2. Set the **Endpoint URL** to your deployed **frontend** domain, not the bare API domain:
+2. Set the **Endpoint URL** to the public domain of the app. The web and the API share one origin
+   (Caddy proxies `/api/*` to the API on the MVP host), so the webhook lives under the same domain:
    ```text
-   https://app.tamci.app/api/billing/webhooks/stripe
+   https://reqsai.tech/api/billing/webhooks/stripe
    ```
-   > [!WARNING]
-   > `api.tamci.app` resolves directly to the ALB, which is locked down to CloudFront-only ingress
-   > (see [reqsai-infra](https://github.com/Kntro-Soft/reqsai-infra)'s security groups). Stripe's
-   > servers are not CloudFront, so a webhook pointed at `api.tamci.app` times out silently — no
-   > log entry on the backend at all, since the request never reaches it. Always use
-   > `app.tamci.app` (routed through CloudFront) for anything Stripe needs to reach.
 3. Click **Select events** and subscribe to:
    *   `checkout.session.completed`
    *   `customer.subscription.deleted`
    *   `invoice.payment_failed`
 4. Click **Add endpoint** to save.
 5. Under the endpoint details page, click **Reveal** under the **Signing secret** section.
-6. Copy this secret (starts with `whsec_...`) and configure the `STRIPE_WEBHOOK_SECRET` environment variable on your deployed server (e.g., in AWS, Render, or ECS).
+6. Copy this secret (starts with `whsec_...`) into the deployment's secrets. On the MVP host it is
+   `vault_stripe_webhook_secret` in the ansible vault of
+   [reqsai-infra](https://github.com/Kntro-Soft/reqsai-infra), next to `vault_stripe_api_key`. The
+   provider and the price ids go in the host's `app_api_settings` (`BILLING_PAYMENT_PROVIDER: stripe`,
+   `BILLING_*_STRIPE_PRICE_ID`). Redeploy so the API picks them up.
 
 ---
 
@@ -138,8 +137,7 @@ When deploying to production, apply the following changes:
 2. **Products & Prices**: Create the production products and prices in the live dashboard catalog and update `BILLING_*_STRIPE_PRICE_ID` environment variables.
 3. **Webhook Registration**:
    - Go to **Developers** ▸ **Webhooks** ▸ **Add endpoint**.
-   - Set the URL to `https://app.tamci.app/api/billing/webhooks/stripe` — **not** `api.tamci.app`
-     (see the warning above: the bare API domain is CloudFront-only and unreachable from Stripe).
+   - Set the URL to `https://reqsai.tech/api/billing/webhooks/stripe` (same origin as the web app).
    - Subscribe to these events:
      *   `checkout.session.completed` (handles purchase / upgrade activation).
      *   `customer.subscription.deleted` (handles cancellation/lapse).
