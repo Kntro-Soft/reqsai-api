@@ -11,6 +11,26 @@ follows [Semantic Versioning](https://semver.org/).
 
 _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in progress._
 
+### Added (US46 — Choose when the assistant analyzes — `feature/discovery-analyze-on-demand`)
+
+- **A session can analyze on its own or only on demand.**
+  - New `suggestionMode`: `AUTO` (default, as before) or `MANUAL`. Tenant migration
+    `V20261008230000__session_suggestion_mode.sql` adds `discovery_sessions.auto_suggest`.
+  - `PATCH /api/projects/{projectId}/sessions/{sessionId}/suggestion-mode` changes it while the session
+    is DRAFT, RECORDING or PAUSED (`SESSION_RUN`). Sessions return the mode.
+- **In `MANUAL`, neither the transcript-driven passes nor the stop flush analyze anything.**
+- **New `POST …/sessions/{sessionId}/analyze` ("Analizar ahora", `SESSION_RUN`).**
+  - It runs a pass over the conversation accrued since the last one right away, whatever the mode and
+    however little text there is.
+  - It returns how many suggestions it raised; the suggestions themselves reach the review tray through
+    the session's realtime topic.
+  - Only while RECORDING or PAUSED; otherwise 422 `INVALID_SESSION_STATUS`.
+- **Tests:**
+  - `DiscoverySessionTest` and `RealtimeSuggestionServiceTest`: manual mode skips automatic passes,
+    analyze-now runs in manual mode, and it is refused once the recording is over;
+  - `SessionSuggestionModeIntegrationTest`: PATCH → MANUAL, 422 on a DRAFT, 200 while recording, 403 for
+    a member.
+
 ### Changed (Uploaded audio is transcribed in the session's language — `feature/discovery-batch-stt-language`)
 
 - **Batch transcription of an uploaded recording now gets the session's meeting language as a hint**

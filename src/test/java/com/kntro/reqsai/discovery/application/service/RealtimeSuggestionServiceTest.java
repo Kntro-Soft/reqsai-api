@@ -70,6 +70,68 @@ class RealtimeSuggestionServiceTest {
     }
 
     @Nested
+    @DisplayName("Suggestion mode (US46)")
+    class SuggestionModeTests {
+
+        private DiscoverySession liveManualSession(UUID projectId) {
+            DiscoverySession session = buildSession(projectId);
+            session.startRecording(java.time.Instant.now());
+            session.changeSuggestionMode(com.kntro.reqsai.discovery.domain.model.SuggestionMode.MANUAL);
+            return session;
+        }
+
+        @Test
+        @DisplayName("an automatic pass does nothing while the session analyzes only on demand")
+        void manual_mode_skips_automatic_passes() {
+            DiscoverySession session = liveManualSession(UUID.randomUUID());
+            when(sessions.findById(session.getId())).thenReturn(Optional.of(session));
+
+            service.suggest(session.getId());
+            service.suggest(session.getId(), true);
+
+            verify(segments, never()).findFinalBySessionIdAfter(any(), anyInt());
+            verify(generation, never()).generate(any(), any(), any(GenerationContext.class));
+        }
+
+        @Test
+        @DisplayName("Analizar ahora analyzes even in manual mode and below the size threshold")
+        void analyze_now_runs_in_manual_mode() {
+            UUID projectId = UUID.randomUUID();
+            DiscoverySession session = liveManualSession(projectId);
+            UUID sessionId = session.getId();
+            ReflectionTestUtils.setField(service, "minTranscriptChars", 500);
+            when(sessions.findById(sessionId)).thenReturn(Optional.of(session));
+            when(segments.findFinalBySessionIdAfter(sessionId, 0))
+                    .thenReturn(List.of(finalSegment(sessionId, 3, "Quiero pagar con Yape.")));
+            when(generation.isAvailable()).thenReturn(true);
+            when(embeddingPort.isAvailable()).thenReturn(false);
+            when(workspaceApi.findProjectSnapshot(projectId)).thenReturn(Optional.empty());
+            GenerationResult result = new GenerationResult(List.of(new GenerationResult.GeneratedStory(
+                    "Pagar con Yape", "cliente", "pagar con Yape", "pagar rápido", Priority.HIGH, 2, List.of())));
+            when(generation.generate(any(), any(), isNull())).thenReturn(result);
+            when(suggestionCreation.createSuggestions(eq(result), eq(sessionId), eq(projectId)))
+                    .thenReturn(List.of(org.mockito.Mockito.mock(com.kntro.reqsai.discovery.domain.model.Suggestion.class)));
+
+            int created = service.analyzeNow(sessionId);
+
+            assertThat(created).isEqualTo(1);
+            verify(sessions).advanceSuggestionWatermark(eq(sessionId), eq(3), any());
+        }
+
+        @Test
+        @DisplayName("Analizar ahora is refused once the recording is over")
+        void analyze_now_requires_a_live_session() {
+            DiscoverySession session = buildSession(UUID.randomUUID());
+            when(sessions.findById(session.getId())).thenReturn(Optional.of(session));
+
+            assertThatThrownBy(() -> service.analyzeNow(session.getId()))
+                    .isInstanceOf(com.kntro.reqsai.shared.domain.exception.DomainException.class)
+                    .satisfies(e -> assertThat(((com.kntro.reqsai.shared.domain.exception.DomainException) e).error())
+                            .isEqualTo(com.kntro.reqsai.discovery.domain.exception.DiscoveryError.INVALID_SESSION_STATUS));
+        }
+    }
+
+    @Nested
     @DisplayName("Happy path")
     class HappyPath {
 
