@@ -72,6 +72,11 @@ public final class DiscoveryExceptions {
                         .formatted(projectId, activeSessionId));
     }
 
+    /** Unknown, revoked or expired share link: one answer for all, so a visitor learns nothing more. */
+    public static EntityNotFoundException shareLinkUnavailable() {
+        return new EntityNotFoundException(DiscoveryError.SHARE_LINK_UNAVAILABLE, "This share link is not available");
+    }
+
     public static EntityNotFoundException speakerNotFound(java.util.UUID sessionId, String speakerLabel) {
         return new EntityNotFoundException(DiscoveryError.SPEAKER_NOT_FOUND,
                 "Speaker '%s' did not speak in discovery session '%s'".formatted(speakerLabel, sessionId));

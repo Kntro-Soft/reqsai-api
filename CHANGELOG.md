@@ -53,6 +53,47 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
   - `SessionSpeakersIntegrationTest`: upload a diarized meeting, list, name, refuse and process, over
     HTTP and the tenant schema.
 
+### Added (US50 — Share stories with the client — `feature/discovery-share-with-client`)
+
+- **Share links.** The team opens a link a client uses without an account.
+  - `POST /api/projects/{projectId}/share-links` (`STORY_WRITE`) with `{days}` (1 to 90, default 14).
+    The response carries the raw token once; only its SHA-256 is stored (`public.share_links`,
+    common migration `V20261008233000__share_links.sql`).
+  - `GET …/share-links` (`STORY_READ`) lists them without tokens; `DELETE …/share-links/{linkId}`
+    (`STORY_WRITE`) revokes one.
+- **Public client side under `/api/share/{token}`** (added to the security allow-list).
+  - `GET` returns the project name, the expiry and the stories under review (rejected and merged ones
+    are hidden), each with the feedback already left.
+  - `POST …/stories/{storyId}/feedback` stores an `APPROVAL` (optional note) or a `COMMENT`, signed
+    with a name (tenant migration `V20261008233100__story_feedback.sql`). It never changes the story's
+    status, which stays the team's `STORY_APPROVE` decision. At most 1000 entries per link.
+  - The link names the organization, so the request runs bound to that tenant schema.
+  - Unknown, revoked and expired links all answer `404 SHARE_LINK_UNAVAILABLE`.
+- **The team reads the feedback** with `GET /api/projects/{projectId}/stories/{storyId}/client-feedback`
+  (`STORY_READ`).
+- **Tests:** `ShareLinkTest`, `StoryFeedbackTest` and `ShareWithClientIntegrationTest` (create, list
+  without token, anonymous open, comment and approve, hidden story refused, team read, revoke → 404).
+
+### Added (US46 — Choose when the assistant analyzes — `feature/discovery-analyze-on-demand`)
+
+- **A session can analyze on its own or only on demand.**
+  - New `suggestionMode`: `AUTO` (default, as before) or `MANUAL`. Tenant migration
+    `V20261008230000__session_suggestion_mode.sql` adds `discovery_sessions.auto_suggest`.
+  - `PATCH /api/projects/{projectId}/sessions/{sessionId}/suggestion-mode` changes it while the session
+    is DRAFT, RECORDING or PAUSED (`SESSION_RUN`). Sessions return the mode.
+- **In `MANUAL`, neither the transcript-driven passes nor the stop flush analyze anything.**
+- **New `POST …/sessions/{sessionId}/analyze` ("Analizar ahora", `SESSION_RUN`).**
+  - It runs a pass over the conversation accrued since the last one right away, whatever the mode and
+    however little text there is.
+  - It returns how many suggestions it raised; the suggestions themselves reach the review tray through
+    the session's realtime topic.
+  - Only while RECORDING or PAUSED; otherwise 422 `INVALID_SESSION_STATUS`.
+- **Tests:**
+  - `DiscoverySessionTest` and `RealtimeSuggestionServiceTest`: manual mode skips automatic passes,
+    analyze-now runs in manual mode, and it is refused once the recording is over;
+  - `SessionSuggestionModeIntegrationTest`: PATCH → MANUAL, 422 on a DRAFT, 200 while recording, 403 for
+    a member.
+
 ### Added (Assistant chat — `feature/discovery-assistant-chat`)
 
 - **The analyst can type to ReqsAI from the capture page, with or without a live session.**

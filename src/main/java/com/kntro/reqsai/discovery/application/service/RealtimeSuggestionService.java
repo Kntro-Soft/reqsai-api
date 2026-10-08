@@ -1,13 +1,17 @@
 package com.kntro.reqsai.discovery.application.service;
 
 import com.kntro.reqsai.discovery.application.port.*;
+import com.kntro.reqsai.discovery.domain.exception.DiscoveryError;
+import com.kntro.reqsai.discovery.domain.exception.DiscoveryExceptions;
 import com.kntro.reqsai.discovery.domain.model.DiscoverySession;
 import com.kntro.reqsai.discovery.domain.model.Suggestion;
+import com.kntro.reqsai.discovery.domain.model.SuggestionMode;
 import com.kntro.reqsai.discovery.domain.model.SuggestionStatus;
 import com.kntro.reqsai.discovery.domain.model.SuggestionType;
 import com.kntro.reqsai.discovery.domain.model.UserStory;
 import com.kntro.reqsai.shared.application.port.EmbeddingPort;
 import com.kntro.reqsai.discovery.domain.model.TranscriptSegment;
+import com.kntro.reqsai.shared.domain.support.Assert;
 import com.kntro.reqsai.workspace.api.ProjectSnapshot;
 import com.kntro.reqsai.workspace.api.WorkspaceModuleApi;
 import lombok.RequiredArgsConstructor;
@@ -143,6 +147,31 @@ public class RealtimeSuggestionService {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void suggest(UUID sessionId, boolean force) {
+        run(sessionId, force, false);
+    }
+
+    /**
+     * "Analizar ahora" (US46): analyzes the conversation accrued since the last pass right away,
+     * whatever the session's suggestion mode and however little text there is. Only while the meeting
+     * is being captured.
+     *
+     * @return how many suggestions the pass raised (0 when there was nothing new to analyze)
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public int analyzeNow(UUID sessionId) {
+        DiscoverySession session = sessions.findById(sessionId)
+                .orElseThrow(() -> DiscoveryExceptions.sessionNotFound(sessionId));
+        Assert.isTrue(session.isLive(), "status",
+                "analyzing on demand requires RECORDING or PAUSED but was " + session.getStatus(),
+                DiscoveryError.INVALID_SESSION_STATUS);
+        return run(sessionId, true, true);
+    }
+
+    /**
+     * One suggestion pass. An automatic pass ({@code onDemand=false}, from the transcript or the stop
+     * flush) does nothing while the session is in {@link SuggestionMode#MANUAL}.
+     */
+    private int run(UUID sessionId, boolean force, boolean onDemand) {
         // Serialize passes of THIS session: overlapping REQUIRES_NEW passes (triggered ~seconds apart)
         // must not both read the PENDING set and watermark before the earlier one commits, or the
         // earlier pass's drafts are invisible to the later pass's dedup. Take the per-session advisory
@@ -154,14 +183,18 @@ public class RealtimeSuggestionService {
         DiscoverySession session = sessions.findById(sessionId).orElse(null);
         if (session == null) {
             log.warn("Realtime suggestion skipped: session {} not found", sessionId);
-            return;
+            return 0;
+        }
+        if (!onDemand && session.getSuggestionMode() == SuggestionMode.MANUAL) {
+            log.debug("Realtime suggestion skipped: session {} analyzes only on demand", sessionId);
+            return 0;
         }
 
         int watermark = session.getLastSuggestedSequence();
         List<TranscriptSegment> pending = segments.findFinalBySessionIdAfter(sessionId, watermark);
         if (pending.isEmpty()) {
             log.debug("No new final segments past watermark {} for session {}", watermark, sessionId);
-            return;
+            return 0;
         }
 
         String text = pending.stream()
@@ -171,14 +204,14 @@ public class RealtimeSuggestionService {
 
         if (text.isBlank() || !generation.isAvailable()) {
             log.debug("Nothing to generate (blank or generation unavailable) for session {}", sessionId);
-            return;
+            return 0;
         }
 
         // Cadence: stream, don't batch. Fire when enough NEW text has accrued OR enough time has
         // elapsed since the last pass with transcript still waiting — whichever comes first — never
         // with zero new content (guarded by the empty check above). `force` (stop flush) bypasses both.
         if (!force && !shouldGenerate(session, text.length())) {
-            return;
+            return 0;
         }
 
         int maxSequence = pending.getLast().getSequence();
@@ -196,7 +229,8 @@ public class RealtimeSuggestionService {
         // path advanced meanwhile — corrupting the segment sequence and freezing live transcription.
         sessions.advanceSuggestionWatermark(sessionId, maxSequence, Instant.now());
 
-        log.info("Realtime suggestion for session {}: {} suggestions from {} segments (watermark {} -> {}, force={})", sessionId, created.size(), pending.size(), watermark, maxSequence, force);
+        log.info("Realtime suggestion for session {}: {} suggestions from {} segments (watermark {} -> {}, force={}, onDemand={})", sessionId, created.size(), pending.size(), watermark, maxSequence, force, onDemand);
+        return created.size();
     }
 
     /**
