@@ -1,5 +1,6 @@
 package com.kntro.reqsai.discovery.application.port;
 
+import com.kntro.reqsai.discovery.domain.model.SpeakerSpan;
 import com.kntro.reqsai.discovery.domain.model.TranscriptSegment;
 
 import java.util.List;
@@ -13,6 +14,9 @@ import java.util.UUID;
 public interface TranscriptSegmentRepository {
 
     TranscriptSegment save(TranscriptSegment segment);
+
+    /** Persists a batch of segments (the diarized utterances of an uploaded recording). */
+    List<TranscriptSegment> saveAll(List<TranscriptSegment> segments);
 
     /** Segments of a session in ascending {@code sequence} order. */
     List<TranscriptSegment> findAllBySessionId(UUID sessionId);
@@ -39,6 +43,13 @@ public interface TranscriptSegmentRepository {
      * Drives watermark-based realtime suggestions (only the not-yet-processed tail).
      */
     List<TranscriptSegment> findFinalBySessionIdAfter(UUID sessionId, int afterSequence);
+
+    /**
+     * The speaker label and time range of every finalized segment that carries a diarization label, in
+     * ascending {@code sequence} order. Feeds the speaker roster (numbered by first appearance) and the
+     * overlapping-speech detection without loading the segment texts.
+     */
+    List<SpeakerSpan> findSpeakerSpans(UUID sessionId);
 
     /** Removes every segment of a session (used when a session is reset). */
     void deleteAllBySessionId(UUID sessionId);

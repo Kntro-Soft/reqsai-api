@@ -4,10 +4,17 @@ import com.kntro.reqsai.discovery.application.command.StartDiscoveryProcessingCo
 import com.kntro.reqsai.discovery.application.port.DiscoverySessionRepository;
 import com.kntro.reqsai.discovery.application.port.GenerationResult;
 import com.kntro.reqsai.discovery.application.port.RequirementGenerationPort;
+import com.kntro.reqsai.discovery.application.port.TranscriptSegmentRepository;
+import com.kntro.reqsai.discovery.application.service.SessionSpeakerService;
 import com.kntro.reqsai.discovery.application.service.StoryExtractionService;
 import com.kntro.reqsai.discovery.domain.exception.DiscoveryError;
 import com.kntro.reqsai.discovery.domain.model.Priority;
+import com.kntro.reqsai.discovery.domain.model.SessionSpeaker;
 import com.kntro.reqsai.discovery.domain.model.SessionStatus;
+import com.kntro.reqsai.discovery.domain.model.SpeakerRoster;
+import com.kntro.reqsai.discovery.domain.model.SpeakerSide;
+import com.kntro.reqsai.discovery.domain.model.SpeakerSpan;
+import com.kntro.reqsai.discovery.domain.model.TranscriptSegment;
 import com.kntro.reqsai.discovery.domain.model.UserStory;
 import com.kntro.reqsai.discovery.mothers.DiscoverySessionMother;
 import com.kntro.reqsai.discovery.domain.model.DiscoverySession;
@@ -43,6 +50,10 @@ class StartDiscoveryProcessingCommandHandlerTest {
     private RequirementGenerationPort requirementGeneration;
     @Mock
     private StoryExtractionService storyExtraction;
+    @Mock
+    private TranscriptSegmentRepository segments;
+    @Mock
+    private SessionSpeakerService sessionSpeakers;
     @InjectMocks
     private StartDiscoveryProcessingCommandHandler handler;
 
@@ -70,6 +81,54 @@ class StartDiscoveryProcessingCommandHandlerTest {
         verify(requirementGeneration).generate(any(), any());
         verify(storyExtraction).extractOne(
                 generationResult.stories().getFirst(), session.getId(), session.getProjectId());
+    }
+
+    @Test
+    @DisplayName("should send a diarized transcript as speaker turns tagged with the names and sides (US40)")
+    void should_send_speaker_tagged_transcript() {
+        // Arrange — an uploaded recording whose provider labelled two speakers; the analyst named the client
+        DiscoverySession session = DiscoverySessionMother.draft().build();
+        session.uploadTranscript("Quiero reservar una mesa. ¿Para cuántas personas? Para cuatro.", 9_000L, 3);
+        UUID sessionId = session.getId();
+        List<TranscriptSegment> finals = List.of(
+                new TranscriptSegment(sessionId, 1, "0", "Quiero reservar una mesa.", 0, 2_000, true),
+                new TranscriptSegment(sessionId, 2, "1", "¿Para cuántas personas?", 2_100, 4_000, true),
+                new TranscriptSegment(sessionId, 3, "0", "Para cuatro.", 4_100, 5_000, true));
+        SessionSpeaker client = new SessionSpeaker(sessionId, "0");
+        client.describe("Ana", SpeakerSide.CLIENT);
+        SpeakerRoster roster = SpeakerRoster.of(
+                finals.stream().map(f -> new SpeakerSpan(f.getSpeakerLabel(), f.getStartMs(), f.getEndMs())).toList(),
+                List.of(client));
+        when(sessions.findById(sessionId)).thenReturn(Optional.of(session));
+        when(sessions.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(segments.findAllBySessionId(sessionId)).thenReturn(finals);
+        when(sessionSpeakers.rosterOf(sessionId)).thenReturn(roster);
+        when(requirementGeneration.generate(any(), any())).thenReturn(new GenerationResult(List.of()));
+
+        // Act
+        handler.handle(new StartDiscoveryProcessingCommand(sessionId));
+
+        // Assert
+        verify(requirementGeneration).generate(
+                "[Ana (Cliente)]: Quiero reservar una mesa.\n"
+                        + "[Hablante 2]: ¿Para cuántas personas?\n"
+                        + "[Ana (Cliente)]: Para cuatro.",
+                session.getLanguage().value());
+    }
+
+    @Test
+    @DisplayName("should send the stored transcript when its segments carry no speakers")
+    void should_send_stored_transcript_without_speakers() {
+        DiscoverySession session = DiscoverySessionMother.draft().build();
+        session.uploadTranscript("El cliente quiere login con Google.", 0L);
+        when(sessions.findById(session.getId())).thenReturn(Optional.of(session));
+        when(sessions.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(requirementGeneration.generate(any(), any())).thenReturn(new GenerationResult(List.of()));
+
+        handler.handle(new StartDiscoveryProcessingCommand(session.getId()));
+
+        verify(requirementGeneration).generate("El cliente quiere login con Google.", session.getLanguage().value());
+        verifyNoInteractions(sessionSpeakers);
     }
 
     @Test
