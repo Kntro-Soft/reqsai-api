@@ -11,6 +11,44 @@ follows [Semantic Versioning](https://semver.org/).
 
 _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in progress._
 
+### Added (US28 — Demo project — `feature/workspace-demo-project`)
+
+- **Every new organization gets a demo project** with static Spanish sample data and no AI call:
+  "Demo · Restaurante La Tradición — Reservas en línea".
+  - Workspace part: profile (domain, platforms, stack), 5 glossary terms and 3 constraints.
+  - Discovery part: a `COMPLETED` session with a 12-segment diarized transcript, 6 stories (3 `APPROVED`,
+    3 `DRAFT`) with Given/When/Then criteria, and 2 `PENDING` suggestions (a new story and a clarifying
+    question).
+  - Stories are left without an embedding; the lazy re-index pass indexes them on the first live
+    session.
+- **Seeding is synchronous, right after the organization commits.**
+  - `DemoProjectProvisioningListener` listens to `OrganizationCreatedEvent` (`@TransactionalEventListener`,
+    after commit) and binds the new tenant. The `POST /api/organizations` response already includes the
+    demo.
+  - Best-effort: a seeding failure is logged and never fails the organization creation.
+  - Idempotent: one demo per organization, also enforced by the partial unique index
+    `uq_projects_org_demo`.
+- **Discovery seeds its own part** through the new `workspace::api` integration event
+  `DemoProjectSeededIntegrationEvent`.
+  - A synchronous `@EventListener` in the same transaction, so the whole (re)seed is atomic.
+  - Workspace never reaches into Discovery.
+- **`POST /api/organizations/{orgId}/projects/{projectId}/demo/restore`** (`PROJECT_UPDATE`; owners and
+  admins bypass) restores the original sample data and returns `200` with the project.
+  - Wipes the project's sessions, segments, stories, criteria, client feedback, suggestions and
+    assistant chat, then seeds them again. Share links are kept.
+  - Resets the profile, glossary and constraints. The name is kept.
+  - `409 PROJECT_NOT_DEMO` on any other project; `409 SESSION_ALREADY_ACTIVE` while a session records.
+- **The demo does not count against the plan's project limit.**
+  - `projects.demo` (tenant migration `V20261009100000__project_demo_flag.sql`).
+  - `ProjectResponse.demo` (appended).
+  - `PROJECT_PLAN_LIMIT_EXCEEDED` counts only non-demo active projects.
+- Existing organizations are not back-filled; only organizations created from now on get the demo.
+- **Tests:**
+  - `DemoProjectTemplateTest`, `DemoDiscoveryContentTest`: the sample aggregates are valid;
+  - seeder and handler unit tests;
+  - `DemoProjectIntegrationTest`: seeding, plan limit, modify then restore, `PROJECT_NOT_DEMO`, `403` for
+    a READ member.
+
 ### Added (US50 — Share stories with the client — `feature/discovery-share-with-client`)
 
 - **Share links.** The team opens a link a client uses without an account.

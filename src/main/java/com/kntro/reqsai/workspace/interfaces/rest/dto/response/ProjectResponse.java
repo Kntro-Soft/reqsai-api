@@ -21,5 +21,8 @@ public record ProjectResponse(
         String status,
         String avatarUrl,
         Instant createdAt,
-        Instant updatedAt
+        Instant updatedAt,
+        @Schema(description = "Whether this is the organization's demo project (sample content, restorable, "
+                + "not counted against the plan's project limit)")
+        boolean demo
 ) {}

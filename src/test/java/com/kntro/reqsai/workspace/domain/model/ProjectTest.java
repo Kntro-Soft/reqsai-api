@@ -4,6 +4,8 @@ import com.kntro.reqsai.shared.domain.exception.DomainException;
 import com.kntro.reqsai.shared.domain.exception.EntityNotFoundException;
 import com.kntro.reqsai.testsupport.AggregateEvents;
 import com.kntro.reqsai.workspace.domain.event.ProjectCreatedEvent;
+import com.kntro.reqsai.workspace.domain.exception.WorkspaceError;
+import com.kntro.reqsai.workspace.domain.valueobjects.TechnicalProfile;
 import com.kntro.reqsai.workspace.mothers.ProjectBuilder;
 import com.kntro.reqsai.workspace.mothers.ProjectMother;
 import org.junit.jupiter.api.DisplayName;
@@ -238,6 +240,50 @@ class ProjectTest {
 
             assertThat(c.getEmbedding()).isNotNull();
             assertThat(c.getEmbedding()[0]).isEqualTo(0.9f);
+        }
+    }
+
+    @Nested
+    @DisplayName("Demo project")
+    class DemoProject {
+
+        @Test
+        @DisplayName("a regular project is not a demo and refuses demo-only operations")
+        void regular_project_is_not_demo() {
+            Project project = ProjectMother.standard().build();
+
+            assertThat(project.isDemo()).isFalse();
+            assertThatThrownBy(project::requireDemo)
+                    .isInstanceOf(DomainException.class)
+                    .extracting(e -> ((DomainException) e).error())
+                    .isEqualTo(WorkspaceError.PROJECT_NOT_DEMO);
+        }
+
+        @Test
+        @DisplayName("createDemo flags the project as demo and raises the usual creation event")
+        void create_demo_flags_project() {
+            UUID orgId = UUID.randomUUID();
+            Project project = Project.createDemo(orgId, "Demo", null, TechnicalProfile.empty(), UUID.randomUUID());
+
+            assertThat(project.isDemo()).isTrue();
+            assertThat(project.getStatus()).isEqualTo(ProjectStatus.ACTIVE);
+            project.requireDemo();
+            assertThat(AggregateEvents.of(project)).singleElement().isInstanceOf(ProjectCreatedEvent.class);
+        }
+
+        @Test
+        @DisplayName("replaceConstraints keeps matching rows, drops the rest and adds the missing ones")
+        void replace_constraints_reconciles() {
+            Project project = ProjectMother.standard().build();
+            ProjectConstraint kept = project.addConstraint("primera");
+            project.addConstraint("Ajena");
+
+            project.replaceConstraints(java.util.List.of("Primera", "Segunda"));
+
+            assertThat(project.getConstraints())
+                    .extracting(ProjectConstraint::getDescription)
+                    .containsExactly("Primera", "Segunda");
+            assertThat(project.getConstraints().getFirst()).isSameAs(kept);
         }
     }
 }

@@ -5,6 +5,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -55,6 +57,32 @@ class GlossaryTest {
 
             assertThatThrownBy(() -> glossary.addTerm("Lead", "   ", UUID.randomUUID()))
                     .isInstanceOf(DomainException.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("replaceTerms")
+    class ReplaceTerms {
+
+        @Test
+        @DisplayName("keeps matching terms aligned, drops the rest and adds the missing ones")
+        void reconciles_terms() {
+            UUID author = UUID.randomUUID();
+            UUID restorer = UUID.randomUUID();
+            Glossary glossary = new Glossary(UUID.randomUUID());
+            GlossaryTerm kept = glossary.addTerm("aforo", "Editada", author);
+            glossary.addTerm("Mozo", "Persona que atiende las mesas.", author);
+            Map<String, String> wanted = new LinkedHashMap<>();
+            wanted.put("Aforo", "Capacidad máxima del salón.");
+            wanted.put("Turno", "Franja horaria de servicio.");
+
+            glossary.replaceTerms(wanted, restorer);
+
+            assertThat(glossary.getTerms()).extracting(GlossaryTerm::getTerm).containsExactly("Aforo", "Turno");
+            assertThat(glossary.getTerms().getFirst()).isSameAs(kept);
+            assertThat(kept.getDefinition()).isEqualTo("Capacidad máxima del salón.");
+            assertThat(kept.getAddedBy()).isEqualTo(author);
+            assertThat(glossary.getTerms().get(1).getAddedBy()).isEqualTo(restorer);
         }
     }
 }
