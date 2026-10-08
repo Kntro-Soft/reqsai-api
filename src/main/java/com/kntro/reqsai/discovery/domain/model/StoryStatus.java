@@ -7,6 +7,8 @@ package com.kntro.reqsai.discovery.domain.model;
  *   DRAFT ──reject───▶ REJECTED
  *   DRAFT ──merge────▶ MERGED (folded into another story)
  * </pre>
+ * The review decision can be revised: {@code DRAFT}, {@code APPROVED} and {@code REJECTED} move freely
+ * between each other. {@code MERGED} and {@code EXPORTED} leave review for good.
  */
 public enum StoryStatus {
 
@@ -23,5 +25,10 @@ public enum StoryStatus {
     MERGED,
 
     /** Pushed to an external tracker (e.g. Jira). */
-    EXPORTED
+    EXPORTED;
+
+    /** True for the statuses a reviewer can set and leave: {@code DRAFT}, {@code APPROVED}, {@code REJECTED}. */
+    public boolean isReviewable() {
+        return this == DRAFT || this == APPROVED || this == REJECTED;
+    }
 }
