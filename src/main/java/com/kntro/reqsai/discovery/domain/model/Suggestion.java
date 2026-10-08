@@ -55,8 +55,9 @@ public class Suggestion extends AggregateRoot {
      */
     private static final int SCENARIO_MAX = 200;
 
-    @Column(name = "session_id", columnDefinition = "uuid", nullable = false, updatable = false)
-    private UUID sessionId;
+    /** The session the suggestion came from; {@code null} when it was raised from the assistant chat. */
+    @Column(name = "session_id", columnDefinition = "uuid", updatable = false)
+    private @Nullable UUID sessionId;
 
     @Column(name = "project_id", columnDefinition = "uuid", nullable = false, updatable = false)
     private UUID projectId;
@@ -144,14 +145,14 @@ public class Suggestion extends AggregateRoot {
     // SUGGESTION_GENERATED message carries, so a field set after registering never reaches the analyst.
 
     /** Creates a NEW_STORY suggestion (no target, no draft criteria). */
-    public static Suggestion newStory(UUID sessionId, UUID projectId,
+    public static Suggestion newStory(@Nullable UUID sessionId, UUID projectId,
                                       String title, String role, String action, String benefit,
                                       Priority priority, @Nullable Integer storyPoints) {
         return newStory(sessionId, projectId, title, role, action, benefit, priority, storyPoints, List.of());
     }
 
     /** Creates a NEW_STORY suggestion carrying the LLM's proposed draft acceptance criteria. */
-    public static Suggestion newStory(UUID sessionId, UUID projectId,
+    public static Suggestion newStory(@Nullable UUID sessionId, UUID projectId,
                                       String title, String role, String action, String benefit,
                                       Priority priority, @Nullable Integer storyPoints,
                                       List<DraftCriterion> criteria) {
@@ -166,7 +167,7 @@ public class Suggestion extends AggregateRoot {
      * target story, plus the story fields kept only for the standalone-story fallback (when no target
      * can be resolved at accept time) and for duplicate detection.
      */
-    public static Suggestion edgeCase(UUID sessionId, UUID projectId,
+    public static Suggestion edgeCase(@Nullable UUID sessionId, UUID projectId,
                                       String title, String role, String action, String benefit,
                                       Priority priority, @Nullable Integer storyPoints,
                                       @Nullable String relatedTopic, @Nullable UUID targetStoryId,
@@ -180,7 +181,7 @@ public class Suggestion extends AggregateRoot {
     }
 
     /** Creates an UPDATE_STORY suggestion for a near-duplicate (no criteria to add). */
-    public static Suggestion updateStory(UUID sessionId, UUID projectId,
+    public static Suggestion updateStory(@Nullable UUID sessionId, UUID projectId,
                                          String title, String role, String action, String benefit,
                                          Priority priority, @Nullable Integer storyPoints,
                                          UUID targetStoryId) {
@@ -192,7 +193,7 @@ public class Suggestion extends AggregateRoot {
      * Creates an UPDATE_STORY suggestion: the proposed story fields for {@code targetStoryId} plus the
      * acceptance criteria the update adds to it (accepting appends the ones the story does not have yet).
      */
-    public static Suggestion updateStory(UUID sessionId, UUID projectId,
+    public static Suggestion updateStory(@Nullable UUID sessionId, UUID projectId,
                                          String title, String role, String action, String benefit,
                                          Priority priority, @Nullable Integer storyPoints,
                                          UUID targetStoryId, List<DraftCriterion> criteria) {
@@ -204,7 +205,7 @@ public class Suggestion extends AggregateRoot {
     }
 
     /** Creates a CLARIFYING_QUESTION suggestion. */
-    public static Suggestion clarifyingQuestion(UUID sessionId, UUID projectId, String question) {
+    public static Suggestion clarifyingQuestion(@Nullable UUID sessionId, UUID projectId, String question) {
         Suggestion s = pending(sessionId, projectId, SuggestionType.CLARIFYING_QUESTION);
         s.question = Assert.maxLength(Assert.notBlank(question, "question"), "question", QUESTION_MAX);
         return s.withCreatedEvent();
@@ -247,9 +248,9 @@ public class Suggestion extends AggregateRoot {
     // ── Private helpers ───────────────────────────────────────────────────────
 
     /** A PENDING suggestion of {@code type}, with no payload and no event yet. */
-    private static Suggestion pending(UUID sessionId, UUID projectId, SuggestionType type) {
+    private static Suggestion pending(@Nullable UUID sessionId, UUID projectId, SuggestionType type) {
         Suggestion s = new Suggestion();
-        s.sessionId = Assert.notNull(sessionId, "sessionId");
+        s.sessionId = sessionId;
         s.projectId = Assert.notNull(projectId, "projectId");
         s.type = type;
         s.status = SuggestionStatus.PENDING;
@@ -257,7 +258,7 @@ public class Suggestion extends AggregateRoot {
     }
 
     /** A PENDING story suggestion of {@code type} with its draft story fields, and no event yet. */
-    private static Suggestion storyDraft(UUID sessionId, UUID projectId, SuggestionType type,
+    private static Suggestion storyDraft(@Nullable UUID sessionId, UUID projectId, SuggestionType type,
                                          String title, String role, String action, String benefit,
                                          Priority priority, @Nullable Integer storyPoints) {
         Suggestion s = pending(sessionId, projectId, type);

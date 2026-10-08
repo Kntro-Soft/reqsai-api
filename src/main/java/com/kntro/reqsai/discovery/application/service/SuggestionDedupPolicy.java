@@ -57,6 +57,8 @@ public class SuggestionDedupPolicy {
     static final double SAME_ACTION_OVERLAP = 0.5;
     /** Token overlap (Jaccard) at which two Given/When/Then criteria state the same rule. */
     static final double SAME_CRITERION_OVERLAP = 0.8;
+    /** Below this action overlap (with a different leading verb) an update describes another capability. */
+    static final double SAME_CAPABILITY_ACTION_OVERLAP = 0.34;
     /** Words are cut to this many characters, a crude stem ("reservar"/"reservada", "médico"/"médica"). */
     private static final int STEM_LENGTH = 5;
 
@@ -179,6 +181,21 @@ public class SuggestionDedupPolicy {
      * are each the same words once case, accents, punctuation, plurals and filler words are ignored.
      * Strict on purpose — a single new content word ("y Excel") counts as a change.
      */
+    /**
+     * True when an update would change WHAT the story does rather than refine it: the proposed action
+     * starts with another verb and shares few words with the story's action ("cancelar su reserva…"
+     * proposed for "reservar una mesa…"). Accepting such an update would overwrite the story with a
+     * different capability, so the caller raises it as a new story instead. A rewording that keeps the
+     * verb, or keeps most of the words, is still a refinement.
+     */
+    public boolean changesCapability(Draft proposal, Draft current) {
+        Set<String> proposed = tokens(proposal.action());
+        Set<String> existing = tokens(current.action());
+        if (proposed.isEmpty() || existing.isEmpty()) return false;
+        boolean sameVerb = proposed.iterator().next().equals(existing.iterator().next());
+        return !sameVerb && jaccard(proposed, existing) < SAME_CAPABILITY_ACTION_OVERLAP;
+    }
+
     public boolean sameNarrative(Draft proposal, Draft current) {
         return sameField(proposal.title(), current.title())
                 && sameField(proposal.role(), current.role())

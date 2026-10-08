@@ -17,7 +17,7 @@ public class UserStoryBuilder {
     private UUID projectId = UUID.randomUUID();
     private String title = FAKER.lorem().sentence(3);
     private final String role = FAKER.job().position();
-    private final String action = FAKER.lorem().sentence(5);
+    private String action = FAKER.lorem().sentence(5);
     private final String benefit = FAKER.lorem().sentence(6);
     private Priority priority = FAKER.options().option(Priority.class);
     private Integer storyPoints = FAKER.number().numberBetween(1, 13);
@@ -33,6 +33,11 @@ public class UserStoryBuilder {
 
     public UserStoryBuilder withTitle(String title) {
         this.title = title;
+        return this;
+    }
+
+    public UserStoryBuilder withAction(String action) {
+        this.action = action;
         return this;
     }
 
