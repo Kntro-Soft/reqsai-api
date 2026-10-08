@@ -39,7 +39,7 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
   - Resets the profile, glossary and constraints. The name is kept.
   - `409 PROJECT_NOT_DEMO` on any other project; `409 SESSION_ALREADY_ACTIVE` while a session records.
 - **The demo does not count against the plan's project limit.**
-  - `projects.demo` (tenant migration `V20261009100000__project_demo_flag.sql`).
+  - `projects.demo` (tenant migration `V20261009120000__project_demo_flag.sql`).
   - `ProjectResponse.demo` (appended).
   - `PROJECT_PLAN_LIMIT_EXCEEDED` counts only non-demo active projects.
 - Existing organizations are not back-filled; only organizations created from now on get the demo.
