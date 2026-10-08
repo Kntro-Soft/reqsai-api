@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.kntro.reqsai.discovery.application.port.TranscriptionResult;
 import com.kntro.reqsai.discovery.infrastructure.exception.DiscoveryInfrastructureExceptions;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.Nullable;
 import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
 
@@ -36,12 +37,12 @@ public class AssemblyAiAdapter {
         this.apiKey = apiKey;
     }
 
-    public TranscriptionResult transcribe(byte[] audio, String filename) {
+    public TranscriptionResult transcribe(byte[] audio, String filename, @Nullable String language) {
         if (apiKey == null || apiKey.isBlank()) {
             throw DiscoveryInfrastructureExceptions.transcriptionUnavailable();
         }
         String audioUrl = uploadAudio(audio, filename);
-        String jobId = submitJob(audioUrl);
+        String jobId = submitJob(audioUrl, language);
         TranscriptJob completed = pollUntilDone(jobId);
         guardJobError(completed, jobId);
         return buildResult(completed);
@@ -62,13 +63,16 @@ public class AssemblyAiAdapter {
         return upload.uploadUrl();
     }
 
-    private String submitJob(String audioUrl) {
-        log.debug("Submitting AssemblyAI job for upload_url={}", audioUrl);
+    private String submitJob(String audioUrl, @Nullable String language) {
+        log.debug("Submitting AssemblyAI job for upload_url={} (language={})", audioUrl, language);
+        Map<String, Object> body = (language != null && !language.isBlank())
+                ? Map.of("audio_url", audioUrl, "speaker_labels", true, "language_code", language)
+                : Map.of("audio_url", audioUrl, "speaker_labels", true);
         TranscriptJob job = restClient.post()
                 .uri(BASE_URL + "/transcript")
                 .header("Authorization", apiKey)
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(Map.of("audio_url", audioUrl, "speaker_labels", true))
+                .body(body)
                 .retrieve()
                 .body(TranscriptJob.class);
         if (job == null || job.id() == null) {

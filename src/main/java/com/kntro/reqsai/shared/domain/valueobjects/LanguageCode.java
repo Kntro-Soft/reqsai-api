@@ -40,6 +40,15 @@ public record LanguageCode(String value) {
         return parts[0].toLowerCase() + "-" + parts[1].toUpperCase();
     }
 
+    /**
+     * The ISO-639-1 language without its region ({@code es-PE} → {@code es}), the form speech-to-text
+     * providers take as a language hint.
+     */
+    public String primaryLanguage() {
+        int dash = value.indexOf('-');
+        return dash < 0 ? value : value.substring(0, dash);
+    }
+
     public static LanguageCode of(String value) {
         return new LanguageCode(value);
     }
