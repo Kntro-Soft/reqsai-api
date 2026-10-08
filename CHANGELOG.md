@@ -42,7 +42,7 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
   look-alike tags.
   - Without an AI model, or when the model fails, the upload still succeeds with `classified: false`,
     no suggestions and an excerpt as the summary.
-- **Storage.** Tenant migration `V20261009100000__project_document_uploads.sql`:
+- **Storage.** Tenant migration `V20261009110000__project_document_uploads.sql`:
   - `project_documents` gains file name, media type, size, extracted characters, summary and a
     `content_id`;
   - the text lives in the new `project_document_contents`, loaded only on demand.
