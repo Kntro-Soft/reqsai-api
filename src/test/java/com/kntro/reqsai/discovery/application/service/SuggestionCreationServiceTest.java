@@ -66,7 +66,8 @@ class SuggestionCreationServiceTest {
     @Test
     @DisplayName("should honor a valid LLM targetStoryId for UPDATE_STORY even without an embedding model")
     void should_honor_llm_target_without_embeddings() {
-        UserStory target = UserStoryMother.draft().withProjectId(projectId).build();
+        UserStory target = UserStoryMother.draft().withProjectId(projectId)
+                .withAction("autenticarme con usuario y contraseña").build();
         when(embeddingPort.isAvailable()).thenReturn(false);
         when(stories.findByIdAndProjectId(target.getId(), projectId)).thenReturn(Optional.of(target));
         when(suggestions.findAllBySessionIdAndStatus(any(), any())).thenReturn(List.of());
@@ -915,7 +916,8 @@ class SuggestionCreationServiceTest {
     @Test
     @DisplayName("keeps an UPDATE_STORY whose target is within the margin of the closest story")
     void keeps_update_within_margin() {
-        UserStory cancel = UserStoryMother.draft().withProjectId(projectId).build();
+        UserStory cancel = UserStoryMother.draft().withProjectId(projectId)
+                .withAction("inscribirme en la lista de espera de una especialidad").build();
         when(embeddingPort.isAvailable()).thenReturn(true);
         when(embeddingPort.embed(any())).thenReturn(new float[]{0.1f});
         when(stories.findByIdAndProjectId(cancel.getId(), projectId)).thenReturn(Optional.of(cancel));

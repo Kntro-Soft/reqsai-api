@@ -287,18 +287,33 @@ public class RealtimeSuggestionService {
     // ── Context building ──────────────────────────────────────────────────────
 
     private @Nullable GenerationContext buildContext(DiscoverySession session, String recentText) {
-        UUID projectId = session.getProjectId();
+        List<Suggestion> pending = suggestions.findAllBySessionIdAndStatus(session.getId(), SuggestionStatus.PENDING);
+        return buildContext(session.getProjectId(), recentText, pending, "session " + session.getId());
+    }
+
+    /**
+     * Generation context for text outside a session pass, such as a requirement typed in the assistant
+     * chat: the same project profile and backlog retrieval as a live pass. {@code pending} lists the
+     * suggestions still awaiting review in that scope, so the model targets or skips them instead of
+     * duplicating them. Empty when the project no longer exists.
+     */
+    public Optional<GenerationContext> contextFor(UUID projectId, String text, List<Suggestion> pending) {
+        return Optional.ofNullable(buildContext(projectId, text, pending, "project " + projectId));
+    }
+
+    private @Nullable GenerationContext buildContext(UUID projectId, String recentText, List<Suggestion> pending,
+                                                     String scope) {
         float[] queryEmbedding = tryEmbed(recentText);
 
         List<GenerationContext.StorySummary> backlog = retrieveBacklog(projectId, queryEmbedding).stream()
                 .map(s -> new GenerationContext.StorySummary(
                         s.getId(), s.getTitle(), s.getRole(), s.getAction(), s.getBenefit()))
                 .toList();
-        List<GenerationContext.PendingSuggestion> alreadySuggested = pendingSuggestionSummaries(session.getId());
+        List<GenerationContext.PendingSuggestion> alreadySuggested = pendingSuggestionSummaries(pending);
 
         if (log.isDebugEnabled()) {
-            log.debug("Generation context for session {}: {} backlog stories {}; {} pending suggestions {}",
-                    session.getId(), backlog.size(),
+            log.debug("Generation context for {}: {} backlog stories {}; {} pending suggestions {}",
+                    scope, backlog.size(),
                     backlog.stream().map(s -> s.id() + ":'" + s.title() + "'").toList(),
                     alreadySuggested.size(),
                     alreadySuggested.stream().map(s -> s.id() + ":'" + s.summary() + "'").toList());
@@ -364,12 +379,11 @@ public class RealtimeSuggestionService {
     }
 
     /**
-     * One entry per PENDING suggestion of this session (id + story title or clarifying question). The
-     * id lets the LLM target a still-pending story draft with {@code UPDATE_STORY}/{@code EDGE_CASE}
-     * rather than re-emitting a near-duplicate NEW_STORY.
+     * One entry per PENDING suggestion in scope (id + story title or clarifying question). The id lets
+     * the LLM target a still-pending story draft with {@code UPDATE_STORY}/{@code EDGE_CASE} rather than
+     * re-emitting a near-duplicate NEW_STORY.
      */
-    private List<GenerationContext.PendingSuggestion> pendingSuggestionSummaries(UUID sessionId) {
-        List<Suggestion> pending = suggestions.findAllBySessionIdAndStatus(sessionId, SuggestionStatus.PENDING);
+    private List<GenerationContext.PendingSuggestion> pendingSuggestionSummaries(List<Suggestion> pending) {
         List<GenerationContext.PendingSuggestion> summaries = new ArrayList<>(pending.size());
         for (Suggestion s : pending) {
             String summary = s.getType() == SuggestionType.CLARIFYING_QUESTION ? s.getQuestion() : s.getDraftTitle();

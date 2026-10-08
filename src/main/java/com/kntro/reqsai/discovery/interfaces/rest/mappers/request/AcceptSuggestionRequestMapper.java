@@ -18,7 +18,7 @@ public final class AcceptSuggestionRequestMapper {
      * Builds the command. A missing body yields a command with all overrides {@code null}
      * ("accept the draft as-is").
      */
-    public static AcceptSuggestionCommand toCommand(UUID sessionId, UUID suggestionId,
+    public static AcceptSuggestionCommand toCommand(@Nullable UUID sessionId, UUID suggestionId,
                                                     @Nullable AcceptSuggestionRequest request) {
         if (request == null) {
             return new AcceptSuggestionCommand(sessionId, suggestionId,

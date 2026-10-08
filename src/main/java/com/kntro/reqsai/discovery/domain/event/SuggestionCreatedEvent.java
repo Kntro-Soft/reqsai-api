@@ -12,7 +12,7 @@ import java.util.UUID;
 
 public record SuggestionCreatedEvent(
         UUID suggestionId,
-        UUID sessionId,
+        @Nullable UUID sessionId,
         UUID projectId,
         SuggestionType type,
         @Nullable String draftTitle,

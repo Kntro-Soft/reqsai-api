@@ -9,6 +9,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -43,6 +44,21 @@ public class SuggestionRepositoryAdapter implements SuggestionRepository {
     @Override
     public List<Suggestion> findAllBySessionIdAndStatus(UUID sessionId, SuggestionStatus status) {
         return jpa.findAllBySessionIdAndStatus(sessionId, status);
+    }
+
+    @Override
+    public Optional<Suggestion> findByIdAndProjectIdForUpdate(UUID id, UUID projectId) {
+        return jpa.findByIdAndProjectIdForUpdate(id, projectId);
+    }
+
+    @Override
+    public List<Suggestion> findAllChatSuggestionsByProjectIdAndStatus(UUID projectId, SuggestionStatus status) {
+        return jpa.findAllByProjectIdAndSessionIdIsNullAndStatus(projectId, status);
+    }
+
+    @Override
+    public List<Suggestion> findAllByIdIn(Collection<UUID> ids) {
+        return ids.isEmpty() ? List.of() : jpa.findAllByIdIn(ids);
     }
 
     @Override

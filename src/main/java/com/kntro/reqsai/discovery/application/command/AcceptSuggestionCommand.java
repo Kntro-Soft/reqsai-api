@@ -21,7 +21,8 @@ import java.util.UUID;
  *       story.</li>
  * </ul>
  *
- * @param sessionId                the session that owns the suggestion
+ * @param sessionId                the session that owns the suggestion; {@code null} when the suggestion is
+ *                                 looked up by its project (assistant chat)
  * @param suggestionId             the suggestion being accepted
  * @param editedTitle              optional analyst override for the draft title
  * @param editedRole               optional override
@@ -33,7 +34,7 @@ import java.util.UUID;
  *                                 (absent) keeps the draft criteria
  */
 public record AcceptSuggestionCommand(
-        UUID sessionId,
+        @Nullable UUID sessionId,
         UUID suggestionId,
         @Nullable String editedTitle,
         @Nullable String editedRole,

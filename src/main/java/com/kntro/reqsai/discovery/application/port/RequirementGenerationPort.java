@@ -2,6 +2,8 @@ package com.kntro.reqsai.discovery.application.port;
 
 import org.jspecify.annotations.Nullable;
 
+import java.util.List;
+
 /**
  * Output port for AI-based user-story extraction from a session transcript.
  * Implementations may delegate to Gemini, GPT-4, or any other generative model.
@@ -30,5 +32,22 @@ public interface RequirementGenerationPort {
      */
     default GenerationResult generate(String transcript, String language, @Nullable GenerationContext context) {
         return generate(transcript, language);
+    }
+
+    /**
+     * Reads one message the analyst typed in the assistant chat: answers a question about the project
+     * from {@code context} and {@code overview}, and/or restates the requirement it asks for so the
+     * caller can turn it into suggestions with {@link #generate(String, String, GenerationContext)}.
+     * The default treats the whole message as a requirement with no reply text, so a minimal
+     * implementation (e.g. a test stub) still produces suggestions.
+     *
+     * @param message  what the analyst typed (untrusted)
+     * @param history  earlier turns of the chat, oldest first (untrusted)
+     * @param context  project profile, glossary, constraints and the related backlog stories
+     * @param overview backlog counts, newest stories and sessions
+     */
+    default AssistantReply converse(String message, List<ChatTurn> history, GenerationContext context,
+                                    BacklogOverview overview) {
+        return new AssistantReply("", message, null);
     }
 }

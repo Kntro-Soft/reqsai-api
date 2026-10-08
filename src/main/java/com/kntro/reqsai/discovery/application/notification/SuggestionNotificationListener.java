@@ -15,7 +15,8 @@ import org.springframework.stereotype.Component;
  *
  * <p>Listens to {@link SuggestionCreatedEvent}, {@link SuggestionAcceptedEvent}, and
  * {@link SuggestionDismissedEvent}, and broadcasts each to the corresponding session topic so the
- * client can show/update suggestion cards in realtime without polling.
+ * client can show/update suggestion cards in realtime without polling. Suggestions raised from the
+ * assistant chat belong to no session, so they have no topic: the chat reply already carries them.
  */
 @Component
 @RequiredArgsConstructor
@@ -28,6 +29,7 @@ class SuggestionNotificationListener {
     void onSuggestionCreated(SuggestionCreatedEvent event) {
         log.debug("Broadcasting SUGGESTION_GENERATED for suggestion {} session {}",
                 event.suggestionId(), event.sessionId());
+        if (event.sessionId() == null) return;
         notifier.broadcast(SessionTopics.of(event.sessionId()),
                 SuggestionNotificationMapper.toGeneratedMessage(event));
     }
@@ -36,6 +38,7 @@ class SuggestionNotificationListener {
     void onSuggestionAccepted(SuggestionAcceptedEvent event) {
         log.debug("Broadcasting SUGGESTION_ACCEPTED for suggestion {} session {}",
                 event.suggestionId(), event.sessionId());
+        if (event.sessionId() == null) return;
         notifier.broadcast(SessionTopics.of(event.sessionId()),
                 SuggestionNotificationMapper.toAcceptedMessage(event));
     }
@@ -44,6 +47,7 @@ class SuggestionNotificationListener {
     void onSuggestionDismissed(SuggestionDismissedEvent event) {
         log.debug("Broadcasting SUGGESTION_DISMISSED for suggestion {} session {}",
                 event.suggestionId(), event.sessionId());
+        if (event.sessionId() == null) return;
         notifier.broadcast(SessionTopics.of(event.sessionId()),
                 SuggestionNotificationMapper.toDismissedMessage(event));
     }
