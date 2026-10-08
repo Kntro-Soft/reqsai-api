@@ -35,7 +35,7 @@ reqsai:
       oauth:
         client-id: ${JIRA_OAUTH_CLIENT_ID:dev-client-id}
         client-secret: ${JIRA_OAUTH_CLIENT_SECRET:dev-client-secret}
-        redirect-uri: ${JIRA_OAUTH_CALLBACK_URL:http://localhost:4200/integrations/jira/callback}
+        redirect-uri: ${JIRA_OAUTH_CALLBACK_URL:http://localhost:4200/settings/integrations/jira/callback}
         state-secret: ${JIRA_OAUTH_STATE_SECRET:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef}
 
 logging:

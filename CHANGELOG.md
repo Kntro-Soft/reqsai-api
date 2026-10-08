@@ -11,6 +11,14 @@ follows [Semantic Versioning](https://semver.org/).
 
 _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in progress._
 
+### Fixed (Jira OAuth callback in the dev profile — `bugfix/jira-dev-callback-url`)
+
+- **The `dev` profile pointed the Atlassian callback at `/integrations/jira/callback`, a route the web
+  does not have.** The web callback lives at `/settings/integrations/jira/callback`, which is what the
+  base config, `.env.example` and `docs/JIRA_INTEGRATION.md` use. A local "Conectar con Atlassian" without
+  `JIRA_OAUTH_CALLBACK_URL` sent Atlassian a redirect that did not match the registered one. Production
+  was not affected: it derives the URL from `FRONTEND_URL`.
+
 ### Added (Story approval — `feature/discovery-story-approval`)
 
 - **A story can now be approved, rejected or sent back to draft.** Until now every story stayed in
