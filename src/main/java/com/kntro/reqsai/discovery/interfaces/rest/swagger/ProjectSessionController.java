@@ -1,6 +1,8 @@
 package com.kntro.reqsai.discovery.interfaces.rest.swagger;
 
+import com.kntro.reqsai.discovery.interfaces.rest.dto.request.ChangeSuggestionModeRequest;
 import com.kntro.reqsai.discovery.interfaces.rest.dto.request.CreateDiscoverySessionRequest;
+import com.kntro.reqsai.discovery.interfaces.rest.dto.response.AnalyzeSessionResponse;
 import com.kntro.reqsai.discovery.interfaces.rest.dto.response.DiscoverySessionResponse;
 import com.kntro.reqsai.shared.interfaces.pagination.PageResponse;
 import com.kntro.reqsai.shared.infrastructure.configuration.ApiVersioning;
@@ -20,6 +22,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -129,6 +132,47 @@ public interface ProjectSessionController {
     @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
     @PostMapping(path = "/{sessionId}/start", version = ApiVersioning.V1)
     ResponseEntity<DiscoverySessionResponse> start(
+            @Parameter(description = "Project the session belongs to", required = true)
+            @PathVariable UUID projectId,
+            @Parameter(description = "Session identifier", required = true)
+            @PathVariable UUID sessionId);
+
+    @Operation(
+            summary = "Choose when the assistant analyzes the session",
+            description = """
+                    AUTO (default): the assistant analyzes the conversation on its own as the transcript \
+                    accrues and when the recording stops. MANUAL: it analyzes only when asked with \
+                    POST /{sessionId}/analyze. Allowed while the session is DRAFT, RECORDING or PAUSED \
+                    (422 INVALID_SESSION_STATUS otherwise). Requires SESSION_RUN.""")
+    @ApiResponse(responseCode = "200", description = "Mode changed",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    schema = @Schema(implementation = DiscoverySessionResponse.class)))
+    @ApiResponseNotFound
+    @ApiStandardErrorResponses
+    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
+    @PatchMapping(path = "/{sessionId}/suggestion-mode", version = ApiVersioning.V1)
+    ResponseEntity<DiscoverySessionResponse> changeSuggestionMode(
+            @Parameter(description = "Project the session belongs to", required = true)
+            @PathVariable UUID projectId,
+            @Parameter(description = "Session identifier", required = true)
+            @PathVariable UUID sessionId,
+            @Valid @RequestBody ChangeSuggestionModeRequest request);
+
+    @Operation(
+            summary = "Analyze the conversation now",
+            description = """
+                    Runs the assistant over the conversation accrued since its last analysis right away, \
+                    whatever the session's mode ("Analizar ahora"). The suggestions reach the review tray \
+                    through the session's realtime topic. Only while RECORDING or PAUSED (422 \
+                    INVALID_SESSION_STATUS otherwise). Requires SESSION_RUN.""")
+    @ApiResponse(responseCode = "200", description = "Analysis done",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    schema = @Schema(implementation = AnalyzeSessionResponse.class)))
+    @ApiResponseNotFound
+    @ApiStandardErrorResponses
+    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
+    @PostMapping(path = "/{sessionId}/analyze", version = ApiVersioning.V1)
+    ResponseEntity<AnalyzeSessionResponse> analyze(
             @Parameter(description = "Project the session belongs to", required = true)
             @PathVariable UUID projectId,
             @Parameter(description = "Session identifier", required = true)
