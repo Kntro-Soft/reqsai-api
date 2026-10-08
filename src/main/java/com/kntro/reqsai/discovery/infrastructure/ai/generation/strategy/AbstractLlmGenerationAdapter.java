@@ -37,7 +37,7 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
      * optional — so injected text can neither close the delimited block early nor open a fake one.
      */
     private static final Pattern TRANSCRIPT_TAG = Pattern.compile(
-            "(?:[<\\uFF1C]|&lt;)\\s*(/?)\\s*transcript\\b(?:[^<>\\uFF1C\\uFF1E]{0,64}?(?:[>\\uFF1E]|&gt;))?",
+            "(?:[<\\uFF1C]|&lt;)\\s*+(/?)\\s*+transcript\\b(?:[^<>\\uFF1C\\uFF1E]{0,64}?(?:[>\\uFF1E]|&gt;))?",
             Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
 
     /**
@@ -527,7 +527,7 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
 
     /** Any {@code <message>} / {@code </message>} look-alike in the analyst's chat text (see TRANSCRIPT_TAG). */
     private static final Pattern MESSAGE_TAG = Pattern.compile(
-            "(?:[<\\uFF1C]|&lt;)\\s*(/?)\\s*message\\b(?:[^<>\\uFF1C\\uFF1E]{0,64}?(?:[>\\uFF1E]|&gt;))?",
+            "(?:[<\\uFF1C]|&lt;)\\s*+(/?)\\s*+message\\b(?:[^<>\\uFF1C\\uFF1E]{0,64}?(?:[>\\uFF1E]|&gt;))?",
             Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
 
     /**

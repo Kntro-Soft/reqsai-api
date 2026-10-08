@@ -43,7 +43,7 @@ public class LlmDocumentClassificationAdapter implements DocumentClassificationP
 
     /** Any {@code <document>} / {@code </document>} look-alike inside the untrusted text. */
     private static final Pattern DOCUMENT_TAG = Pattern.compile(
-            "(?:[<\\uFF1C]|&lt;)\\s*(/?)\\s*document\\b(?:[^<>\\uFF1C\\uFF1E]{0,64}?(?:[>\\uFF1E]|&gt;))?",
+            "(?:[<\\uFF1C]|&lt;)\\s*+(/?)\\s*+document\\b(?:[^<>\\uFF1C\\uFF1E]{0,64}?(?:[>\\uFF1E]|&gt;))?",
             Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
 
     static final String PROMPT = """

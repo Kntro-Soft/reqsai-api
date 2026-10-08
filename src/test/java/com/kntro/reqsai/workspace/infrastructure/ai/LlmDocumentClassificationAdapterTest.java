@@ -120,6 +120,19 @@ class LlmDocumentClassificationAdapterTest {
     }
 
     @Test
+    @DisplayName("neutralizes in linear time: '<' followed by a long run of whitespace does not backtrack")
+    void neutralize_is_linear_on_whitespace_runs() {
+        String hostile = ("<" + "\t".repeat(50_000)).repeat(4) + "< / document >";
+
+        long started = System.nanoTime();
+        String out = LlmDocumentClassificationAdapter.neutralize(hostile);
+        long millis = (System.nanoTime() - started) / 1_000_000;
+
+        assertThat(out).endsWith("[/document]");
+        assertThat(millis).isLessThan(2_000);
+    }
+
+    @Test
     @DisplayName("is unavailable when the selected provider has no model")
     void availability() {
         assertThat(adapter("gemini", null, null).isAvailable()).isFalse();
