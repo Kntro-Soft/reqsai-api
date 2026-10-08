@@ -1,9 +1,13 @@
 package com.kntro.reqsai.discovery.interfaces.rest.controllers;
 
+import com.kntro.reqsai.discovery.application.command.AnalyzeSessionNowCommand;
+import com.kntro.reqsai.discovery.application.command.ChangeSuggestionModeCommand;
 import com.kntro.reqsai.discovery.application.command.PauseRecordingCommand;
 import com.kntro.reqsai.discovery.application.command.ResumeRecordingCommand;
 import com.kntro.reqsai.discovery.application.command.StartRecordingCommand;
 import com.kntro.reqsai.discovery.application.command.StopRecordingCommand;
+import com.kntro.reqsai.discovery.application.handler.AnalyzeSessionNowCommandHandler;
+import com.kntro.reqsai.discovery.application.handler.ChangeSuggestionModeCommandHandler;
 import com.kntro.reqsai.discovery.application.handler.CreateDiscoverySessionCommandHandler;
 import com.kntro.reqsai.discovery.application.handler.GetProjectSessionQueryHandler;
 import com.kntro.reqsai.discovery.application.handler.ListProjectSessionsQueryHandler;
@@ -15,7 +19,9 @@ import com.kntro.reqsai.discovery.application.handler.StopRecordingCommandHandle
 import com.kntro.reqsai.discovery.application.query.GetProjectSessionQuery;
 import com.kntro.reqsai.discovery.application.query.ListProjectSessionsQuery;
 import com.kntro.reqsai.discovery.domain.model.DiscoverySession;
+import com.kntro.reqsai.discovery.interfaces.rest.dto.request.ChangeSuggestionModeRequest;
 import com.kntro.reqsai.discovery.interfaces.rest.dto.request.CreateDiscoverySessionRequest;
+import com.kntro.reqsai.discovery.interfaces.rest.dto.response.AnalyzeSessionResponse;
 import com.kntro.reqsai.discovery.interfaces.rest.dto.response.DiscoverySessionResponse;
 import com.kntro.reqsai.discovery.interfaces.rest.mappers.request.DiscoverySessionRequestMapper;
 import com.kntro.reqsai.discovery.interfaces.rest.mappers.response.DiscoverySessionResponseMapper;
@@ -43,6 +49,8 @@ public class ProjectSessionControllerImpl implements ProjectSessionController {
     private final PauseRecordingCommandHandler pauseRecording;
     private final ResumeRecordingCommandHandler resumeRecording;
     private final StopRecordingCommandHandler stopRecording;
+    private final ChangeSuggestionModeCommandHandler changeSuggestionMode;
+    private final AnalyzeSessionNowCommandHandler analyzeSessionNow;
 
     @Override
     @PreAuthorize("@authz.projectPermission(#projectId, 'SESSION_RUN', authentication)")
@@ -77,6 +85,22 @@ public class ProjectSessionControllerImpl implements ProjectSessionController {
     public ResponseEntity<DiscoverySessionResponse> start(UUID projectId, UUID sessionId) {
         DiscoverySession session = startRecording.handle(new StartRecordingCommand(projectId, sessionId));
         return ResponseEntity.ok(DiscoverySessionResponseMapper.toResponse(session));
+    }
+
+    @Override
+    @PreAuthorize("@authz.projectPermission(#projectId, 'SESSION_RUN', authentication)")
+    public ResponseEntity<DiscoverySessionResponse> changeSuggestionMode(UUID projectId, UUID sessionId,
+                                                                         ChangeSuggestionModeRequest request) {
+        DiscoverySession session = changeSuggestionMode.handle(
+                new ChangeSuggestionModeCommand(projectId, sessionId, request.mode()));
+        return ResponseEntity.ok(DiscoverySessionResponseMapper.toResponse(session));
+    }
+
+    @Override
+    @PreAuthorize("@authz.projectPermission(#projectId, 'SESSION_RUN', authentication)")
+    public ResponseEntity<AnalyzeSessionResponse> analyze(UUID projectId, UUID sessionId) {
+        int created = analyzeSessionNow.handle(new AnalyzeSessionNowCommand(projectId, sessionId));
+        return ResponseEntity.ok(new AnalyzeSessionResponse(created));
     }
 
     @Override

@@ -72,6 +72,10 @@ public class DiscoverySession extends AggregateRoot {
     @Column(name = "last_suggested_at")
     private @Nullable Instant lastSuggestedAt;
 
+    /** Whether the assistant analyzes on its own ({@link SuggestionMode#AUTO}) or only when asked. */
+    @Column(name = "auto_suggest", nullable = false)
+    private boolean autoSuggest = true;
+
     @Column(name = "processing_error", length = PROCESSING_ERROR_MAX)
     private String processingError;
 
@@ -183,6 +187,28 @@ public class DiscoverySession extends AggregateRoot {
         if (sequence > this.lastSuggestedSequence) {
             this.lastSuggestedSequence = sequence;
         }
+    }
+
+    /** When the assistant analyzes this session's conversation (US46). */
+    public SuggestionMode getSuggestionMode() {
+        return autoSuggest ? SuggestionMode.AUTO : SuggestionMode.MANUAL;
+    }
+
+    /**
+     * Lets the analyst choose when the assistant analyzes: on its own or only on demand. Allowed until
+     * the recording ends ({@code DRAFT}, {@code RECORDING} or {@code PAUSED}).
+     */
+    public void changeSuggestionMode(SuggestionMode mode) {
+        Assert.notNull(mode, "mode");
+        Assert.isTrue(this.status == SessionStatus.DRAFT || isLive(), "status",
+                "the suggestion mode can only change before or during the recording, but the session is " + this.status,
+                DiscoveryError.INVALID_SESSION_STATUS);
+        this.autoSuggest = mode == SuggestionMode.AUTO;
+    }
+
+    /** {@code RECORDING} or {@code PAUSED}: the meeting is still being captured. */
+    public boolean isLive() {
+        return this.status == SessionStatus.RECORDING || this.status == SessionStatus.PAUSED;
     }
 
     /** Records when the last realtime suggestion pass ran (drives the time-based cadence fallback). */
