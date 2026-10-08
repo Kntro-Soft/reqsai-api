@@ -5,6 +5,7 @@ import com.kntro.reqsai.discovery.domain.model.SuggestionStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -20,6 +21,14 @@ public interface SuggestionRepository {
     Optional<Suggestion> findByIdAndSessionIdForUpdate(UUID id, UUID sessionId);
 
     List<Suggestion> findAllBySessionIdAndStatus(UUID sessionId, SuggestionStatus status);
+
+    /** Locks a suggestion of the project for a review decision, whatever session (if any) it came from. */
+    Optional<Suggestion> findByIdAndProjectIdForUpdate(UUID id, UUID projectId);
+
+    /** The project's suggestions raised from the assistant chat (no session) with the given status. */
+    List<Suggestion> findAllChatSuggestionsByProjectIdAndStatus(UUID projectId, SuggestionStatus status);
+
+    List<Suggestion> findAllByIdIn(Collection<UUID> ids);
 
     /** Paginated suggestions of a project filtered by review status (project-wide backlog triage). */
     Page<Suggestion> findAllByProjectIdAndStatus(UUID projectId, SuggestionStatus status, Pageable pageable);

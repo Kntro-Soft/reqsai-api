@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -29,6 +30,14 @@ public interface SuggestionJpaRepository extends JpaRepository<Suggestion, UUID>
     Optional<Suggestion> findByIdAndSessionIdForUpdate(@Param("id") UUID id, @Param("sessionId") UUID sessionId);
 
     List<Suggestion> findAllBySessionIdAndStatus(UUID sessionId, SuggestionStatus status);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select s from Suggestion s where s.id = :id and s.projectId = :projectId")
+    Optional<Suggestion> findByIdAndProjectIdForUpdate(@Param("id") UUID id, @Param("projectId") UUID projectId);
+
+    List<Suggestion> findAllByProjectIdAndSessionIdIsNullAndStatus(UUID projectId, SuggestionStatus status);
+
+    List<Suggestion> findAllByIdIn(Collection<UUID> ids);
 
     Page<Suggestion> findAllByProjectIdAndStatus(UUID projectId, SuggestionStatus status, Pageable pageable);
 

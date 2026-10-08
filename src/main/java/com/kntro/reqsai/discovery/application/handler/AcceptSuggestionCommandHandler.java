@@ -55,7 +55,22 @@ public class AcceptSuggestionCommandHandler {
     public Suggestion handle(AcceptSuggestionCommand cmd) {
         Suggestion suggestion = suggestions.findByIdAndSessionIdForUpdate(cmd.suggestionId(), cmd.sessionId())
                 .orElseThrow(() -> DiscoveryExceptions.suggestionNotFound(cmd.suggestionId()));
+        return accept(suggestion, cmd);
+    }
 
+    /**
+     * Accepts a suggestion looked up by its project rather than its session: the entry point for
+     * suggestions raised from the assistant chat, which belong to no session. {@code cmd.sessionId()} is
+     * ignored here.
+     */
+    @Transactional
+    public Suggestion handleInProject(UUID projectId, AcceptSuggestionCommand cmd) {
+        Suggestion suggestion = suggestions.findByIdAndProjectIdForUpdate(cmd.suggestionId(), projectId)
+                .orElseThrow(() -> DiscoveryExceptions.suggestionNotFound(cmd.suggestionId()));
+        return accept(suggestion, cmd);
+    }
+
+    private Suggestion accept(Suggestion suggestion, AcceptSuggestionCommand cmd) {
         // Apply the analyst's edited acceptance criteria (when sent) up front so every accept path —
         // and the SuggestionAcceptedEvent — sees the committed set rather than the raw draft.
         applyEditedCriteria(suggestion, cmd);
@@ -77,9 +92,14 @@ public class AcceptSuggestionCommandHandler {
     // ── Type-specific acceptance logic ────────────────────────────────────────
 
     private UUID acceptAsNewStory(Suggestion s, AcceptSuggestionCommand cmd) {
-        UserStory story = new UserStory(s.getSessionId(), s.getProjectId(),
-                title(s, cmd), role(s, cmd), action(s, cmd), benefit(s, cmd),
-                priority(s, cmd), storyPoints(s, cmd));
+        // A suggestion from the assistant chat has no session: its story starts with no originating session.
+        UserStory story = s.getSessionId() != null
+                ? new UserStory(s.getSessionId(), s.getProjectId(),
+                        title(s, cmd), role(s, cmd), action(s, cmd), benefit(s, cmd),
+                        priority(s, cmd), storyPoints(s, cmd))
+                : new UserStory(s.getProjectId(),
+                        title(s, cmd), role(s, cmd), action(s, cmd), benefit(s, cmd),
+                        priority(s, cmd), storyPoints(s, cmd));
         // Carry the (possibly analyst-edited) acceptance criteria onto the story so the analyst does
         // not have to re-type them. Each row was validated non-blank when stored on the suggestion.
         for (Suggestion.DraftCriterion c : s.getDraftAcceptanceCriteria()) {
