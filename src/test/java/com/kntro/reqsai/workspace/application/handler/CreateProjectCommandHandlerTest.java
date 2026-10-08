@@ -52,7 +52,7 @@ class CreateProjectCommandHandlerTest {
 
             when(organizations.findById(orgId)).thenReturn(Optional.of(org));
             when(projects.existsByOrganizationIdAndNameAndStatus(orgId, command.name(), ProjectStatus.ACTIVE)).thenReturn(false);
-            when(projects.countActiveByOrganizationId(orgId)).thenReturn(0);
+            when(projects.countActiveNonDemoByOrganizationId(orgId)).thenReturn(0);
             when(projects.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
 
             // Act
@@ -112,7 +112,7 @@ class CreateProjectCommandHandlerTest {
 
             when(organizations.findById(orgId)).thenReturn(Optional.of(org));
             when(projects.existsByOrganizationIdAndNameAndStatus(orgId, command.name(), ProjectStatus.ACTIVE)).thenReturn(false);
-            when(projects.countActiveByOrganizationId(orgId)).thenReturn(0);
+            when(projects.countActiveNonDemoByOrganizationId(orgId)).thenReturn(0);
             when(projects.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
 
             // Act
@@ -138,7 +138,7 @@ class CreateProjectCommandHandlerTest {
             when(organizations.findById(orgId)).thenReturn(Optional.of(org));
             when(projects.existsByOrganizationIdAndNameAndStatus(orgId, command.name(), ProjectStatus.ACTIVE)).thenReturn(false);
             // already 1 active project
-            when(projects.countActiveByOrganizationId(orgId)).thenReturn(1);
+            when(projects.countActiveNonDemoByOrganizationId(orgId)).thenReturn(1);
 
             // Act & Assert
             assertThatThrownBy(() -> handler.handle(command))
@@ -156,7 +156,7 @@ class CreateProjectCommandHandlerTest {
 
             when(organizations.findById(orgId)).thenReturn(Optional.of(org));
             when(projects.existsByOrganizationIdAndNameAndStatus(orgId, command.name(), ProjectStatus.ACTIVE)).thenReturn(false);
-            when(projects.countActiveByOrganizationId(orgId)).thenReturn(0);
+            when(projects.countActiveNonDemoByOrganizationId(orgId)).thenReturn(0);
             when(projects.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
 
             // Act
@@ -164,7 +164,7 @@ class CreateProjectCommandHandlerTest {
 
             // Assert
             assertThat(project).isNotNull();
-            verify(projects).countActiveByOrganizationId(orgId);
+            verify(projects).countActiveNonDemoByOrganizationId(orgId);
             verify(projects, times(2)).save(any(Project.class)); // persist for id, then persist avatar
         }
     }

@@ -71,6 +71,11 @@ public final class WorkspaceExceptions {
                 "Project limit reached for this plan: " + maxProjects);
     }
 
+    public static DomainException projectNotDemo(UUID projectId) {
+        return new DomainException(WorkspaceError.PROJECT_NOT_DEMO,
+                "Project is not a demo project: " + projectId);
+    }
+
     public static DomainException projectConstraintAlreadyExists(String description) {
         return new DomainException(WorkspaceError.PROJECT_CONSTRAINT_ALREADY_EXISTS,
                 "Project constraint already exists in this project: " + description);

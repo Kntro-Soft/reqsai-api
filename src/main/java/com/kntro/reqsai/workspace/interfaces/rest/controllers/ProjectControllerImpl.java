@@ -2,12 +2,14 @@ package com.kntro.reqsai.workspace.interfaces.rest.controllers;
 
 import com.kntro.reqsai.workspace.application.command.ArchiveProjectCommand;
 import com.kntro.reqsai.workspace.application.command.DeleteProjectCommand;
+import com.kntro.reqsai.workspace.application.command.RestoreDemoProjectCommand;
 import com.kntro.reqsai.workspace.application.command.RestoreProjectCommand;
 import com.kntro.reqsai.workspace.application.handler.ArchiveProjectCommandHandler;
 import com.kntro.reqsai.workspace.application.handler.CreateProjectCommandHandler;
 import com.kntro.reqsai.workspace.application.handler.DeleteProjectCommandHandler;
 import com.kntro.reqsai.workspace.application.handler.GetProjectQueryHandler;
 import com.kntro.reqsai.workspace.application.handler.ListProjectsQueryHandler;
+import com.kntro.reqsai.workspace.application.handler.RestoreDemoProjectCommandHandler;
 import com.kntro.reqsai.workspace.application.handler.RestoreProjectCommandHandler;
 import com.kntro.reqsai.workspace.application.handler.UpdateProjectCommandHandler;
 import com.kntro.reqsai.workspace.application.query.GetProjectQuery;
@@ -40,6 +42,7 @@ public class ProjectControllerImpl implements ProjectController {
     private final ArchiveProjectCommandHandler archiveProject;
     private final RestoreProjectCommandHandler restoreProject;
     private final DeleteProjectCommandHandler deleteProject;
+    private final RestoreDemoProjectCommandHandler restoreDemoProject;
     private final GetProjectQueryHandler getProject;
     private final ListProjectsQueryHandler listProjects;
 
@@ -99,6 +102,14 @@ public class ProjectControllerImpl implements ProjectController {
         UUID requestedBy = UUID.fromString(authentication.getName());
         restoreProject.handle(new RestoreProjectCommand(orgId, projectId, requestedBy));
         return ResponseEntity.noContent().build();
+    }
+
+    @Override
+    @PreAuthorize("@authz.projectPermission(#orgId, #projectId, 'PROJECT_UPDATE', authentication)")
+    public ResponseEntity<ProjectResponse> restoreDemo(UUID orgId, UUID projectId, Authentication authentication) {
+        UUID requestedBy = UUID.fromString(authentication.getName());
+        Project project = restoreDemoProject.handle(new RestoreDemoProjectCommand(orgId, projectId, requestedBy));
+        return ResponseEntity.ok(ProjectResponseMapper.toResponse(project));
     }
 
     @Override

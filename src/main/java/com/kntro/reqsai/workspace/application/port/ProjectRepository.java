@@ -18,6 +18,13 @@ public interface ProjectRepository {
     Page<Project> findAllByOrganizationIdAndStatusAndIdIn(UUID organizationId, ProjectStatus status, Collection<UUID> ids, Pageable pageable);
     boolean existsByOrganizationIdAndNameAndStatus(UUID organizationId, String name, ProjectStatus status);
     boolean existsByOrganizationIdAndNameAndIdNotAndStatus(UUID organizationId, String name, UUID id, ProjectStatus status);
-    int countActiveByOrganizationId(UUID organizationId);
+    /**
+     * Active projects that count against the plan's project limit. The organization's demo project is
+     * excluded, so the sample content never blocks a free-plan user from creating their own projects.
+     */
+    int countActiveNonDemoByOrganizationId(UUID organizationId);
+
+    /** Whether the organization already has its demo project (any status). */
+    boolean existsDemoByOrganizationId(UUID organizationId);
     void delete(Project project);
 }

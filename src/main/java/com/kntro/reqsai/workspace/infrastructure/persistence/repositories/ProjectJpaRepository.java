@@ -19,6 +19,8 @@ public interface ProjectJpaRepository extends JpaRepository<Project, UUID> {
     boolean existsByOrganizationIdAndNameAndStatus(UUID organizationId, String name, ProjectStatus status);
     boolean existsByOrganizationIdAndNameAndIdNotAndStatus(UUID organizationId, String name, UUID id, ProjectStatus status);
 
-    @Query("SELECT COUNT(p) FROM Project p WHERE p.organizationId = :organizationId AND p.status = 'ACTIVE'")
-    int countActiveByOrganizationId(UUID organizationId);
+    @Query("SELECT COUNT(p) FROM Project p WHERE p.organizationId = :organizationId AND p.status = 'ACTIVE' AND p.demo = false")
+    int countActiveNonDemoByOrganizationId(UUID organizationId);
+
+    boolean existsByOrganizationIdAndDemoTrue(UUID organizationId);
 }
