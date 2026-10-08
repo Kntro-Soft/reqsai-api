@@ -319,4 +319,20 @@ class DiscoverySessionTest {
         assertThatThrownBy(() -> session.recordSegment("   ", null, 0, 100, true))
                 .isInstanceOf(DomainException.class);
     }
+
+    @org.junit.jupiter.api.Test
+    @org.junit.jupiter.api.DisplayName("analyzes on its own by default and can switch to on-demand until the recording ends (US46)")
+    void suggestion_mode_changes_until_the_recording_ends() {
+        DiscoverySession session = com.kntro.reqsai.discovery.mothers.DiscoverySessionBuilder.aSession().build();
+        org.assertj.core.api.Assertions.assertThat(session.getSuggestionMode()).isEqualTo(SuggestionMode.AUTO);
+
+        session.changeSuggestionMode(SuggestionMode.MANUAL);
+        session.startRecording(java.time.Instant.now());
+        session.changeSuggestionMode(SuggestionMode.AUTO);
+        org.assertj.core.api.Assertions.assertThat(session.getSuggestionMode()).isEqualTo(SuggestionMode.AUTO);
+
+        session.stopRecording(java.time.Instant.now());
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> session.changeSuggestionMode(SuggestionMode.MANUAL))
+                .isInstanceOf(com.kntro.reqsai.shared.domain.exception.DomainException.class);
+    }
 }
