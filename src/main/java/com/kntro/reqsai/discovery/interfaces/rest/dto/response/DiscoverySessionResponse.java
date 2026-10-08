@@ -58,6 +58,10 @@ public record DiscoverySessionResponse(
         @Nullable Long suggestionsPending,
 
         @Schema(description = "Clarifying questions the AI raised during this session; null when stats are not computed", example = "2", nullable = true)
-        @Nullable Long questionsAsked
+        @Nullable Long questionsAsked,
+
+        @Schema(description = "When the assistant analyzes the conversation: AUTO (on its own) or MANUAL (only on demand)",
+                example = "AUTO", allowableValues = {"AUTO", "MANUAL"})
+        String suggestionMode
 ) {
 }
