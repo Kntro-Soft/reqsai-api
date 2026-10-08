@@ -33,6 +33,15 @@ class LanguageCodeTest {
     }
 
     @Test
+    @DisplayName("should expose the primary language without the region, as STT providers expect")
+    void should_expose_primary_language() {
+        // Act & Assert
+        assertThat(LanguageCode.of("es-PE").primaryLanguage()).isEqualTo("es");
+        assertThat(LanguageCode.of("es-419").primaryLanguage()).isEqualTo("es");
+        assertThat(LanguageCode.of("EN").primaryLanguage()).isEqualTo("en");
+    }
+
+    @Test
     @DisplayName("should reject an invalid BCP-47 tag")
     void should_reject_invalid_tag() {
         // Act & Assert

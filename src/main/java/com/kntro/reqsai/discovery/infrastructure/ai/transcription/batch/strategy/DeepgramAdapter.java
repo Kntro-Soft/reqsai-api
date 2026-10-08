@@ -8,6 +8,7 @@ import com.deepgram.types.ListenV1ResponseResultsUtterancesItem;
 import com.kntro.reqsai.discovery.application.port.TranscriptionResult;
 import com.kntro.reqsai.discovery.infrastructure.exception.DiscoveryInfrastructureExceptions;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.Nullable;
 
 import java.util.List;
 
@@ -29,23 +30,27 @@ public class DeepgramAdapter {
         this.apiKey = apiKey;
     }
 
-    public TranscriptionResult transcribe(byte[] audio, String filename) {
+    public TranscriptionResult transcribe(byte[] audio, String filename, @Nullable String language) {
         if (apiKey == null || apiKey.isBlank()) {
             throw DiscoveryInfrastructureExceptions.transcriptionUnavailable();
         }
 
-        log.debug("Sending {} bytes to Deepgram SDK (file={})", audio.length, filename);
+        log.debug("Sending {} bytes to Deepgram SDK (file={}, language={})", audio.length, filename, language);
 
         DeepgramClient deepgram = DeepgramClient.builder()
                 .apiKey(apiKey)
                 .build();
 
-        MediaTranscribeRequestOctetStream request = MediaTranscribeRequestOctetStream.builder()
+        var requestBuilder = MediaTranscribeRequestOctetStream.builder()
                 .body(audio)
                 .diarize(true)
-                .punctuate(true)
-                .detectLanguage(true)
-                .build();
+                .punctuate(true);
+        if (language != null && !language.isBlank()) {
+            requestBuilder.language(language);
+        } else {
+            requestBuilder.detectLanguage(true);
+        }
+        MediaTranscribeRequestOctetStream request = requestBuilder.build();
 
         MediaTranscribeResponse response = deepgram.listen().v1().media().transcribeFile(request);
 
