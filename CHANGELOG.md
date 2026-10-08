@@ -49,6 +49,48 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
   - `DemoProjectIntegrationTest`: seeding, plan limit, modify then restore, `PROJECT_NOT_DEMO`, `403` for
     a READ member.
 
+### Added (US40 — Identify the speakers of a meeting — `feature/discovery-speaker-labels`)
+
+- **The diarized speakers of a session can be listed and described.**
+  - `GET /api/projects/{projectId}/sessions/{sessionId}/speakers` (`SESSION_READ`) lists them by first
+    appearance in the transcript: `label`, `index`, `displayName`, `name` ("Hablante N" until named),
+    `side` and `segmentCount`.
+  - `PUT /api/projects/{projectId}/sessions/{sessionId}/speakers/{label}` (`SESSION_RUN`) takes
+    `{displayName, side}`; `side` is `CLIENT` or `TEAM`. A blank name goes back to "Hablante N". The
+    description applies to every segment of that speaker, past and future.
+  - A label that never spoke in the session answers 404 `SPEAKER_NOT_FOUND`.
+  - Tenant migration `V20261009100000__session_speakers.sql` adds `session_speakers`, unique per
+    `(session_id, speaker_label)`.
+  - Each change is pushed live on the session topic as `SPEAKER_UPDATED`.
+- **Overlapping speech is reported.** The same response carries `overlaps` (`count`, `totalMs`, up to 50
+  `ranges`): stretches where two different speakers' segments overlap for at least 500 ms, where the
+  speaker attribution may be wrong. Shorter overlaps (a quick "ajá") are ignored.
+- **The AI puts the client first.**
+  - When the transcript is diarized, it reaches the model as one line per speaker turn:
+    `[Ana (Cliente)]: …`, `[Hablante 2 (Equipo)]: …`.
+  - Both prompts gain a rule: what the client asks for, rules or decides is the requirement. What the
+    team says is context, and only becomes a story when the client confirms it. When they disagree,
+    the model follows the client.
+  - Applies to the realtime suggestion passes, the flush on stop, and processing an uploaded
+    recording. Cadence and backlog retrieval still use the plain text.
+  - Names are analyst input: brackets and line breaks are neutralized so they cannot forge a tag, and
+    the transcript delimiters are neutralized as before.
+- **Uploaded recordings keep their speakers.**
+  - Deepgram batch now requests `utterances=true`. With `diarize` alone it labelled the words but
+    returned no utterances, so the speakers were lost.
+  - The diarized utterances of an upload are stored as final segments. The session then shows its
+    speakers like a live one. Uploads without speaker labels (Whisper) keep only the text, as before.
+- **Live Deepgram results are split by speaker.** A final result whose words change speaker becomes one
+  segment per speaker turn, with each turn's own timing. Before, the whole result went to the first
+  word's speaker.
+- **Tests:**
+  - domain: `SessionSpeakerTest`, `SpeakerRosterTest`, `SpeakerOverlapDetectorTest`;
+  - application: `SpeakerTranscriptFormatterTest`, `UpdateSessionSpeakerCommandHandlerTest`, and the
+    speaker cases of the realtime, processing and upload tests;
+  - prompts and parsing: `GenerationScenarioTest` and `DeepgramStreamingAdapterTest`;
+  - `SessionSpeakersIntegrationTest`: upload a diarized meeting, list, name, refuse and process, over
+    HTTP and the tenant schema.
+
 ### Added (US50 — Share stories with the client — `feature/discovery-share-with-client`)
 
 - **Share links.** The team opens a link a client uses without an account.

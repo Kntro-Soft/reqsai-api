@@ -59,6 +59,11 @@ import java.util.stream.Collectors;
  * </ol>
  * It also lists the session's own PENDING suggestions so the model does not re-suggest what the
  * analyst has not reviewed yet (overlapping transcript windows re-surface the same idea).
+ *
+ * <h2>Speakers</h2>
+ * When the transcript is diarized, the window reaches the model as tagged speaker turns
+ * ({@link SpeakerTranscriptFormatter}) with the names and client/team sides the analyst gave, so the
+ * model prioritizes what the client says (US40).
  */
 @Component
 @RequiredArgsConstructor
@@ -80,6 +85,7 @@ public class RealtimeSuggestionService {
     private final SuggestionRepository suggestions;
     private final UserStoryReindexService reindexService;
     private final SessionLockPort sessionLock;
+    private final SessionSpeakerService sessionSpeakers;
 
     @Value("${discovery.realtime.context-top-k:5}")
     private int contextTopK;
@@ -210,8 +216,8 @@ public class RealtimeSuggestionService {
 
         int maxSequence = pending.getLast().getSequence();
         GenerationContext context = buildContext(session, text);
-        Optional<GenerationResult> result = generateWindow(sessionId, text, session.getLanguage().value(), context,
-                watermark, maxSequence);
+        Optional<GenerationResult> result = generateWindow(sessionId, promptTranscript(sessionId, pending, text),
+                session.getLanguage().value(), context, watermark, maxSequence);
 
         List<Suggestion> created = result
                 .map(r -> suggestionCreation.createSuggestions(r, sessionId, session.getProjectId()))
@@ -225,6 +231,19 @@ public class RealtimeSuggestionService {
 
         log.info("Realtime suggestion for session {}: {} suggestions from {} segments (watermark {} -> {}, force={}, onDemand={})", sessionId, created.size(), pending.size(), watermark, maxSequence, force, onDemand);
         return created.size();
+    }
+
+    /**
+     * The window as the model reads it. With diarization, one line per speaker turn tagged with the name and
+     * side the analyst gave ({@code [Ana (Cliente)]: …}), so the prompt can put the client's needs first;
+     * without it, the plain joined text, as before. The cadence and the backlog retrieval keep using the
+     * plain text.
+     */
+    private String promptTranscript(UUID sessionId, List<TranscriptSegment> pending, String plainText) {
+        if (!SpeakerTranscriptFormatter.hasSpeakers(pending)) {
+            return plainText;
+        }
+        return SpeakerTranscriptFormatter.format(pending, sessionSpeakers.rosterOf(sessionId));
     }
 
     /**
