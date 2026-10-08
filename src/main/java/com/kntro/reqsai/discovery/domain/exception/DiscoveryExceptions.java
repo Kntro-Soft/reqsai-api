@@ -71,4 +71,9 @@ public final class DiscoveryExceptions {
                 "Project '%s' already has an active session '%s' (RECORDING or PAUSED); stop it before starting another"
                         .formatted(projectId, activeSessionId));
     }
+
+    /** Unknown, revoked or expired share link: one answer for all, so a visitor learns nothing more. */
+    public static EntityNotFoundException shareLinkUnavailable() {
+        return new EntityNotFoundException(DiscoveryError.SHARE_LINK_UNAVAILABLE, "This share link is not available");
+    }
 }
