@@ -50,7 +50,27 @@ public final class SourceFilter {
                 || file.endsWith(".d.ts") || file.endsWith(".spec.snap") || file.contains(".generated.")) {
             return false;
         }
-        return isSource(lower) || isManifest(lower) || isReadme(lower) || file.endsWith(".csproj");
+        return isSource(lower) || isData(lower) || isManifest(lower) || isReadme(lower) || file.endsWith(".csproj");
+    }
+
+    /** Folders whose JSON / YAML files hold product data (texts, prices, limits) rather than tooling config. */
+    private static final Set<String> DATA_FOLDERS = Set.of("src", "app", "lib", "config", "data", "i18n", "locales",
+            "locale", "lang", "messages", "resources", "assets", "public");
+
+    /**
+     * A JSON or YAML file inside the application's own folders (translations, prices, catalogs, feature
+     * configuration): business values often live there, so it is read as part of its module. Manifests and
+     * lockfiles at the root are not data files.
+     */
+    public static boolean isData(String path) {
+        String lower = path.replace('\\', '/').toLowerCase(java.util.Locale.ROOT);
+        if (!(lower.endsWith(".json") || lower.endsWith(".yml") || lower.endsWith(".yaml"))) return false;
+        if (isManifest(lower) || lower.startsWith(".") || lower.contains("/.")) return false;
+        String[] parts = lower.split("/");
+        for (int i = 0; i < parts.length - 1; i++) {
+            if (DATA_FOLDERS.contains(parts[i])) return true;
+        }
+        return false;
     }
 
     /** Source code that belongs to a module. */

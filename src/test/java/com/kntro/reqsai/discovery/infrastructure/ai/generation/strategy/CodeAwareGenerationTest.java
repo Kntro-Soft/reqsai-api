@@ -56,8 +56,8 @@ class CodeAwareGenerationTest {
         assertThat(prompt)
                 .contains("EXISTING SYSTEM — the client's CURRENT code")
                 .contains("Overview: Reservas en línea para La Tradición.")
-                .contains("C1 | Reservas (acme/reservas: src/reservations) | Crea y cancela reservas de mesas.")
-                .contains("Rules: La cancelación solo se permite hasta 2 horas antes")
+                .contains("C1 | Reservas (acme/reservas: src/reservations) | Capabilities: Cancelar una reserva"
+                        + " | Rules: La cancelación solo se permite hasta 2 horas antes | Crea y cancela reservas de mesas.")
                 .contains("CODE AWARENESS")
                 .contains("\"codeFinding\"")
                 .contains("EVIDENCE");

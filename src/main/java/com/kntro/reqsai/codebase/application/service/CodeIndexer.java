@@ -57,10 +57,10 @@ import java.util.stream.Collectors;
 @Slf4j
 public class CodeIndexer {
 
-    private static final int EXCERPT_FILES = 6;
-    private static final int EXCERPT_LINES = 160;
-    private static final int EXCERPT_FILE_CHARS = 4000;
-    private static final int EXCERPT_TOTAL_CHARS = 14000;
+    private static final int EXCERPT_LINES = 200;
+    private static final int EXCERPT_FILE_CHARS = 5000;
+    private static final int EXCERPT_MIN_FILE_CHARS = 1200;
+    private static final int EXCERPT_TOTAL_CHARS = 18000;
     private static final int DIGEST_LIST_MAX = 40;
     private static final int README_CHARS = 4000;
 
@@ -114,7 +114,9 @@ public class CodeIndexer {
                     .map(f -> new SourceFile(f.path(), SecretRedactor.redact(f.content())))
                     .toList();
             CodeProfile profile = StackDetector.detect(files);
-            List<SourceFile> sources = files.stream().filter(f -> SourceFilter.isSource(f.path())).toList();
+            List<SourceFile> sources = files.stream()
+                    .filter(f -> SourceFilter.isSource(f.path()) || SourceFilter.isData(f.path()))
+                    .toList();
             List<ModuleDraft> drafts = ModuleGrouper.group(sources, maxModules);
             writer.recordStructure(target.repositoryId(), sha, sources.size(), drafts.size(), profile);
 
@@ -234,23 +236,61 @@ public class CodeIndexer {
         return new ModuleSummary(name, summary, capabilities, List.of());
     }
 
-    /** The most telling files of the module, trimmed, so the AI reads what matters within its budget. */
+    /**
+     * Excerpts of the module's files for the AI, most telling first. Every file gets a share of the budget (a
+     * folder of components holds one feature per file, and none should go unread); a module with few files gives
+     * each one more room.
+     */
     static String excerpts(ModuleDraft draft) {
         List<SourceFile> ranked = new ArrayList<>(draft.files());
         ranked.sort(Comparator.comparingInt((SourceFile f) -> rank(f)).reversed()
                 .thenComparing(SourceFile::path));
+        int perFile = Math.max(EXCERPT_MIN_FILE_CHARS,
+                Math.min(EXCERPT_FILE_CHARS, EXCERPT_TOTAL_CHARS / Math.max(1, ranked.size())));
         StringBuilder sb = new StringBuilder();
-        int used = 0;
         for (SourceFile file : ranked) {
-            if (used >= EXCERPT_FILES || sb.length() >= EXCERPT_TOTAL_CHARS) break;
-            String body = file.content().lines().limit(EXCERPT_LINES).collect(Collectors.joining("\n"));
-            if (body.length() > EXCERPT_FILE_CHARS) body = body.substring(0, EXCERPT_FILE_CHARS) + "\n…";
             int room = EXCERPT_TOTAL_CHARS - sb.length();
-            String block = "// FILE: " + file.path() + "\n" + body + "\n\n";
-            sb.append(block.length() <= room ? block : block.substring(0, Math.max(0, room)));
-            used++;
+            if (room <= 200) break;
+            String body = SourceFilter.isData(file.path())
+                    ? dataExcerpt(file)
+                    : file.content().lines().limit(EXCERPT_LINES).collect(Collectors.joining("\n"));
+            int cap = Math.min(perFile, room - 40);
+            if (body.length() > cap) body = body.substring(0, Math.max(0, cap)) + "\n…";
+            sb.append("// FILE: ").append(file.path()).append("\n").append(body).append("\n\n");
         }
         return sb.toString().strip();
+    }
+
+    /** The business values of a data file: flattened JSON, or the value-bearing lines of YAML. */
+    static String dataExcerpt(SourceFile file) {
+        if (file.path().toLowerCase(Locale.ROOT).endsWith(".json")) {
+            String flat = DataDigest.flatten(file.content());
+            if (flat != null) return flat;
+        }
+        return salientLines(file.content());
+    }
+
+    /** Words that mark a line of a data file as carrying business values (prices, plans, limits, times). */
+    private static final java.util.regex.Pattern SALIENT = java.util.regex.Pattern.compile(
+            "\\d|(?i)[\"']?(?:name|nombre|title|t[ií]tulo|id|plan|price|precio|cost|costo|fee|tarifa|discount"
+                    + "|descuento|limit|l[ií]mite|max|min|monthly|mensual|annual|anual|currency|moneda)[\"']?\\s*:");
+
+    /**
+     * The value-bearing lines of a data file (translations, catalogs, configuration) with the line before each
+     * as context: a 30 KB translation file is mostly prose, while its prices and limits sit in a few lines.
+     */
+    static String salientLines(String content) {
+        List<String> lines = content.lines().toList();
+        StringBuilder sb = new StringBuilder();
+        int lastKept = -2;
+        for (int i = 0; i < lines.size(); i++) {
+            String line = lines.get(i);
+            if (line.isBlank() || !SALIENT.matcher(line).find()) continue;
+            if (i - 1 > lastKept && i > 0) sb.append(lines.get(i - 1).strip()).append('\n');
+            sb.append(line.strip()).append('\n');
+            lastKept = i;
+        }
+        return sb.isEmpty() ? content : sb.toString();
     }
 
     private static int rank(SourceFile file) {
