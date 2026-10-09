@@ -17,18 +17,18 @@ docker run --rm -p 8080:8080 -e SPRING_PROFILES_ACTIVE=prod reqsai-api:local
 
 | Workflow | Trigger | Purpose |
 |----------|---------|---------|
-| [`ci.yml`](../.github/workflows/ci.yml) | PR, push to `develop`/`main`, called by `delivery.yml` | Build, test, verify module boundaries |
-| [`codeql.yml`](../.github/workflows/codeql.yml) | PR, push, weekly | Static security analysis (CodeQL, Java) |
-| [`release.yml`](../.github/workflows/release.yml) / [`hotfix.yml`](../.github/workflows/hotfix.yml) | Push to `release/**` / `hotfix/**` | Run [`delivery.yml`](../.github/workflows/delivery.yml): CI → image built once → approval in `produccion` → deploy |
-| [`tag-release.yml`](../.github/workflows/tag-release.yml) | Release/hotfix PR merged into `main` | Tag `vX.Y.Z` + GitHub Release on the deployed commit |
-| [`deploy.yml`](../.github/workflows/deploy.yml) | Manual, on a release tag | Redeploy or roll back an already built image |
+| [`ci.yml`](../.github/workflows/ci.yml) | PR, push to `develop`/`main`/`release/**`/`hotfix/**`, called by `release.yml` | Build, test, lint |
+| [`codeql.yml`](../.github/workflows/codeql.yml) | PR, push (same branches), weekly | Static security analysis (CodeQL, Java) |
+| [`release.yml`](../.github/workflows/release.yml) | Push to `release/**` / `hotfix/**` | CI → image built once as candidate `X.Y.Z-rc.N` (pre-release with digest and tree hash) → automatic verification → PR `release: X.Y.Z` to `main` |
+| [`produccion.yml`](../.github/workflows/produccion.yml) | Push to `main` | Candidate with the same tree → approval in `produccion` → same digest deployed through `reqsai-infra` → `X.Y.Z`/`latest` labels, tag `vX.Y.Z`, back-merge PR |
+| [`rollback.yml`](../.github/workflows/rollback.yml) | Manual (`version`) | Ship the digest of an earlier final release again |
 
 The MVP runs on a single EC2 host managed by
-[`reqsai-infra`](https://github.com/Kntro-Soft/reqsai-infra) (Docker Compose + Caddy). `delivery.yml` builds
-the `linux/arm64` image once, pushes `ghcr.io/kntro-soft/reqsai-api:<commit sha>`, waits for approval in the
-`produccion` environment, and asks `reqsai-infra` to deploy that same image; `reqsai-infra` reaches the host with
-GitHub OIDC + SSM. Each step is switched on by an organization variable (`ENABLE_REQSAI_API_IMAGE`,
-`ENABLE_REQSAI_API_DEPLOY`, `ENABLE_REQSAI_INFRA_DEPLOY`). The release process, approvals and switches are in
+[`reqsai-infra`](https://github.com/Kntro-Soft/reqsai-infra) (Docker Compose + Caddy). There is no second host for
+a staging environment, so each candidate is verified on the runner with the same digest that later goes to
+production; `reqsai-infra` reaches the host with GitHub OIDC + SSM and backs up the database before each deploy.
+Each step is switched on by an organization variable (`ENABLE_REQSAI_API_IMAGE`, `ENABLE_REQSAI_API_DEPLOY`,
+`ENABLE_REQSAI_INFRA_DEPLOY`). The release process, approvals and switches are in
 [CONTRIBUTING.md](../.github/CONTRIBUTING.md#releases-and-deployment).
 
 The sections below describe the ECS Fargate target (`envs/production` in `reqsai-infra`), which is not the
