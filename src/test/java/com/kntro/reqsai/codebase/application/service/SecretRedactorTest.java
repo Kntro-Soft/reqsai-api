@@ -12,6 +12,7 @@ class SecretRedactorTest {
     private static final String STRIPE = "sk_" + "live_" + "abcdefghijklmnopqrstuvwx";
     private static final String GITHUB = "gh" + "p_" + "abcdefghijklmnopqrstuvwxyz0123456789";
     private static final String AWS = "AK" + "IA" + "ABCDEFGHIJKLMNOP";
+    private static final String PEM = "-----BEGIN RSA " + "PRIVATE KEY-----\nMIIEpAIBAAKCAQEA\n-----END RSA " + "PRIVATE KEY-----";
 
     @Test
     @DisplayName("removes tokens, keys, URL passwords and assigned secrets before the AI reads the code")
@@ -22,11 +23,9 @@ class SecretRedactorTest {
                 const aws = "%s";
                 const db = "postgres://reservas:SuperSecret123@db.internal:5432/app";
                 const config = { apiKey: "abc123def456ghi", password: 'hunter22hunter' };
-                -----BEGIN RSA PRIVATE KEY-----
-                MIIEpAIBAAKCAQEA
-                -----END RSA PRIVATE KEY-----
+                %s
                 export const CANCELLATION_LIMIT_HOURS = 2;
-                """.formatted(STRIPE, GITHUB, AWS);
+                """.formatted(STRIPE, GITHUB, AWS, PEM);
         String out = SecretRedactor.redact(code);
         assertThat(out)
                 .doesNotContain(STRIPE, GITHUB, AWS, "SuperSecret123", "abc123def456ghi", "hunter22hunter",
