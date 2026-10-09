@@ -15,15 +15,24 @@ docker run --rm -p 8080:8080 -e SPRING_PROFILES_ACTIVE=prod reqsai-api:local
 
 ## Pipelines (GitHub Actions)
 
-| Workflow                                        | Trigger                       | Purpose                                              |
-|-------------------------------------------------|-------------------------------|------------------------------------------------------|
-| [`ci.yml`](../.github/workflows/ci.yml)         | PR, push to `develop`/`main`  | Build, test, verify module boundaries                |
-| [`codeql.yml`](../.github/workflows/codeql.yml) | PR, push, weekly              | Static security analysis (CodeQL, Java)              |
-| [`deploy.yml`](../.github/workflows/deploy.yml) | Push to `main`, manual        | Build → push to ECR → deploy to ECS Fargate          |
+| Workflow | Trigger | Purpose |
+|----------|---------|---------|
+| [`ci.yml`](../.github/workflows/ci.yml) | PR, push to `develop`/`main`, called by `delivery.yml` | Build, test, verify module boundaries |
+| [`codeql.yml`](../.github/workflows/codeql.yml) | PR, push, weekly | Static security analysis (CodeQL, Java) |
+| [`release.yml`](../.github/workflows/release.yml) / [`hotfix.yml`](../.github/workflows/hotfix.yml) | Push to `release/**` / `hotfix/**` | Run [`delivery.yml`](../.github/workflows/delivery.yml): CI → image built once → approval in `produccion` → deploy |
+| [`tag-release.yml`](../.github/workflows/tag-release.yml) | Release/hotfix PR merged into `main` | Tag `vX.Y.Z` + GitHub Release on the deployed commit |
+| [`deploy.yml`](../.github/workflows/deploy.yml) | Manual, on a release tag | Redeploy or roll back an already built image |
 
-The deploy job authenticates to AWS with **OIDC** (keyless — no long-lived access keys), pushes the
-image to ECR, renders a new task definition revision with that image, and rolls the ECS service
-(`wait-for-service-stability`).
+The MVP runs on a single EC2 host managed by
+[`reqsai-infra`](https://github.com/Kntro-Soft/reqsai-infra) (Docker Compose + Caddy). `delivery.yml` builds
+the `linux/arm64` image once, pushes `ghcr.io/kntro-soft/reqsai-api:<commit sha>`, waits for approval in the
+`produccion` environment, and asks `reqsai-infra` to deploy that same image; `reqsai-infra` reaches the host with
+GitHub OIDC + SSM. Each step is switched on by an organization variable (`ENABLE_REQSAI_API_IMAGE`,
+`ENABLE_REQSAI_API_DEPLOY`, `ENABLE_REQSAI_INFRA_DEPLOY`). The release process, approvals and switches are in
+[CONTRIBUTING.md](../.github/CONTRIBUTING.md#releases-and-deployment).
+
+The sections below describe the ECS Fargate target (`envs/production` in `reqsai-infra`), which is not the
+one serving the MVP.
 
 ## AWS resources
 
@@ -63,11 +72,11 @@ Injected from Secrets Manager via the task definition `secrets` block:
 > a sidecar) that `JWT_PRIVATE_KEY_PATH` / `JWT_PUBLIC_KEY_PATH` point to. Never bake keys into the
 > image.
 
-### GitHub repository configuration for `deploy.yml`
+### GitHub repository configuration (ECS target)
 
 - **Variables:** `AWS_REGION`, `ECR_REPOSITORY`, `ECS_CLUSTER`, `ECS_SERVICE`, `ECS_TASK_DEFINITION`
-  (path to `ecs/task-definition.json`), `CONTAINER_NAME`, `AWS_DEPLOY_ROLE_ARN`.
-- **Secrets:** none required when using OIDC (the IAM role is referenced by ARN).
+  (path to `ecs/task-definition.json`), `CONTAINER_NAME`, `AWS_DEPLOY_ROLE_ARN`. No workflow uses them
+  while the MVP runs on EC2.
 
 ## Database
 

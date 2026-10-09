@@ -11,6 +11,15 @@ follows [Semantic Versioning](https://semver.org/).
 
 _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in progress._
 
+### Changed (Release pipeline — `feature/119-release-pipeline`, #119)
+
+- **Releases deploy from `release/X.Y.Z` and `hotfix/X.Y.Z`, not from pushes to `main`.** `delivery.yml` runs
+  CI, builds the `linux/arm64` image once as `ghcr.io/kntro-soft/reqsai-api:<sha>`, waits for approval in the
+  `produccion` environment and deploys that image through `reqsai-infra`. Merging the release PR tags `vX.Y.Z`
+  on the deployed commit (`tag-release.yml`); `deploy.yml` redeploys a release tag.
+- Deploy switches `ENABLE_REQSAI_API_IMAGE` and `ENABLE_REQSAI_API_DEPLOY` (organization variables).
+- Issue forms for User Story and Task, acceptance criteria on bugs, and `Closes #` in the PR template.
+
 ### Added (Client documents — `feature/workspace-client-documents`, US22)
 
 - **The analyst uploads client documents (PDF or Word `.docx`) to a project and ReqsAI turns them into
