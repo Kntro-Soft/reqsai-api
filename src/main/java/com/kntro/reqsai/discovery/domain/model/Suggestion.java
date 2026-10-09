@@ -48,6 +48,8 @@ public class Suggestion extends AggregateRoot {
     private static final int FIELD_MAX = 500;
     private static final int QUESTION_MAX = 1000;
     private static final int ENUM_MAX = 32;
+    public static final int EVIDENCE_MAX = 500;
+    public static final int CODE_NOTE_MAX = 1000;
     /**
      * Max length of a criterion {@code scenario} label, mirroring {@link AcceptanceCriterion}'s own
      * {@code SCENARIO_MAX}. An over-long LLM-emitted scenario is truncated here so accept never fails
@@ -134,8 +136,49 @@ public class Suggestion extends AggregateRoot {
     @Column(name = "similarity")
     private @Nullable Double similarity;
 
+    // ── Evidence and code insight (code-aware copilot) ───────────────────────────
+
+    /** Sequence of the session's transcript segment that holds {@link #evidenceQuote}; null when unknown. */
+    @Column(name = "evidence_sequence")
+    private @Nullable Integer evidenceSequence;
+
+    /** The verbatim fragment of the conversation the suggestion is based on. */
+    @Column(name = "evidence_quote", length = EVIDENCE_MAX)
+    private @Nullable String evidenceQuote;
+
+    /** What the client's connected code says about it: already built, or in conflict with a rule. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "code_finding", length = ENUM_MAX)
+    private @Nullable CodeFinding codeFinding;
+
+    @Column(name = "code_note", length = CODE_NOTE_MAX)
+    private @Nullable String codeNote;
+
+    /** Modules of the client's code the suggestion relates to. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "code_refs", columnDefinition = "jsonb", nullable = false)
+    private List<CodeReference> codeReferences = new ArrayList<>();
+
     protected Suggestion() {
         super();
+    }
+
+    /**
+     * Attaches where the suggestion was said and what the client's code says about it, right after the
+     * factory and before the save, so the creation event the live card is built from carries them too.
+     */
+    public void annotate(@Nullable Integer sequence, @Nullable String quote, @Nullable CodeFinding finding,
+                         @Nullable String note, @Nullable List<CodeReference> references) {
+        this.evidenceQuote = quote == null || quote.isBlank() ? null : clip(quote.strip(), EVIDENCE_MAX);
+        this.evidenceSequence = this.evidenceQuote == null ? null : sequence;
+        this.codeFinding = finding;
+        this.codeNote = finding == null || note == null || note.isBlank() ? null : clip(note.strip(), CODE_NOTE_MAX);
+        this.codeReferences = references == null ? new ArrayList<>() : new ArrayList<>(references);
+        replaceEvent(SuggestionCreatedEvent.class, SuggestionCreatedEvent.of(this));
+    }
+
+    private static String clip(String value, int max) {
+        return value.length() <= max ? value : value.substring(0, max - 3) + "...";
     }
 
     // ── Factory methods ───────────────────────────────────────────────────────

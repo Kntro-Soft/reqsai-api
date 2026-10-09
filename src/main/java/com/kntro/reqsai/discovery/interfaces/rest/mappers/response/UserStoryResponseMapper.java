@@ -1,6 +1,7 @@
 package com.kntro.reqsai.discovery.interfaces.rest.mappers.response;
 
 import com.kntro.reqsai.discovery.domain.model.UserStory;
+import com.kntro.reqsai.discovery.interfaces.rest.dto.response.StoryOriginResponse;
 import com.kntro.reqsai.discovery.interfaces.rest.dto.response.UserStoryResponse;
 
 /** Maps the {@link UserStory} aggregate to its response DTO. */
@@ -27,6 +28,10 @@ public final class UserStoryResponseMapper {
                 story.getUpdatedAt(),
                 story.getAcceptanceCriteria().stream()
                         .map(AcceptanceCriterionResponseMapper::toResponse)
-                        .toList());
+                        .toList(),
+                story.getOriginQuote() == null ? null
+                        : new StoryOriginResponse(story.getOriginSessionId(), story.getOriginSequence(),
+                                story.getOriginQuote()),
+                InsightResponseMapper.references(story.getCodeReferences()));
     }
 }

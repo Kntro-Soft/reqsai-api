@@ -53,12 +53,23 @@ public class StoryExtractionService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Optional<UserStory> extractOne(GenerationResult.GeneratedStory generated, UUID sessionId, UUID projectId) {
+        return extractOne(generated, sessionId, projectId, QuoteLocator.NONE);
+    }
+
+    /** As {@link #extractOne(GenerationResult.GeneratedStory, UUID, UUID)}; the story keeps where it was said. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public Optional<UserStory> extractOne(GenerationResult.GeneratedStory generated, UUID sessionId, UUID projectId,
+                                          QuoteLocator locator) {
         // Clients add "Como / quiero / para" and "Dado / Cuando / Entonces" themselves.
         GenerationResult.GeneratedStory gen = GeneratedStoryNormalizer.normalize(generated);
         try {
             UserStory story = new UserStory(sessionId, projectId, gen.title(), gen.role(), gen.action(), gen.benefit(), gen.priority(), gen.storyPoints());
             if (gen.acceptanceCriteria() != null) {
                 gen.acceptanceCriteria().forEach(c -> story.addAcceptanceCriterion(c.scenario(), c.given(), c.when(), c.then()));
+            }
+            if (gen.insight() != null && gen.insight().evidenceQuote() != null) {
+                String quote = gen.insight().evidenceQuote();
+                story.recordOrigin(sessionId, locator.sequenceOf(quote), quote, gen.insight().codeReferences());
             }
             deduplication.embedAndGuardDuplicates(story);
             return Optional.of(stories.save(story));

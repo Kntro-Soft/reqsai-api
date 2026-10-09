@@ -83,6 +83,25 @@ public class UserStory extends AggregateRoot {
     @OneToMany(mappedBy = "story", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     private List<AcceptanceCriterion> acceptanceCriteria = new ArrayList<>();
 
+    // ── Origin and code (code-aware copilot) ──────────────────────────────────────
+
+    /** The session where the story was said, when it came from a suggestion with evidence. */
+    @Column(name = "origin_session_id", columnDefinition = "uuid")
+    private @Nullable UUID originSessionId;
+
+    /** Sequence of the transcript segment holding {@link #originQuote}; null when it was not located. */
+    @Column(name = "origin_sequence")
+    private @Nullable Integer originSequence;
+
+    /** The verbatim fragment of the meeting the story is based on. */
+    @Column(name = "origin_quote", length = 500)
+    private @Nullable String originQuote;
+
+    /** Modules of the client's connected code the story relates to. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "code_refs", columnDefinition = "jsonb", nullable = false)
+    private List<CodeReference> codeReferences = new ArrayList<>();
+
     protected UserStory() {
         super();
     }
@@ -133,6 +152,21 @@ public class UserStory extends AggregateRoot {
      */
     public boolean isIndexed() {
         return embedding != null;
+    }
+
+    /**
+     * Records where the story was said (the session, the transcript segment and the quote) and the modules of
+     * the client's code it relates to — kept from the suggestion it was accepted from.
+     */
+    public void recordOrigin(@Nullable UUID sessionId, @Nullable Integer sequence, @Nullable String quote,
+                             @Nullable List<CodeReference> references) {
+        if (quote != null && !quote.isBlank()) {
+            String text = quote.strip();
+            this.originQuote = text.length() <= 500 ? text : text.substring(0, 497) + "...";
+            this.originSessionId = sessionId;
+            this.originSequence = sessionId == null ? null : sequence;
+        }
+        this.codeReferences = references == null ? new ArrayList<>() : new ArrayList<>(references);
     }
 
     /**

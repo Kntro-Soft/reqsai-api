@@ -34,11 +34,55 @@ public record GenerationContext(
         List<GlossaryEntry> glossaryTerms,
         List<StorySummary> existingStories,
         List<PendingSuggestion> alreadySuggested,
-        List<DocumentEntry> documents
+        List<DocumentEntry> documents,
+        @Nullable CodeContext code
 ) {
 
     public GenerationContext {
         documents = documents == null ? List.of() : List.copyOf(documents);
+    }
+
+    /** A context with client documents and no connected code. */
+    public GenerationContext(String projectName, @Nullable String projectDescription,
+                             List<String> programmingLanguages, List<String> frameworks, List<String> databases,
+                             @Nullable String architecture, @Nullable String domain, List<String> constraints,
+                             List<GlossaryEntry> glossaryTerms, List<StorySummary> existingStories,
+                             List<PendingSuggestion> alreadySuggested, List<DocumentEntry> documents) {
+        this(projectName, projectDescription, programmingLanguages, frameworks, databases, architecture, domain,
+                constraints, glossaryTerms, existingStories, alreadySuggested, documents, null);
+    }
+
+    /** The same context with what the client's connected code says (null or empty: no code section). */
+    public GenerationContext withCode(@Nullable CodeContext value) {
+        return new GenerationContext(projectName, projectDescription, programmingLanguages, frameworks, databases,
+                architecture, domain, constraints, glossaryTerms, existingStories, alreadySuggested, documents,
+                value == null || value.isEmpty() ? null : value);
+    }
+
+    /**
+     * The client's connected code as the copilot sees it in this pass: an overview of the product and the
+     * modules most related to the conversation, each with a short key ({@code C1}, {@code C2}, …) the model
+     * cites in {@code codeRefs}.
+     */
+    public record CodeContext(@Nullable String overview, List<CodeModuleEntry> modules) {
+
+        public CodeContext {
+            modules = modules == null ? List.of() : List.copyOf(modules);
+        }
+
+        public boolean isEmpty() {
+            return (overview == null || overview.isBlank()) && modules.isEmpty();
+        }
+    }
+
+    /** One module of the client's code: what it does, its capabilities and the rules it implements. */
+    public record CodeModuleEntry(String key, String repository, String path, String name, String summary,
+                                  List<String> capabilities, List<String> businessRules, @Nullable String url) {
+
+        public CodeModuleEntry {
+            capabilities = capabilities == null ? List.of() : List.copyOf(capabilities);
+            businessRules = businessRules == null ? List.of() : List.copyOf(businessRules);
+        }
     }
 
     /** A context without client documents. */

@@ -1,6 +1,8 @@
 package com.kntro.reqsai.discovery.interfaces.notification.messages;
 
 import com.kntro.reqsai.discovery.domain.model.Priority;
+import com.kntro.reqsai.discovery.interfaces.rest.dto.response.SuggestionCodeResponse;
+import com.kntro.reqsai.discovery.interfaces.rest.dto.response.SuggestionEvidenceResponse;
 import com.kntro.reqsai.discovery.domain.model.Suggestion;
 import com.kntro.reqsai.discovery.domain.model.SuggestionStatus;
 import com.kntro.reqsai.discovery.domain.model.SuggestionType;
@@ -36,7 +38,9 @@ public record SessionSuggestionMessage(
         @Nullable String question,
         List<Suggestion.DraftCriterion> draftAcceptanceCriteria,
         @Nullable UUID resolvedStoryId,
-        Instant occurredAt
+        Instant occurredAt,
+        @Nullable SuggestionEvidenceResponse evidence,
+        @Nullable SuggestionCodeResponse code
 ) implements SessionRealtimeMessage {
 
     @Override

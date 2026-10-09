@@ -105,6 +105,8 @@ public class AcceptSuggestionCommandHandler {
         for (Suggestion.DraftCriterion c : s.getDraftAcceptanceCriteria()) {
             story.addAcceptanceCriterion(c.scenario(), c.given(), c.when(), c.then());
         }
+        // Traceability: the story keeps where it was said and the client's code it relates to.
+        story.recordOrigin(s.getSessionId(), s.getEvidenceSequence(), s.getEvidenceQuote(), s.getCodeReferences());
         embedIfAvailable(story);
         return storyRepo.save(story).getId();
     }

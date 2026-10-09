@@ -50,6 +50,17 @@ public abstract class AggregateRoot extends AuditableEntity {
         return event;
     }
 
+    /**
+     * Replaces a still-unpublished event of {@code type} with {@code event} — for a snapshot event taken before the
+     * aggregate was complete (e.g. a creation event, when details are attached right after the factory). Does
+     * nothing when no such event is pending, so a later change never re-announces the aggregate.
+     */
+    protected <E> void replaceEvent(Class<E> type, E event) {
+        if (domainEvents.removeIf(type::isInstance)) {
+            domainEvents.add(event);
+        }
+    }
+
     @DomainEvents
     Collection<Object> domainEvents() {
         return Collections.unmodifiableList(domainEvents);

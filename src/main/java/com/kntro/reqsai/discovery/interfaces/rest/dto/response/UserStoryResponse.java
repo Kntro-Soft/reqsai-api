@@ -53,6 +53,13 @@ public record UserStoryResponse(
         Instant updatedAt,
 
         @Schema(description = "Acceptance criteria in Given / When / Then format")
-        List<AcceptanceCriterionResponse> acceptanceCriteria
+        List<AcceptanceCriterionResponse> acceptanceCriteria,
+
+        @Schema(description = "Where the story was said (from the suggestion it was accepted from); null when unknown",
+                nullable = true)
+        @Nullable StoryOriginResponse origin,
+
+        @Schema(description = "Modules of the client's connected code the story relates to")
+        List<CodeReferenceResponse> codeReferences
 ) {
 }

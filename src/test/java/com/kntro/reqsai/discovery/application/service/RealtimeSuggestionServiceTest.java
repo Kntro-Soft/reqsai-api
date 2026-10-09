@@ -1,5 +1,6 @@
 package com.kntro.reqsai.discovery.application.service;
 
+import com.kntro.reqsai.codebase.api.CodebaseModuleApi;
 import com.kntro.reqsai.discovery.application.port.*;
 import com.kntro.reqsai.discovery.domain.model.DiscoverySession;
 import com.kntro.reqsai.shared.application.port.EmbeddingPort;
@@ -54,6 +55,7 @@ class RealtimeSuggestionServiceTest {
     @Mock private UserStoryReindexService reindexService;
     @Mock private SessionLockPort sessionLock;
     @Mock private SessionSpeakerService sessionSpeakers;
+    @Mock private CodebaseModuleApi codebase;
 
     @InjectMocks
     private RealtimeSuggestionService service;
@@ -114,7 +116,7 @@ class RealtimeSuggestionServiceTest {
             GenerationResult result = new GenerationResult(List.of(new GenerationResult.GeneratedStory(
                     "Pagar con Yape", "cliente", "pagar con Yape", "pagar rápido", Priority.HIGH, 2, List.of())));
             when(generation.generate(any(), any(), isNull())).thenReturn(result);
-            when(suggestionCreation.createSuggestions(eq(result), eq(sessionId), eq(projectId)))
+            when(suggestionCreation.createSuggestions(eq(result), eq(sessionId), eq(projectId), any(QuoteLocator.class)))
                     .thenReturn(List.of(org.mockito.Mockito.mock(com.kntro.reqsai.discovery.domain.model.Suggestion.class)));
 
             int created = service.analyzeNow(sessionId);
@@ -231,7 +233,7 @@ class RealtimeSuggestionServiceTest {
             service.suggest(sessionId);
 
             verify(generation).generate(any(), any(), (GenerationContext) isNull());
-            verify(suggestionCreation).createSuggestions(any(), eq(sessionId), eq(projectId));
+            verify(suggestionCreation).createSuggestions(any(), eq(sessionId), eq(projectId), any(QuoteLocator.class));
         }
 
         @Test
@@ -665,7 +667,7 @@ class RealtimeSuggestionServiceTest {
 
             service.suggest(sessionId);
 
-            verify(suggestionCreation).createSuggestions(story, sessionId, projectId);
+            verify(suggestionCreation).createSuggestions(eq(story), eq(sessionId), eq(projectId), any(QuoteLocator.class));
             verify(sessions).advanceSuggestionWatermark(eq(sessionId), eq(3), any());
         }
 
@@ -680,7 +682,7 @@ class RealtimeSuggestionServiceTest {
             service.suggest(sessionId);
 
             verify(generation, times(2)).generate(any(), any(), any());
-            verify(suggestionCreation).createSuggestions(story, sessionId, projectId);
+            verify(suggestionCreation).createSuggestions(eq(story), eq(sessionId), eq(projectId), any(QuoteLocator.class));
             verify(sessions).advanceSuggestionWatermark(eq(sessionId), eq(4), any());
         }
 

@@ -39,8 +39,24 @@ public record GenerationResult(List<GeneratedStory> stories, List<GeneratedQuest
             @Nullable Integer storyPoints,
             List<GeneratedCriterion> acceptanceCriteria,
             @Nullable String relatedTopic,
-            @Nullable UUID targetStoryId
+            @Nullable UUID targetStoryId,
+            @Nullable StoryInsight insight
     ) {
+        /** A story without evidence or code insight (the shape most callers and tests build). */
+        public GeneratedStory(SuggestionType type, String title, String role, String action, String benefit,
+                              Priority priority, @Nullable Integer storyPoints,
+                              List<GeneratedCriterion> acceptanceCriteria, @Nullable String relatedTopic,
+                              @Nullable UUID targetStoryId) {
+            this(type, title, role, action, benefit, priority, storyPoints, acceptanceCriteria, relatedTopic,
+                    targetStoryId, null);
+        }
+
+        /** The same story with another insight. */
+        public GeneratedStory withInsight(@Nullable StoryInsight value) {
+            return new GeneratedStory(type, title, role, action, benefit, priority, storyPoints, acceptanceCriteria,
+                    relatedTopic, targetStoryId, value);
+        }
+
         /** Convenience constructor for the batch path (always NEW_STORY, no relatedTopic/target). */
         public GeneratedStory(String title, String role, String action, String benefit,
                               Priority priority, @Nullable Integer storyPoints,
@@ -57,6 +73,13 @@ public record GenerationResult(List<GeneratedStory> stories, List<GeneratedQuest
             String then
     ) {}
 
-    /** A clarifying question emitted by the LLM when the transcript is ambiguous. */
-    public record GeneratedQuestion(String question) {}
+    /**
+     * A clarifying question emitted by the LLM when the transcript is ambiguous, with the verbatim quote of the
+     * conversation that raised it when the model gave one.
+     */
+    public record GeneratedQuestion(String question, @Nullable String evidenceQuote) {
+        public GeneratedQuestion(String question) {
+            this(question, null);
+        }
+    }
 }

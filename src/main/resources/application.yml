@@ -161,6 +161,12 @@ reqsai:
       webhook-secret: ${STRIPE_WEBHOOK_SECRET:}
       success-url: ${STRIPE_SUCCESS_URL:${WEB_APP_URL:http://localhost:4200}/billing/success}
       cancel-url: ${STRIPE_CANCEL_URL:${WEB_APP_URL:http://localhost:4200}/billing/cancel}
+  codebase:
+    github:
+      api-url: ${CODEBASE_GITHUB_API_URL:https://api.github.com}
+    max-repositories-per-project: ${CODEBASE_MAX_REPOSITORIES:3}
+    max-modules: ${CODEBASE_MAX_MODULES:80}
+    summary-language: ${CODEBASE_SUMMARY_LANGUAGE:Spanish}
   integrations:
     # Base64-encoded 32-byte (AES-256) key used to encrypt third-party integration secrets at rest
     # (ADR-0023). Required for the integrations feature; keep it out of source control (.env / secret).

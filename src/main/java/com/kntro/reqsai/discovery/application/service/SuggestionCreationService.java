@@ -1,6 +1,7 @@
 package com.kntro.reqsai.discovery.application.service;
 
 import com.kntro.reqsai.discovery.application.port.GenerationResult;
+import com.kntro.reqsai.discovery.application.port.StoryInsight;
 import com.kntro.reqsai.discovery.application.port.SuggestionRepository;
 import com.kntro.reqsai.discovery.application.port.UserStoryRepository;
 import com.kntro.reqsai.discovery.domain.model.Suggestion;
@@ -93,6 +94,16 @@ public class SuggestionCreationService {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public List<Suggestion> createSuggestions(GenerationResult result, @Nullable UUID sessionId, UUID projectId) {
+        return createSuggestions(result, sessionId, projectId, QuoteLocator.NONE);
+    }
+
+    /**
+     * As {@link #createSuggestions(GenerationResult, UUID, UUID)}, and every suggestion keeps the verbatim quote it
+     * comes from (located in the session's transcript by {@code locator}) and what the client's code says about
+     * it — the code-aware copilot.
+     */
+    public List<Suggestion> createSuggestions(GenerationResult result, @Nullable UUID sessionId, UUID projectId,
+                                              QuoteLocator locator) {
         List<Suggestion> created = new ArrayList<>();
 
         // A pass sees only new transcript, but the model still re-surfaces ideas already awaiting review.
@@ -175,6 +186,7 @@ public class SuggestionCreationService {
                     skippedNoOpUpdate++;
                     continue;
                 }
+                annotate(suggestion, gen.insight(), locator);
                 created.add(suggestions.save(suggestion)); // Spring Data publishes events on commit
                 // Guard the rest of this same pass against a repeat of what was just kept, and its title.
                 SuggestionDedupPolicy.Draft kept = SuggestionDedupPolicy.Draft.of(suggestion);
@@ -200,6 +212,7 @@ public class SuggestionCreationService {
             }
             try {
                 Suggestion suggestion = Suggestion.clarifyingQuestion(sessionId, projectId, q.question());
+                annotate(suggestion, StoryInsight.evidence(q.evidenceQuote()), locator);
                 created.add(suggestions.save(suggestion));
                 log.debug("Clarifying-question suggestion created: session={}", sessionId);
             } catch (Exception e) {
@@ -215,6 +228,14 @@ public class SuggestionCreationService {
                 sessionId, created.size(), skippedDuplicate, skippedNoOpUpdate, skippedIncoherent, failed,
                 keptLinkedToPending, result.stories().size(), result.questions().size());
         return created;
+    }
+
+    /** Attaches the quote (and the transcript segment holding it) and the code insight, before the save. */
+    private static void annotate(Suggestion suggestion, @Nullable StoryInsight insight, QuoteLocator locator) {
+        if (insight == null || insight.isEmpty()) return;
+        String quote = insight.evidenceQuote();
+        Integer sequence = quote == null ? null : locator.sequenceOf(quote);
+        suggestion.annotate(sequence, quote, insight.codeFinding(), insight.codeNote(), insight.codeReferences());
     }
 
     /** A draft that cannot become a valid story: any of title/role/action/benefit blank. */
@@ -280,7 +301,7 @@ public class SuggestionCreationService {
     private static GenerationResult.GeneratedStory asNewStory(GenerationResult.GeneratedStory gen, String title) {
         return new GenerationResult.GeneratedStory(SuggestionType.NEW_STORY,
                 title, gen.role(), gen.action(), gen.benefit(), gen.priority(), gen.storyPoints(),
-                gen.acceptanceCriteria(), null, null);
+                gen.acceptanceCriteria(), null, null, gen.insight());
     }
 
     private static @Nullable Double cosineOrNull(float @Nullable [] a, float @Nullable [] b) {

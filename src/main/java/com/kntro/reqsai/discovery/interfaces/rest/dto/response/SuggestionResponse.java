@@ -71,7 +71,15 @@ public record SuggestionResponse(
         Instant createdAt,
 
         @Schema(description = "When the suggestion was last updated")
-        Instant updatedAt
+        Instant updatedAt,
+
+        @Schema(description = "Where it was said: verbatim fragment and transcript segment; null when unknown",
+                nullable = true)
+        @Nullable SuggestionEvidenceResponse evidence,
+
+        @Schema(description = "What the client's connected code says: already built or in conflict, with the"
+                + " modules; null when no code is connected or it says nothing", nullable = true)
+        @Nullable SuggestionCodeResponse code
 ) {
 
     @Schema(description = "A proposed Given/When/Then acceptance criterion (NEW_STORY draft or EDGE_CASE)")

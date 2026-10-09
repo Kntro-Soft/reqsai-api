@@ -1,6 +1,8 @@
 package com.kntro.reqsai.discovery.application.notification;
 
 import com.kntro.reqsai.discovery.domain.event.SuggestionCreatedEvent;
+import com.kntro.reqsai.discovery.domain.model.CodeFinding;
+import com.kntro.reqsai.discovery.domain.model.CodeReference;
 import com.kntro.reqsai.discovery.domain.model.Priority;
 import com.kntro.reqsai.discovery.domain.model.SuggestionType;
 import com.kntro.reqsai.discovery.interfaces.notification.SessionEventType;
@@ -88,9 +90,22 @@ class SuggestionBroadcastIntegrationTest extends AbstractIntegrationTest {
         SuggestionCreatedEvent event = new SuggestionCreatedEvent(
                 suggestionId, sessionId, projectId, SuggestionType.NEW_STORY,
                 "Autenticación de dos factores", "usuario", "activar 2FA", "proteger mi cuenta",
-                Priority.HIGH, 5, null, null, null, List.of(), Instant.now());
+                Priority.HIGH, 5, null, null, null, List.of(), Instant.now(),
+                7, "queremos activar la verificación en dos pasos", CodeFinding.CONFLICTS_WITH_CODE,
+                "El código solo permite SMS; el cliente pide una app autenticadora",
+                List.of(new CodeReference("acme/app", "src/auth", "Autenticación",
+                        "https://github.com/acme/app/tree/main/src/auth")));
 
         SessionSuggestionMessage msg = awaitFirst(received, () -> suggestionListener.onSuggestionCreated(event));
+
+        // The code-aware copilot: the live card carries where it was said and what the code says.
+        assertThat(msg.evidence()).isNotNull();
+        assertThat(msg.evidence().sequence()).isEqualTo(7);
+        assertThat(msg.evidence().quote()).contains("verificación en dos pasos");
+        assertThat(msg.code()).isNotNull();
+        assertThat(msg.code().finding()).isEqualTo("CONFLICTS_WITH_CODE");
+        assertThat(msg.code().references()).singleElement()
+                .satisfies(r -> assertThat(r.path()).isEqualTo("src/auth"));
 
         assertThat(msg.sessionId()).isEqualTo(sessionId);
         assertThat(msg.suggestionId()).isEqualTo(suggestionId);
