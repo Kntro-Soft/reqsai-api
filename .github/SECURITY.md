@@ -28,8 +28,9 @@ If a secret was exposed, it must be **rotated immediately** and purged from hist
 - **No secrets in the repo.** Credentials, API keys and tokens are provided via environment
   variables / a git-ignored `.env`, never committed.
 - **JWT keys** are never committed. Dev keys are generated locally with
-  `scripts/generate-jwt-keys.sh` (git-ignored under `src/main/resources/certs/`); production keys are
-  mounted as secrets (see [`deploy.yml`](./workflows/deploy.yml)).
+  `scripts/generate-jwt-keys.sh` (git-ignored under `src/main/resources/certs/`); production keys come
+  from the encrypted Ansible vault of [`reqsai-infra`](https://github.com/Kntro-Soft/reqsai-infra) as
+  `JWT_PRIVATE_KEY_PEM` / `JWT_PUBLIC_KEY_PEM` in the host's `api.env`.
 - **JWT** uses RS256 (asymmetric); only the public key is needed to verify tokens.
 - **Multitenancy isolation**: every database connection resets `search_path` on release; the
   tenant resolver fails closed to `public` on any lookup error.
