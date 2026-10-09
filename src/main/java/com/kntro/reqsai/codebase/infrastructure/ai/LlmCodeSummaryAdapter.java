@@ -55,8 +55,11 @@ public class LlmCodeSummaryAdapter implements CodeSummaryPort {
 
             Rules:
             - Write every text field in %s (the language of the requirement meetings).
-            - "name": a short business name for the module (2 to 4 words, e.g. "Reservas", "Pagos con tarjeta",
-              "Autenticación"); use the folder name only when it already reads like a business name.
+            - "name": a short business name for what THIS folder does (2 to 4 words, e.g. "API de reservas",
+              "Pantallas de reserva", "Pagos con tarjeta"). The product has other modules, so never use the
+              product's name or one that would fit the whole app; name the part. The repository root or a
+              technical folder says what it holds ("Arranque y configuración"). Use the folder name only when it
+              already reads like a business name.
             - "summary": what the module does for the users or the business, in 1 to 3 sentences (at most 400
               characters), in plain language for a requirements analyst.
             - "capabilities": up to 12 things a user or another system can do thanks to this module, each a short
