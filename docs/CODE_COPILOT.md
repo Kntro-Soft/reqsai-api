@@ -50,7 +50,7 @@ The model answers per story:
 Every story and question also carries `evidence`, a verbatim fragment of the conversation. The adapter then post-processes the answer:
 - Keys are resolved to the modules that were shown; unknown keys are dropped.
 - A finding is ignored when the prompt had no code.
-- `QuoteLocator` places the quote on its transcript segment.
+- `QuoteLocator` places the quote on the transcript segment where it starts. A live transcriber cuts a sentence into short segments, so the quote is looked for across up to 4 consecutive ones, first verbatim and then by shared words (at least 60% of the quote's words).
 
 The suggestion stores both, the live `SUGGESTION_GENERATED` message carries them, and an accepted story keeps them as `origin` and `codeReferences`. The code never decides the type of a suggestion: the backlog rules still choose NEW_STORY, UPDATE_STORY or EDGE_CASE.
 
