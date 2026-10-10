@@ -339,6 +339,7 @@ class CodeCopilotIntegrationTest extends AbstractIntegrationTest {
                 .isEqualTo(HttpStatus.ACCEPTED);
         JsonNode revoked = awaitStatus(orgId, repos, internoId, "FAILED", true);
         assertThat(revoked.path("error").asString()).contains("ya no está compartido");
+        assertThat(revoked.path("autoUpdate").asBoolean()).isFalse();
 
         // Disconnecting GitHub unlinks the installation; the menu repository stops updating.
         assertThat(send(HttpMethod.DELETE, OWNER_USER_ID, orgId, github + "/installations/" + INSTALLATION, null)
@@ -347,6 +348,18 @@ class CodeCopilotIntegrationTest extends AbstractIntegrationTest {
                 .path("installations").size()).isZero();
         assertThat(awaitStatus(orgId, repos, menu.path("id").asString(), "FAILED", true).path("error").asString())
                 .contains("Se desconectó GitHub");
+
+        // GitHub connected again: retrying reads the repository through the installation again.
+        String again = JSON.readTree(send(HttpMethod.POST, OWNER_USER_ID, orgId, github + "/install", null).getBody())
+                .path("url").asString();
+        String againState = URLDecoder.decode(again.substring(again.indexOf("state=") + 6), StandardCharsets.UTF_8);
+        assertThat(send(HttpMethod.POST, OWNER_USER_ID, orgId, github + "/installations",
+                install(INSTALLATION, againState, "code-acme")).getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode retried = JSON.readTree(send(HttpMethod.POST, OWNER_USER_ID, orgId,
+                repos + "/" + menu.path("id").asString() + "/reindex", null).getBody());
+        assertThat(retried.path("source").asString()).isEqualTo("GITHUB_APP");
+        assertThat(awaitStatus(orgId, repos, menu.path("id").asString(), "READY").path("autoUpdate").asBoolean())
+                .isTrue();
     }
 
     /**

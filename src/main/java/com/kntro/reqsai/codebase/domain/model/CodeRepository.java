@@ -161,10 +161,20 @@ public class CodeRepository extends AggregateRoot {
         return pending == null || pending.equals(commitSha) ? null : pending;
     }
 
-    /** GitHub no longer lets ReqsAI read the repository (removed from the App, or the App uninstalled). */
+    /**
+     * GitHub no longer lets ReqsAI read the repository through its installation (removed from the App, the App
+     * uninstalled or suspended, or GitHub disconnected from the organization): it is unlinked from it, so it no
+     * longer claims to update on push. The module map stays as last indexed.
+     */
     public void revokeAccess(String reason, Instant now) {
+        this.installationId = null;
         this.pendingCommit = null;
         markFailed(reason, now);
+    }
+
+    /** Reads the repository through this installation from now on (found again after a revoke). */
+    public void useInstallation(long installationId) {
+        this.installationId = installationId;
     }
 
     /**
