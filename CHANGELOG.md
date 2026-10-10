@@ -9,7 +9,7 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-_Bounded-context implementation (iam, billing, workspace, discovery, gateway) in progress._
+## [1.2.0] - 2026-10-10
 
 ### Changed (Release pipeline — `feature/119-release-pipeline`, #119)
 
