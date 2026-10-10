@@ -164,6 +164,13 @@ reqsai:
   codebase:
     github:
       api-url: ${CODEBASE_GITHUB_API_URL:https://api.github.com}
+      web-url: ${CODEBASE_GITHUB_WEB_URL:https://github.com}
+      app:
+        slug: ${CODEBASE_GITHUB_APP_SLUG:}
+        client-id: ${CODEBASE_GITHUB_APP_CLIENT_ID:}
+        client-secret: ${CODEBASE_GITHUB_APP_CLIENT_SECRET:}
+        private-key: ${CODEBASE_GITHUB_APP_PRIVATE_KEY:}
+        webhook-secret: ${CODEBASE_GITHUB_APP_WEBHOOK_SECRET:}
     max-repositories-per-project: ${CODEBASE_MAX_REPOSITORIES:3}
     max-modules: ${CODEBASE_MAX_MODULES:80}
     summary-language: ${CODEBASE_SUMMARY_LANGUAGE:Spanish}

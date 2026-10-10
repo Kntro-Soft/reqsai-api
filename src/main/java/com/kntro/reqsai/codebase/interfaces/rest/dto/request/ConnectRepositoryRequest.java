@@ -2,6 +2,7 @@ package com.kntro.reqsai.codebase.interfaces.rest.dto.request;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import org.jspecify.annotations.Nullable;
 
@@ -18,9 +19,10 @@ public record ConnectRepositoryRequest(
         @Size(max = 255)
         @Nullable String branch,
 
-        @Schema(description = "Read-only token (fine-grained, Contents: read), needed only for a private repository."
-                + " Stored encrypted; never returned.", maxLength = 500, nullable = true)
-        @Size(max = 500)
-        @Nullable String accessToken
+        @Schema(description = "The organization's GitHub App installation that shares the repository (from the"
+                + " repository picker). When omitted, the installation on the repository's account is used if"
+                + " there is one; otherwise only a public repository can be read.", nullable = true, example = "1001")
+        @Positive
+        @Nullable Long installationId
 ) {
 }

@@ -19,5 +19,8 @@ public interface CodeRepositoryRepository {
 
     boolean existsByProjectIdAndFullName(UUID projectId, String owner, String name);
 
+    /** Every repository of the tenant read through a GitHub App installation. */
+    List<CodeRepository> findAllByInstallationId(long installationId);
+
     void delete(CodeRepository repository);
 }

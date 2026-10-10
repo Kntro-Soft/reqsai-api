@@ -43,6 +43,11 @@ public class CodeRepositoryRepositoryAdapter implements CodeRepositoryRepository
     }
 
     @Override
+    public List<CodeRepository> findAllByInstallationId(long installationId) {
+        return jpa.findAllByInstallationId(installationId);
+    }
+
+    @Override
     public void delete(CodeRepository repository) {
         jpa.delete(repository);
     }

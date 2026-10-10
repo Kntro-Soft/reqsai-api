@@ -4,36 +4,39 @@ import com.kntro.reqsai.codebase.application.command.ConnectRepositoryCommand;
 import com.kntro.reqsai.codebase.application.port.CodeHostPort;
 import com.kntro.reqsai.codebase.application.port.CodeHostPort.RemoteRepository;
 import com.kntro.reqsai.codebase.application.port.CodeRepositoryRepository;
-import com.kntro.reqsai.codebase.application.port.TokenCipher;
 import com.kntro.reqsai.codebase.application.service.CodeIndexLauncher;
+import com.kntro.reqsai.codebase.application.service.RepositoryAccess;
 import com.kntro.reqsai.codebase.application.service.RepositoryReference;
 import com.kntro.reqsai.codebase.domain.exception.CodebaseExceptions;
 import com.kntro.reqsai.codebase.domain.model.CodeRepository;
+import org.jspecify.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
 
 /**
- * Connects a repository: checks with GitHub that it exists and that the branch does (with the token for a
- * private one), stores it with the token encrypted, and starts indexing in the background. The host is
- * asked before anything is saved, so a typo or a rejected token is answered right away.
+ * Connects a repository: checks with GitHub that it exists and that the branch does, stores it and starts
+ * indexing in the background. It is read through the organization's GitHub App installation that shares it
+ * (the one chosen in the picker, or found for a typed repository), which also reaches private repositories and
+ * keeps the index up to date on every push; otherwise only a public repository can be read, anonymously. GitHub is asked before anything is
+ * saved, so a typo or a repository not shared with ReqsAI is answered right away.
  */
 @Component
 public class ConnectRepositoryCommandHandler {
 
     private final CodeRepositoryRepository repositories;
     private final CodeHostPort host;
-    private final TokenCipher tokenCipher;
+    private final RepositoryAccess access;
     private final CodeIndexLauncher launcher;
     private final int maxPerProject;
 
     public ConnectRepositoryCommandHandler(CodeRepositoryRepository repositories, CodeHostPort host,
-                                           TokenCipher tokenCipher, CodeIndexLauncher launcher,
+                                           RepositoryAccess access, CodeIndexLauncher launcher,
                                            @Value("${reqsai.codebase.max-repositories-per-project:3}") int maxPerProject) {
         this.repositories = repositories;
         this.host = host;
-        this.tokenCipher = tokenCipher;
+        this.access = access;
         this.launcher = launcher;
         this.maxPerProject = maxPerProject;
     }
@@ -46,23 +49,29 @@ public class ConnectRepositoryCommandHandler {
         if (repositories.existsByProjectIdAndFullName(command.projectId(), ref.owner(), ref.name())) {
             throw CodebaseExceptions.alreadyConnected(ref.owner() + "/" + ref.name());
         }
-        String token = command.accessToken() == null || command.accessToken().isBlank()
-                ? null : command.accessToken().strip();
-        RemoteRepository remote = host.describe(ref.owner(), ref.name(), token);
+        Long installationId = command.installationId();
+        if (installationId != null) {
+            access.linked(installationId);
+            if (!access.shares(installationId, ref.owner(), ref.name())) {
+                throw CodebaseExceptions.notFound(ref.owner() + "/" + ref.name());
+            }
+        } else {
+            installationId = access.installationFor(ref.owner(), ref.name()).orElse(null);
+        }
+        RemoteRepository remote = host.describe(ref.owner(), ref.name(), access.tokenFor(installationId));
         if (repositories.existsByProjectIdAndFullName(command.projectId(), remote.owner(), remote.name())) {
             throw CodebaseExceptions.alreadyConnected(remote.owner() + "/" + remote.name());
         }
         String branch = firstNonBlank(command.branch(), ref.branch(), remote.defaultBranch());
-        host.headCommit(remote.owner(), remote.name(), branch, token);
+        host.headCommit(remote.owner(), remote.name(), branch, access.tokenFor(installationId));
 
         CodeRepository repository = repositories.save(CodeRepository.connect(command.projectId(), remote.owner(),
-                remote.name(), branch, remote.htmlUrl(), remote.isPrivate(),
-                token == null ? null : tokenCipher.encrypt(token), Instant.now()));
+                remote.name(), branch, remote.htmlUrl(), remote.isPrivate(), installationId, Instant.now()));
         launcher.launch(repository.getId());
         return repository;
     }
 
-    private static String firstNonBlank(String... values) {
+    private static String firstNonBlank(@Nullable String... values) {
         for (String value : values) {
             if (value != null && !value.isBlank()) return value.strip();
         }

@@ -37,10 +37,12 @@ public interface CodeRepositoryController {
 
     @Operation(summary = "Connect a GitHub repository",
             description = """
-                    Checks with GitHub that the repository and branch exist (a private one needs a read-only \
-                    token, stored encrypted) and starts indexing it in the background: the code is read once, \
-                    secrets are removed, and every module gets a summary, its capabilities and the business \
-                    rules it implements. Raw code is never stored. Requires INTEGRATION_WRITE.""")
+                    Checks with GitHub that the repository and branch exist and starts indexing it in the \
+                    background: the code is read once, secrets are removed, and every module gets a summary, \
+                    its capabilities and the business rules it implements. Raw code is never stored. A \
+                    repository shared through the organization's GitHub App (private ones included) updates on \
+                    every push; without the App only a public repository can be read. Requires \
+                    INTEGRATION_WRITE.""")
     @ApiResponse(responseCode = "201", description = "The repository, indexing")
     @ApiResponseBadRequest
     @ApiResponseNotFound

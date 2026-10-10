@@ -15,6 +15,8 @@ public interface CodeRepositoryJpaRepository extends JpaRepository<CodeRepositor
 
     List<CodeRepository> findAllByProjectIdOrderByCreatedAtAsc(UUID projectId);
 
+    List<CodeRepository> findAllByInstallationId(Long installationId);
+
     @Query("select count(r) > 0 from CodeRepository r where r.projectId = :projectId"
             + " and lower(r.owner) = lower(:owner) and lower(r.name) = lower(:name)")
     boolean existsByProjectIdAndFullName(@Param("projectId") UUID projectId, @Param("owner") String owner,

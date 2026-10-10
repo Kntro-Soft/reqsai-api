@@ -7,10 +7,12 @@ import java.util.UUID;
 /**
  * Connects a GitHub repository to a project and starts indexing it.
  *
- * @param repository  {@code owner/name} or a github.com URL
- * @param branch      the branch to read; the repository's default branch when blank
- * @param accessToken a read-only token, needed only for a private repository
+ * @param repository     {@code owner/name} or a github.com URL
+ * @param branch         the branch to read; the repository's default branch when blank
+ * @param installationId the organization's GitHub App installation that shares it; when absent, the
+ *                       installation on the repository's account is used if there is one, else the
+ *                       repository is read anonymously (public repositories only)
  */
 public record ConnectRepositoryCommand(UUID projectId, String repository, @Nullable String branch,
-                                       @Nullable String accessToken) {
+                                       @Nullable Long installationId) {
 }

@@ -39,7 +39,7 @@ public class CodeRepositoryControllerImpl implements CodeRepositoryController {
     @PreAuthorize("@authz.projectPermission(#projectId, 'INTEGRATION_WRITE', authentication)")
     public ResponseEntity<CodeRepositoryResponse> connect(UUID projectId, ConnectRepositoryRequest request) {
         var repository = connect.handle(new ConnectRepositoryCommand(projectId, request.repository(),
-                request.branch(), request.accessToken()));
+                request.branch(), request.installationId()));
         return ResponseEntity.status(HttpStatus.CREATED).body(CodeRepositoryResponseMapper.toResponse(repository));
     }
 

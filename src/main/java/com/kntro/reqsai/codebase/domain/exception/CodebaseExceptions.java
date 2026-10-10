@@ -15,15 +15,35 @@ public final class CodebaseExceptions {
                 "'%s' is not a GitHub repository: use owner/name or a github.com URL".formatted(input));
     }
 
-    /** Unknown repository or branch, a private repository without a token, or an id of another project. */
+    /** Unknown repository or branch, a private repository ReqsAI cannot read, or an id of another project. */
     public static EntityNotFoundException notFound(String what) {
         return new EntityNotFoundException(CodebaseError.CODE_REPOSITORY_NOT_FOUND,
-                "Repository %s not found (or private without an access token)".formatted(what));
+                "Repository %s not found (or private and not shared with the ReqsAI GitHub App)".formatted(what));
     }
 
     public static DomainException accessDenied() {
         return new DomainException(CodebaseError.CODE_REPOSITORY_ACCESS_DENIED,
-                "The access token was rejected by the code host");
+                "The code host refused access to the repository");
+    }
+
+    public static DomainException appNotConfigured() {
+        return new DomainException(CodebaseError.CODE_HOST_APP_NOT_CONFIGURED,
+                "The GitHub App is not configured on this server");
+    }
+
+    public static DomainException installStateInvalid(String detail) {
+        return new DomainException(CodebaseError.CODE_HOST_INSTALL_STATE_INVALID,
+                "The GitHub installation link is invalid or expired: " + detail);
+    }
+
+    public static DomainException installationForbidden(String detail) {
+        return new DomainException(CodebaseError.CODE_HOST_INSTALLATION_FORBIDDEN,
+                "The GitHub installation cannot be linked: " + detail);
+    }
+
+    public static EntityNotFoundException installationNotFound(long installationId) {
+        return new EntityNotFoundException(CodebaseError.CODE_HOST_INSTALLATION_NOT_FOUND,
+                "GitHub installation %d not found".formatted(installationId));
     }
 
     public static DomainException alreadyConnected(String fullName) {

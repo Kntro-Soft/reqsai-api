@@ -18,7 +18,10 @@ public record CodeRepositoryResponse(
         String branch,
         String htmlUrl,
         @JsonProperty("private") @Schema(name = "private") boolean isPrivate,
-        @Schema(description = "Whether an access token is stored (it is never returned)") boolean hasToken,
+        @Schema(description = "How ReqsAI reads it: through the organization's GitHub App, or anonymously (public)",
+                allowableValues = {"GITHUB_APP", "PUBLIC"}) String source,
+        @Schema(description = "Whether every push to the branch updates the index (repositories read through the App)")
+        boolean autoUpdate,
         @Schema(allowableValues = {"PENDING", "INDEXING", "READY", "FAILED"}) String status,
         @Schema(nullable = true) @Nullable String error,
         @Schema(description = "Indexed commit", nullable = true) @Nullable String commitSha,

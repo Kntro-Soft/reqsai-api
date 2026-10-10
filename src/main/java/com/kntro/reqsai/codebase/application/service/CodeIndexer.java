@@ -8,7 +8,6 @@ import com.kntro.reqsai.codebase.application.port.CodeSummaryPort;
 import com.kntro.reqsai.codebase.application.port.CodeSummaryPort.ModuleDigest;
 import com.kntro.reqsai.codebase.application.port.CodeSummaryPort.ModuleSummary;
 import com.kntro.reqsai.codebase.application.port.CodeSummaryPort.OverviewDigest;
-import com.kntro.reqsai.codebase.application.port.TokenCipher;
 import com.kntro.reqsai.codebase.application.service.CodeIndexWriter.ModuleState;
 import com.kntro.reqsai.codebase.application.service.CodeIndexWriter.RunTarget;
 import com.kntro.reqsai.codebase.application.service.ModuleGrouper.ModuleDraft;
@@ -71,7 +70,7 @@ public class CodeIndexer {
     private final CodeHostPort host;
     private final CodeSummaryPort summarizer;
     private final EmbeddingPort embeddingPort;
-    private final TokenCipher tokenCipher;
+    private final RepositoryAccess access;
     private final CodeIndexWriter writer;
     private final int maxModules;
     private final int concurrency;
@@ -79,7 +78,7 @@ public class CodeIndexer {
     private final String summaryLanguage;
 
     public CodeIndexer(CodeHostPort host, CodeSummaryPort summarizer, EmbeddingPort embeddingPort,
-                       TokenCipher tokenCipher, CodeIndexWriter writer,
+                       RepositoryAccess access, CodeIndexWriter writer,
                        @Value("${reqsai.codebase.max-modules:80}") int maxModules,
                        @Value("${reqsai.codebase.summary-concurrency:4}") int concurrency,
                        @Value("${reqsai.codebase.max-files:4000}") int maxFiles,
@@ -89,7 +88,7 @@ public class CodeIndexer {
         this.host = host;
         this.summarizer = summarizer;
         this.embeddingPort = embeddingPort;
-        this.tokenCipher = tokenCipher;
+        this.access = access;
         this.writer = writer;
         this.maxModules = Math.max(1, maxModules);
         this.concurrency = Math.max(1, concurrency);
@@ -106,7 +105,7 @@ public class CodeIndexer {
         String fullName = target.owner() + "/" + target.name();
         long started = System.nanoTime();
         try {
-            String token = target.tokenCiphertext() == null ? null : tokenCipher.decrypt(target.tokenCiphertext());
+            String token = access.tokenFor(target.installationId());
             String sha = host.headCommit(target.owner(), target.name(), target.branch(), token);
             RepositoryArchive archive = host.download(target.owner(), target.name(), sha, token, limits,
                     SourceFilter::keep);
@@ -138,6 +137,10 @@ public class CodeIndexer {
         } catch (RuntimeException e) {
             log.warn("Code index of {} failed unexpectedly", fullName, e);
             writer.markFailed(target.repositoryId(), "No se pudo indexar el repositorio. Vuelve a intentarlo.");
+        }
+        if (writer.requeuePending(target.repositoryId())) {
+            log.info("Code index of {}: a push arrived during the run, indexing again", fullName);
+            index(repositoryId);
         }
     }
 
@@ -368,13 +371,17 @@ public class CodeIndexer {
     static String reasonFor(DomainException e) {
         String code = e.error() == null ? "" : e.error().code();
         if (CodebaseError.CODE_REPOSITORY_NOT_FOUND.code().equals(code)) {
-            return "No se encontró el repositorio o la rama (si es privado, revisa el token de acceso).";
+            return "No se encontró el repositorio o la rama. Si es privado, conecta GitHub en Ajustes → Integraciones"
+                    + " y dale acceso a ReqsAI.";
         }
         if (CodebaseError.CODE_REPOSITORY_ACCESS_DENIED.code().equals(code)) {
-            return "GitHub rechazó el token de acceso.";
+            return "GitHub no permite a ReqsAI leer este repositorio; revisa su acceso en la app de GitHub.";
         }
         if (CodebaseError.CODE_REPOSITORY_TOO_LARGE.code().equals(code)) {
             return "El repositorio es demasiado grande para indexarlo.";
+        }
+        if (CodebaseError.CODE_HOST_INSTALLATION_NOT_FOUND.code().equals(code)) {
+            return "La organización ya no tiene conectada la app de GitHub que lee este repositorio.";
         }
         if (CodebaseError.CODE_HOST_UNAVAILABLE.code().equals(code)) {
             return "GitHub no respondió o alcanzó su límite de uso; vuelve a intentarlo en unos minutos.";

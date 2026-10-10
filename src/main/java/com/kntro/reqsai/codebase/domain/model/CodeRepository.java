@@ -58,8 +58,13 @@ public class CodeRepository extends AggregateRoot {
     @Column(name = "private_repo", nullable = false)
     private boolean privateRepo;
 
-    @Column(name = "access_token_ciphertext")
-    private byte @Nullable [] accessTokenCiphertext;
+    /** The organization's GitHub App installation that reads it; null for a public repository read anonymously. */
+    @Column(name = "installation_id")
+    private @Nullable Long installationId;
+
+    /** A commit pushed while a run was in progress: the next run starts as soon as that one ends. */
+    @Column(name = "pending_commit", length = 64)
+    private @Nullable String pendingCommit;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 16)
@@ -98,7 +103,7 @@ public class CodeRepository extends AggregateRoot {
     }
 
     private CodeRepository(UUID projectId, String owner, String name, String branch, String htmlUrl,
-                           boolean privateRepo, byte @Nullable [] accessTokenCiphertext, Instant now) {
+                           boolean privateRepo, @Nullable Long installationId, Instant now) {
         super();
         this.projectId = Assert.notNull(projectId, "projectId");
         this.provider = CodeHostProvider.GITHUB;
@@ -107,23 +112,59 @@ public class CodeRepository extends AggregateRoot {
         this.branch = Assert.maxLength(Assert.notBlank(branch, "branch"), "branch", 255);
         this.htmlUrl = Assert.maxLength(Assert.notBlank(htmlUrl, "htmlUrl"), "htmlUrl", 500);
         this.privateRepo = privateRepo;
-        this.accessTokenCiphertext = accessTokenCiphertext;
+        this.installationId = installationId;
         this.status = CodeRepositoryStatus.PENDING;
         this.progressAt = now;
     }
 
-    /** Connects a GitHub repository; indexing starts right after. */
+    /**
+     * Connects a GitHub repository; indexing starts right after. With an installation it is read through the
+     * organization's GitHub App (private repositories included) and kept up to date by its push webhooks.
+     */
     public static CodeRepository connect(UUID projectId, String owner, String name, String branch, String htmlUrl,
-                                         boolean privateRepo, byte @Nullable [] accessTokenCiphertext, Instant now) {
-        return new CodeRepository(projectId, owner, name, branch, htmlUrl, privateRepo, accessTokenCiphertext, now);
+                                         boolean privateRepo, @Nullable Long installationId, Instant now) {
+        return new CodeRepository(projectId, owner, name, branch, htmlUrl, privateRepo, installationId, now);
     }
 
     public String fullName() {
         return owner + "/" + name;
     }
 
-    public boolean hasToken() {
-        return accessTokenCiphertext != null && accessTokenCiphertext.length > 0;
+    /** Read through the GitHub App, so every push to its branch updates the index. */
+    public boolean viaApp() {
+        return installationId != null;
+    }
+
+    /** Whether a push to {@code branch} of this repository concerns it (owner and name are case-insensitive). */
+    public boolean tracks(String owner, String name, String branch) {
+        return this.owner.equalsIgnoreCase(owner) && this.name.equalsIgnoreCase(name) && this.branch.equals(branch);
+    }
+
+    /**
+     * A push arrived: true when a run should start now. A run in progress keeps the commit for later, and a
+     * commit already indexed needs nothing.
+     */
+    public boolean acceptPush(String commit, Instant now) {
+        if (commit == null || commit.isBlank() || commit.equals(commitSha)) return false;
+        if (status.isRunning() && !isStalled(now, STALL_AFTER)) {
+            this.pendingCommit = commit.length() > 64 ? commit.substring(0, 64) : commit;
+            return false;
+        }
+        requestIndexing(now);
+        return true;
+    }
+
+    /** The commit pushed during the run that just ended, when it is not the one indexed; it is consumed. */
+    public @Nullable String takePendingCommit() {
+        String pending = pendingCommit;
+        this.pendingCommit = null;
+        return pending == null || pending.equals(commitSha) ? null : pending;
+    }
+
+    /** GitHub no longer lets ReqsAI read the repository (removed from the App, or the App uninstalled). */
+    public void revokeAccess(String reason, Instant now) {
+        this.pendingCommit = null;
+        markFailed(reason, now);
     }
 
     /**

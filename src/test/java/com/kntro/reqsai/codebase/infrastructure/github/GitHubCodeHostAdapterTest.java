@@ -30,8 +30,8 @@ class GitHubCodeHostAdapterTest {
     @BeforeEach
     void start() throws Exception {
         github = new FakeGitHub();
-        github.put("acme", "reservas", "main", false, "", FakeGitHub.restaurantApp());
-        github.put("acme", "privado", "develop", true, "good-token", Map.of("src/a.ts", "export const A = 1;"));
+        github.put("acme", "reservas", "main", false, null, FakeGitHub.restaurantApp());
+        github.put("acme", "privado", "develop", true, 7L, Map.of("src/a.ts", "export const A = 1;"));
         adapter = new GitHubCodeHostAdapter(github.apiUrl(), Duration.ofSeconds(10), new ObjectMapper());
     }
 
@@ -76,7 +76,7 @@ class GitHubCodeHostAdapterTest {
     }
 
     @Test
-    @DisplayName("a private repository needs its token; a wrong token and an unknown branch are refused")
+    @DisplayName("a private repository needs its installation token; a bad token and an unknown branch are refused")
     void privateRepositories() {
         assertThatThrownBy(() -> adapter.describe("acme", "privado", null))
                 .isInstanceOfSatisfying(DomainException.class,
@@ -84,8 +84,8 @@ class GitHubCodeHostAdapterTest {
         assertThatThrownBy(() -> adapter.describe("acme", "privado", "wrong"))
                 .isInstanceOfSatisfying(DomainException.class,
                         e -> assertThat(e.error()).isEqualTo(CodebaseError.CODE_REPOSITORY_ACCESS_DENIED));
-        assertThat(adapter.describe("acme", "privado", "good-token").isPrivate()).isTrue();
-        assertThatThrownBy(() -> adapter.headCommit("acme", "privado", "main", "good-token"))
+        assertThat(adapter.describe("acme", "privado", "ghs_7").isPrivate()).isTrue();
+        assertThatThrownBy(() -> adapter.headCommit("acme", "privado", "main", "ghs_7"))
                 .isInstanceOfSatisfying(DomainException.class,
                         e -> assertThat(e.error()).isEqualTo(CodebaseError.CODE_REPOSITORY_NOT_FOUND));
     }

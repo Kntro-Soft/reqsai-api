@@ -33,9 +33,18 @@ import org.springframework.test.context.DynamicPropertySource;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.util.Base64;
 import java.util.HashMap;
+import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -59,26 +68,66 @@ class CodeCopilotIntegrationTest extends AbstractIntegrationTest {
     private static final String OWNER_USER_ID = "00000000-0000-0000-0000-000000000001";
     private static final String MEMBER_USER_ID = "00000000-0000-0000-0000-000000000009";
     private static final ObjectMapper JSON = new ObjectMapper();
-    private static final FakeGitHub GITHUB = startGitHub();
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    private static final String CLIENT_ID = "Iv1.reqsai-test";
+    private static final String CLIENT_SECRET = "client-secret-for-tests";
+    private static final String WEBHOOK_SECRET = "webhook-secret-for-tests";
+    private static final long INSTALLATION = 1001L;
+    private static final long OTHER_INSTALLATION = 2002L;
+    private static final KeyPair APP_KEY = rsaKey();
+    private static final FakeGitHub GITHUB = startGitHub();
+
     private static FakeGitHub startGitHub() {
         try {
             FakeGitHub github = new FakeGitHub();
-            github.put("acme", "reservas", "main", false, "", FakeGitHub.restaurantApp());
-            github.put("acme", "interno", "main", true, "read-only-token", Map.of(
+            github.put("acme", "reservas", "main", false, null, FakeGitHub.restaurantApp());
+            github.put("acme", "interno", "main", true, INSTALLATION, Map.of(
                     "src/a/one.ts", "export const ONE = 1;", "src/a/two.ts", "export const TWO = 2;"));
+            github.put("acme", "menu", "main", false, INSTALLATION, Map.of(
+                    "src/menu/dishes.ts", "export const DISHES = [];", "src/menu/prices.ts", "export const IGV = 18;"));
+            github.app(CLIENT_ID, CLIENT_SECRET, APP_KEY.getPublic());
+            github.installation(INSTALLATION, "acme", false);
+            github.installation(OTHER_INSTALLATION, "otra", false);
+            github.userCode("code-acme", INSTALLATION);
+            github.userCode("code-otra", OTHER_INSTALLATION);
             return github;
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
     }
 
+    private static KeyPair rsaKey() {
+        try {
+            KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
+            generator.initialize(2048);
+            return generator.generateKeyPair();
+        } catch (java.security.GeneralSecurityException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /** The App's key as GitHub hands it out (PKCS#1 PEM), passed base64-encoded like a one-line secret. */
+    private static String appKeyAsSecret() {
+        byte[] pkcs8 = APP_KEY.getPrivate().getEncoded();
+        byte[] pkcs1 = java.util.Arrays.copyOfRange(pkcs8, 26, pkcs8.length);
+        String pem = "-----BEGIN RSA PRIVATE KEY-----\n"
+                + Base64.getMimeEncoder(64, "\n".getBytes(StandardCharsets.US_ASCII)).encodeToString(pkcs1)
+                + "\n-----END RSA PRIVATE KEY-----\n";
+        return Base64.getEncoder().encodeToString(pem.getBytes(StandardCharsets.US_ASCII));
+    }
+
     @DynamicPropertySource
     static void github(DynamicPropertyRegistry registry) {
         registry.add("reqsai.codebase.github.api-url", GITHUB::apiUrl);
+        registry.add("reqsai.codebase.github.web-url", GITHUB::apiUrl);
+        registry.add("reqsai.codebase.github.app.slug", () -> "reqsai-test");
+        registry.add("reqsai.codebase.github.app.client-id", () -> CLIENT_ID);
+        registry.add("reqsai.codebase.github.app.client-secret", () -> CLIENT_SECRET);
+        registry.add("reqsai.codebase.github.app.private-key", CodeCopilotIntegrationTest::appKeyAsSecret);
+        registry.add("reqsai.codebase.github.app.webhook-secret", () -> WEBHOOK_SECRET);
     }
 
     @AfterAll
@@ -172,26 +221,132 @@ class CodeCopilotIntegrationTest extends AbstractIntegrationTest {
         awaitStatus(orgId, repos, repoId, "READY");
         assertThat(GITHUB.zipDownloads()).isGreaterThan(downloads);
 
-        // A private repository needs its read-only token, which is stored but never returned.
-        ResponseEntity<String> privateRepo = send(HttpMethod.POST, OWNER_USER_ID, orgId, repos,
-                Map.of("repository", "acme/interno", "accessToken", "read-only-token"));
-        assertThat(privateRepo.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-        assertThat(privateRepo.getBody()).doesNotContain("read-only-token");
-        JsonNode privateJson = JSON.readTree(privateRepo.getBody());
-        assertThat(privateJson.path("private").asBoolean()).isTrue();
-        assertThat(privateJson.path("hasToken").asBoolean()).isTrue();
-        awaitStatus(orgId, repos, privateJson.path("id").asString(), "READY");
-        byte[] stored = jdbcTemplate.queryForObject("SELECT access_token_ciphertext FROM \"tenant_" + slug
-                + "\".code_repositories WHERE id = ?::uuid", byte[].class, privateJson.path("id").asString());
-        assertThat(new String(stored, java.nio.charset.StandardCharsets.ISO_8859_1)).doesNotContain("read-only-token");
+        assertThat(repo.path("source").asString()).isEqualTo("PUBLIC");
+        assertThat(repo.path("autoUpdate").asBoolean()).isFalse();
 
         // Disconnecting forgets the repository and its modules.
         assertThat(send(HttpMethod.DELETE, OWNER_USER_ID, orgId, repos + "/" + repoId, null).getStatusCode())
                 .isEqualTo(HttpStatus.NO_CONTENT);
-        assertThat(JSON.readTree(send(HttpMethod.GET, OWNER_USER_ID, orgId, repos, null).getBody()).size()).isEqualTo(1);
+        assertThat(JSON.readTree(send(HttpMethod.GET, OWNER_USER_ID, orgId, repos, null).getBody()).size()).isZero();
         Integer left = jdbcTemplate.queryForObject("SELECT count(*) FROM \"tenant_" + slug
                 + "\".code_modules WHERE repository_id = ?::uuid", Integer.class, repoId);
         assertThat(left).isZero();
+    }
+
+    @Test
+    @DisplayName("GitHub App: install, pick a private repository, update on push, stop when GitHub stops sharing")
+    void githubApp() throws Exception {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        String slug = "acme-" + suffix;
+        UUID orgId = createOrganization(suffix, slug);
+        UUID projectId = createProject(orgId, slug);
+        createMember(orgId, Map.of("userId", MEMBER_USER_ID, "email", "member@example.com",
+                "displayName", "Member", "role", "MEMBER"));
+        String github = "/api/organizations/" + orgId + "/code/github";
+        String repos = "/api/projects/" + projectId + "/code/repositories";
+
+        // The server has the App; the organization has not installed it yet. Only owners and admins install it.
+        JsonNode connection = JSON.readTree(send(HttpMethod.GET, OWNER_USER_ID, orgId, github, null).getBody());
+        assertThat(connection.path("available").asBoolean()).isTrue();
+        assertThat(connection.path("installations").size()).isZero();
+        assertThat(send(HttpMethod.POST, MEMBER_USER_ID, orgId, github + "/install", null).getStatusCode())
+                .isEqualTo(HttpStatus.FORBIDDEN);
+
+        // Start: GitHub's install page, with a signed state for this organization and user.
+        String url = JSON.readTree(send(HttpMethod.POST, OWNER_USER_ID, orgId, github + "/install", null).getBody())
+                .path("url").asString();
+        assertThat(url).startsWith(GITHUB.apiUrl() + "/apps/reqsai-test/installations/new?state=");
+        String state = URLDecoder.decode(url.substring(url.indexOf("state=") + 6), StandardCharsets.UTF_8);
+
+        // The redirect is checked: a tampered state, or an installation the GitHub user cannot access, is refused.
+        assertThat(code(send(HttpMethod.POST, OWNER_USER_ID, orgId, github + "/installations",
+                install(INSTALLATION, state + "x", "code-acme")))).isEqualTo("CODE_HOST_INSTALL_STATE_INVALID");
+        assertThat(code(send(HttpMethod.POST, OWNER_USER_ID, orgId, github + "/installations",
+                install(INSTALLATION, state, "code-otra")))).isEqualTo("CODE_HOST_INSTALLATION_FORBIDDEN");
+        JsonNode requested = JSON.readTree(send(HttpMethod.POST, OWNER_USER_ID, orgId, github + "/installations",
+                Map.of("setupAction", "request", "state", state)).getBody());
+        assertThat(requested.path("status").asString()).isEqualTo("REQUESTED");
+
+        // Linked: the account and where to manage it on GitHub; no token is kept.
+        ResponseEntity<String> linked = send(HttpMethod.POST, OWNER_USER_ID, orgId, github + "/installations",
+                install(INSTALLATION, state, "code-acme"));
+        assertThat(linked.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode installation = JSON.readTree(linked.getBody()).path("installation");
+        assertThat(JSON.readTree(linked.getBody()).path("status").asString()).isEqualTo("LINKED");
+        assertThat(installation.path("account").asString()).isEqualTo("acme");
+        assertThat(installation.path("manageUrl").asString()).endsWith("/settings/installations/" + INSTALLATION);
+        assertThat(linked.getBody()).doesNotContain("ghs_", "ghu_");
+
+        // The project picks from what the installation shares (a read-only member cannot list them).
+        String picker = "/api/projects/" + projectId + "/code/github/repositories";
+        assertThat(send(HttpMethod.GET, MEMBER_USER_ID, orgId, picker, null).getStatusCode())
+                .isEqualTo(HttpStatus.FORBIDDEN);
+        JsonNode available = JSON.readTree(send(HttpMethod.GET, OWNER_USER_ID, orgId, picker, null).getBody());
+        assertThat(texts(available, "fullName")).containsExactlyInAnyOrder("acme/interno", "acme/menu");
+        assertThat(find(available, "fullName", "acme/interno").path("private").asBoolean()).isTrue();
+
+        // A private repository through the App: indexed with installation tokens, updating on every push.
+        ResponseEntity<String> privateRepo = send(HttpMethod.POST, OWNER_USER_ID, orgId, repos,
+                Map.of("repository", "acme/interno", "installationId", INSTALLATION));
+        assertThat(privateRepo.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        JsonNode interno = JSON.readTree(privateRepo.getBody());
+        assertThat(interno.path("private").asBoolean()).isTrue();
+        assertThat(interno.path("source").asString()).isEqualTo("GITHUB_APP");
+        assertThat(interno.path("autoUpdate").asBoolean()).isTrue();
+        String internoId = interno.path("id").asString();
+        JsonNode first = awaitStatus(orgId, repos, internoId, "READY");
+        assertThat(GITHUB.tokensMinted()).isPositive();
+
+        // A typed repository the installation shares is read through it too; a shared one already connected
+        // shows in the picker.
+        JsonNode menu = JSON.readTree(send(HttpMethod.POST, OWNER_USER_ID, orgId, repos,
+                Map.of("repository", "acme/menu")).getBody());
+        assertThat(menu.path("source").asString()).isEqualTo("GITHUB_APP");
+        awaitStatus(orgId, repos, menu.path("id").asString(), "READY");
+        assertThat(find(JSON.readTree(send(HttpMethod.GET, OWNER_USER_ID, orgId, picker, null).getBody()),
+                "fullName", "acme/interno").path("connected").asBoolean()).isTrue();
+
+        // A push to main: GitHub's signed webhook reindexes at the new commit. A bad signature is refused.
+        Map<String, String> changed = new LinkedHashMap<>(GITHUB.repo("acme", "interno").files());
+        changed.put("src/b/three.ts", "export const THREE = 3;");
+        changed.put("src/b/four.ts", "export const FOUR = 4;");
+        GITHUB.put("acme", "interno", "main", true, INSTALLATION, changed);
+        String sha = GITHUB.repo("acme", "interno").sha();
+        assertThat(sha).isNotEqualTo(first.path("commitSha").asString());
+        String push = """
+                {"ref":"refs/heads/main","after":"%s","deleted":false,
+                 "repository":{"name":"interno","owner":{"login":"acme","name":"acme"}},"installation":{"id":%d}}
+                """.formatted(sha, INSTALLATION);
+        assertThat(webhook("push", push, "sha256=" + "0".repeat(64)).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(webhook("push", push, sign(push)).getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+        JsonNode updated = awaitCommit(orgId, repos, internoId, sha);
+        assertThat(updated.path("moduleCount").asInt()).isGreaterThan(first.path("moduleCount").asInt());
+
+        // Another organization cannot read through this installation.
+        String otherSuffix = UUID.randomUUID().toString().substring(0, 8);
+        UUID otherOrg = createOrganization(otherSuffix, "acme-" + otherSuffix);
+        UUID otherProject = createProject(otherOrg, "acme-" + otherSuffix);
+        assertThat(code(send(HttpMethod.POST, OWNER_USER_ID, otherOrg, "/api/projects/" + otherProject
+                + "/code/repositories", Map.of("repository", "acme/interno", "installationId", INSTALLATION))))
+                .isEqualTo("CODE_HOST_INSTALLATION_NOT_FOUND");
+
+        // GitHub stops sharing the repository: it stops updating and says why.
+        String removed = """
+                {"action":"removed","installation":{"id":%d},
+                 "repositories_removed":[{"full_name":"acme/interno"}],"repositories_added":[]}
+                """.formatted(INSTALLATION);
+        assertThat(webhook("installation_repositories", removed, sign(removed)).getStatusCode())
+                .isEqualTo(HttpStatus.ACCEPTED);
+        JsonNode revoked = awaitStatus(orgId, repos, internoId, "FAILED", true);
+        assertThat(revoked.path("error").asString()).contains("ya no está compartido");
+
+        // Disconnecting GitHub unlinks the installation; the menu repository stops updating.
+        assertThat(send(HttpMethod.DELETE, OWNER_USER_ID, orgId, github + "/installations/" + INSTALLATION, null)
+                .getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+        assertThat(JSON.readTree(send(HttpMethod.GET, OWNER_USER_ID, orgId, github, null).getBody())
+                .path("installations").size()).isZero();
+        assertThat(awaitStatus(orgId, repos, menu.path("id").asString(), "FAILED", true).path("error").asString())
+                .contains("Se desconectó GitHub");
     }
 
     /**
@@ -237,13 +392,56 @@ class CodeCopilotIntegrationTest extends AbstractIntegrationTest {
 
     // ----- helpers -----
 
+    private static Map<String, Object> install(long installationId, String state, String code) {
+        return Map.of("installationId", installationId, "setupAction", "install", "state", state, "code", code);
+    }
+
+    private static String sign(String payload) throws Exception {
+        Mac mac = Mac.getInstance("HmacSHA256");
+        mac.init(new SecretKeySpec(WEBHOOK_SECRET.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+        return "sha256=" + HexFormat.of().formatHex(mac.doFinal(payload.getBytes(StandardCharsets.UTF_8)));
+    }
+
+    private ResponseEntity<String> webhook(String event, String payload, String signature) {
+        return client().post().uri("/api/code/webhooks/github")
+                .header("X-GitHub-Event", event)
+                .header("X-GitHub-Delivery", UUID.randomUUID().toString())
+                .header("X-Hub-Signature-256", signature)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(payload.getBytes(StandardCharsets.UTF_8))
+                .exchange((req, res) -> ResponseEntity.status(res.getStatusCode()).body(res.bodyTo(String.class)));
+    }
+
+    private JsonNode awaitCommit(UUID orgId, String repos, String repoId, String sha) throws InterruptedException {
+        JsonNode last = null;
+        for (int i = 0; i < 150; i++) {
+            last = find(JSON.readTree(send(HttpMethod.GET, OWNER_USER_ID, orgId, repos, null).getBody()), "id", repoId);
+            if ("READY".equals(last.path("status").asString()) && sha.equals(last.path("commitSha").asString())) {
+                return last;
+            }
+            Thread.sleep(200);
+        }
+        throw new AssertionError("Repository never indexed " + sha + ": " + last);
+    }
+
+    private static List<String> texts(JsonNode array, String field) {
+        List<String> out = new java.util.ArrayList<>();
+        array.forEach(n -> out.add(n.path(field).asString()));
+        return out;
+    }
+
     private JsonNode awaitStatus(UUID orgId, String repos, String repoId, String status) throws InterruptedException {
+        return awaitStatus(orgId, repos, repoId, status, false);
+    }
+
+    private JsonNode awaitStatus(UUID orgId, String repos, String repoId, String status, boolean failureExpected)
+            throws InterruptedException {
         JsonNode last = null;
         for (int i = 0; i < 150; i++) {
             JsonNode list = JSON.readTree(send(HttpMethod.GET, OWNER_USER_ID, orgId, repos, null).getBody());
             last = find(list, "id", repoId);
             if (status.equals(last.path("status").asString())) return last;
-            if ("FAILED".equals(last.path("status").asString())) {
+            if (!failureExpected && "FAILED".equals(last.path("status").asString())) {
                 throw new AssertionError("Indexing failed: " + last.path("error").asString());
             }
             Thread.sleep(200);

@@ -31,7 +31,7 @@ public class CodeIndexWriter {
 
     /** What a run needs to read the repository. */
     public record RunTarget(UUID repositoryId, UUID projectId, String owner, String name, String branch,
-                            byte @Nullable [] tokenCiphertext) {
+                            @Nullable Long installationId) {
     }
 
     public record ModuleState(String contentHash, boolean summarized, String name, String summary) {
@@ -44,7 +44,7 @@ public class CodeIndexWriter {
         repo.startIndexing(Instant.now());
         repositories.save(repo);
         return new RunTarget(repo.getId(), repo.getProjectId(), repo.getOwner(), repo.getName(), repo.getBranch(),
-                repo.getAccessTokenCiphertext());
+                repo.getInstallationId());
     }
 
     @Transactional
@@ -97,6 +97,20 @@ public class CodeIndexWriter {
             repo.markReady(summarized, profile, Instant.now());
             repositories.save(repo);
         });
+    }
+
+    /**
+     * Queues the run for a commit pushed while the last one was in progress: true when the caller should run
+     * again. The pending commit is consumed either way.
+     */
+    @Transactional
+    public boolean requeuePending(UUID repositoryId) {
+        return repositories.findById(repositoryId).map(repo -> {
+            boolean again = repo.takePendingCommit() != null;
+            if (again) repo.requestIndexing(Instant.now());
+            repositories.save(repo);
+            return again;
+        }).orElse(false);
     }
 
     @Transactional

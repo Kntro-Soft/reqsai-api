@@ -20,9 +20,21 @@ _Bounded-context implementation (iam, billing, workspace, discovery, gateway) in
     keeps source files, manifests and READMEs, removes secrets and detects the stack. It groups modules by
     folder and describes them: endpoints and entities from the code; summary, capabilities and implemented
     business rules from the AI; and an embedding.
-  - Private repositories use a read-only token, stored encrypted. No raw code is ever stored.
+  - No raw code and no credential is ever stored.
   - Reindex only redescribes modules whose files changed.
   - Tenant migration `V20261009130000__code_repositories.sql`. See `docs/CODE_COPILOT.md`.
+- **GitHub connected through the ReqsAI GitHub App, like Jira, once per organization.**
+  - `GET /api/organizations/{orgId}/code/github`, `POST …/install` (install URL with a signed state),
+    `POST …/installations` (complete: the OAuth code must show the user can access the installation),
+    `DELETE …/installations/{installationId}` (owners and admins).
+  - Projects pick from what the installations share: `GET /api/projects/{projectId}/code/github` and
+    `…/repositories`. Private repositories are read with installation tokens minted per use (1 hour),
+    never stored; connecting no longer takes a pasted token (`accessToken` removed, `installationId` added;
+    responses say `source` and `autoUpdate` instead of `hasToken`).
+  - `POST /api/code/webhooks/github` (signature-verified): a push reindexes the repository (queued during a
+    run); removed repositories, uninstalls and suspensions stop the updates and say why.
+  - Common migration `V20261009140000__code_host_installations.sql`; tenant migration
+    `V20261009140000__code_repositories_github_app.sql`. Setup of the App in `docs/CODE_COPILOT.md`.
 - **Suggestions read the client's code.**
   - Realtime passes and assistant-chat requirements put an EXISTING SYSTEM section in the prompt: the
     overview and the 4 modules nearest to the conversation.
