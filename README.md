@@ -122,7 +122,7 @@ src/main/resources/db/migration/
 Spring Security **stateless** con **JWT firmado por RSA (RS256)**. La **verificación** del token es
 cross-cutting (puerto `TokenVerifier` + adaptador `JjwtTokenVerifier`, solo clave pública, en
 `shared`); la **emisión** (login/refresh, clave privada) es de `iam`. Claves de dev: `scripts/generate-jwt-keys.sh`;
-en prod, secretos montados (ver `.github/workflows/deploy.yml`). Endpoints públicos: `/api/auth/**`,
+en prod, `JWT_PRIVATE_KEY_PEM` / `JWT_PUBLIC_KEY_PEM` del vault de `reqsai-infra` (`api.env` en el host). Endpoints públicos: `/api/auth/**`,
 Swagger, `/actuator/health`, `/ws/**`. Ver [ADR-0005](./docs/adr/0005-rsa-jwt-authentication.md).
 
 ## Versionado de API
@@ -153,7 +153,13 @@ los endpoints de negocio; los endpoints públicos (Swagger, actuator, `/ws/**`) 
 
 - **CI** (`.github/workflows/ci.yml`): build + tests + verificación de módulos en cada PR/push.
 - **CodeQL** (`.github/workflows/codeql.yml`): análisis de seguridad estático (Java).
-- **Deploy** (`.github/workflows/deploy.yml`): imagen Docker → ECR → ECS Fargate (AWS) en push a `main`.
+- **Release** (`.github/workflows/release.yml`): en `release/X.Y.Z` o `hotfix/X.Y.Z`, CI → imagen `linux/arm64`
+  construida una sola vez como candidata `ghcr.io/kntro-soft/reqsai-api:X.Y.Z-rc.N` (pre-release `vX.Y.Z-rc.N` con
+  digest y hash del árbol) → verificación automática de ese digest (perfil `prod` contra PostgreSQL + pgvector y alta → correo → login → organización) → PR `release: X.Y.Z` a `main`.
+- **Produccion** (`.github/workflows/produccion.yml`): al fusionar en `main`, busca la candidata con el mismo árbol,
+  pide aprobación en el environment `produccion`, despliega ese mismo digest vía `reqsai-infra` y recién entonces
+  crea el tag `vX.Y.Z`, el GitHub Release y el PR de vuelta a `develop`.
+- **Rollback** (`.github/workflows/rollback.yml`): vuelve a desplegar el digest de un release `vX.Y.Z` anterior.
 
 Detalle en [`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md).
 
