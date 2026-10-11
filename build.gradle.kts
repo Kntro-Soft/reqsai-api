@@ -8,7 +8,7 @@ plugins {
 }
 
 group = "com.kntro"
-version = "0.0.0"
+version = "1.2.0"
 description = "backend-reqsai"
 
 java {
