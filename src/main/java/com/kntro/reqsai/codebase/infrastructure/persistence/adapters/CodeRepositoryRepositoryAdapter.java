@@ -2,10 +2,13 @@ package com.kntro.reqsai.codebase.infrastructure.persistence.adapters;
 
 import com.kntro.reqsai.codebase.application.port.CodeRepositoryRepository;
 import com.kntro.reqsai.codebase.domain.model.CodeRepository;
+import com.kntro.reqsai.codebase.domain.model.CodeRepositoryStatus;
 import com.kntro.reqsai.codebase.infrastructure.persistence.repositories.CodeRepositoryJpaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -50,5 +53,13 @@ public class CodeRepositoryRepositoryAdapter implements CodeRepositoryRepository
     @Override
     public void delete(CodeRepository repository) {
         jpa.delete(repository);
+    }
+
+    @Override
+    public List<StatusSummary> summarizeByStatus(Collection<UUID> projectIds) {
+        return jpa.summarizeByStatus(projectIds).stream()
+                .map(row -> new StatusSummary((CodeRepositoryStatus) row[0], ((Number) row[1]).longValue(),
+                        ((Number) row[2]).longValue(), (Instant) row[3]))
+                .toList();
     }
 }

@@ -30,6 +30,11 @@ public class CodeModuleRepositoryAdapter implements CodeModuleRepository {
     }
 
     @Override
+    public long countByProjectIdIn(Collection<UUID> projectIds) {
+        return jpa.countByProjectIdIn(projectIds);
+    }
+
+    @Override
     public Optional<CodeModule> findByRepositoryIdAndPath(UUID repositoryId, String path) {
         return jpa.findByRepositoryIdAndPath(repositoryId, path);
     }
