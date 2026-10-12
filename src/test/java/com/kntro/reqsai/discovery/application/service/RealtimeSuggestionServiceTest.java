@@ -1,5 +1,8 @@
 package com.kntro.reqsai.discovery.application.service;
 
+import org.mockito.Spy;
+import com.kntro.reqsai.shared.application.notification.RealtimeNotifier;
+import com.kntro.reqsai.shared.application.ai.AiQuotaGuard;
 import com.kntro.reqsai.codebase.api.CodebaseModuleApi;
 import com.kntro.reqsai.discovery.application.port.*;
 import com.kntro.reqsai.discovery.domain.model.DiscoverySession;
@@ -56,6 +59,8 @@ class RealtimeSuggestionServiceTest {
     @Mock private SessionLockPort sessionLock;
     @Mock private SessionSpeakerService sessionSpeakers;
     @Mock private CodebaseModuleApi codebase;
+    @Spy private AiQuotaGuard quota = AiQuotaGuard.UNLIMITED;
+    @Mock private RealtimeNotifier notifier;
 
     @InjectMocks
     private RealtimeSuggestionService service;
@@ -74,6 +79,60 @@ class RealtimeSuggestionServiceTest {
 
     private TranscriptSegment finalSegment(UUID sessionId, int sequence, String text) {
         return new TranscriptSegment(sessionId, sequence, null, text, 0L, 100L, true);
+    }
+
+    @Nested
+    @DisplayName("Monthly AI allowance")
+    class AllowanceTests {
+
+        private DiscoverySession liveSession(UUID projectId) {
+            DiscoverySession session = buildSession(projectId);
+            session.startRecording(java.time.Instant.now());
+            return session;
+        }
+
+        private void exhausted() {
+            org.mockito.Mockito.doThrow(com.kntro.reqsai.billing.domain.exception.BillingExceptions.aiQuotaExceeded(
+                    "FREE", 100_000L, 100_100L, java.time.Instant.parse("2026-11-01T00:00:00Z"))).when(quota).assertAvailable();
+        }
+
+        private DiscoverySession withPendingText(UUID sessionId, UUID projectId, DiscoverySession session) {
+            when(sessions.findById(sessionId)).thenReturn(Optional.of(session));
+            when(segments.findFinalBySessionIdAfter(sessionId, 0))
+                    .thenReturn(List.of(finalSegment(sessionId, 1, "Quiero pagar con Yape en la web.")));
+            when(generation.isAvailable()).thenReturn(true);
+            return session;
+        }
+
+        @Test
+        @DisplayName("an automatic pass pauses quietly once the allowance is spent and tells the session only once")
+        void automatic_pass_pauses_and_notifies_once() {
+            UUID projectId = UUID.randomUUID();
+            DiscoverySession session = liveSession(projectId);
+            withPendingText(session.getId(), projectId, session);
+            exhausted();
+
+            service.suggest(session.getId(), true);
+            service.suggest(session.getId(), true);
+
+            verify(generation, never()).generate(any(), any(), any(GenerationContext.class));
+            verify(sessions, never()).advanceSuggestionWatermark(any(), anyInt(), any());
+            verify(notifier, org.mockito.Mockito.times(1)).broadcast(eq("sessions/" + session.getId()), any());
+        }
+
+        @Test
+        @DisplayName("Analizar ahora fails with AI_QUOTA_EXCEEDED instead of pausing")
+        void analyze_now_is_refused() {
+            UUID projectId = UUID.randomUUID();
+            DiscoverySession session = liveSession(projectId);
+            withPendingText(session.getId(), projectId, session);
+            exhausted();
+
+            assertThatThrownBy(() -> service.analyzeNow(session.getId()))
+                    .isInstanceOfSatisfying(com.kntro.reqsai.shared.domain.exception.DomainException.class,
+                            e -> assertThat(e.error().code()).isEqualTo("AI_QUOTA_EXCEEDED"));
+            verify(generation, never()).generate(any(), any(), any(GenerationContext.class));
+        }
     }
 
     @Nested
