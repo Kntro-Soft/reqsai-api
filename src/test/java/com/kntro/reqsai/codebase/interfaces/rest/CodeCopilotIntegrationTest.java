@@ -206,11 +206,14 @@ class CodeCopilotIntegrationTest extends AbstractIntegrationTest {
 
         // Accepted, the story keeps the module it relates to and where it was said.
         ResponseEntity<String> accepted = send(HttpMethod.POST, OWNER_USER_ID, orgId,
-                "/api/projects/" + projectId + "/suggestions/" + suggestion.path("id").asString() + "/accept", Map.of());
+                "/api/projects/" + projectId + "/suggestions/" + suggestion.path("id").asString() + "/accept", Map.of("approve", true));
         assertThat(accepted.getStatusCode()).isEqualTo(HttpStatus.OK);
-        String storyId = JSON.readTree(accepted.getBody()).path("resolvedStoryId").asString();
+        JsonNode acceptedBody = JSON.readTree(accepted.getBody());
+        assertThat(acceptedBody.path("resolvedStoryStatus").asString()).isEqualTo("APPROVED");
+        String storyId = acceptedBody.path("resolvedStoryId").asString();
         JsonNode story = JSON.readTree(send(HttpMethod.GET, OWNER_USER_ID, orgId,
                 "/api/projects/" + projectId + "/stories/" + storyId, null).getBody());
+        assertThat(story.path("status").asString()).isEqualTo("APPROVED");
         assertThat(story.path("codeReferences").get(0).path("path").asString()).isEqualTo("src/reservations");
         assertThat(story.path("origin").path("quote").asString()).contains("24 horas");
 

@@ -32,6 +32,8 @@ import java.util.UUID;
  * @param editedStoryPoints        optional override
  * @param editedAcceptanceCriteria optional full replacement of the acceptance criteria; {@code null}
  *                                 (absent) keeps the draft criteria
+ * @param approve                  {@code true} approves the resulting story in the same transaction; {@code false}
+ *                                 saves it as a draft (a target story already in review goes back to draft)
  */
 public record AcceptSuggestionCommand(
         @Nullable UUID sessionId,
@@ -42,8 +44,19 @@ public record AcceptSuggestionCommand(
         @Nullable String editedBenefit,
         @Nullable Priority editedPriority,
         @Nullable Integer editedStoryPoints,
-        @Nullable List<Criterion> editedAcceptanceCriteria
+        @Nullable List<Criterion> editedAcceptanceCriteria,
+        boolean approve
 ) {
+
+    /** Accepts as a draft (no approval), the behaviour before the approve flag existed. */
+    public AcceptSuggestionCommand(@Nullable UUID sessionId, UUID suggestionId,
+                                   @Nullable String editedTitle, @Nullable String editedRole,
+                                   @Nullable String editedAction, @Nullable String editedBenefit,
+                                   @Nullable Priority editedPriority, @Nullable Integer editedStoryPoints,
+                                   @Nullable List<Criterion> editedAcceptanceCriteria) {
+        this(sessionId, suggestionId, editedTitle, editedRole, editedAction, editedBenefit,
+                editedPriority, editedStoryPoints, editedAcceptanceCriteria, false);
+    }
 
     /** An edited acceptance criterion in Given/When/Then form ({@code scenario} is an optional label). */
     public record Criterion(

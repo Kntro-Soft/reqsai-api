@@ -69,7 +69,7 @@ public interface ProjectSuggestionController {
             description = """
                     Accepts any suggestion of the project, including those raised from the assistant chat, \
                     which belong to no session. Same behaviour and optional edits as the session-scoped \
-                    accept. Requires SESSION_DECIDE.""")
+                    accept, including `approve` (which also requires STORY_APPROVE). Requires SESSION_DECIDE.""")
     @ApiResponse(responseCode = "200", description = "Suggestion accepted",
             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                     schema = @Schema(implementation = SuggestionResponse.class)))

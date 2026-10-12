@@ -41,7 +41,9 @@ public class ProjectSuggestionControllerImpl implements ProjectSuggestionControl
     }
 
     @Override
-    @PreAuthorize("@authz.projectPermission(#projectId, 'SESSION_DECIDE', authentication)")
+    @PreAuthorize("@authz.projectPermission(#projectId, 'SESSION_DECIDE', authentication)"
+            + " and (#request == null or !#request.approve()"
+            + " or @authz.projectPermission(#projectId, 'STORY_APPROVE', authentication))")
     public ResponseEntity<SuggestionResponse> accept(UUID projectId, UUID suggestionId,
                                                      @Nullable AcceptSuggestionRequest request) {
         var suggestion = acceptSuggestion.handleInProject(projectId,

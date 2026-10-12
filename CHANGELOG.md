@@ -9,6 +9,11 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Accepting a suggestion decides the story's review status in the same transaction. `POST /api/projects/{projectId}/suggestions/{id}/accept` and `POST /api/sessions/{sessionId}/suggestions/{id}/accept` take an optional `approve` flag (default `false`, so older clients keep working). `approve: true` creates (`NEW_STORY`) or updates (`UPDATE_STORY`, `EDGE_CASE`) the story and leaves it `APPROVED`; it needs `STORY_APPROVE` on top of `SESSION_DECIDE`, otherwise 403 and nothing changes. Without it the story is saved as a draft.
+- Status rules: a new story starts `DRAFT` or `APPROVED`. A target story that was `APPROVED` or `REJECTED` goes back to `DRAFT` when saved as a draft (its content changed and needs a new review) and becomes `APPROVED` when approved. A target already `EXPORTED` or `MERGED` keeps its status either way. `CLARIFYING_QUESTION` ignores the flag.
+- The accepted suggestion (REST responses, the project suggestion list, the session suggestion list, the assistant chat history) and the realtime `SUGGESTION_ACCEPTED` message carry `resolvedStoryStatus`, so the decision row can say whether the story ended approved or as a draft. No migration: the status is read from the story.
+
 ### Changed
 - The release pull request and the back-merge pull request are opened by the GitHub App `reqsai-release-bot` (a short-lived token minted per job from `RELEASE_APP_ID` and `RELEASE_APP_PRIVATE_KEY`), so their CI runs: opened with `GITHUB_TOKEN` they started no `pull_request` workflow. The back-merge turns on auto-merge (merge commit) when the repository allows it; without the App configuration the job fails instead of falling back to `GITHUB_TOKEN`.
 - `produccion.yml` and `rollback.yml` dispatch `reqsai-infra`'s `deploy-mvp.yml` with a `reqsai-release-bot` token limited to `reqsai-infra` (Actions: write) and watch the run with the workflow token, instead of the personal token `INFRA_DEPLOY_TOKEN`, which is no longer used.

@@ -40,7 +40,7 @@ class AcceptSuggestionRequestValidationTest {
     @DisplayName("an empty body (no edits) is valid")
     void empty_body_is_valid() {
         assertThat(validator.validate(new AcceptSuggestionRequest(
-                null, null, null, null, null, null, null))).isEmpty();
+                null, null, null, null, null, null, null, false))).isEmpty();
     }
 
     @Test
@@ -48,7 +48,7 @@ class AcceptSuggestionRequestValidationTest {
     void valid_edited_payload() {
         var request = new AcceptSuggestionRequest(
                 "Title", "role", "action", "benefit", Priority.HIGH, 3,
-                List.of(new AcceptSuggestionRequest.EditedCriterion("label", "given", "when", "then")));
+                List.of(new AcceptSuggestionRequest.EditedCriterion("label", "given", "when", "then")), true);
         assertThat(validator.validate(request)).isEmpty();
     }
 
@@ -57,7 +57,7 @@ class AcceptSuggestionRequestValidationTest {
     void criterion_missing_then_is_rejected() {
         var request = new AcceptSuggestionRequest(
                 null, null, null, null, null, null,
-                List.of(new AcceptSuggestionRequest.EditedCriterion("label", "given", "when", "  ")));
+                List.of(new AcceptSuggestionRequest.EditedCriterion("label", "given", "when", "  ")), false);
 
         Set<ConstraintViolation<AcceptSuggestionRequest>> violations = validator.validate(request);
 

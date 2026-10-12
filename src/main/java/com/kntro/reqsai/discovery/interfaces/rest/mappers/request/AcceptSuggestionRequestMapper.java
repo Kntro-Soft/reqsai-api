@@ -22,7 +22,7 @@ public final class AcceptSuggestionRequestMapper {
                                                     @Nullable AcceptSuggestionRequest request) {
         if (request == null) {
             return new AcceptSuggestionCommand(sessionId, suggestionId,
-                    null, null, null, null, null, null, null);
+                    null, null, null, null, null, null, null, false);
         }
         List<AcceptSuggestionCommand.Criterion> criteria = request.editedAcceptanceCriteria() == null ? null
                 : request.editedAcceptanceCriteria().stream()
@@ -30,6 +30,6 @@ public final class AcceptSuggestionRequestMapper {
                         .toList();
         return new AcceptSuggestionCommand(sessionId, suggestionId,
                 request.editedTitle(), request.editedRole(), request.editedAction(), request.editedBenefit(),
-                request.editedPriority(), request.editedStoryPoints(), criteria);
+                request.editedPriority(), request.editedStoryPoints(), criteria, request.approve());
     }
 }

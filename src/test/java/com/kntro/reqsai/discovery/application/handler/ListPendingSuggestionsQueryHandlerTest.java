@@ -41,6 +41,8 @@ class ListPendingSuggestionsQueryHandlerTest {
     private SuggestionRepository suggestions;
     @Mock
     private DiscoverySessionRepository sessions;
+    @Mock
+    private com.kntro.reqsai.discovery.application.service.ResolvedStoryStatusReader storyStatuses;
     @InjectMocks
     private ListPendingSuggestionsQueryHandler handler;
 

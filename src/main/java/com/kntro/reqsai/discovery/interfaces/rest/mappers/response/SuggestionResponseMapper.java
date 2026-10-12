@@ -30,6 +30,7 @@ public final class SuggestionResponseMapper {
                 s.getQuestion(),
                 criteria,
                 s.getResolvedStoryId(),
+                s.getResolvedStoryStatus(),
                 s.getSimilarity(),
                 s.getCreatedAt(),
                 s.getUpdatedAt(),

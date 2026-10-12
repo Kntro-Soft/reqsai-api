@@ -52,7 +52,15 @@ public record AcceptSuggestionRequest(
                 target story. Each entry requires given/when/then. Omit (null) to keep the draft \
                 criteria.""", nullable = true)
         @Valid
-        @Nullable List<EditedCriterion> editedAcceptanceCriteria
+        @Nullable List<EditedCriterion> editedAcceptanceCriteria,
+
+        @Schema(description = """
+                true approves the resulting story in the same transaction (needs the STORY_APPROVE \
+                permission on top of the one to decide suggestions, otherwise 403 and nothing changes); \
+                false (the default) saves it as a draft, sending a story that was approved or rejected \
+                back to draft. A story already exported or merged keeps its status either way. \
+                Ignored for CLARIFYING_QUESTION.""", defaultValue = "false")
+        boolean approve
 ) {
 
     /** An edited Given/When/Then acceptance criterion. {@code scenario} is an optional label. */

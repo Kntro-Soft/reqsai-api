@@ -11,6 +11,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 import lombok.Getter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
@@ -131,6 +132,13 @@ public class Suggestion extends AggregateRoot {
 
     @Column(name = "resolved_story_id", columnDefinition = "uuid")
     private @Nullable UUID resolvedStoryId;
+
+    /**
+     * Review status of the resolved story as it stood when this suggestion was accepted, or as read back
+     * when listing. Not persisted: {@code null} until the accept handler or a list handler sets it.
+     */
+    @Transient
+    private @Nullable StoryStatus resolvedStoryStatus;
 
     /** Cosine similarity (0..1) to the matched story when raised as a duplicate alert; null otherwise. */
     @Column(name = "similarity")
@@ -260,14 +268,21 @@ public class Suggestion extends AggregateRoot {
      * Accepts the suggestion. The caller must subsequently perform the actual backlog mutation
      * (create a story, update a story, add a criterion) and pass the resulting {@code storyId}.
      *
-     * @param resolvedStoryId the story that was created or updated as a result; {@code null} for
-     *                        CLARIFYING_QUESTION (no story produced)
+     * @param resolvedStoryId     the story that was created or updated as a result; {@code null} for
+     *                            CLARIFYING_QUESTION (no story produced)
+     * @param resolvedStoryStatus the review status that story ended in; {@code null} when no story
      */
-    public void accept(@Nullable UUID resolvedStoryId) {
+    public void accept(@Nullable UUID resolvedStoryId, @Nullable StoryStatus resolvedStoryStatus) {
         guardPending();
         this.status = SuggestionStatus.ACCEPTED;
         this.resolvedStoryId = resolvedStoryId;
+        this.resolvedStoryStatus = resolvedStoryStatus;
         registerEvent(SuggestionAcceptedEvent.of(this));
+    }
+
+    /** Records the current status of the resolved story for read models (not persisted). */
+    public void attachResolvedStoryStatus(@Nullable StoryStatus storyStatus) {
+        this.resolvedStoryStatus = storyStatus;
     }
 
     /** Dismisses the suggestion without taking any backlog action. */

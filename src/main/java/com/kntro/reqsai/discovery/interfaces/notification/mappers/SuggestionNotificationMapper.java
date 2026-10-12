@@ -18,7 +18,7 @@ public final class SuggestionNotificationMapper {
                 SessionEventType.SUGGESTION_GENERATED, e.type(), SuggestionStatus.PENDING,
                 e.draftTitle(), e.draftRole(), e.draftAction(), e.draftBenefit(),
                 e.draftPriority(), e.draftStoryPoints(), e.relatedTopic(),
-                e.targetStoryId(), e.question(), e.draftAcceptanceCriteria(), null, e.occurredAt(),
+                e.targetStoryId(), e.question(), e.draftAcceptanceCriteria(), null, null, e.occurredAt(),
                 InsightResponseMapper.evidence(e.evidenceSequence(), e.evidenceQuote()),
                 InsightResponseMapper.code(e.codeFinding(), e.codeNote(), e.codeReferences()));
     }
@@ -30,7 +30,7 @@ public final class SuggestionNotificationMapper {
                 e.draftTitle(), e.draftRole(), e.draftAction(), e.draftBenefit(),
                 e.draftPriority(), e.draftStoryPoints(), e.relatedTopic(),
                 e.targetStoryId(), e.question(), e.draftAcceptanceCriteria(),
-                e.resolvedStoryId(), e.occurredAt(),
+                e.resolvedStoryId(), e.resolvedStoryStatus(), e.occurredAt(),
                 InsightResponseMapper.evidence(e.evidenceSequence(), e.evidenceQuote()),
                 InsightResponseMapper.code(e.codeFinding(), e.codeNote(), e.codeReferences()));
     }
@@ -42,7 +42,7 @@ public final class SuggestionNotificationMapper {
                 e.draftTitle(), e.draftRole(), e.draftAction(), e.draftBenefit(),
                 e.draftPriority(), e.draftStoryPoints(), e.relatedTopic(),
                 e.targetStoryId(), e.question(), java.util.List.of(),
-                null, e.occurredAt(),
+                null, null, e.occurredAt(),
                 InsightResponseMapper.evidence(e.evidenceSequence(), e.evidenceQuote()),
                 InsightResponseMapper.code(e.codeFinding(), e.codeNote(), e.codeReferences()));
     }
