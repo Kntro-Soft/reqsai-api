@@ -2,6 +2,7 @@ package com.kntro.reqsai.codebase.interfaces.rest.swagger;
 
 import com.kntro.reqsai.codebase.interfaces.rest.dto.request.CompleteGitHubInstallRequest;
 import com.kntro.reqsai.codebase.interfaces.rest.dto.response.GitHubConnectionResponse;
+import com.kntro.reqsai.codebase.interfaces.rest.dto.response.GitHubRepositoryResponse;
 import com.kntro.reqsai.codebase.interfaces.rest.dto.response.GitHubInstallResultResponse;
 import com.kntro.reqsai.codebase.interfaces.rest.dto.response.GitHubInstallUrlResponse;
 import com.kntro.reqsai.shared.infrastructure.configuration.ApiVersioning;
@@ -25,6 +26,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -43,6 +45,17 @@ public interface OrganizationGitHubController {
     @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
     @GetMapping(version = ApiVersioning.V1)
     ResponseEntity<GitHubConnectionResponse> get(
+            @Parameter(description = "Organization", required = true) @PathVariable UUID orgId);
+
+    @Operation(summary = "List the repositories the GitHub App shares",
+            description = """
+                    Every repository the organization's installations share with ReqsAI, most recently pushed \
+                    first. It lets a project that does not exist yet (the create-project wizard) pick repositories.""")
+    @ApiResponse(responseCode = "200", description = "Repositories")
+    @ApiStandardErrorResponses
+    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
+    @GetMapping(value = "/repositories", version = ApiVersioning.V1)
+    ResponseEntity<List<GitHubRepositoryResponse>> repositories(
             @Parameter(description = "Organization", required = true) @PathVariable UUID orgId);
 
     @Operation(summary = "Start installing the GitHub App",

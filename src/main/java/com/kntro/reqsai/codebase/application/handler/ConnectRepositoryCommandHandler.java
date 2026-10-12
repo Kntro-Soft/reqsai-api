@@ -49,7 +49,33 @@ public class ConnectRepositoryCommandHandler {
         if (repositories.existsByProjectIdAndFullName(command.projectId(), ref.owner(), ref.name())) {
             throw CodebaseExceptions.alreadyConnected(ref.owner() + "/" + ref.name());
         }
-        Long installationId = command.installationId();
+        Resolved resolved = resolve(command.repository(), command.branch(), command.installationId());
+        RemoteRepository remote = resolved.remote();
+        if (repositories.existsByProjectIdAndFullName(command.projectId(), remote.owner(), remote.name())) {
+            throw CodebaseExceptions.alreadyConnected(remote.owner() + "/" + remote.name());
+        }
+        Long installationId = resolved.installationId();
+        String branch = resolved.branch();
+
+        CodeRepository repository = repositories.save(CodeRepository.connect(command.projectId(), remote.owner(),
+                remote.name(), branch, remote.htmlUrl(), remote.isPrivate(), installationId, Instant.now()));
+        launcher.launch(repository.getId());
+        return repository;
+    }
+
+    /** A repository GitHub confirmed, with the branch and the installation it will be read through. */
+    public record Resolved(RemoteRepository remote, String branch, @Nullable Long installationId) {
+    }
+
+    /**
+     * Checks with GitHub that the repository and its branch exist and that ReqsAI can read them: through the given
+     * installation (which must be linked and share it), the organization's installation that shares it, or
+     * anonymously for a public repository. Stores nothing; a project's creation uses it to refuse a bad request
+     * before the project exists.
+     */
+    public Resolved resolve(String repository, @Nullable String requestedBranch, @Nullable Long requestedInstallation) {
+        RepositoryReference ref = RepositoryReference.parse(repository);
+        Long installationId = requestedInstallation;
         if (installationId != null) {
             access.linked(installationId);
             if (!access.shares(installationId, ref.owner(), ref.name())) {
@@ -59,16 +85,9 @@ public class ConnectRepositoryCommandHandler {
             installationId = access.installationFor(ref.owner(), ref.name()).orElse(null);
         }
         RemoteRepository remote = host.describe(ref.owner(), ref.name(), access.tokenFor(installationId));
-        if (repositories.existsByProjectIdAndFullName(command.projectId(), remote.owner(), remote.name())) {
-            throw CodebaseExceptions.alreadyConnected(remote.owner() + "/" + remote.name());
-        }
-        String branch = firstNonBlank(command.branch(), ref.branch(), remote.defaultBranch());
+        String branch = firstNonBlank(requestedBranch, ref.branch(), remote.defaultBranch());
         host.headCommit(remote.owner(), remote.name(), branch, access.tokenFor(installationId));
-
-        CodeRepository repository = repositories.save(CodeRepository.connect(command.projectId(), remote.owner(),
-                remote.name(), branch, remote.htmlUrl(), remote.isPrivate(), installationId, Instant.now()));
-        launcher.launch(repository.getId());
-        return repository;
+        return new Resolved(remote, branch, installationId);
     }
 
     private static String firstNonBlank(@Nullable String... values) {

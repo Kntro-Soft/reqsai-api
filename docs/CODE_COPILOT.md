@@ -39,6 +39,18 @@ The card links to the module it means, and every suggestion keeps the verbatim f
 3. **Reindex** with `POST …/{id}/reindex`, or automatically on every push for a repository read through the GitHub App. It downloads the branch again, but only modules whose files changed are described again (`content_hash`). A push that arrives during a run is kept (`pending_commit`) and indexed as soon as the run ends.
 4. **Stalled runs.** A run silent for 20 minutes (for example, the server restarted) reads as failed and can be retried.
 
+## Creating a project with its sources
+
+`POST /api/organizations/{orgId}/projects` takes optional `sources` (`jira`, `github[]`) so a new project is wired to Jira and GitHub from the start. The project is created and returned at once; the rest runs in the background.
+
+1. **Check first.** Before the project exists, `ProjectSetupParticipant.validate` of each source module refuses what cannot work: no Jira connection (404), a repository GitHub cannot confirm or ReqsAI cannot read (404), more repositories than the limit or a repeated one (422/409).
+2. **Announce.** `workspace` records one row per requested step in `project_setup_steps` (`JIRA_LINK`, `JIRA_IMPORT`, `GITHUB_REPOS`, with the request, to retry it) and publishes `ProjectSetupRequestedIntegrationEvent` on `workspace::api`. It is delivered after the commit, asynchronously, with the tenant of the request.
+3. **Run.** `gateway` saves the Jira target and starts the import job; `codebase` connects each repository (limit and GitHub checks included) and starts indexing. The permissions are checked again for the creator. One repository that fails does not stop the others, and nothing a source does can undo the project.
+4. **Follow.** `GET /api/projects/{projectId}/setup` merges the recorded state with what the modules keep (repositories' `status`/`modulesDone`/`moduleCount`, the Jira target, the latest import job). A skip or recorded failure wins over live data; a step a module has not reported as handled never reads as finished. The same object is pushed on `/topic/projects/{projectId}/setup` (spaced at least a second apart) and the web also polls while a step is open. When repositories are ready, `detectedStack` carries the merged languages, frameworks, databases and platforms; the web offers to apply them to the project's profile and never does it by itself.
+5. **Skip and retry.** `POST …/setup/steps/{step}/skip` stops following a step (work already started keeps running). `POST …/retry` runs a failed step again: retrying the Jira link retries the import that waited on it, and retrying the repositories connects the missing ones and indexes the failed ones again.
+
+Failure details are error codes (`CODE_REPOSITORY_NOT_FOUND`, per repository as `owner/name: CODE`) so the web translates them; an import that finished with failed issues reports `PARTIAL:<n>`.
+
 ## Connecting GitHub (GitHub App)
 
 Like Jira, GitHub is connected once per organization, by an owner or admin, from **Settings → Integrations**. It uses ReqsAI's GitHub App, not a personal token:

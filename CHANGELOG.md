@@ -9,6 +9,14 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **Create a project with Jira and GitHub (#132).** `POST /api/organizations/{orgId}/projects` accepts optional `sources`: `{jira?: {connectionId?, projectKey, issueTypeName, importStories}, github?: [{repository, branch?, installationId?}]}`. The project is created and answers at once; the sources are set up in the background.
+  - What can be checked at once is checked before the project exists, with a 4xx: the Jira connection exists, each repository is readable (shared by an installation, or public), the per-project repository limit, no repeated repository.
+  - `workspace` announces the request with the public event `ProjectSetupRequestedIntegrationEvent` on `workspace::api` (after commit, in the background, bound to the tenant). `gateway` saves the Jira target and starts the import; `codebase` connects and indexes the repositories. Both use the same handlers as the REST endpoints, on behalf of the creator. `workspace` depends on neither: they implement `ProjectSetupParticipant` and report through `ProjectSetupReporter`.
+  - A source that fails never fails or undoes the project: the failure is recorded in the new tenant table `project_setup_steps` (migration `V20261012120000`) and logged.
+  - `GET /api/projects/{projectId}/setup` (`INTEGRATION_READ`) returns the steps (`JIRA_LINK`, `JIRA_IMPORT`, `GITHUB_REPOS`) with state and counts, merged from the repositories' indexing, the Jira target and import job and the recorded state, plus the stack detected in the indexed repositories. The same object is pushed on `/topic/projects/{projectId}/setup`. `POST …/setup/steps/{step}/skip` and `…/retry` (`INTEGRATION_WRITE`) leave a step out or run a failed one again.
+  - `GET /api/organizations/{orgId}/code/github/repositories` lists what the organization's GitHub installations share, so a project that does not exist yet can pick repositories.
+
 ### Changed
 - The release pull request and the back-merge pull request are opened by the GitHub App `reqsai-release-bot` (a short-lived token minted per job from `RELEASE_APP_ID` and `RELEASE_APP_PRIVATE_KEY`), so their CI runs: opened with `GITHUB_TOKEN` they started no `pull_request` workflow. The back-merge turns on auto-merge (merge commit) when the repository allows it; without the App configuration the job fails instead of falling back to `GITHUB_TOKEN`.
 - `produccion.yml` and `rollback.yml` dispatch `reqsai-infra`'s `deploy-mvp.yml` with a `reqsai-release-bot` token limited to `reqsai-infra` (Actions: write) and watch the run with the workflow token, instead of the personal token `INFRA_DEPLOY_TOKEN`, which is no longer used.
