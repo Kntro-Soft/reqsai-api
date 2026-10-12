@@ -40,7 +40,7 @@ class AcceptSuggestionRequestValidationTest {
     @DisplayName("an empty body (no edits) is valid")
     void empty_body_is_valid() {
         assertThat(validator.validate(new AcceptSuggestionRequest(
-                null, null, null, null, null, null, null, false))).isEmpty();
+                null, null, null, null, null, null, null, null))).isEmpty();
     }
 
     @Test

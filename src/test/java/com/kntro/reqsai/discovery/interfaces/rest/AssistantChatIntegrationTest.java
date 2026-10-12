@@ -140,9 +140,10 @@ class AssistantChatIntegrationTest extends AbstractIntegrationTest {
                 .getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(get(OWNER_USER_ID, orgId, "/api/projects/" + projectId + "/suggestions?status=PENDING&size=100").getBody()).contains(ids.get(0));
 
-        // The same caller saves it as a draft: the story is DRAFT, in the response and in the backlog.
+        // The same caller saves it as a draft (an empty body, like an older client): the story is DRAFT,
+        // in the response and in the backlog.
         JsonNode draft = JSON.readTree(post(MEMBER_USER_ID, orgId, base + ids.get(0) + "/accept",
-                Map.of("approve", false)).getBody());
+                Map.of()).getBody());
         assertThat(draft.path("status").asString()).isEqualTo("ACCEPTED");
         assertThat(draft.path("resolvedStoryStatus").asString()).isEqualTo("DRAFT");
         assertThat(get(OWNER_USER_ID, orgId, "/api/projects/" + projectId + "/stories/"

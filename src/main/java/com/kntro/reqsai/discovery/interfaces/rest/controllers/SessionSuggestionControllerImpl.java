@@ -40,7 +40,7 @@ public class SessionSuggestionControllerImpl implements SessionSuggestionControl
 
     @Override
     @PreAuthorize("@discoveryAuthz.sessionPermission(#sessionId, 'SESSION_DECIDE', authentication)"
-            + " and (#request == null or !#request.approve()"
+            + " and (#request == null or !T(Boolean).TRUE.equals(#request.approve())"
             + " or @discoveryAuthz.sessionPermission(#sessionId, 'STORY_APPROVE', authentication))")
     public ResponseEntity<SuggestionResponse> accept(UUID sessionId, UUID suggestionId,
                                                      @Nullable AcceptSuggestionRequest request) {

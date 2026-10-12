@@ -30,6 +30,6 @@ public final class AcceptSuggestionRequestMapper {
                         .toList();
         return new AcceptSuggestionCommand(sessionId, suggestionId,
                 request.editedTitle(), request.editedRole(), request.editedAction(), request.editedBenefit(),
-                request.editedPriority(), request.editedStoryPoints(), criteria, request.approve());
+                request.editedPriority(), request.editedStoryPoints(), criteria, Boolean.TRUE.equals(request.approve()));
     }
 }

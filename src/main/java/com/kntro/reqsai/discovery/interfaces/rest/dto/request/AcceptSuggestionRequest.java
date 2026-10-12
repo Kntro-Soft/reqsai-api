@@ -60,7 +60,7 @@ public record AcceptSuggestionRequest(
                 false (the default) saves it as a draft, sending a story that was approved or rejected \
                 back to draft. A story already exported or merged keeps its status either way. \
                 Ignored for CLARIFYING_QUESTION.""", defaultValue = "false")
-        boolean approve
+        @Nullable Boolean approve
 ) {
 
     /** An edited Given/When/Then acceptance criterion. {@code scenario} is an optional label. */
