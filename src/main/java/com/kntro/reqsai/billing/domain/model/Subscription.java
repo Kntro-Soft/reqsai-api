@@ -18,6 +18,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import lombok.Getter;
+import org.hibernate.annotations.DynamicUpdate;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -29,6 +30,7 @@ import java.util.UUID;
  */
 @Entity
 @Table(name = "subscriptions", schema = "public")
+@DynamicUpdate
 @Getter
 public class Subscription extends AggregateRoot {
 
@@ -54,6 +56,13 @@ public class Subscription extends AggregateRoot {
 
     @Column(name = "token_quota_used", nullable = false)
     private long tokenQuotaUsed;
+
+    /**
+     * The highest warning step (80, 90 or 100 percent of the allowance) already announced this period.
+     * Raised with a conditional UPDATE so each step is announced once, and zeroed with the counter.
+     */
+    @Column(name = "quota_warning_percent", nullable = false)
+    private int quotaWarningPercent;
 
     @Column(name = "cancelled_at")
     private Instant cancelledAt;
@@ -184,7 +193,8 @@ public class Subscription extends AggregateRoot {
 
     /**
      * Records AI token consumption against the current period, rolling the period over first when it
-     * has elapsed (a fresh period resets the counter).
+     * has elapsed (a fresh period resets the counter). In-memory only: the application meters through the
+     * atomic {@code SubscriptionRepositoryPort#addTokens}, never through this read-modify-write.
      *
      * @param tokens number of tokens consumed (must be positive to have any effect)
      */
@@ -200,17 +210,31 @@ public class Subscription extends AggregateRoot {
      * Rolls the billing period forward (and zeroes the token counter) when the current period has
      * fully elapsed. Safe to call repeatedly.
      */
-    public void rolloverIfPeriodElapsed(Instant now) {
+    public boolean rolloverIfPeriodElapsed(Instant now) {
+        boolean rolled = false;
         while (!this.currentPeriodEnd.isAfter(now)) {
             this.currentPeriodStart = this.currentPeriodEnd;
             this.currentPeriodEnd = this.currentPeriodStart.plus(PERIOD_LENGTH_DAYS, ChronoUnit.DAYS);
             this.tokenQuotaUsed = 0L;
+            this.quotaWarningPercent = 0;
+            rolled = true;
         }
+        return rolled;
+    }
+
+    /**
+     * Tokens counted in the period that is current at {@code now}: zero once the stored period has
+     * elapsed, because the counter is only zeroed by the next recorded usage. Quota checks and the usage
+     * page read this, so an elapsed period never keeps an organization locked out.
+     */
+    public long effectiveTokensUsed(Instant now) {
+        return this.currentPeriodEnd.isAfter(now) ? this.tokenQuotaUsed : 0L;
     }
 
     private void startNewPeriod(Instant now) {
         this.currentPeriodStart = now;
         this.currentPeriodEnd = now.plus(PERIOD_LENGTH_DAYS, ChronoUnit.DAYS);
         this.tokenQuotaUsed = 0L;
+        this.quotaWarningPercent = 0;
     }
 }

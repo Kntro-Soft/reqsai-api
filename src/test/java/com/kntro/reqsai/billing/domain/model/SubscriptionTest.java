@@ -9,6 +9,7 @@ import com.kntro.reqsai.testsupport.AggregateEvents;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -130,5 +131,29 @@ class SubscriptionTest {
         paid.upgradeTo(PlanType.PRO, ref());
         paid.markPastDue();
         assertThat(paid.getStatus()).isEqualTo(SubscriptionStatus.PAST_DUE);
+    }
+
+    @Test
+    @DisplayName("effectiveTokensUsed reads zero once the stored period has elapsed")
+    void effective_tokens_ignore_an_elapsed_period() {
+        Subscription sub = new Subscription(UUID.randomUUID());
+        sub.recordTokenUsage(900);
+
+        assertThat(sub.effectiveTokensUsed(Instant.now())).isEqualTo(900L);
+        assertThat(sub.effectiveTokensUsed(sub.getCurrentPeriodEnd().plusSeconds(1))).isZero();
+    }
+
+    @Test
+    @DisplayName("rolloverIfPeriodElapsed reports whether it rolled and clears the counter")
+    void rollover_reports_and_clears() {
+        Subscription sub = new Subscription(UUID.randomUUID());
+        sub.recordTokenUsage(900);
+
+        assertThat(sub.rolloverIfPeriodElapsed(Instant.now())).isFalse();
+        assertThat(sub.getTokenQuotaUsed()).isEqualTo(900L);
+
+        assertThat(sub.rolloverIfPeriodElapsed(sub.getCurrentPeriodEnd().plusSeconds(1))).isTrue();
+        assertThat(sub.getTokenQuotaUsed()).isZero();
+        assertThat(sub.getQuotaWarningPercent()).isZero();
     }
 }

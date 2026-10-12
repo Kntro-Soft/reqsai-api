@@ -3,6 +3,8 @@ package com.kntro.reqsai.billing.domain.exception;
 import com.kntro.reqsai.shared.domain.exception.DomainException;
 import com.kntro.reqsai.shared.domain.exception.EntityNotFoundException;
 
+import java.time.Instant;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -53,5 +55,18 @@ public final class BillingExceptions {
 
     public static DomainException webhookSignatureInvalid(String detail) {
         return new DomainException(BillingError.WEBHOOK_SIGNATURE_INVALID, detail);
+    }
+
+    /**
+     * The monthly AI allowance is spent. Carries the plan, limit, used and reset instant so a client can
+     * explain it and offer an upgrade.
+     */
+    public static DomainException aiQuotaExceeded(String planType, long limit, long used, Instant resetsAt) {
+        return new DomainException(
+                BillingError.AI_QUOTA_EXCEEDED,
+                "The monthly AI allowance of the " + planType + " plan is used up (" + used + " of " + limit
+                        + " tokens). Reading, editing and exporting still work.",
+                Map.of("plan", planType, "limit", limit, "used", used, "resetsAt", resetsAt.toString())
+        );
     }
 }
