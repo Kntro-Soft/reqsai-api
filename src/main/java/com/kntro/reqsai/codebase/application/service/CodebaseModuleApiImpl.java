@@ -1,5 +1,6 @@
 package com.kntro.reqsai.codebase.application.service;
 
+import com.kntro.reqsai.codebase.api.CodeFootprint;
 import com.kntro.reqsai.codebase.api.CodeModuleView;
 import com.kntro.reqsai.codebase.api.CodeOverview;
 import com.kntro.reqsai.codebase.api.CodebaseModuleApi;
@@ -15,7 +16,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.text.Normalizer;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -93,6 +96,31 @@ class CodebaseModuleApiImpl implements CodebaseModuleApi {
         return Optional.of(new CodeOverview(ready.stream().map(CodeRepository::fullName).toList(),
                 overviews.isEmpty() ? null : String.join("\n", overviews), List.copyOf(languages),
                 List.copyOf(frameworks), List.copyOf(databases), List.copyOf(platforms)));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public CodeFootprint footprint(Collection<UUID> projectIds) {
+        if (projectIds.isEmpty()) {
+            return CodeFootprint.none();
+        }
+        long repos = 0;
+        long ready = 0;
+        long failed = 0;
+        long files = 0;
+        Instant lastIndexedAt = null;
+        for (CodeRepositoryRepository.StatusSummary summary : repositories.summarizeByStatus(projectIds)) {
+            repos += summary.repositories();
+            files += summary.files();
+            if (summary.status() == CodeRepositoryStatus.READY) ready += summary.repositories();
+            if (summary.status() == CodeRepositoryStatus.FAILED) failed += summary.repositories();
+            Instant indexed = summary.lastIndexedAt();
+            if (indexed != null && (lastIndexedAt == null || indexed.isAfter(lastIndexedAt))) lastIndexedAt = indexed;
+        }
+        if (repos == 0) {
+            return CodeFootprint.none();
+        }
+        return new CodeFootprint(repos, ready, failed, modules.countByProjectIdIn(projectIds), files, lastIndexedAt);
     }
 
     private List<CodeModule> byWords(UUID projectId, String text, int topK) {

@@ -24,7 +24,8 @@ class ArchitectureTests {
 					"..iam.domain.exception..",
 					"..billing.domain.exception..",
 					"..gateway.domain.exception..",
-					"..codebase.domain.exception..")
+					"..codebase.domain.exception..",
+					"..overview.domain.exception..")
 			.should().dependOnClassesThat().resideInAPackage("org.springframework..")
 			.because("domain layer must be framework-agnostic; "
 					+ "shared.domain.model uses Spring Data auditing intentionally, "

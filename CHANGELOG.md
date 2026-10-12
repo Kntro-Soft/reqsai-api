@@ -36,6 +36,22 @@ follows [Semantic Versioning](https://semver.org/).
   - `GET /api/projects/{projectId}/setup` (`INTEGRATION_READ`) returns the steps (`JIRA_LINK`, `JIRA_IMPORT`, `GITHUB_REPOS`) with state and counts, merged from the repositories' indexing, the Jira target and import job and the recorded state, plus the stack detected in the indexed repositories. The same object is pushed on `/topic/projects/{projectId}/setup`. `POST …/setup/steps/{step}/skip` and `…/retry` (`INTEGRATION_WRITE`) leave a step out or run a failed one again.
   - `GET /api/organizations/{orgId}/code/github/repositories` lists what the organization's GitHub installations share, so a project that does not exist yet can pick repositories.
 
+
+- **New `overview` module: read-only dashboards of a project and of an organization (#129).**
+  - `GET /api/projects/{projectId}/overview`: stories by status and priority, story points,
+    coverage (acceptance criteria, origin quote, linked code), sessions and stories per week over the
+    last 12 weeks, how often the copilot's proposals were accepted or dismissed, glossary, constraints,
+    documents and assigned members, and the connected code. Each section follows the permission that
+    guards the same data (`STORY_READ`, `SESSION_READ`, `GLOSSARY_READ`, `CONSTRAINT_READ`,
+    `DOCUMENT_READ`, `MEMBER_READ`, `INTEGRATION_READ`) and is `null` without it; `403` when the caller
+    holds none, `404` for an unknown project.
+  - `GET /api/organizations/{organizationId}/overview` (any member): the same figures across the
+    projects the caller may see, the busiest projects and, for owners and admins only, the headcount.
+    Answers `403` for an organization other than the one the token is bound to.
+  - Everything is counted in SQL (`COUNT`/`GROUP BY`/`FILTER`); no entity is loaded. Each context owns its
+    figures behind a new named interface: `discovery::insights`, `workspace::insights` and
+    `CodebaseModuleApi.footprint`. No migration.
+
 ### Changed
 - Final stories (processing a session or an uploaded recording) now get the same context as live suggestions: backlog candidates, glossary, constraints and the related modules of the connected code. Without context, or if the lookup fails, they are generated from the transcript alone as before.
 - The release pull request and the back-merge pull request are opened by the GitHub App `reqsai-release-bot` (a short-lived token minted per job from `RELEASE_APP_ID` and `RELEASE_APP_PRIVATE_KEY`), so their CI runs: opened with `GITHUB_TOKEN` they started no `pull_request` workflow. The back-merge turns on auto-merge (merge commit) when the repository allows it; without the App configuration the job fails instead of falling back to `GITHUB_TOKEN`.

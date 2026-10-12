@@ -25,4 +25,7 @@ public interface CodeModuleRepository {
     void deleteByRepositoryIdAndPathNotIn(UUID repositoryId, Collection<String> keptPaths);
 
     void deleteByRepositoryId(UUID repositoryId);
+
+    /** How many modules the given projects have indexed. */
+    long countByProjectIdIn(Collection<UUID> projectIds);
 }
