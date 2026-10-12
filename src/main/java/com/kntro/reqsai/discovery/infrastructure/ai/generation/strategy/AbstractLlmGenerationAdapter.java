@@ -616,6 +616,13 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
             Rules:
             - Write "reply" in the language of the analyst's message, and put that language's ISO-639-1
               code in "language" (for example "es").
+            - CODE QUESTIONS: when the message asks what the product or its code ALREADY does or how it works
+              (for example "¿el sistema ya permite cancelar una reserva?", "¿cuántas personas admite una
+              reserva?"), answer from the EXISTING SYSTEM section of the project context when it clearly
+              holds the answer. Set "searchCode" to true when the message is such a question and EXISTING
+              SYSTEM does not clearly answer it (no module relates to it, or it is not enough to be sure);
+              then make "reply" one short sentence, because the source code will be searched for you.
+              Otherwise "searchCode" is false.
             - Be concise: at most six short sentences or a short list. Plain text, no Markdown headings,
               no code.
             - Never invent stories, statuses, counts or other data that are not in the context below.
@@ -636,7 +643,8 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
             %s
             </message>
 
-            Return ONLY this JSON object: {"reply": "...", "requirement": "..." or null, "language": "es"}
+            Return ONLY this JSON object:
+            {"reply": "...", "requirement": "..." or null, "language": "es", "searchCode": false}
             """;
 
     private final ObjectMapper objectMapper;
@@ -702,7 +710,7 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
             if (reply.isEmpty() && requirement == null) {
                 throw new IllegalStateException("neither a reply nor a requirement");
             }
-            return new AssistantReply(reply, requirement, parsed.language());
+            return new AssistantReply(reply, requirement, parsed.language(), Boolean.TRUE.equals(parsed.searchCode()));
         } catch (Exception e) {
             log.warn("Failed to parse {} chat response: {}", modelName(), e.getMessage());
             throw DiscoveryInfrastructureExceptions.generationOutputUnparseable(
@@ -1152,5 +1160,6 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
     protected record LlmQuestion(String question, @Nullable String evidence) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    protected record LlmChatReply(@Nullable String reply, @Nullable String requirement, @Nullable String language) {}
+    protected record LlmChatReply(@Nullable String reply, @Nullable String requirement, @Nullable String language,
+                                  @Nullable Boolean searchCode) {}
 }

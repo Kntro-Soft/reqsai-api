@@ -1,12 +1,16 @@
 package com.kntro.reqsai.discovery.application.notification;
 
+import com.kntro.reqsai.discovery.domain.event.SuggestionCodeVerifiedEvent;
 import com.kntro.reqsai.discovery.domain.event.SuggestionCreatedEvent;
 import com.kntro.reqsai.discovery.domain.model.CodeFinding;
 import com.kntro.reqsai.discovery.domain.model.CodeReference;
+import com.kntro.reqsai.discovery.domain.model.CodeVerdict;
+import com.kntro.reqsai.discovery.domain.model.CodeVerifyState;
 import com.kntro.reqsai.discovery.domain.model.Priority;
 import com.kntro.reqsai.discovery.domain.model.SuggestionType;
 import com.kntro.reqsai.discovery.interfaces.notification.SessionEventType;
 import com.kntro.reqsai.discovery.interfaces.notification.messages.SessionRealtimeMessage;
+import com.kntro.reqsai.discovery.interfaces.notification.messages.SessionSuggestionCodeMessage;
 import com.kntro.reqsai.discovery.interfaces.notification.messages.SessionSuggestionMessage;
 import com.kntro.reqsai.testsupport.AbstractIntegrationTest;
 import com.kntro.reqsai.testsupport.TestJwtFactory;
@@ -113,6 +117,61 @@ class SuggestionBroadcastIntegrationTest extends AbstractIntegrationTest {
         assertThat(msg.suggestionType()).isEqualTo(SuggestionType.NEW_STORY);
         assertThat(msg.draftTitle()).isEqualTo("Autenticación de dos factores");
         assertThat(msg.draftPriority()).isEqualTo(Priority.HIGH);
+    }
+
+    @Test
+    @DisplayName("should broadcast SUGGESTION_CODE_UPDATED with the verdict, note and the lines the code was read at")
+    void should_broadcast_code_verification() throws Exception {
+        UUID sessionId = UUID.randomUUID();
+        UUID suggestionId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        Instant verifiedAt = Instant.now();
+
+        BlockingQueue<SessionSuggestionCodeMessage> received =
+                subscribe(connectAuthenticated(), sessionId, SessionSuggestionCodeMessage.class,
+                        SessionEventType.SUGGESTION_CODE_UPDATED);
+
+        SuggestionCodeVerifiedEvent event = new SuggestionCodeVerifiedEvent(suggestionId, sessionId, projectId,
+                CodeVerifyState.VERIFIED, CodeVerdict.CONFLICTS_WITH_CODE, verifiedAt, null,
+                CodeFinding.CONFLICTS_WITH_CODE, "El código permite 2 h; el cliente pide 24 h",
+                List.of(new CodeReference("acme/app", "src/reservations", "cancellation.policy.ts",
+                        "https://github.com/acme/app/blob/abc/src/reservations/cancellation.policy.ts#L2-L3",
+                        "src/reservations/cancellation.policy.ts", 2, 3, "LIMIT = 2")),
+                Instant.now());
+
+        SessionSuggestionCodeMessage msg = awaitFirst(received, () -> suggestionListener.onCodeVerified(event));
+
+        assertThat(msg.suggestionId()).isEqualTo(suggestionId);
+        assertThat(msg.projectId()).isEqualTo(projectId);
+        assertThat(msg.code()).isNotNull();
+        assertThat(msg.code().verifyState()).isEqualTo("VERIFIED");
+        assertThat(msg.code().verdict()).isEqualTo("CONFLICTS_WITH_CODE");
+        assertThat(msg.code().finding()).isEqualTo("CONFLICTS_WITH_CODE");
+        assertThat(msg.code().note()).contains("24 h");
+        assertThat(msg.code().verifiedAt()).isNotNull();
+        assertThat(msg.code().references()).singleElement().satisfies(r -> {
+            assertThat(r.file()).isEqualTo("src/reservations/cancellation.policy.ts");
+            assertThat(r.lineStart()).isEqualTo(2);
+            assertThat(r.lineEnd()).isEqualTo(3);
+            assertThat(r.url()).endsWith("#L2-L3");
+        });
+    }
+
+    @Test
+    @DisplayName("should broadcast a failed verification so the card can offer a retry")
+    void should_broadcast_failed_verification() throws Exception {
+        UUID sessionId = UUID.randomUUID();
+        BlockingQueue<SessionSuggestionCodeMessage> received =
+                subscribe(connectAuthenticated(), sessionId, SessionSuggestionCodeMessage.class,
+                        SessionEventType.SUGGESTION_CODE_UPDATED);
+        SuggestionCodeVerifiedEvent event = new SuggestionCodeVerifiedEvent(UUID.randomUUID(), sessionId,
+                UUID.randomUUID(), CodeVerifyState.FAILED, null, null, "the AI model took too long", null, null,
+                List.of(), Instant.now());
+
+        SessionSuggestionCodeMessage msg = awaitFirst(received, () -> suggestionListener.onCodeVerified(event));
+
+        assertThat(msg.code().verifyState()).isEqualTo("FAILED");
+        assertThat(msg.code().verifyError()).contains("too long");
     }
 
     // ----- helpers (mirrors RealtimeNotificationIntegrationTest) -----

@@ -5,6 +5,8 @@ import com.kntro.reqsai.discovery.application.port.AssistantMessageRepository;
 import com.kntro.reqsai.discovery.application.port.AssistantReply;
 import com.kntro.reqsai.discovery.application.port.BacklogOverview;
 import com.kntro.reqsai.discovery.application.port.ChatTurn;
+import com.kntro.reqsai.discovery.application.port.CodeVerification;
+import com.kntro.reqsai.discovery.application.port.CodeVerificationPort.SubjectKind;
 import com.kntro.reqsai.discovery.application.port.DiscoverySessionRepository;
 import com.kntro.reqsai.discovery.application.port.GenerationContext;
 import com.kntro.reqsai.discovery.application.port.GenerationResult;
@@ -13,6 +15,7 @@ import com.kntro.reqsai.discovery.application.port.SuggestionRepository;
 import com.kntro.reqsai.discovery.application.port.UnparseableGenerationException;
 import com.kntro.reqsai.discovery.application.port.UserStoryRepository;
 import com.kntro.reqsai.discovery.application.query.StoryFilter;
+import com.kntro.reqsai.discovery.application.service.CodeVerificationService;
 import com.kntro.reqsai.discovery.application.service.RealtimeSuggestionService;
 import com.kntro.reqsai.discovery.application.service.SuggestionCreationService;
 import com.kntro.reqsai.discovery.domain.exception.DiscoveryExceptions;
@@ -22,6 +25,7 @@ import com.kntro.reqsai.discovery.domain.model.Suggestion;
 import com.kntro.reqsai.discovery.domain.model.SuggestionStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.Nullable;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Component;
@@ -63,6 +67,7 @@ public class SendAssistantMessageCommandHandler {
     private final SuggestionRepository suggestions;
     private final UserStoryRepository stories;
     private final DiscoverySessionRepository sessions;
+    private final CodeVerificationService codeVerification;
 
     @Transactional
     public AssistantExchange handle(SendAssistantMessageCommand cmd) {
@@ -84,18 +89,60 @@ public class SendAssistantMessageCommandHandler {
         AssistantReply reply = converse(question.getContent(), history, context, overview(projectId));
         List<Suggestion> created = List.of();
         if (reply.hasRequirement()) {
-            String language = reply.language() == null || reply.language().isBlank()
-                    ? DEFAULT_LANGUAGE : reply.language();
-            GenerationResult result = generation.generate(reply.requirement(), language, context);
+            GenerationResult result = generation.generate(reply.requirement(), requirementLanguage(reply), context);
             created = suggestionCreation.createSuggestions(result, null, projectId);
         }
 
-        AssistantMessage answer = messages.save(AssistantMessage.fromAssistant(projectId,
-                replyText(reply, created), created.stream().map(Suggestion::getId).toList()));
-        log.info("Assistant chat for project {}: requirement={}, {} suggestion(s)",
-                projectId, reply.hasRequirement(), created.size());
+        String language = requirementLanguage(reply);
+        CodeVerification deep = reply.searchCode() ? searchCode(projectId, question.getContent(), language) : null;
+        List<UUID> createdIds = created.stream().map(Suggestion::getId).toList();
+        AssistantMessage answer = messages.save(deep == null
+                ? AssistantMessage.fromAssistant(projectId, replyText(reply, created), createdIds)
+                : AssistantMessage.fromCodeSearch(projectId, deepReplyText(deep, reply, created, language),
+                        createdIds, deep.references()));
+        log.info("Assistant chat for project {}: requirement={}, {} suggestion(s), deep code search={}",
+                projectId, reply.hasRequirement(), created.size(), deep != null);
         return new AssistantExchange(new AssistantChatEntry(question, List.of()),
                 new AssistantChatEntry(answer, created));
+    }
+
+    /**
+     * The model said the index does not answer a question about the code: search the pure source code, within
+     * the verification budget. Fails open: without a ready repository, a model, or in time, the chat keeps the
+     * model's own short reply.
+     */
+    private @Nullable CodeVerification searchCode(UUID projectId, String question, String language) {
+        try {
+            if (!codeVerification.hasReadyRepository(projectId) || !codeVerification.isAvailable()) {
+                return null;
+            }
+            return codeVerification.verify(projectId, question, SubjectKind.QUESTION, language,
+                    codeVerification.budget());
+        } catch (RuntimeException e) {
+            log.info("Assistant chat for project {}: the deep code search failed, answering without it: {}",
+                    projectId, e.getMessage());
+            return null;
+        }
+    }
+
+    /** The answer found in the code, said to come from the source code, plus the note of a requirement raised. */
+    private static String deepReplyText(CodeVerification deep, AssistantReply reply, List<Suggestion> created,
+                                        String language) {
+        boolean english = language.toLowerCase().startsWith("en");
+        StringBuilder text = new StringBuilder(deep.note().isBlank() ? reply.reply().strip() : deep.note());
+        text.append("\n\n").append(english
+                ? "I searched the source code directly to answer this."
+                : "Lo busqué directamente en el código fuente para responderte.");
+        if (reply.hasRequirement() && created.isEmpty()) {
+            text.append("\n\n").append(english
+                    ? "I did not raise a new suggestion: it is already covered by the backlog or by a suggestion awaiting review."
+                    : "No generé una sugerencia nueva: ya está cubierto en el backlog o en una sugerencia pendiente de revisión.");
+        }
+        return text.toString();
+    }
+
+    private static String requirementLanguage(AssistantReply reply) {
+        return reply.language() == null || reply.language().isBlank() ? DEFAULT_LANGUAGE : reply.language();
     }
 
     private AssistantReply converse(String message, List<ChatTurn> history, GenerationContext context,

@@ -1,12 +1,21 @@
 package com.kntro.reqsai.codebase.interfaces.rest;
 
+import com.kntro.reqsai.codebase.api.CodeSnippet;
 import com.kntro.reqsai.codebase.support.FakeGitHub;
+import com.kntro.reqsai.discovery.application.port.AssistantReply;
+import com.kntro.reqsai.discovery.application.port.BacklogOverview;
+import com.kntro.reqsai.discovery.application.port.ChatTurn;
+import com.kntro.reqsai.discovery.application.port.CodeVerification;
+import com.kntro.reqsai.discovery.application.port.CodeVerificationPort;
 import com.kntro.reqsai.discovery.application.port.GenerationContext;
 import com.kntro.reqsai.discovery.application.port.GenerationResult;
 import com.kntro.reqsai.discovery.application.port.RequirementGenerationPort;
 import com.kntro.reqsai.discovery.application.port.StoryInsight;
 import com.kntro.reqsai.discovery.domain.model.CodeFinding;
+import com.kntro.reqsai.discovery.domain.event.SuggestionCodeVerifiedEvent;
 import com.kntro.reqsai.discovery.domain.model.CodeReference;
+import com.kntro.reqsai.discovery.domain.model.CodeVerdict;
+import com.kntro.reqsai.discovery.domain.model.CodeVerifyState;
 import com.kntro.reqsai.discovery.domain.model.Priority;
 import com.kntro.reqsai.discovery.domain.model.SuggestionType;
 import com.kntro.reqsai.testsupport.AbstractIntegrationTest;
@@ -20,6 +29,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.event.EventListener;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.http.HttpMethod;
@@ -48,6 +58,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -71,6 +83,12 @@ class CodeCopilotIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private RecordingVerifier verifier;
+
+    @Autowired
+    private VerificationEvents events;
 
     private static final String CLIENT_ID = "Iv1.reqsai-test";
     private static final String CLIENT_SECRET = "client-secret-for-tests";
@@ -362,9 +380,143 @@ class CodeCopilotIntegrationTest extends AbstractIntegrationTest {
                 .isTrue();
     }
 
+    @Test
+    @DisplayName("deep verification: searches the pure code, updates the card, fails and retries, and answers chat questions")
+    void deepVerification() throws Exception {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        String slug = "acme-" + suffix;
+        UUID orgId = createOrganization(suffix, slug);
+        UUID projectId = createProject(orgId, slug);
+        createMember(orgId, Map.of("userId", MEMBER_USER_ID, "email", "member@example.com",
+                "displayName", "Member", "role", "MEMBER"));
+        String messages = "/api/projects/" + projectId + "/assistant/messages";
+        int callsBefore = verifier.calls.get();
+
+        // Without a connected repository there is nothing to verify against: 409, and the chat keeps its own reply.
+        String cancelled = chatSuggestionId(orgId, messages, "Quiero que el comensal pueda cancelar su reserva hasta 24 horas antes");
+        assertThat(code(send(HttpMethod.POST, OWNER_USER_ID, orgId, verifyPath(projectId, cancelled), null)))
+                .isEqualTo("CODE_REPOSITORY_NOT_READY");
+        JsonNode noRepoChat = JSON.readTree(send(HttpMethod.POST, OWNER_USER_ID, orgId, messages,
+                Map.of("content", "¿El código ya permite cancelar una reserva?")).getBody()).path("answer");
+        assertThat(noRepoChat.path("codeSearched").asBoolean()).isFalse();
+        assertThat(noRepoChat.path("content").asString()).isEqualTo("Busco en el código.");
+
+        // Connect and index the public repository.
+        String repos = "/api/projects/" + projectId + "/code/repositories";
+        String repoId = JSON.readTree(send(HttpMethod.POST, OWNER_USER_ID, orgId, repos,
+                Map.of("repository", "acme/reservas")).getBody()).path("id").asString();
+        String sha = awaitStatus(orgId, repos, repoId, "READY").path("commitSha").asString();
+
+        // Only someone who can decide suggestions and read integrations may ask; an unknown suggestion is a 404.
+        assertThat(send(HttpMethod.POST, MEMBER_USER_ID, orgId, verifyPath(projectId, cancelled), null)
+                .getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(send(HttpMethod.POST, OWNER_USER_ID, orgId, verifyPath(projectId, UUID.randomUUID().toString()), null)
+                .getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+
+        // 202 right away, the card in VERIFYING; the verdict arrives in the background.
+        ResponseEntity<String> started = send(HttpMethod.POST, OWNER_USER_ID, orgId, verifyPath(projectId, cancelled), null);
+        assertThat(started.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+        assertThat(JSON.readTree(started.getBody()).path("code").path("verifyState").asString()).isEqualTo("VERIFYING");
+        JsonNode verified = awaitVerification(orgId, projectId, cancelled, "VERIFIED");
+        JsonNode codeInfo = verified.path("code");
+        assertThat(codeInfo.path("verdict").asString()).isEqualTo("CONFLICTS_WITH_CODE");
+        assertThat(codeInfo.path("finding").asString()).isEqualTo("CONFLICTS_WITH_CODE");
+        assertThat(codeInfo.path("note").asString()).contains("2 h");
+        assertThat(codeInfo.path("verifiedAt").asString()).isNotBlank();
+        JsonNode reference = codeInfo.path("references").get(0);
+        assertThat(reference.path("file").asString()).isEqualTo("src/reservations/cancellation.policy.ts");
+        assertThat(reference.path("lineStart").asInt()).isEqualTo(2);
+        assertThat(reference.path("lineEnd").asInt()).isEqualTo(2);
+        assertThat(reference.path("quote").asString()).contains("CANCELLATION_LIMIT_HOURS = 2");
+        assertThat(reference.path("url").asString())
+                .contains("/acme/reservas/blob/" + sha + "/src/reservations/cancellation.policy.ts#L2");
+        assertThat(verifier.calls.get() - callsBefore).isEqualTo(1);
+        assertThat(events.statesOf(cancelled)).containsExactly(CodeVerifyState.VERIFYING, CodeVerifyState.VERIFIED);
+        // No source code was persisted anywhere with the verdict.
+        assertThat(verified.toString()).doesNotContain("getTime()");
+
+        // Something the code does not have: nothing in the repository relates, so the model is not even called.
+        String crypto = chatSuggestionId(orgId, messages, "Quiero pagar con blockchain y una wallet de criptomonedas");
+        int callsBeforeCrypto = verifier.calls.get();
+        assertThat(send(HttpMethod.POST, OWNER_USER_ID, orgId, verifyPath(projectId, crypto), null).getStatusCode())
+                .isEqualTo(HttpStatus.ACCEPTED);
+        JsonNode notFound = awaitVerification(orgId, projectId, crypto, "VERIFIED").path("code");
+        assertThat(notFound.path("verdict").asString()).isEqualTo("NOT_FOUND");
+        assertThat(notFound.path("finding").isNull() || notFound.path("finding").isMissingNode()).isTrue();
+        assertThat(notFound.path("references").size()).isZero();
+        assertThat(verifier.calls.get()).isEqualTo(callsBeforeCrypto);
+
+        // A model failure ends as FAILED with a reason, and asking again retries.
+        String failing = chatSuggestionId(orgId, messages, "Quiero cancelar la reserva [[fail]] hasta 24 horas antes");
+        assertThat(send(HttpMethod.POST, OWNER_USER_ID, orgId, verifyPath(projectId, failing), null).getStatusCode())
+                .isEqualTo(HttpStatus.ACCEPTED);
+        JsonNode failed = awaitVerification(orgId, projectId, failing, "FAILED").path("code");
+        assertThat(failed.path("verifyError").asString()).isNotBlank().doesNotContain("quota exceeded");
+        assertThat(events.statesOf(failing)).containsExactly(CodeVerifyState.VERIFYING, CodeVerifyState.FAILED);
+        assertThat(send(HttpMethod.POST, OWNER_USER_ID, orgId, verifyPath(projectId, failing), null).getStatusCode())
+                .isEqualTo(HttpStatus.ACCEPTED);
+        awaitVerification(orgId, projectId, failing, "FAILED");
+
+        // A resolved suggestion cannot be verified.
+        assertThat(send(HttpMethod.POST, OWNER_USER_ID, orgId, "/api/projects/" + projectId + "/suggestions/"
+                + crypto + "/dismiss", null).getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(code(send(HttpMethod.POST, OWNER_USER_ID, orgId, verifyPath(projectId, crypto), null)))
+                .isEqualTo("SUGGESTION_ALREADY_RESOLVED");
+
+        // The chat: the index could not answer, so the pure code is searched and the reply cites file and lines.
+        int callsBeforeChat = verifier.calls.get();
+        JsonNode answer = JSON.readTree(send(HttpMethod.POST, OWNER_USER_ID, orgId, messages,
+                Map.of("content", "¿El código del sistema ya permite cancelar una reserva?")).getBody()).path("answer");
+        assertThat(answer.path("codeSearched").asBoolean()).isTrue();
+        assertThat(answer.path("content").asString()).contains("2 horas antes").contains("código fuente");
+        assertThat(answer.path("codeReferences").get(0).path("file").asString())
+                .isEqualTo("src/reservations/cancellation.policy.ts");
+        assertThat(answer.path("codeReferences").get(0).path("url").asString())
+                .contains("/blob/" + sha + "/src/reservations/cancellation.policy.ts#L2");
+        assertThat(verifier.calls.get() - callsBeforeChat).isEqualTo(1);
+        // The snippets the model read had their secrets removed.
+        assertThat(verifier.lastSnippets).isNotEmpty();
+        assertThat(verifier.lastSnippets.toString()).doesNotContain("sk_" + "live_");
+
+        // The stored history keeps the references of that reply.
+        JsonNode history = JSON.readTree(send(HttpMethod.GET, OWNER_USER_ID, orgId, messages, null).getBody());
+        JsonNode stored = find(history.isArray() ? history : history.path("content"), "id", answer.path("id").asString());
+        assertThat(stored.path("codeSearched").asBoolean()).isTrue();
+        assertThat(stored.path("codeReferences").size()).isEqualTo(1);
+    }
+
+    private String verifyPath(UUID projectId, String suggestionId) {
+        return "/api/projects/" + projectId + "/suggestions/" + suggestionId + "/verify-code";
+    }
+
+    /** Types a requirement in the chat and returns the id of the suggestion it raised. */
+    private String chatSuggestionId(UUID orgId, String messagesPath, String text) {
+        ResponseEntity<String> sent = send(HttpMethod.POST, OWNER_USER_ID, orgId, messagesPath, Map.of("content", text));
+        assertThat(sent.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        return JSON.readTree(sent.getBody()).path("answer").path("suggestions").get(0).path("id").asString();
+    }
+
+    private JsonNode awaitVerification(UUID orgId, UUID projectId, String suggestionId, String state)
+            throws InterruptedException {
+        JsonNode last = null;
+        for (int i = 0; i < 150; i++) {
+            JsonNode page = JSON.readTree(send(HttpMethod.GET, OWNER_USER_ID, orgId,
+                    "/api/projects/" + projectId + "/suggestions?status=PENDING&size=50", null).getBody());
+            for (JsonNode node : page.path("content")) {
+                if (suggestionId.equals(node.path("id").asString())) last = node;
+            }
+            if (last != null && state.equals(last.path("code").path("verifyState").asString())) return last;
+            Thread.sleep(200);
+        }
+        throw new AssertionError("Suggestion never reached verification state " + state + ": " + last);
+    }
+
     /**
-     * The model for this test: a requirement typed in the chat comes back as one story; when the prompt carries
-     * the client's code it is flagged against the first module, as the real model is asked to.
+     * The models for these tests. Generation: a requirement typed in the chat comes back as one story (about
+     * cryptocurrency payments when the text says so); when the prompt carries the client's code it is flagged
+     * against the first module, as the real model is asked to. A chat message that mentions "código" is a
+     * question the index cannot answer, so the stub asks for the deep search. Verification: reads the passages
+     * it is given, counts its calls, and fails on demand.
      */
     @TestConfiguration
     static class CodeAwareGenerationStub {
@@ -384,22 +536,106 @@ class CodeCopilotIntegrationTest extends AbstractIntegrationTest {
                 }
 
                 @Override
+                public AssistantReply converse(String message, List<ChatTurn> history, GenerationContext context,
+                                               BacklogOverview overview) {
+                    if (message.contains("código")) {
+                        return new AssistantReply("Busco en el código.", null, "es", true);
+                    }
+                    return new AssistantReply("", message, null);
+                }
+
+                @Override
                 public GenerationResult generate(String transcript, String language,
                                                  @Nullable GenerationContext context) {
+                    boolean crypto = transcript.contains("blockchain");
+                    boolean flagged = transcript.contains("[[fail]]");
                     StoryInsight insight = StoryInsight.evidence(transcript);
-                    if (context != null && context.code() != null && !context.code().modules().isEmpty()) {
+                    if (!crypto && context != null && context.code() != null && !context.code().modules().isEmpty()) {
                         GenerationContext.CodeModuleEntry module = context.code().modules().getFirst();
                         insight = new StoryInsight(transcript, CodeFinding.CONFLICTS_WITH_CODE,
                                 "El código permite cancelar hasta 2 h antes; el cliente pide 24 h",
                                 List.of(new CodeReference(module.repository(), module.path(), module.name(),
                                         module.url())));
                     }
-                    return new GenerationResult(List.of(new GenerationResult.GeneratedStory(SuggestionType.NEW_STORY,
-                            "Cancelar reserva hasta 24 horas antes", "comensal",
-                            "cancelar mi reserva hasta 24 horas antes", "no pagar por una mesa que no usaré",
-                            Priority.HIGH, 3, List.of(), null, null, insight)));
+                    return new GenerationResult(List.of(crypto
+                            ? new GenerationResult.GeneratedStory(SuggestionType.NEW_STORY,
+                                    "Pagar con blockchain", "usuario", "pagar con una wallet blockchain",
+                                    "no usar tarjeta", Priority.LOW, 5, List.of(), null, null, insight)
+                            : new GenerationResult.GeneratedStory(SuggestionType.NEW_STORY,
+                                    flagged ? "Cancelar reserva con aviso previo" : "Cancelar reserva hasta 24 horas antes",
+                                    "comensal",
+                                    flagged ? "cancelar mi reserva con aviso previo [[fail]]" : "cancelar mi reserva hasta 24 horas antes",
+                                    "no pagar por una mesa que no usaré",
+                                    Priority.HIGH, 3, List.of(), null, null, insight)));
                 }
             };
+        }
+
+        @Bean
+        @Primary
+        RecordingVerifier recordingVerifier() {
+            return new RecordingVerifier();
+        }
+
+        @Bean
+        VerificationEvents verificationEvents() {
+            return new VerificationEvents();
+        }
+    }
+
+    /** Reads the passages like the model would: a cancellation limit in the code is a conflict with a 24 h ask. */
+    static class RecordingVerifier implements CodeVerificationPort {
+
+        final AtomicInteger calls = new AtomicInteger();
+        volatile List<CodeSnippet> lastSnippets = List.of();
+
+        @Override
+        public boolean isAvailable() {
+            return true;
+        }
+
+        @Override
+        public CodeVerification verify(String subject, SubjectKind kind, List<CodeSnippet> snippets, String language) {
+            calls.incrementAndGet();
+            lastSnippets = snippets;
+            if (subject.contains("[[fail]]")) {
+                throw new IllegalStateException("quota exceeded");
+            }
+            for (CodeSnippet snippet : snippets) {
+                String[] lines = snippet.text().split("\n", -1);
+                for (int i = 0; i < lines.length; i++) {
+                    if (!lines[i].contains("CANCELLATION_LIMIT_HOURS = 2")) continue;
+                    int line = snippet.lineStart() + i;
+                    String folder = snippet.path().substring(0, snippet.path().lastIndexOf('/'));
+                    CodeReference reference = new CodeReference(snippet.repository(), folder,
+                            snippet.path().substring(snippet.path().lastIndexOf('/') + 1),
+                            snippet.url().replaceAll("#.*$", "") + "#L" + line, snippet.path(), line, line,
+                            lines[i].strip());
+                    return kind == SubjectKind.QUESTION
+                            ? new CodeVerification(CodeVerdict.ALREADY_EXISTS,
+                                    "Sí: el código permite cancelar hasta 2 horas antes.", List.of(reference))
+                            : new CodeVerification(CodeVerdict.CONFLICTS_WITH_CODE,
+                                    "El código permite cancelar hasta 2 h antes; el cliente pide 24 h",
+                                    List.of(reference));
+                }
+            }
+            return new CodeVerification(CodeVerdict.UNSURE, "No alcanza para decidirlo.", List.of());
+        }
+    }
+
+    /** Collects the verification events the realtime cards are built from. */
+    static class VerificationEvents {
+
+        final List<SuggestionCodeVerifiedEvent> events = new CopyOnWriteArrayList<>();
+
+        @EventListener
+        void on(SuggestionCodeVerifiedEvent event) {
+            events.add(event);
+        }
+
+        List<CodeVerifyState> statesOf(String suggestionId) {
+            return events.stream().filter(e -> e.suggestionId().toString().equals(suggestionId))
+                    .map(SuggestionCodeVerifiedEvent::state).toList();
         }
     }
 

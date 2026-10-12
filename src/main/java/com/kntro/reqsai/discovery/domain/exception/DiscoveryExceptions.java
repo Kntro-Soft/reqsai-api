@@ -54,6 +54,17 @@ public final class DiscoveryExceptions {
                 "Suggestion '%s' is already %s".formatted(id, status));
     }
 
+    /** The project has no connected repository that is indexed and can be searched. */
+    public static DomainException codeRepositoryNotReady(java.util.UUID projectId) {
+        return new DomainException(DiscoveryError.CODE_REPOSITORY_NOT_READY,
+                "Project '%s' has no indexed repository to verify against".formatted(projectId));
+    }
+
+    public static DomainException codeVerificationFailed(String reason) {
+        return new DomainException(DiscoveryError.CODE_VERIFICATION_FAILED,
+                "The verification in the code failed: " + reason);
+    }
+
     public static DomainException edgeCaseWithoutTarget(java.util.UUID id) {
         return new DomainException(DiscoveryError.EDGE_CASE_WITHOUT_TARGET,
                 ("Edge-case suggestion '%s' has no resolvable target story; assign a target story (edit "
