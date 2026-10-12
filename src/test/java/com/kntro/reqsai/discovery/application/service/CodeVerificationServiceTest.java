@@ -42,6 +42,7 @@ class CodeVerificationServiceTest {
     private final DeepCodeSearchPort search = mock(DeepCodeSearchPort.class);
     private final CodeVerificationPort verifier = mock(CodeVerificationPort.class);
     private final EmbeddingPort embeddings = mock(EmbeddingPort.class);
+    private final List<Long> tokens = new java.util.concurrent.CopyOnWriteArrayList<>();
     private ExecutorService pool;
     private CodeVerificationService service;
 
@@ -50,7 +51,7 @@ class CodeVerificationServiceTest {
         pool = Executors.newVirtualThreadPerTaskExecutor();
         when(verifier.isAvailable()).thenReturn(true);
         when(embeddings.isAvailable()).thenReturn(false);
-        service = new CodeVerificationService(search, verifier, embeddings, pool::execute, Duration.ofSeconds(25));
+        service = new CodeVerificationService(search, verifier, embeddings, tokens::add, pool::execute, Duration.ofSeconds(25));
     }
 
     @AfterEach
@@ -78,12 +79,13 @@ class CodeVerificationServiceTest {
     void oneModelCall() {
         when(search.search(eq(PROJECT), anyString(), any(), any()))
                 .thenReturn(new DeepSearchResult(List.of(SNIPPET), List.of("acme/reservas"), 40, false));
-        CodeVerification expected = new CodeVerification(CodeVerdict.ALREADY_EXISTS, "Ya existe", List.of());
+        CodeVerification expected = new CodeVerification(CodeVerdict.ALREADY_EXISTS, "Ya existe", List.of(), 321);
         when(verifier.verify(anyString(), eq(SubjectKind.QUESTION), eq(List.of(SNIPPET)), eq("en"))).thenReturn(expected);
 
         CodeVerification result = service.verify(PROJECT, "does it?", SubjectKind.QUESTION, "en", Duration.ofSeconds(25));
 
         assertThat(result).isSameAs(expected);
+        assertThat(tokens).containsExactly(321L);
         verify(verifier, times(1)).verify(anyString(), any(), any(), anyString());
     }
 
@@ -126,6 +128,23 @@ class CodeVerificationServiceTest {
         assertThatThrownBy(() -> service.verify(PROJECT, "x", SubjectKind.REQUIREMENT, "es", Duration.ofMillis(2600)))
                 .isInstanceOfSatisfying(DomainException.class, e -> assertThat(e.getMessage()).contains("too long"));
         assertThat(Duration.ofNanos(System.nanoTime() - started)).isLessThan(Duration.ofSeconds(5));
+    }
+
+    @Test
+    @DisplayName("tokens of a call that finishes after the caller gave up are still metered")
+    void lateTokensAreMetered() throws Exception {
+        when(search.search(eq(PROJECT), anyString(), any(), any()))
+                .thenReturn(new DeepSearchResult(List.of(SNIPPET), List.of("acme/reservas"), 40, false));
+        when(verifier.verify(anyString(), any(), any(), anyString())).thenAnswer(inv -> {
+            Thread.sleep(3_200);
+            return new CodeVerification(CodeVerdict.UNSURE, "late", List.of(), 77);
+        });
+
+        assertThatThrownBy(() -> service.verify(PROJECT, "x", SubjectKind.REQUIREMENT, "es", Duration.ofMillis(2600)))
+                .isInstanceOf(DomainException.class);
+        for (int i = 0; i < 40 && tokens.isEmpty(); i++) Thread.sleep(100);
+
+        assertThat(tokens).containsExactly(77L);
     }
 
     @Test

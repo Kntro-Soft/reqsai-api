@@ -616,13 +616,19 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
             Rules:
             - Write "reply" in the language of the analyst's message, and put that language's ISO-639-1
               code in "language" (for example "es").
-            - CODE QUESTIONS: when the message asks what the product or its code ALREADY does or how it works
-              (for example "¿el sistema ya permite cancelar una reserva?", "¿cuántas personas admite una
-              reserva?"), answer from the EXISTING SYSTEM section of the project context when it clearly
-              holds the answer. Set "searchCode" to true when the message is such a question and EXISTING
-              SYSTEM does not clearly answer it (no module relates to it, or it is not enough to be sure);
-              then make "reply" one short sentence, because the source code will be searched for you.
-              Otherwise "searchCode" is false.
+            - CODE QUESTIONS (STRICT): a message that asks whether the product or its code ALREADY does
+              something, how it works, where something is implemented, or what a rule or value is (for
+              example "¿el sistema ya permite cancelar una reserva?", "¿cuántas personas admite una
+              reserva?", "¿dónde está el aviso de cambio de precios?"). EXISTING SYSTEM is only a short
+              summary of the code: it can miss details, so an answer of "no" or "I don't know" drawn from
+              it is NOT reliable. Answer from it only when a capability or rule listed in it states
+              the answer literally. In every other case set "searchCode" to true and make "reply" one
+              short sentence (the full source code is searched for you and replaces your reply). When
+              the message is not a question about the code, "searchCode" is false.
+              Examples: "¿el código ya permite pagar con criptomonedas?" → "searchCode": true;
+              "¿dónde está el aviso de cambio de precios?" → true; "¿cuántas historias hay?" → false
+              (that is the backlog, not the code); "quiero que se pueda pagar con Yape" → false (a
+              requirement).
             - Be concise: at most six short sentences or a short list. Plain text, no Markdown headings,
               no code.
             - Never invent stories, statuses, counts or other data that are not in the context below.
@@ -644,7 +650,8 @@ abstract class AbstractLlmGenerationAdapter implements RequirementGenerationPort
             </message>
 
             Return ONLY this JSON object:
-            {"reply": "...", "requirement": "..." or null, "language": "es", "searchCode": false}
+            {"searchCode": false, "reply": "...", "requirement": "..." or null, "language": "es"}
+            Decide "searchCode" first, before writing "reply".
             """;
 
     private final ObjectMapper objectMapper;

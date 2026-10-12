@@ -1,7 +1,6 @@
 package com.kntro.reqsai.discovery.infrastructure.ai.verification;
 
 import com.kntro.reqsai.discovery.application.port.CodeVerificationPort;
-import com.kntro.reqsai.discovery.application.port.TokenUsageRecorderPort;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.beans.factory.ObjectProvider;
@@ -19,9 +18,8 @@ class VerificationConfiguration {
     @ConditionalOnMissingBean(CodeVerificationPort.class)
     CodeVerificationPort codeVerification(ObjectProvider<ChatModel> chatModel,
                                           ObjectProvider<OpenAiChatModel> openAiChatModel,
-                                          ObjectMapper objectMapper, TokenUsageRecorderPort tokenUsageRecorder,
+                                          ObjectMapper objectMapper,
                                           @Value("${reqsai.ai.generation.provider:gemini}") String provider) {
-        return new LlmCodeVerificationAdapter(provider, chatModel, openAiChatModel, objectMapper,
-                tokenUsageRecorder);
+        return new LlmCodeVerificationAdapter(provider, chatModel, openAiChatModel, objectMapper);
     }
 }

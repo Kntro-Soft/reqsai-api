@@ -5,6 +5,7 @@ import com.kntro.reqsai.codebase.api.DeepSearchResult;
 import com.kntro.reqsai.discovery.application.port.CodeVerification;
 import com.kntro.reqsai.discovery.application.port.CodeVerificationPort;
 import com.kntro.reqsai.discovery.application.port.CodeVerificationPort.SubjectKind;
+import com.kntro.reqsai.discovery.application.port.TokenUsageRecorderPort;
 import com.kntro.reqsai.discovery.domain.exception.DiscoveryExceptions;
 import com.kntro.reqsai.discovery.domain.model.CodeVerdict;
 import com.kntro.reqsai.shared.application.port.EmbeddingPort;
@@ -23,6 +24,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * The deep path of the code-aware copilot. When the module index finds nothing or is unsure, or when the analyst
@@ -43,15 +45,18 @@ public class CodeVerificationService {
     private final DeepCodeSearchPort search;
     private final CodeVerificationPort verifier;
     private final EmbeddingPort embeddingPort;
+    private final TokenUsageRecorderPort tokenUsage;
     private final TaskExecutor executor;
     private final Duration defaultBudget;
 
     public CodeVerificationService(DeepCodeSearchPort search, CodeVerificationPort verifier,
-                                   EmbeddingPort embeddingPort, @Qualifier("taskExecutor") TaskExecutor executor,
+                                   EmbeddingPort embeddingPort, TokenUsageRecorderPort tokenUsage,
+                                   @Qualifier("taskExecutor") TaskExecutor executor,
                                    @Value("${discovery.code-verification.budget:PT25S}") Duration defaultBudget) {
         this.search = search;
         this.verifier = verifier;
         this.embeddingPort = embeddingPort;
+        this.tokenUsage = tokenUsage;
         this.executor = executor;
         this.defaultBudget = defaultBudget;
     }
@@ -104,20 +109,32 @@ public class CodeVerificationService {
         return result;
     }
 
+    /**
+     * One model call on a helper thread, abandoned after {@code timeout}. Tokens are reported on the CALLER's
+     * thread: metering updates a billing row, and a caller inside a transaction (the chat) that has already
+     * touched it would block a helper thread's own transaction until the timeout. A call finishing after the
+     * caller gave up reports from the helper thread, where nobody waits.
+     */
     private CodeVerification readWithTimeout(String subject, SubjectKind kind, DeepSearchResult found,
                                              String language, Duration timeout) {
         TenantContext.TenantSnapshot tenant = TenantContext.capture();
         CompletableFuture<CodeVerification> future = new CompletableFuture<>();
+        AtomicBoolean abandoned = new AtomicBoolean();
         executor.execute(() -> TenantContext.runWith(tenant, () -> {
             try {
-                future.complete(verifier.verify(subject, kind, found.snippets(), language));
+                CodeVerification result = verifier.verify(subject, kind, found.snippets(), language);
+                future.complete(result);
+                if (abandoned.get()) tokenUsage.record(result.tokens());
             } catch (Throwable t) {
                 future.completeExceptionally(t);
             }
         }));
         try {
-            return future.get(Math.max(1, timeout.toMillis()), TimeUnit.MILLISECONDS);
+            CodeVerification result = future.get(Math.max(1, timeout.toMillis()), TimeUnit.MILLISECONDS);
+            tokenUsage.record(result.tokens());
+            return result;
         } catch (TimeoutException e) {
+            abandoned.set(true);
             future.cancel(true);
             throw DiscoveryExceptions.codeVerificationFailed("the AI model took too long");
         } catch (ExecutionException e) {

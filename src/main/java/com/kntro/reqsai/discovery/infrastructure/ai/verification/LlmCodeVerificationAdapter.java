@@ -3,7 +3,6 @@ package com.kntro.reqsai.discovery.infrastructure.ai.verification;
 import com.kntro.reqsai.codebase.api.CodeSnippet;
 import com.kntro.reqsai.discovery.application.port.CodeVerification;
 import com.kntro.reqsai.discovery.application.port.CodeVerificationPort;
-import com.kntro.reqsai.discovery.application.port.TokenUsageRecorderPort;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.model.ChatModel;
@@ -24,8 +23,9 @@ import java.util.regex.Pattern;
  * {@link CodeVerificationPort} backed by the chat model the rest of the AI pipeline uses
  * ({@code reqsai.ai.generation.provider}: OpenAI in JSON mode, otherwise the generic {@link ChatModel}).
  * One call, no retry: the verification has a hard budget, so an unreadable reply fails it and the analyst
- * retries. The request and the code are untrusted data inside tags whose look-alikes are neutralized; token
- * usage is reported through {@link TokenUsageRecorderPort} like the other generation adapters.
+ * retries. The request and the code are untrusted data inside tags whose look-alikes are neutralized. The tokens
+ * the call used come back in the result, because the adapter runs on a helper thread and metering must happen on
+ * the caller's (see {@code CodeVerificationService}).
  */
 @Slf4j
 public class LlmCodeVerificationAdapter implements CodeVerificationPort {
@@ -78,16 +78,14 @@ public class LlmCodeVerificationAdapter implements CodeVerificationPort {
     private final ObjectProvider<ChatModel> chatModel;
     private final ObjectProvider<OpenAiChatModel> openAiChatModel;
     private final ObjectMapper objectMapper;
-    private final TokenUsageRecorderPort tokenUsageRecorder;
+    private final ThreadLocal<Long> lastTokens = ThreadLocal.withInitial(() -> 0L);
 
     public LlmCodeVerificationAdapter(String provider, ObjectProvider<ChatModel> chatModel,
-                                      ObjectProvider<OpenAiChatModel> openAiChatModel, ObjectMapper objectMapper,
-                                      TokenUsageRecorderPort tokenUsageRecorder) {
+                                      ObjectProvider<OpenAiChatModel> openAiChatModel, ObjectMapper objectMapper) {
         this.provider = provider == null ? "" : provider.strip().toLowerCase(Locale.ROOT);
         this.chatModel = chatModel;
         this.openAiChatModel = openAiChatModel;
         this.objectMapper = objectMapper;
-        this.tokenUsageRecorder = tokenUsageRecorder;
     }
 
     @Override
@@ -97,9 +95,12 @@ public class LlmCodeVerificationAdapter implements CodeVerificationPort {
 
     @Override
     public CodeVerification verify(String subject, SubjectKind kind, List<CodeSnippet> snippets, String language) {
+        lastTokens.set(0L);
         String reply = call(prompt(subject, kind, snippets, language));
+        long tokens = lastTokens.get();
+        lastTokens.remove();
         try {
-            return CodeVerificationParser.parse(objectMapper, reply, snippets);
+            return CodeVerificationParser.parse(objectMapper, reply, snippets).withTokens(tokens);
         } catch (JacksonException | IllegalStateException e) {
             log.warn("Code verification: unreadable model reply: {}", e.getMessage());
             throw new IllegalStateException("Unreadable verification reply: " + e.getMessage(), e);
@@ -156,20 +157,20 @@ public class LlmCodeVerificationAdapter implements CodeVerificationPort {
             if (model == null) throw new IllegalStateException("No chat model is configured");
             response = model.call(new Prompt(prompt));
         }
-        recordTokenUsage(response);
+        lastTokens.set(tokensOf(response));
         var result = response != null ? response.getResult() : null;
         String text = result != null ? result.getOutput().getText() : null;
         if (text == null || text.isBlank()) throw new IllegalStateException("Empty reply from the AI model");
         return text;
     }
 
-    private void recordTokenUsage(@Nullable ChatResponse response) {
+    private static long tokensOf(@Nullable ChatResponse response) {
         try {
-            if (response == null || response.getMetadata() == null || response.getMetadata().getUsage() == null) return;
+            if (response == null || response.getMetadata() == null || response.getMetadata().getUsage() == null) return 0;
             Number total = response.getMetadata().getUsage().getTotalTokens();
-            if (total != null && total.longValue() > 0) tokenUsageRecorder.record(total.longValue());
+            return total == null ? 0 : Math.max(0, total.longValue());
         } catch (RuntimeException e) {
-            log.debug("Token usage metering skipped for the code verification: {}", e.getMessage());
+            return 0;
         }
     }
 }

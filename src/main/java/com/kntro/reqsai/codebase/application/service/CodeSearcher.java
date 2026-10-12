@@ -57,6 +57,7 @@ public final class CodeSearcher {
             "that", "this", "with", "from", "have", "has", "will", "would", "should", "could", "can", "when",
             "where", "which", "what", "want", "wants", "need", "needs", "into", "than", "then", "there", "their",
             "they", "them", "been", "being", "also", "does", "each", "every", "only", "such", "some", "more",
+            "los", "las", "que", "una", "uno", "por", "del", "sus", "fue", "son", "sea", "the", "and", "for", "are", "not", "but", "you", "all", "any", "can", "its", "was", "our",
             "less", "must", "able", "like", "about", "after", "before", "user", "story", "feature"));
 
     private CodeSearcher() {
@@ -88,7 +89,7 @@ public final class CodeSearcher {
         }
         Matcher identifier = IDENTIFIER.matcher(plain);
         while (identifier.find()) addAll(stems, identifier.group(), 2.0, 3);
-        addAll(stems, plain, 1.0, 4);
+        addAll(stems, plain, 1.0, 3);
         if (stems.size() <= MAX_TERMS) return new Query(stems);
         Map<String, Double> capped = new LinkedHashMap<>();
         stems.entrySet().stream()
