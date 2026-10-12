@@ -56,6 +56,16 @@ public final class WorkspaceExceptions {
                 "Glossary term limit reached for this plan: " + maxTerms);
     }
 
+    public static EntityNotFoundException setupStepNotFound(UUID projectId, String stepKey) {
+        return new EntityNotFoundException(WorkspaceError.PROJECT_SETUP_STEP_NOT_FOUND,
+                "Project %s has no setup step %s".formatted(projectId, stepKey));
+    }
+
+    public static DomainException setupStepNotRetriable(String stepKey) {
+        return new DomainException(WorkspaceError.PROJECT_SETUP_STEP_NOT_RETRIABLE,
+                "Setup step %s did not fail, so it cannot be retried".formatted(stepKey));
+    }
+
     public static EntityNotFoundException projectNotFound(UUID id) {
         return new EntityNotFoundException(WorkspaceError.PROJECT_NOT_FOUND,
                 "Project not found: " + id);

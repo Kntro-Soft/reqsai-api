@@ -1,10 +1,12 @@
 package com.kntro.reqsai.workspace.interfaces.rest.dto.request;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import org.jspecify.annotations.Nullable;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Request body to create a project. Only {@code name} is required: the technical profile is optional
@@ -39,5 +41,56 @@ public record CreateProjectRequest(
 
         @Schema(description = "Business Domain", nullable = true, example = "Fintech")
         @Size(max = 100)
-        @Nullable String domain
-) {}
+        @Nullable String domain,
+
+        @Schema(description = "External sources to wire up right after the project is created: a Jira project and "
+                + "repositories. The project opens at once and they are set up in the background.", nullable = true)
+        @Valid
+        @Nullable Sources sources
+) {
+
+    @Schema(description = "External sources of a new project")
+    public record Sources(
+            @Schema(description = "The Jira project to link", nullable = true)
+            @Valid
+            @Nullable Jira jira,
+
+            @Schema(description = "Repositories to connect and index (at most the per-project limit)", nullable = true)
+            @Valid
+            @Nullable List<@Valid GitHub> github
+    ) {
+    }
+
+    @Schema(description = "A Jira project to link as the push target")
+    public record Jira(
+            @Schema(description = "The organization's Jira connection; its active one when omitted", nullable = true)
+            @Nullable UUID connectionId,
+
+            @Schema(description = "Jira project key", example = "RES", maxLength = 100)
+            @NotBlank @Size(max = 100)
+            String projectKey,
+
+            @Schema(description = "Issue type stories are pushed as", example = "Story", maxLength = 100)
+            @NotBlank @Size(max = 100)
+            String issueTypeName,
+
+            @Schema(description = "Import the project's existing issues as stories", defaultValue = "false")
+            boolean importStories
+    ) {
+    }
+
+    @Schema(description = "A repository to connect and index")
+    public record GitHub(
+            @Schema(description = "owner/name or a github.com URL", example = "acme/reservas", maxLength = 300)
+            @NotBlank @Size(max = 300)
+            String repository,
+
+            @Schema(description = "Branch to read; the default branch when blank", nullable = true, maxLength = 255)
+            @Size(max = 255)
+            @Nullable String branch,
+
+            @Schema(description = "The GitHub App installation that shares it, from the picker", nullable = true)
+            @Nullable Long installationId
+    ) {
+    }
+}
