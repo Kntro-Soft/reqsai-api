@@ -9,6 +9,8 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-11
+
 ### Added
 - Accepting a suggestion decides the story's review status in the same transaction. `POST /api/projects/{projectId}/suggestions/{id}/accept` and `POST /api/sessions/{sessionId}/suggestions/{id}/accept` take an optional `approve` flag (default `false`, so older clients keep working). `approve: true` creates (`NEW_STORY`) or updates (`UPDATE_STORY`, `EDGE_CASE`) the story and leaves it `APPROVED`; it needs `STORY_APPROVE` on top of `SESSION_DECIDE`, otherwise 403 and nothing changes. Without it the story is saved as a draft.
 - Status rules: a new story starts `DRAFT` or `APPROVED`. A target story that was `APPROVED` or `REJECTED` goes back to `DRAFT` when saved as a draft (its content changed and needs a new review) and becomes `APPROVED` when approved. A target already `EXPORTED` or `MERGED` keeps its status either way. `CLARIFYING_QUESTION` ignores the flag.
