@@ -42,4 +42,16 @@ class SecretRedactorTest {
         SecretRedactor.redact(hostile);
         assertThat((System.nanoTime() - started) / 1_000_000).isLessThan(2_000);
     }
+
+    @Test
+    @DisplayName("redacting for line-numbered snippets keeps the line count, even for a multi-line private key")
+    void redactPreservingLinesKeepsLineNumbers() {
+        String code = "line1\n" + PEM + "\nconst apiKey = \"abc123def456ghi\";\nline5";
+
+        String out = SecretRedactor.redactPreservingLines(code);
+
+        assertThat(out.split("\n", -1)).hasSameSizeAs(code.split("\n", -1));
+        assertThat(out).doesNotContain("MIIEpAIBAAKCAQEA", "abc123def456ghi").endsWith("line5");
+        assertThat(out.split("\n", -1)[out.split("\n", -1).length - 1]).isEqualTo("line5");
+    }
 }
