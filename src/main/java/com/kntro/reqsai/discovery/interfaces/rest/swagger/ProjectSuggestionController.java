@@ -69,7 +69,7 @@ public interface ProjectSuggestionController {
             description = """
                     Accepts any suggestion of the project, including those raised from the assistant chat, \
                     which belong to no session. Same behaviour and optional edits as the session-scoped \
-                    accept. Requires SESSION_DECIDE.""")
+                    accept, including `approve` (which also requires STORY_APPROVE). Requires SESSION_DECIDE.""")
     @ApiResponse(responseCode = "200", description = "Suggestion accepted",
             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                     schema = @Schema(implementation = SuggestionResponse.class)))
@@ -93,6 +93,29 @@ public interface ProjectSuggestionController {
     @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
     @PostMapping(path = "/{suggestionId}/dismiss", version = ApiVersioning.V1)
     ResponseEntity<SuggestionResponse> dismiss(
+            @Parameter(description = "Project of the suggestion", required = true) @PathVariable UUID projectId,
+            @Parameter(description = "Suggestion identifier", required = true) @PathVariable UUID suggestionId);
+
+    @Operation(
+            summary = "Verify a suggestion in the client's code",
+            description = """
+                    Searches the pure source code of the project's connected repositories (not the stored \
+                    module index) and has the AI model read the best passages once. It starts in the \
+                    background and answers **202** with the suggestion in state `VERIFYING`; when it finishes \
+                    the suggestion's code finding, note, references (file, lines, GitHub link) and `verifiedAt` \
+                    are updated and a `SUGGESTION_CODE_UPDATED` message is broadcast (on the session topic when \
+                    there is a session, and on `/topic/projects/{projectId}/suggestions`). A failure leaves \
+                    `verifyState` `FAILED` with the reason, so the card can offer a retry. \
+                    Requires SESSION_DECIDE and INTEGRATION_READ; **409** when the project has no indexed \
+                    repository or the suggestion is already resolved.""")
+    @ApiResponse(responseCode = "202", description = "Verification started",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    schema = @Schema(implementation = SuggestionResponse.class)))
+    @ApiResponseNotFound
+    @ApiStandardErrorResponses
+    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
+    @PostMapping(path = "/{suggestionId}/verify-code", version = ApiVersioning.V1)
+    ResponseEntity<SuggestionResponse> verifyCode(
             @Parameter(description = "Project of the suggestion", required = true) @PathVariable UUID projectId,
             @Parameter(description = "Suggestion identifier", required = true) @PathVariable UUID suggestionId);
 }

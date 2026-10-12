@@ -1,5 +1,6 @@
 package com.kntro.reqsai.shared.infrastructure.ai.embedding.config;
 
+import com.kntro.reqsai.shared.application.ai.AiUsageReporter;
 import com.kntro.reqsai.shared.application.port.EmbeddingPort;
 import com.kntro.reqsai.shared.infrastructure.ai.embedding.EmbeddingRouter;
 import com.kntro.reqsai.shared.infrastructure.ai.embedding.strategy.GeminiEmbeddingAdapter;
@@ -26,13 +27,15 @@ class EmbeddingConfiguration {
     EmbeddingPort embeddingRouter(
             ObjectProvider<EmbeddingModel> embeddingModel,
             ObjectProvider<OpenAiEmbeddingModel> openAiEmbeddingModel,
+            ObjectProvider<AiUsageReporter> usageReporter,
             @Value("${GEMINI_API_KEY:}") String geminiApiKey,
             @Value("${reqsai.ai.embedding.provider:auto}") String provider) {
+        AiUsageReporter usage = usageReporter.getIfAvailable(() -> AiUsageReporter.NONE);
         return new EmbeddingRouter(
                 provider,
-                new GenericEmbeddingAdapter(embeddingModel),
-                new GeminiEmbeddingAdapter(geminiApiKey),
-                new OpenAiEmbeddingAdapter(openAiEmbeddingModel)
+                new GenericEmbeddingAdapter(embeddingModel, usage),
+                new GeminiEmbeddingAdapter(geminiApiKey, usage),
+                new OpenAiEmbeddingAdapter(openAiEmbeddingModel, usage)
         );
     }
 }

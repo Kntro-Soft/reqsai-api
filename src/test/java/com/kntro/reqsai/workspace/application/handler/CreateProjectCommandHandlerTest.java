@@ -2,7 +2,9 @@ package com.kntro.reqsai.workspace.application.handler;
 
 import com.kntro.reqsai.shared.application.avatar.AvatarDownloadPort;
 import com.kntro.reqsai.shared.domain.exception.DomainException;
+import com.kntro.reqsai.workspace.api.ProjectSources;
 import com.kntro.reqsai.workspace.application.command.CreateProjectCommand;
+import com.kntro.reqsai.workspace.application.service.ProjectSetupService;
 import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
 import com.kntro.reqsai.workspace.application.port.ProjectRepository;
 import com.kntro.reqsai.workspace.domain.model.Organization;
@@ -35,6 +37,8 @@ class CreateProjectCommandHandlerTest {
     private OrganizationRepository organizations;
     @Mock
     private AvatarDownloadPort avatarDownloadAdapter;
+    @Mock
+    private ProjectSetupService setup;
     @InjectMocks
     private CreateProjectCommandHandler handler;
 
@@ -64,6 +68,27 @@ class CreateProjectCommandHandlerTest {
             assertThat(project.getName()).isEqualTo(command.name());
             assertThat(project.getStatus()).isEqualTo(ProjectStatus.ACTIVE);
             verify(projects, times(2)).save(any(Project.class)); // persist for id, then persist avatar
+        }
+
+        @Test
+        @DisplayName("should hand the requested Jira and GitHub sources to the project setup")
+        void should_request_the_sources_for_the_new_project() {
+            Organization org = OrganizationMother.active().build();
+            UUID orgId = org.getId();
+            CreateProjectCommand base = CreateProjectCommandMother.withOrganizationId(orgId);
+            ProjectSources sources = new ProjectSources(new ProjectSources.Jira(null, "PAY", "Story", true),
+                    java.util.List.of(new ProjectSources.GitHub("acme/reservas", null, null)));
+            CreateProjectCommand command = new CreateProjectCommand(orgId, base.name(), base.description(),
+                    base.programmingLanguages(), base.frameworks(), base.clientPlatforms(), base.databases(),
+                    base.architecture(), base.domain(), base.requestedBy(), sources);
+            when(organizations.findById(orgId)).thenReturn(Optional.of(org));
+            when(projects.existsByOrganizationIdAndNameAndStatus(orgId, command.name(), ProjectStatus.ACTIVE)).thenReturn(false);
+            when(projects.countActiveNonDemoByOrganizationId(orgId)).thenReturn(0);
+            when(projects.save(any(Project.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            Project project = handler.handle(command);
+
+            verify(setup).request(orgId, project.getId(), command.requestedBy(), sources);
         }
     }
 

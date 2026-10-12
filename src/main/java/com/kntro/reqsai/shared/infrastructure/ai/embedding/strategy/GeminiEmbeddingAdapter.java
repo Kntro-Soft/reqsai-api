@@ -2,7 +2,9 @@ package com.kntro.reqsai.shared.infrastructure.ai.embedding.strategy;
 
 import com.google.genai.Client;
 import com.google.genai.types.EmbedContentConfig;
+import com.kntro.reqsai.shared.application.ai.AiUsageReporter;
 import com.kntro.reqsai.shared.application.port.EmbeddingPort;
+import com.kntro.reqsai.shared.infrastructure.ai.embedding.EmbeddingMetering;
 import com.kntro.reqsai.shared.infrastructure.ai.embedding.exception.EmbeddingProviderException;
 
 import java.util.List;
@@ -27,8 +29,10 @@ public class GeminiEmbeddingAdapter implements EmbeddingPort {
 
     private final Client geminiClient;
     private final boolean available;
+    private final AiUsageReporter usage;
 
-    public GeminiEmbeddingAdapter(String apiKey) {
+    public GeminiEmbeddingAdapter(String apiKey, AiUsageReporter usage) {
+        this.usage = usage;
         this.available = apiKey != null && !apiKey.isBlank();
         this.geminiClient = available ? Client.builder().apiKey(apiKey).build() : null;
     }
@@ -48,6 +52,7 @@ public class GeminiEmbeddingAdapter implements EmbeddingPort {
                 .values()
                 .orElseThrow(() -> new EmbeddingProviderException("gemini", "embedding has no values for model " + EMBEDDING_MODEL));
 
+        EmbeddingMetering.report(usage, EMBEDDING_MODEL, 0, text);
         return toFloatArray(embeddingValues);
     }
 

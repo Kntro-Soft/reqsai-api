@@ -115,6 +115,28 @@ class DemoProjectIntegrationTest extends AbstractIntegrationTest {
                         + "(id, story_id, share_link_id, kind, author_name, comment, created_at, updated_at) "
                         + "VALUES (?::uuid, ?::uuid, ?::uuid, 'COMMENT', 'Rosa', '¿Y los feriados?', now(), now())",
                 UUID.randomUUID().toString(), reviewedStoryId, UUID.randomUUID().toString());
+        // The project also got integrations of its own: connected code, a Jira target and a push history.
+        String connectionId = UUID.randomUUID().toString();
+        jdbcTemplate.update("INSERT INTO " + schema + ".integration_connections "
+                + "(id, organization_id, provider, site_url, status, credential_type) "
+                + "VALUES (?::uuid, ?::uuid, 'JIRA', 'https://acme.atlassian.net', 'CONNECTED', 'OAUTH2')",
+                connectionId, orgId.toString());
+        jdbcTemplate.update("INSERT INTO " + schema + ".project_integration_targets "
+                + "(id, project_id, connection_id, jira_project_key, issue_type_name) "
+                + "VALUES (?::uuid, ?::uuid, ?::uuid, 'RES', 'Story')",
+                UUID.randomUUID().toString(), demoId.toString(), connectionId);
+        jdbcTemplate.update("INSERT INTO " + schema + ".integration_sync_jobs "
+                + "(id, project_id, job_type, status, total) VALUES (?::uuid, ?::uuid, 'PUSH_ALL', 'COMPLETED', 3)",
+                UUID.randomUUID().toString(), demoId.toString());
+        String repositoryId = UUID.randomUUID().toString();
+        jdbcTemplate.update("INSERT INTO " + schema + ".code_repositories (id, project_id, provider, owner, name, "
+                + "branch, html_url, status, created_at, updated_at) VALUES (?::uuid, ?::uuid, 'GITHUB', 'acme', "
+                + "'reservas', 'main', 'https://github.com/acme/reservas', 'READY', now(), now())",
+                repositoryId, demoId.toString());
+        jdbcTemplate.update("INSERT INTO " + schema + ".code_modules (id, repository_id, project_id, path, name, "
+                + "summary, file_count, content_hash, created_at, updated_at) VALUES (?::uuid, ?::uuid, ?::uuid, "
+                + "'src', 'Reservas', 'Reservas de mesas', 2, 'abc', now(), now())",
+                UUID.randomUUID().toString(), repositoryId, demoId.toString());
         assertThat(counts(schema, demoId)).isNotEqualTo(seeded);
 
         // A member with the default READ floor may not restore the demo.
@@ -129,6 +151,16 @@ class DemoProjectIntegrationTest extends AbstractIntegrationTest {
         assertThat(project.path("id").asString()).isEqualTo(demoId.toString());
         assertThat(project.path("demo").asBoolean()).isTrue();
         assertThat(counts(schema, demoId)).isEqualTo(seeded);
+        // ...including its integrations: no connected code and no Jira target or push history are left, while
+        // the organization's Jira connection (not the project's) stays.
+        for (String table : List.of("code_repositories", "code_modules", "project_integration_targets",
+                "integration_sync_jobs")) {
+            assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM " + schema + "." + table
+                    + " WHERE project_id = ?::uuid", Integer.class, demoId.toString()))
+                    .as(table).isZero();
+        }
+        assertThat(jdbcTemplate.queryForObject("SELECT count(*) FROM " + schema
+                + ".integration_connections WHERE id = ?::uuid", Integer.class, connectionId)).isEqualTo(1);
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM " + schema + ".user_stories WHERE project_id = ?::uuid AND title = ?",
                 Integer.class, demoId.toString(), deletedTitle)).isEqualTo(1);

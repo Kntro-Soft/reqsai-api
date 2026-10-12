@@ -30,10 +30,12 @@ public final class SuggestionResponseMapper {
                 s.getQuestion(),
                 criteria,
                 s.getResolvedStoryId(),
+                s.getResolvedStoryStatus(),
                 s.getSimilarity(),
                 s.getCreatedAt(),
                 s.getUpdatedAt(),
                 InsightResponseMapper.evidence(s.getEvidenceSequence(), s.getEvidenceQuote()),
-                InsightResponseMapper.code(s.getCodeFinding(), s.getCodeNote(), s.getCodeReferences()));
+                InsightResponseMapper.code(s.getCodeFinding(), s.getCodeNote(), s.getCodeReferences(),
+                        s.getCodeVerifyState(), s.getCodeVerdict(), s.getCodeVerifiedAt(), s.getCodeVerifyError()));
     }
 }

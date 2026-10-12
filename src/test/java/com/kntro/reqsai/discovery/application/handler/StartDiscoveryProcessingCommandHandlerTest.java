@@ -5,6 +5,9 @@ import com.kntro.reqsai.discovery.application.port.DiscoverySessionRepository;
 import com.kntro.reqsai.discovery.application.port.GenerationResult;
 import com.kntro.reqsai.discovery.application.port.RequirementGenerationPort;
 import com.kntro.reqsai.discovery.application.port.TranscriptSegmentRepository;
+import com.kntro.reqsai.discovery.application.port.GenerationContext;
+import com.kntro.reqsai.discovery.application.port.SuggestionRepository;
+import com.kntro.reqsai.discovery.application.service.RealtimeSuggestionService;
 import com.kntro.reqsai.discovery.application.service.SessionSpeakerService;
 import com.kntro.reqsai.discovery.application.service.QuoteLocator;
 import com.kntro.reqsai.discovery.application.service.StoryExtractionService;
@@ -56,6 +59,10 @@ class StartDiscoveryProcessingCommandHandlerTest {
     private TranscriptSegmentRepository segments;
     @Mock
     private SessionSpeakerService sessionSpeakers;
+    @Mock
+    private RealtimeSuggestionService contextService;
+    @Mock
+    private SuggestionRepository suggestions;
     @InjectMocks
     private StartDiscoveryProcessingCommandHandler handler;
 
@@ -131,6 +138,58 @@ class StartDiscoveryProcessingCommandHandlerTest {
 
         verify(requirementGeneration).generate("El cliente quiere login con Google.", session.getLanguage().value());
         verifyNoInteractions(sessionSpeakers);
+    }
+
+    @Test
+    @DisplayName("should give the final stories the same context as live suggestions (backlog, glossary, code)")
+    void should_generate_with_the_live_context() {
+        DiscoverySession session = DiscoverySessionMother.draft().build();
+        session.uploadTranscript("El cliente quiere cancelar su reserva hasta 24 horas antes.", 0L);
+        when(sessions.findById(session.getId())).thenReturn(Optional.of(session));
+        when(sessions.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        GenerationContext context = new GenerationContext("Proyecto", null, List.of(), List.of(), List.of(), null,
+                null, List.of(), List.of(), List.of(), List.of())
+                .withCode(new GenerationContext.CodeContext("Reservas en línea", List.of()));
+        when(contextService.contextFor(eq(session.getProjectId()), eq(session.getTranscript()), any()))
+                .thenReturn(Optional.of(context));
+        when(requirementGeneration.generate(any(), any(), any())).thenReturn(new GenerationResult(List.of()));
+
+        handler.handle(new StartDiscoveryProcessingCommand(session.getId()));
+
+        verify(requirementGeneration).generate(session.getTranscript(), session.getLanguage().value(), context);
+        verify(requirementGeneration, never()).generate(any(), any());
+    }
+
+    @Test
+    @DisplayName("should generate from the transcript alone when the context lookup fails")
+    void should_fail_open_when_the_context_lookup_fails() {
+        DiscoverySession session = DiscoverySessionMother.draft().build();
+        session.uploadTranscript("El cliente quiere login con Google.", 0L);
+        when(sessions.findById(session.getId())).thenReturn(Optional.of(session));
+        when(sessions.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(contextService.contextFor(any(), any(), any())).thenThrow(new IllegalStateException("db down"));
+        when(requirementGeneration.generate(any(), any())).thenReturn(new GenerationResult(List.of()));
+
+        var outcome = handler.handle(new StartDiscoveryProcessingCommand(session.getId()));
+
+        assertThat(outcome.session().getStatus()).isEqualTo(SessionStatus.COMPLETED);
+        verify(requirementGeneration).generate("El cliente quiere login con Google.", session.getLanguage().value());
+    }
+
+    @Test
+    @DisplayName("should look the context up with a bounded part of a very long transcript")
+    void should_bound_the_context_query() {
+        DiscoverySession session = DiscoverySessionMother.draft().build();
+        session.uploadTranscript("palabra ".repeat(5000), 0L);
+        when(sessions.findById(session.getId())).thenReturn(Optional.of(session));
+        when(sessions.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(requirementGeneration.generate(any(), any())).thenReturn(new GenerationResult(List.of()));
+
+        handler.handle(new StartDiscoveryProcessingCommand(session.getId()));
+
+        org.mockito.ArgumentCaptor<String> query = org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(contextService).contextFor(any(), query.capture(), any());
+        assertThat(query.getValue()).hasSizeLessThanOrEqualTo(6000);
     }
 
     @Test

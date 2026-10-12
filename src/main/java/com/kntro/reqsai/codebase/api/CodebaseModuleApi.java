@@ -2,6 +2,7 @@ package com.kntro.reqsai.codebase.api;
 
 import org.jspecify.annotations.Nullable;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -21,4 +22,10 @@ public interface CodebaseModuleApi {
 
     /** The overview of the project's indexed repositories, or empty when none is ready. */
     Optional<CodeOverview> findOverview(UUID projectId);
+
+    /**
+     * Counts of the repositories and modules connected to the given projects, computed in SQL (nothing is
+     * loaded). {@link CodeFootprint#none()} when the collection is empty or nothing is connected.
+     */
+    CodeFootprint footprint(Collection<UUID> projectIds);
 }

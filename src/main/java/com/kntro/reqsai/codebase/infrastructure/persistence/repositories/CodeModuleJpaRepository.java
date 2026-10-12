@@ -19,6 +19,8 @@ public interface CodeModuleJpaRepository extends JpaRepository<CodeModule, UUID>
 
     Optional<CodeModule> findByRepositoryIdAndPath(UUID repositoryId, String path);
 
+    long countByProjectIdIn(Collection<UUID> projectIds);
+
     @SuppressWarnings("SqlResolve")
     @Query(value = """
             SELECT m.* FROM code_modules m

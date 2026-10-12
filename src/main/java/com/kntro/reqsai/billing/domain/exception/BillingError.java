@@ -14,7 +14,8 @@ public enum BillingError implements ErrorCatalog {
     INVALID_SUBSCRIPTION_STATE(HttpStatus.CONFLICT),
     PLAN_NOT_PURCHASABLE(HttpStatus.UNPROCESSABLE_CONTENT),
     PAYMENT_GATEWAY_ERROR(HttpStatus.BAD_GATEWAY),
-    WEBHOOK_SIGNATURE_INVALID(HttpStatus.BAD_REQUEST);
+    WEBHOOK_SIGNATURE_INVALID(HttpStatus.BAD_REQUEST),
+    AI_QUOTA_EXCEEDED(HttpStatus.PAYMENT_REQUIRED);
 
     private final HttpStatus status;
 

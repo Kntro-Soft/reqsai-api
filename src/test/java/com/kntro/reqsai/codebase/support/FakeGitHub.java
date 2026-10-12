@@ -39,6 +39,7 @@ public final class FakeGitHub implements AutoCloseable {
     private final Map<String, Repo> repos = new ConcurrentHashMap<>();
     private final Map<Long, Installation> installations = new ConcurrentHashMap<>();
     private final Map<String, Set<Long>> userCodes = new ConcurrentHashMap<>();
+    private final Set<String> brokenDownloads = ConcurrentHashMap.newKeySet();
     private final AtomicInteger zipDownloads = new AtomicInteger();
     private final AtomicInteger tokensMinted = new AtomicInteger();
     private volatile String clientId = "";
@@ -94,6 +95,12 @@ public final class FakeGitHub implements AutoCloseable {
                 new LinkedHashMap<>(files), sha));
     }
 
+    /** Makes the download of a repository's archive fail with a server error (its metadata still answers). */
+    public void breakDownload(String owner, String name, boolean broken) {
+        if (broken) brokenDownloads.add(key(owner, name));
+        else brokenDownloads.remove(key(owner, name));
+    }
+
     public Repo repo(String owner, String name) {
         return repos.get(key(owner, name));
     }
@@ -140,6 +147,10 @@ public final class FakeGitHub implements AutoCloseable {
             Repo repo = repos.get(key(parts[2], parts[3]));
             if (repo == null) {
                 send(exchange, 404, "text/plain", "missing".getBytes(StandardCharsets.UTF_8));
+                return;
+            }
+            if (brokenDownloads.contains(key(parts[2], parts[3]))) {
+                send(exchange, 500, "text/plain", "broken".getBytes(StandardCharsets.UTF_8));
                 return;
             }
             zipDownloads.incrementAndGet();

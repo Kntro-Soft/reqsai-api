@@ -21,6 +21,12 @@ public final class IntegrationsExceptions {
                 "Integration connection not found: " + connectionId);
     }
 
+    /** The organization has no active Jira connection to link a project to. */
+    public static EntityNotFoundException jiraNotConnected(UUID organizationId) {
+        return new EntityNotFoundException(IntegrationsError.INTEGRATION_CONNECTION_NOT_FOUND,
+                "Organization %s has no Jira connection".formatted(organizationId));
+    }
+
     /** A project has no Jira target configured — 404 for the GET target endpoint. */
     public static EntityNotFoundException targetNotFound(UUID projectId) {
         return new EntityNotFoundException(IntegrationsError.INTEGRATION_CONNECTION_NOT_FOUND,

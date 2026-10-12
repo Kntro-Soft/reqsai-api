@@ -1,6 +1,7 @@
 package com.kntro.reqsai.discovery.application.notification;
 
 import com.kntro.reqsai.discovery.domain.event.SuggestionAcceptedEvent;
+import com.kntro.reqsai.discovery.domain.event.SuggestionCodeVerifiedEvent;
 import com.kntro.reqsai.discovery.domain.event.SuggestionCreatedEvent;
 import com.kntro.reqsai.discovery.domain.event.SuggestionDismissedEvent;
 import com.kntro.reqsai.discovery.interfaces.notification.mappers.SuggestionNotificationMapper;
@@ -50,5 +51,16 @@ class SuggestionNotificationListener {
         if (event.sessionId() == null) return;
         notifier.broadcast(SessionTopics.of(event.sessionId()),
                 SuggestionNotificationMapper.toDismissedMessage(event));
+    }
+
+    /** Session suggestions update on the session topic; chat suggestions (no session) on the project's. */
+    @ApplicationModuleListener
+    void onCodeVerified(SuggestionCodeVerifiedEvent event) {
+        log.debug("Broadcasting SUGGESTION_CODE_UPDATED for suggestion {} ({})", event.suggestionId(), event.state());
+        var message = SuggestionNotificationMapper.toCodeUpdatedMessage(event);
+        if (event.sessionId() != null) {
+            notifier.broadcast(SessionTopics.of(event.sessionId()), message);
+        }
+        notifier.broadcast(ProjectTopics.suggestionsOf(event.projectId()), message);
     }
 }

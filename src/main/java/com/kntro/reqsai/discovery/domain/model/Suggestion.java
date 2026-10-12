@@ -1,6 +1,7 @@
 package com.kntro.reqsai.discovery.domain.model;
 
 import com.kntro.reqsai.discovery.domain.event.SuggestionAcceptedEvent;
+import com.kntro.reqsai.discovery.domain.event.SuggestionCodeVerifiedEvent;
 import com.kntro.reqsai.discovery.domain.event.SuggestionCreatedEvent;
 import com.kntro.reqsai.discovery.domain.event.SuggestionDismissedEvent;
 import com.kntro.reqsai.discovery.domain.exception.DiscoveryExceptions;
@@ -11,11 +12,14 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 import lombok.Getter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import org.jspecify.annotations.Nullable;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -132,6 +136,13 @@ public class Suggestion extends AggregateRoot {
     @Column(name = "resolved_story_id", columnDefinition = "uuid")
     private @Nullable UUID resolvedStoryId;
 
+    /**
+     * Review status of the resolved story as it stood when this suggestion was accepted, or as read back
+     * when listing. Not persisted: {@code null} until the accept handler or a list handler sets it.
+     */
+    @Transient
+    private @Nullable StoryStatus resolvedStoryStatus;
+
     /** Cosine similarity (0..1) to the matched story when raised as a duplicate alert; null otherwise. */
     @Column(name = "similarity")
     private @Nullable Double similarity;
@@ -159,8 +170,70 @@ public class Suggestion extends AggregateRoot {
     @Column(name = "code_refs", columnDefinition = "jsonb", nullable = false)
     private List<CodeReference> codeReferences = new ArrayList<>();
 
+    // ── Deep verification against the pure source code ───────────────────────────
+
+    public static final int VERIFY_ERROR_MAX = 300;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "code_verify_state", length = 16)
+    private @Nullable CodeVerifyState codeVerifyState;
+
+    /** What the last deep verification concluded; a finding is derived from it when the code has or contradicts it. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "code_verdict", length = 24)
+    private @Nullable CodeVerdict codeVerdict;
+
+    @Column(name = "code_verified_at")
+    private @Nullable Instant codeVerifiedAt;
+
+    @Column(name = "code_verify_error", length = VERIFY_ERROR_MAX)
+    private @Nullable String codeVerifyError;
+
     protected Suggestion() {
         super();
+    }
+
+    /**
+     * The analyst asked to verify the suggestion in the code: the card shows it is being checked. Only a pending
+     * suggestion can be verified. Asking again while a verification started less than {@code staleAfter} ago
+     * changes nothing (returns false); an older one is taken as lost (the server restarted) and starts again.
+     *
+     * @return whether a verification should be started now
+     */
+    public boolean beginCodeVerification(Instant now, Duration staleAfter) {
+        guardPending();
+        if (codeVerifyState == CodeVerifyState.VERIFYING && getUpdatedAt() != null
+                && getUpdatedAt().plus(staleAfter).isAfter(now)) {
+            return false;
+        }
+        this.codeVerifyState = CodeVerifyState.VERIFYING;
+        this.codeVerifyError = null;
+        registerEvent(SuggestionCodeVerifiedEvent.of(this));
+        return true;
+    }
+
+    /**
+     * The deep verification finished: its verdict, note and references replace what the quick pass said. A
+     * verdict that finds the capability or a conflict sets the code finding; one that does not clears it.
+     */
+    public void completeCodeVerification(CodeVerdict verdict, @Nullable String note,
+                                         @Nullable List<CodeReference> references, Instant now) {
+        this.codeVerifyState = CodeVerifyState.VERIFIED;
+        this.codeVerdict = Assert.notNull(verdict, "verdict");
+        this.codeVerifiedAt = now;
+        this.codeVerifyError = null;
+        this.codeFinding = verdict.finding();
+        this.codeNote = note == null || note.isBlank() ? null : clip(note.strip(), CODE_NOTE_MAX);
+        this.codeReferences = references == null ? new ArrayList<>() : new ArrayList<>(references);
+        registerEvent(SuggestionCodeVerifiedEvent.of(this));
+    }
+
+    /** The deep verification could not finish (code host down, timeout, no model): the card offers a retry. */
+    public void failCodeVerification(String reason) {
+        this.codeVerifyState = CodeVerifyState.FAILED;
+        this.codeVerifyError = reason == null || reason.isBlank() ? "Verification failed"
+                : clip(reason.strip(), VERIFY_ERROR_MAX);
+        registerEvent(SuggestionCodeVerifiedEvent.of(this));
     }
 
     /**
@@ -260,14 +333,21 @@ public class Suggestion extends AggregateRoot {
      * Accepts the suggestion. The caller must subsequently perform the actual backlog mutation
      * (create a story, update a story, add a criterion) and pass the resulting {@code storyId}.
      *
-     * @param resolvedStoryId the story that was created or updated as a result; {@code null} for
-     *                        CLARIFYING_QUESTION (no story produced)
+     * @param resolvedStoryId     the story that was created or updated as a result; {@code null} for
+     *                            CLARIFYING_QUESTION (no story produced)
+     * @param resolvedStoryStatus the review status that story ended in; {@code null} when no story
      */
-    public void accept(@Nullable UUID resolvedStoryId) {
+    public void accept(@Nullable UUID resolvedStoryId, @Nullable StoryStatus resolvedStoryStatus) {
         guardPending();
         this.status = SuggestionStatus.ACCEPTED;
         this.resolvedStoryId = resolvedStoryId;
+        this.resolvedStoryStatus = resolvedStoryStatus;
         registerEvent(SuggestionAcceptedEvent.of(this));
+    }
+
+    /** Records the current status of the resolved story for read models (not persisted). */
+    public void attachResolvedStoryStatus(@Nullable StoryStatus storyStatus) {
+        this.resolvedStoryStatus = storyStatus;
     }
 
     /** Dismisses the suggestion without taking any backlog action. */

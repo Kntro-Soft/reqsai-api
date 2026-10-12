@@ -9,9 +9,54 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- Accepting a suggestion decides the story's review status in the same transaction. `POST /api/projects/{projectId}/suggestions/{id}/accept` and `POST /api/sessions/{sessionId}/suggestions/{id}/accept` take an optional `approve` flag (default `false`, so older clients keep working). `approve: true` creates (`NEW_STORY`) or updates (`UPDATE_STORY`, `EDGE_CASE`) the story and leaves it `APPROVED`; it needs `STORY_APPROVE` on top of `SESSION_DECIDE`, otherwise 403 and nothing changes. Without it the story is saved as a draft.
+- Status rules: a new story starts `DRAFT` or `APPROVED`. A target story that was `APPROVED` or `REJECTED` goes back to `DRAFT` when saved as a draft (its content changed and needs a new review) and becomes `APPROVED` when approved. A target already `EXPORTED` or `MERGED` keeps its status either way. `CLARIFYING_QUESTION` ignores the flag.
+- The accepted suggestion (REST responses, the project suggestion list, the session suggestion list, the assistant chat history) and the realtime `SUGGESTION_ACCEPTED` message carry `resolvedStoryStatus`, so the decision row can say whether the story ended approved or as a draft. No migration: the status is read from the story.
+
+### Added (Token metering — `feature/130-token-metering`)
+
+- **Usage ledger.** Every successful AI call is one idempotent row of the tenant table `ai_usage_events` (feature, project, model, input / output / cached input tokens, the quota tokens it added, audio seconds), written off the request thread so a metering problem never fails the AI call. Features: live suggestions, chat, final stories, code index, code deep search, document classification, embeddings and transcription. Tenant migration `V20261012100000__ai_usage_events.sql`. `TokenUsageRecorderPort` gains `record(TokenUsage)`; `record(long)` still works.
+- **Embeddings and speech-to-text are metered.** Embeddings report the tokens the provider counted (an estimate of one per four characters when it returns none) and count at a tenth in the quota. Streaming and uploaded audio are metered in seconds (`audio_seconds`) and never count as tokens.
+- **Atomic quota counter.** `token_quota_used` is raised with one `UPDATE ... SET token_quota_used = token_quota_used + n` in the transaction of the ledger insert, so parallel calls no longer lose increments; the period rollover is kept. A cached input token counts at half (the provider bills it at half), see `docs/BILLING.md`. Common migration `V20261012100100__subscription_quota_warning.sql`.
+- **The monthly allowance is enforced.** The chat, "Analizar ahora", live suggestions, code indexing and document classification check it first. At the cap an explicit AI request fails with `AI_QUOTA_EXCEEDED` (HTTP 402, with `plan`, `limit`, `used` and `resetsAt`); live suggestions pause quietly and the session gets one `AI_QUOTA_PAUSED` message; code indexing keeps the structural description of the modules; an uploaded document is stored unclassified. Reading, editing and exporting never stop. The check fails open.
+- **Warnings at 80, 90 and 100 %.** `GET /api/subscriptions/organization/{id}/usage` returns `warningLevel`, and a `TOKEN_QUOTA_WARNING` message goes to `/topic/organizations/{id}/usage` once per level per period.
+- **Usage read model.** The usage response adds the period's tokens by feature and by project, the transcription seconds and a `meetingEstimate` (minutes left at the organization's own measured tokens per meeting minute, or a documented default of 10,000).
+- `reqsai.ai.generation.live-model` (`GENERATION_LIVE_MODEL`) sets a cheaper model for live passes only; unset keeps the provider's default.
+
+- **Deep search of the pure source code** (`codebase`: `DeepCodeSearchPort`). It fetches the repository archive at the indexed commit through the indexer's access (installation token, or anonymous for a public repository) into a temporary file kept 10 minutes (`ArchiveCache`: at most 4 files and 400 MB, always deleted), removes secrets, and ranks windows of code with a BM25-like lexical search (`CodeSearcher`) that matches Spanish requests with English identifiers by word root. It returns at most 10 snippets and 12000 characters with file, lines and a GitHub link. Nothing is persisted. See `docs/CODE_COPILOT.md`.
+- **Verify a suggestion in the code.** `POST /api/projects/{projectId}/suggestions/{suggestionId}/verify-code` (`SESSION_DECIDE` and `INTEGRATION_READ`; 202, or 409 when no repository is ready) searches the code and has the model read the passages once (at most one model call and 25 seconds). The suggestion gets a verdict (`ALREADY_EXISTS`, `CONFLICTS_WITH_CODE`, `NOT_FOUND`, `UNSURE`), a note, references with file and lines, `verifiedAt`, or a `verifyError` to retry. The card is updated live by `SUGGESTION_CODE_UPDATED` (session topic, and `/topic/projects/{projectId}/suggestions`). Migrations `V20261012110000` and `V20261012110100`.
+- `CodeReference` and its response gain optional `file`, `lineStart`, `lineEnd` and `quote`; `url` points at `…/blob/<commitSha>/<file>#L<a>-L<b>`. Older references still read as module references. `code` in a suggestion gains `verdict`, `verifyState`, `verifiedAt` and `verifyError`.
+- **Assistant chat searches the code** when the model says the question is about the code and the index does not answer it: the reply says it searched the source code and cites file and lines (`codeSearched`, `codeReferences` in the message). Latency of other messages is unchanged; it falls back to the model's own reply when the search cannot run.
+
+- **Create a project with Jira and GitHub (#132).** `POST /api/organizations/{orgId}/projects` accepts optional `sources`: `{jira?: {connectionId?, projectKey, issueTypeName, importStories}, github?: [{repository, branch?, installationId?}]}`. The project is created and answers at once; the sources are set up in the background.
+  - What can be checked at once is checked before the project exists, with a 4xx: the Jira connection exists, each repository is readable (shared by an installation, or public), the per-project repository limit, no repeated repository.
+  - `workspace` announces the request with the public event `ProjectSetupRequestedIntegrationEvent` on `workspace::api` (after commit, in the background, bound to the tenant). `gateway` saves the Jira target and starts the import; `codebase` connects and indexes the repositories. Both use the same handlers as the REST endpoints, on behalf of the creator. `workspace` depends on neither: they implement `ProjectSetupParticipant` and report through `ProjectSetupReporter`.
+  - A source that fails never fails or undoes the project: the failure is recorded in the new tenant table `project_setup_steps` (migration `V20261012120000`) and logged.
+  - `GET /api/projects/{projectId}/setup` (`INTEGRATION_READ`) returns the steps (`JIRA_LINK`, `JIRA_IMPORT`, `GITHUB_REPOS`) with state and counts, merged from the repositories' indexing, the Jira target and import job and the recorded state, plus the stack detected in the indexed repositories. The same object is pushed on `/topic/projects/{projectId}/setup`. `POST …/setup/steps/{step}/skip` and `…/retry` (`INTEGRATION_WRITE`) leave a step out or run a failed one again.
+  - `GET /api/organizations/{orgId}/code/github/repositories` lists what the organization's GitHub installations share, so a project that does not exist yet can pick repositories.
+
+
+- **New `overview` module: read-only dashboards of a project and of an organization (#129).**
+  - `GET /api/projects/{projectId}/overview`: stories by status and priority, story points,
+    coverage (acceptance criteria, origin quote, linked code), sessions and stories per week over the
+    last 12 weeks, how often the copilot's proposals were accepted or dismissed, glossary, constraints,
+    documents and assigned members, and the connected code. Each section follows the permission that
+    guards the same data (`STORY_READ`, `SESSION_READ`, `GLOSSARY_READ`, `CONSTRAINT_READ`,
+    `DOCUMENT_READ`, `MEMBER_READ`, `INTEGRATION_READ`) and is `null` without it; `403` when the caller
+    holds none, `404` for an unknown project.
+  - `GET /api/organizations/{organizationId}/overview` (any member): the same figures across the
+    projects the caller may see, the busiest projects and, for owners and admins only, the headcount.
+    Answers `403` for an organization other than the one the token is bound to.
+  - Everything is counted in SQL (`COUNT`/`GROUP BY`/`FILTER`); no entity is loaded. Each context owns its
+    figures behind a new named interface: `discovery::insights`, `workspace::insights` and
+    `CodebaseModuleApi.footprint`. No migration.
+
 ### Changed
+- Final stories (processing a session or an uploaded recording) now get the same context as live suggestions: backlog candidates, glossary, constraints and the related modules of the connected code. Without context, or if the lookup fails, they are generated from the transcript alone as before.
 - The release pull request and the back-merge pull request are opened by the GitHub App `reqsai-release-bot` (a short-lived token minted per job from `RELEASE_APP_ID` and `RELEASE_APP_PRIVATE_KEY`), so their CI runs: opened with `GITHUB_TOKEN` they started no `pull_request` workflow. The back-merge turns on auto-merge (merge commit) when the repository allows it; without the App configuration the job fails instead of falling back to `GITHUB_TOKEN`.
 - `produccion.yml` and `rollback.yml` dispatch `reqsai-infra`'s `deploy-mvp.yml` with a `reqsai-release-bot` token limited to `reqsai-infra` (Actions: write) and watch the run with the workflow token, instead of the personal token `INFRA_DEPLOY_TOKEN`, which is no longer used.
+- The live extraction prompt puts its fixed rules and schema first and the project context, backlog and transcript last, so the provider's automatic prompt cache serves the rules from the second pass on (also across the chat). On the 24.7 s reference recording the quota the meeting counts went from 13,819 to 11,090 with a cold cache and 7,649 with a warm one; one chat requirement from 7,938 to 5,480. The glossary and constraints sent on each pass are capped and a client document summary is cut at 1,000 characters.
 
 ### Fixed
 - Release notes longer than GitHub's 125000-character limit are cut at a line break with a link to the full CHANGELOG, instead of failing the tag after the deploy (1.2.0 of reqsai-api).
@@ -55,6 +100,9 @@ follows [Semantic Versioning](https://semver.org/).
     from an uploaded recording.
   - Tenant migrations `V20261009130100__suggestion_evidence_and_code.sql` and
     `V20261009130200__story_origin_and_code.sql`.
+- **Restoring the demo project also resets its integrations.** The connected repositories and their module map,
+  the Jira target (project key and issue type) and the push history are removed, like the rest of the demo's
+  content; the organization's GitHub and Jira connections stay. Before, they survived the restore.
 - **`AggregateRoot.replaceEvent`:** a creation event can be completed before it is published.
 - **Tests:**
   - **Unit:** the parser, filter, redactor, symbols, grouping, stack, quote locator, annotation, and the

@@ -39,6 +39,18 @@ The card links to the module it means, and every suggestion keeps the verbatim f
 3. **Reindex** with `POST …/{id}/reindex`, or automatically on every push for a repository read through the GitHub App. It downloads the branch again, but only modules whose files changed are described again (`content_hash`). A push that arrives during a run is kept (`pending_commit`) and indexed as soon as the run ends.
 4. **Stalled runs.** A run silent for 20 minutes (for example, the server restarted) reads as failed and can be retried.
 
+## Creating a project with its sources
+
+`POST /api/organizations/{orgId}/projects` takes optional `sources` (`jira`, `github[]`) so a new project is wired to Jira and GitHub from the start. The project is created and returned at once; the rest runs in the background.
+
+1. **Check first.** Before the project exists, `ProjectSetupParticipant.validate` of each source module refuses what cannot work: no Jira connection (404), a repository GitHub cannot confirm or ReqsAI cannot read (404), more repositories than the limit or a repeated one (422/409).
+2. **Announce.** `workspace` records one row per requested step in `project_setup_steps` (`JIRA_LINK`, `JIRA_IMPORT`, `GITHUB_REPOS`, with the request, to retry it) and publishes `ProjectSetupRequestedIntegrationEvent` on `workspace::api`. It is delivered after the commit, asynchronously, with the tenant of the request.
+3. **Run.** `gateway` saves the Jira target and starts the import job; `codebase` connects each repository (limit and GitHub checks included) and starts indexing. The permissions are checked again for the creator. One repository that fails does not stop the others, and nothing a source does can undo the project.
+4. **Follow.** `GET /api/projects/{projectId}/setup` merges the recorded state with what the modules keep (repositories' `status`/`modulesDone`/`moduleCount`, the Jira target, the latest import job). A skip or recorded failure wins over live data; a step a module has not reported as handled never reads as finished. The same object is pushed on `/topic/projects/{projectId}/setup` (spaced at least a second apart) and the web also polls while a step is open. When repositories are ready, `detectedStack` carries the merged languages, frameworks, databases and platforms; the web offers to apply them to the project's profile and never does it by itself.
+5. **Skip and retry.** `POST …/setup/steps/{step}/skip` stops following a step (work already started keeps running). `POST …/retry` runs a failed step again: retrying the Jira link retries the import that waited on it, and retrying the repositories connects the missing ones and indexes the failed ones again.
+
+Failure details are error codes (`CODE_REPOSITORY_NOT_FOUND`, per repository as `owner/name: CODE`) so the web translates them; an import that finished with failed issues reports `PARTIAL:<n>`.
+
 ## Connecting GitHub (GitHub App)
 
 Like Jira, GitHub is connected once per organization, by an owner or admin, from **Settings → Integrations**. It uses ReqsAI's GitHub App, not a personal token:
@@ -113,6 +125,70 @@ Every story and question also carries `evidence`, a verbatim fragment of the con
 - `QuoteLocator` places the quote on the transcript segment where it starts. A live transcriber cuts a sentence into short segments, so the quote is looked for across up to 4 consecutive ones, first verbatim and then by shared words (at least 60% of the quote's words).
 
 The suggestion stores both, the live `SUGGESTION_GENERATED` message carries them, and an accepted story keeps them as `origin` and `codeReferences`. The code never decides the type of a suggestion: the backlog rules still choose NEW_STORY, UPDATE_STORY or EDGE_CASE.
+
+## Deep search of the pure code
+
+The module index is the fast path: it is a summary of the code, so it can miss a detail, and it can be stale or wrong. For anything the index does not settle, the copilot reads the **pure source code** in GitHub instead of the stored summaries.
+
+| When | What happens |
+|---|---|
+| The analyst taps **Verificar en el código** on a suggestion | `POST /api/projects/{projectId}/suggestions/{suggestionId}/verify-code` |
+| A chat question asks about the code and the index does not answer it | The model sets `searchCode`; the chat searches the code within the request |
+| A live suggestion or a final story | The quick path only (the index), as before |
+
+### Retrieve, then read
+
+1. **Fetch.** `DeepCodeSearchService` downloads the repository archive at the **indexed commit** through the same access the indexer uses (an installation token of the GitHub App, or anonymous for a public repository). The file lives in `ArchiveCache` for 10 minutes after its last use, keyed by organization, repository and commit; the cache holds at most 4 files and 400 MB, deletes a file once its last reader is done and deletes everything on shutdown. A caller that runs out of time stops waiting; the download still lands in the cache for the next request.
+2. **Search.** Source files are read with the indexer's filter and limits (`SourceFilter`, 4000 files, 256 KB each, 64 MB of text), credentials are removed with `SecretRedactor.redactPreservingLines` (line numbers stay right), and `CodeSearcher` scores windows of 24 lines BM25-like. Words and identifiers meet on a six-letter stem, so "cancelar una reserva" finds `cancelReservation` and `CANCELLATION_LIMIT_HOURS`. The path counts, identifiers and quoted terms weigh double, and files of the modules the index points at score 1.5x. The best passages come back tightened around their hits, merged, with at most 10 snippets and 12000 characters.
+3. **Read.** `CodeVerificationService` makes **one** model call (`CodeVerificationPort`, `LlmCodeVerificationAdapter`) with the request and the numbered passages. If the search finds nothing the verdict is `NOT_FOUND` and the model is not called. The whole verification has a 25 second budget (`discovery.code-verification.budget`); the search gets the first part and the model call at least the last 8 seconds.
+
+The model answers `{"verdict", "note", "references": [{"snippet", "lineStart", "lineEnd", "quote"}]}`:
+
+| Verdict | Meaning |
+|---|---|
+| `ALREADY_EXISTS` | The passages show the code already provides it, as asked |
+| `CONFLICTS_WITH_CODE` | An implemented rule, limit or value differs for the same subject |
+| `NOT_FOUND` | Nothing in the code relates |
+| `UNSURE` | Related code, not enough to tell |
+
+`CodeVerificationParser` checks every citation against the passages the model saw: an unknown key is dropped, lines are clamped into the passage, a quote that is not in the passage is dropped, and the link is built here, never taken from the model. An `ALREADY_EXISTS` or `CONFLICTS_WITH_CODE` claim without a valid citation becomes `UNSURE`.
+
+### References
+
+`CodeReference` now has optional `file`, `lineStart`, `lineEnd` and `quote`; its `url` is `https://github.com/<owner>/<name>/blob/<commitSha>/<path>#L<a>-L<b>` (`CodeLinks.blobUrl`). References stored before deep search have none of them and still read as module references.
+
+### Verifying a suggestion
+
+`POST …/verify-code` needs `SESSION_DECIDE` and `INTEGRATION_READ`. It answers **202** with the suggestion in `code.verifyState = VERIFYING` and runs in the background (`SuggestionCodeVerificationJob`, bound to the tenant, after the commit). **409** `CODE_REPOSITORY_NOT_READY` when no repository is indexed, `SUGGESTION_ALREADY_RESOLVED` when it was decided.
+
+When it ends, the suggestion stores `code_verdict`, `code_verified_at`, the finding, note and references (replacing the quick ones) and `code_verify_state = VERIFIED`. A failure (GitHub down, model down, timeout) stores `FAILED` and a `code.verifyError` instead of throwing; asking again retries. A verification silent for 2 minutes (a restart) can be started again.
+
+Every state change raises `SuggestionCodeVerifiedEvent`, broadcast as `SUGGESTION_CODE_UPDATED` on `/topic/sessions/{sessionId}` and on `/topic/projects/{projectId}/suggestions` (the only topic for chat suggestions, which have no session). It carries the whole `code` object of the card.
+
+### In the chat
+
+The chat prompt asks the model to set `searchCode` when the message asks what the code already does and the EXISTING SYSTEM section does not clearly answer it. The handler then runs the same verification (kind `QUESTION`) within the request; the reply is the answer found in the code plus a line saying the source code was searched, and the message stores `code_refs` and `code_searched` (`codeReferences`, `codeSearched` in the response). Requests that do not need it pay nothing. If there is no ready repository, no model, or the search fails or runs out of time, the chat keeps the model's own short reply.
+
+### Final stories and uploaded recordings
+
+`StartDiscoveryProcessingCommandHandler` builds the same context a live pass gets (`RealtimeSuggestionService.contextFor`: backlog candidates, glossary, constraints, related code modules) from the first 6000 characters of the transcript, and fails open to the plain transcript when it cannot.
+
+### Privacy
+
+- No source code is persisted: the archive is a temporary file for a few minutes and the snippets live for the request. The verdict stores a short quote (at most 200 characters) per reference.
+- Snippets are redacted before they reach the model, and go inside `<code>` tags with look-alike tags neutralized.
+- Tokens are metered through `TokenUsageRecorderPort`; each deep search logs one line (`Deep code search for project …`) and each verification one more (`Deep verification for project …`).
+
+GitHub's own code search API could replace the download for very large repositories, but it is rate limited per account, covers only the default branch and cannot be pinned to the indexed commit, so it is only a possible later optimisation.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `reqsai.codebase.deep-search.cache-ttl` | `PT10M` | How long an archive stays after its last use |
+| `reqsai.codebase.deep-search.cache-max-bytes` | `419430400` | Byte budget of the archive cache |
+| `reqsai.codebase.deep-search.cache-max-entries` | `4` | Archives kept |
+| `reqsai.codebase.deep-search.max-snippets` | `10` | Snippets given to the model |
+| `reqsai.codebase.deep-search.max-snippet-chars` | `12000` | Characters of code given to the model |
+| `discovery.code-verification.budget` | `PT25S` | Time for one verification |
 
 ## Privacy and security
 

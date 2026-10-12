@@ -43,4 +43,9 @@ public class IntegrationSyncJobRepositoryAdapter implements IntegrationSyncJobRe
     public List<IntegrationSyncJob> findRecent(UUID projectId) {
         return jpa.findTop10ByProjectIdOrderByCreatedAtDesc(projectId);
     }
+
+    @Override
+    public void deleteByProjectId(UUID projectId) {
+        jpa.deleteByProjectId(projectId);
+    }
 }

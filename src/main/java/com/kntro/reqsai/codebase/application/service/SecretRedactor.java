@@ -1,6 +1,7 @@
 package com.kntro.reqsai.codebase.application.service;
 
 import java.util.List;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -40,6 +41,21 @@ public final class SecretRedactor {
         String out = content;
         for (Pattern token : TOKENS) {
             out = token.matcher(out).replaceAll(REDACTED);
+        }
+        out = URL_PASSWORD.matcher(out).replaceAll("$1" + REDACTED + "@");
+        out = ASSIGNED_SECRET.matcher(out).replaceAll("$1" + REDACTED + "$3");
+        return out;
+    }
+
+    /**
+     * As {@link #redact}, but a redacted block spanning several lines (a private key) keeps its line count, so
+     * line numbers of the rest of the file still point at the right place on the code host.
+     */
+    public static String redactPreservingLines(String content) {
+        String out = content;
+        for (Pattern token : TOKENS) {
+            out = token.matcher(out).replaceAll(match -> Matcher.quoteReplacement(
+                    REDACTED + "\n".repeat((int) match.group().chars().filter(c -> c == '\n').count())));
         }
         out = URL_PASSWORD.matcher(out).replaceAll("$1" + REDACTED + "@");
         out = ASSIGNED_SECRET.matcher(out).replaceAll("$1" + REDACTED + "$3");

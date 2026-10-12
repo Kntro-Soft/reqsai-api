@@ -60,7 +60,11 @@ public interface SubscriptionController {
             summary = "Get subscription usage",
             description = """
                     Returns the current billing period, token consumption against the plan allowance,
-                    and display pricing for an organization. Only the organization owner may access it."""
+                    the warning level (NONE, WARNING_80, WARNING_90, EXHAUSTED), where the period's tokens
+                    went by feature and by project, an estimate of the minutes of meeting the remaining
+                    allowance covers, and display pricing for an organization. The breakdown reads the
+                    usage ledger of the organization in the caller's session. Only the organization owner
+                    may access it."""
     )
     @ApiResponse(
             responseCode = "200",

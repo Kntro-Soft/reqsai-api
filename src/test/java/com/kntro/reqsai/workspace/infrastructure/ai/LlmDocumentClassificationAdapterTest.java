@@ -1,6 +1,6 @@
 package com.kntro.reqsai.workspace.infrastructure.ai;
 
-import com.kntro.reqsai.billing.api.BillingModuleApi;
+import com.kntro.reqsai.shared.application.ai.AiUsageReporter;
 import com.kntro.reqsai.workspace.application.port.DocumentClassification;
 import com.kntro.reqsai.workspace.application.port.DocumentClassificationRequest;
 import com.kntro.reqsai.workspace.domain.model.DocumentType;
@@ -144,7 +144,7 @@ class LlmDocumentClassificationAdapterTest {
     private static LlmDocumentClassificationAdapter adapter(String provider, ChatModel chatModel,
                                                             OpenAiChatModel openAiChatModel) {
         return new LlmDocumentClassificationAdapter(provider, provider(chatModel), provider(openAiChatModel),
-                new ObjectMapper(), mock(BillingModuleApi.class));
+                new ObjectMapper(), AiUsageReporter.NONE);
     }
 
     @SuppressWarnings("unchecked")

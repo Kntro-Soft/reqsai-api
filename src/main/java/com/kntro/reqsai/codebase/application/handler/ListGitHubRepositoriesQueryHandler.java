@@ -27,7 +27,8 @@ public class ListGitHubRepositoriesQueryHandler {
 
     public List<AvailableRepository> handle(ListGitHubRepositoriesQuery query) {
         if (!app.isConfigured()) return List.of();
-        Set<String> connected = repositories.findAllByProjectId(query.projectId()).stream()
+        Set<String> connected = query.projectId() == null ? Set.of()
+                : repositories.findAllByProjectId(query.projectId()).stream()
                 .map(CodeRepository::fullName)
                 .map(name -> name.toLowerCase(Locale.ROOT))
                 .collect(Collectors.toSet());

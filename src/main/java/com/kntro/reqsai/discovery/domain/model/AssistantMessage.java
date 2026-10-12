@@ -46,6 +46,15 @@ public class AssistantMessage extends AggregateRoot {
     @Column(name = "suggestion_ids", columnDefinition = "uuid[]", nullable = false)
     private List<UUID> suggestionIds = new ArrayList<>();
 
+    /** Places of the client's code the reply cites after a deep search of the source code (file, lines, link). */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "code_refs", columnDefinition = "jsonb", nullable = false)
+    private List<CodeReference> codeReferences = new ArrayList<>();
+
+    /** Whether the reply came from searching the pure source code, not only from the module index. */
+    @Column(name = "code_searched", nullable = false)
+    private boolean codeSearched;
+
     protected AssistantMessage() {
         super();
     }
@@ -72,6 +81,22 @@ public class AssistantMessage extends AggregateRoot {
         }
         return new AssistantMessage(projectId, AssistantMessageRole.ASSISTANT, text,
                 Assert.notNull(suggestionIds, "suggestionIds"));
+    }
+
+    /**
+     * ReqsAI's reply after a deep search of the source code: the answer, the places in the code it rests on, and
+     * the suggestions it raised (possibly none).
+     */
+    public static AssistantMessage fromCodeSearch(UUID projectId, String content, List<UUID> suggestionIds,
+                                                  List<CodeReference> references) {
+        AssistantMessage message = fromAssistant(projectId, content, suggestionIds);
+        message.codeReferences = new ArrayList<>(Assert.notNull(references, "references"));
+        message.codeSearched = true;
+        return message;
+    }
+
+    public List<CodeReference> getCodeReferences() {
+        return codeReferences == null ? List.of() : Collections.unmodifiableList(codeReferences);
     }
 
     public List<UUID> getSuggestionIds() {

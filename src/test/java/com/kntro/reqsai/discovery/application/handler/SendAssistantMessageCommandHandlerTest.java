@@ -1,5 +1,7 @@
 package com.kntro.reqsai.discovery.application.handler;
 
+import org.mockito.Spy;
+import com.kntro.reqsai.shared.application.ai.AiQuotaGuard;
 import com.kntro.reqsai.discovery.application.command.SendAssistantMessageCommand;
 import com.kntro.reqsai.discovery.application.port.AssistantMessageRepository;
 import com.kntro.reqsai.discovery.application.port.AssistantReply;
@@ -70,6 +72,7 @@ class SendAssistantMessageCommandHandlerTest {
     @Mock private SuggestionRepository suggestions;
     @Mock private UserStoryRepository stories;
     @Mock private DiscoverySessionRepository sessions;
+    @Spy private AiQuotaGuard quota = AiQuotaGuard.UNLIMITED;
     @InjectMocks private SendAssistantMessageCommandHandler handler;
 
     @BeforeEach

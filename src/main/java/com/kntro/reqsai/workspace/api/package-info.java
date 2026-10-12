@@ -6,6 +6,10 @@
  * {@link com.kntro.reqsai.workspace.api.ProjectDocumentSnapshot}).
  * {@link com.kntro.reqsai.workspace.api.GlossaryTermSnapshot}), plus the
  * {@link com.kntro.reqsai.workspace.api.DemoProjectSeededIntegrationEvent} other modules react to.
+ * A new project's setup is exposed here too: {@link com.kntro.reqsai.workspace.api.ProjectSources},
+ * {@link com.kntro.reqsai.workspace.api.ProjectSetupRequestedIntegrationEvent} and the
+ * {@link com.kntro.reqsai.workspace.api.ProjectSetupParticipant} and
+ * {@link com.kntro.reqsai.workspace.api.ProjectSetupReporter} contracts the source modules implement and call.
  * All other workspace packages are internal and must not be accessed cross-module.
  */
 @org.springframework.modulith.NamedInterface("api")

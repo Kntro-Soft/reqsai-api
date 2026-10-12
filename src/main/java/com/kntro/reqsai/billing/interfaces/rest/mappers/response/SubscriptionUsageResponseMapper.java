@@ -16,7 +16,7 @@ public final class SubscriptionUsageResponseMapper {
 
     public static SubscriptionUsageResponse toResponse(SubscriptionUsageView view) {
         Subscription subscription = view.subscription();
-        long used = subscription.getTokenQuotaUsed();
+        long used = view.tokensUsed();
         long limit = view.maxTokensPerMonth();
         long remaining = Math.max(0L, limit - used);
         double percentage = limit > 0 ? Math.min(100.0, (used * 100.0) / limit) : 0.0;
@@ -30,6 +30,18 @@ public final class SubscriptionUsageResponseMapper {
                 limit,
                 remaining,
                 percentage,
+                view.warningLevel().name(),
+                new SubscriptionUsageResponse.UsageBreakdown(
+                        view.breakdown().byFeature().stream()
+                                .map(f -> new SubscriptionUsageResponse.FeatureUsage(f.feature(), f.tokens(),
+                                        f.inputTokens(), f.outputTokens(), f.cachedInputTokens(), f.calls()))
+                                .toList(),
+                        view.breakdown().topProjects().stream()
+                                .map(p -> new SubscriptionUsageResponse.ProjectUsage(p.projectId().toString(), p.tokens()))
+                                .toList(),
+                        view.breakdown().transcriptionSeconds()),
+                new SubscriptionUsageResponse.MeetingEstimate(view.meetingEstimate().minutesLeft(),
+                        view.meetingEstimate().tokensPerMinute(), view.meetingEstimate().measured()),
                 view.priceCents(),
                 view.currency(),
                 view.stripePriceId()

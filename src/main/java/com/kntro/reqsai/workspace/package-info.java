@@ -13,6 +13,12 @@
  * net). IAM's domain events stay internal; IAM relays the verified-account event to its {@code api}
  * package so no framework annotation is needed in the domain layer.
  * <p>
+ * <p>
+ * A project can be created with external sources (a Jira project, GitHub repositories). Workspace owns the
+ * request, the recorded steps ({@code project_setup_steps}) and the setup endpoint, and knows none of the modules
+ * that act on it: those implement {@code ProjectSetupParticipant}, report through {@code ProjectSetupReporter}
+ * and listen to {@code ProjectSetupRequestedIntegrationEvent}, all on {@code workspace::api}.
+ * <p>
  * Other modules must declare {@code allowedDependencies = "workspace::api"} and may only import
  * types from {@link com.kntro.reqsai.workspace.api}.
  */

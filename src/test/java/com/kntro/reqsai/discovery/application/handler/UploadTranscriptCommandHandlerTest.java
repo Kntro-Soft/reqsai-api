@@ -1,5 +1,6 @@
 package com.kntro.reqsai.discovery.application.handler;
 
+import com.kntro.reqsai.shared.application.ai.AiUsageReporter;
 import com.kntro.reqsai.discovery.application.command.UploadTranscriptCommand;
 import com.kntro.reqsai.discovery.application.port.DiscoverySessionRepository;
 import com.kntro.reqsai.discovery.application.port.TranscriptSegmentRepository;
@@ -40,6 +41,8 @@ class UploadTranscriptCommandHandlerTest {
     private TranscriptionPort transcription;
     @Mock
     private TranscriptSegmentRepository segments;
+    @Mock
+    private AiUsageReporter usage;
     @InjectMocks
     private UploadTranscriptCommandHandler handler;
 

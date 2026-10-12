@@ -1,6 +1,8 @@
 package com.kntro.reqsai.discovery.application.handler;
 
 import com.kntro.reqsai.discovery.application.port.SuggestionRepository;
+import com.kntro.reqsai.discovery.application.port.UserStoryRepository;
+import com.kntro.reqsai.discovery.application.service.ResolvedStoryStatusReader;
 import com.kntro.reqsai.discovery.application.query.ListProjectSuggestionsQuery;
 import com.kntro.reqsai.discovery.domain.model.Priority;
 import com.kntro.reqsai.discovery.domain.model.Suggestion;
@@ -35,7 +37,7 @@ class ListProjectSuggestionsQueryHandlerTest {
     private final PageRequestFactory pageRequestFactory = new PageRequestFactory(new PaginationProperties(20, 100));
 
     private ListProjectSuggestionsQueryHandler handler() {
-        return new ListProjectSuggestionsQueryHandler(suggestions, pageRequestFactory);
+        return new ListProjectSuggestionsQueryHandler(suggestions, pageRequestFactory, new ResolvedStoryStatusReader(org.mockito.Mockito.mock(UserStoryRepository.class)));
     }
 
     @Test
