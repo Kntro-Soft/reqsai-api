@@ -4,7 +4,10 @@ import tools.jackson.databind.ObjectMapper;
 import com.kntro.reqsai.discovery.application.port.TokenUsageRecorderPort;
 import com.kntro.reqsai.discovery.infrastructure.exception.DiscoveryInfrastructureExceptions;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.google.genai.GoogleGenAiChatOptions;
 import org.springframework.beans.factory.ObjectProvider;
 
 /**
@@ -18,7 +21,13 @@ public class GeminiRequirementGenerationAdapter extends AbstractLlmGenerationAda
 
     public GeminiRequirementGenerationAdapter(ObjectProvider<ChatModel> chatModel, ObjectMapper objectMapper,
                                               TokenUsageRecorderPort tokenUsageRecorder) {
-        super(objectMapper, tokenUsageRecorder);
+        this(chatModel, objectMapper, tokenUsageRecorder, null);
+    }
+
+    public GeminiRequirementGenerationAdapter(ObjectProvider<ChatModel> chatModel, ObjectMapper objectMapper,
+                                              TokenUsageRecorderPort tokenUsageRecorder,
+                                              @Nullable String liveModel) {
+        super(objectMapper, tokenUsageRecorder, liveModel);
         this.chatModel = chatModel;
     }
 
@@ -39,5 +48,14 @@ public class GeminiRequirementGenerationAdapter extends AbstractLlmGenerationAda
             throw DiscoveryInfrastructureExceptions.generationUnavailable();
         }
         return callAndExtractText(model, promptText);
+    }
+
+    @Override
+    protected String callModel(String promptText, String model) {
+        ChatModel chat = chatModel.getIfAvailable();
+        if (chat == null) {
+            throw DiscoveryInfrastructureExceptions.generationUnavailable();
+        }
+        return callAndExtractText(chat, new Prompt(promptText, GoogleGenAiChatOptions.builder().model(model).build()));
     }
 }

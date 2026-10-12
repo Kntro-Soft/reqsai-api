@@ -15,6 +15,9 @@ import com.kntro.reqsai.codebase.application.service.SymbolExtractor.FileSymbols
 import com.kntro.reqsai.codebase.domain.exception.CodebaseError;
 import com.kntro.reqsai.codebase.domain.model.CodeModule;
 import com.kntro.reqsai.codebase.domain.model.CodeProfile;
+import com.kntro.reqsai.shared.application.ai.AiFeature;
+import com.kntro.reqsai.shared.application.ai.AiQuotaGuard;
+import com.kntro.reqsai.shared.application.ai.AiUsageScope;
 import com.kntro.reqsai.shared.application.port.EmbeddingPort;
 import com.kntro.reqsai.shared.domain.exception.DomainException;
 import com.kntro.reqsai.shared.infrastructure.persistence.multitenancy.TenantContext;
@@ -76,9 +79,10 @@ public class CodeIndexer {
     private final int concurrency;
     private final ArchiveLimits limits;
     private final String summaryLanguage;
+    private final AiQuotaGuard quota;
 
     public CodeIndexer(CodeHostPort host, CodeSummaryPort summarizer, EmbeddingPort embeddingPort,
-                       RepositoryAccess access, CodeIndexWriter writer,
+                       RepositoryAccess access, CodeIndexWriter writer, AiQuotaGuard quota,
                        @Value("${reqsai.codebase.max-modules:80}") int maxModules,
                        @Value("${reqsai.codebase.summary-concurrency:4}") int concurrency,
                        @Value("${reqsai.codebase.max-files:4000}") int maxFiles,
@@ -94,6 +98,7 @@ public class CodeIndexer {
         this.concurrency = Math.max(1, concurrency);
         this.limits = new ArchiveLimits(maxDownloadBytes, maxFiles, maxFileBytes);
         this.summaryLanguage = summaryLanguage;
+        this.quota = quota;
     }
 
     public void index(java.util.UUID repositoryId) {
@@ -126,7 +131,8 @@ public class CodeIndexer {
             List<DescribedModule> described = describeAll(target, fullName, drafts, existing, ai, allSummarized, done);
 
             writer.keepOnly(target.repositoryId(), drafts.stream().map(ModuleDraft::path).toList());
-            String overview = overview(fullName, files, described, ai);
+            String overview = AiUsageScope.call(AiFeature.CODE_INDEX, target.projectId(),
+                    () -> overview(fullName, files, described, ai && quota.isAvailable()));
             writer.markReady(target.repositoryId(), allSummarized.get(), profile.withOverview(overview));
             log.info("Code index of {} ready: {} files, {} modules ({} kept unchanged), AI summaries={}, {} ms",
                     fullName, sources.size(), drafts.size(), described.stream().filter(DescribedModule::unchanged).count(),
@@ -160,7 +166,9 @@ public class CodeIndexer {
                     permits.acquireUninterruptibly();
                     try {
                         TenantContext.runWith(tenant, () -> described.add(
-                                describe(target, fullName, draft, existing.get(draft.path()), ai, allSummarized)));
+                                AiUsageScope.call(AiFeature.CODE_INDEX, target.projectId(), () ->
+                                        describe(target, fullName, draft, existing.get(draft.path()), ai,
+                                                allSummarized))));
                         int count = done.incrementAndGet();
                         TenantContext.runWith(tenant, () -> writer.progress(target.repositoryId(), count));
                     } finally {
@@ -204,7 +212,9 @@ public class CodeIndexer {
 
         ModuleSummary summary = null;
         boolean summarized = false;
-        if (ai) {
+        // A spent monthly allowance does not fail the run: the module keeps its structural description and
+        // the repository is marked as not summarized, so a reindex after the allowance renews summarizes it.
+        if (ai && quota.isAvailable()) {
             try {
                 summary = summarizer.summarizeModule(new ModuleDigest(fullName, draft.path(),
                         cap(draft.files().stream().map(SourceFile::path).toList()), cap(new ArrayList<>(symbols)),

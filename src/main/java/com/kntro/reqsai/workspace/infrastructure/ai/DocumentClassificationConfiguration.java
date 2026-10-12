@@ -1,6 +1,6 @@
 package com.kntro.reqsai.workspace.infrastructure.ai;
 
-import com.kntro.reqsai.billing.api.BillingModuleApi;
+import com.kntro.reqsai.shared.application.ai.AiUsageReporter;
 import com.kntro.reqsai.workspace.application.port.DocumentClassificationPort;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.openai.OpenAiChatModel;
@@ -25,8 +25,8 @@ class DocumentClassificationConfiguration {
             ObjectProvider<ChatModel> chatModel,
             ObjectProvider<OpenAiChatModel> openAiChatModel,
             ObjectMapper objectMapper,
-            BillingModuleApi billing,
+            AiUsageReporter usage,
             @Value("${reqsai.ai.generation.provider:gemini}") String provider) {
-        return new LlmDocumentClassificationAdapter(provider, chatModel, openAiChatModel, objectMapper, billing);
+        return new LlmDocumentClassificationAdapter(provider, chatModel, openAiChatModel, objectMapper, usage);
     }
 }

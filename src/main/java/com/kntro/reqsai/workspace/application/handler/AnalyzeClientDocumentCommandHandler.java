@@ -15,6 +15,9 @@ import com.kntro.reqsai.workspace.application.service.PendingDocumentService.Pro
 import com.kntro.reqsai.workspace.domain.model.DocumentType;
 import com.kntro.reqsai.workspace.domain.model.ProjectDocument;
 import com.kntro.reqsai.workspace.domain.valueobjects.ClientDocumentFile;
+import com.kntro.reqsai.shared.application.ai.AiFeature;
+import com.kntro.reqsai.shared.application.ai.AiQuotaGuard;
+import com.kntro.reqsai.shared.application.ai.AiUsageScope;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -40,13 +43,14 @@ public class AnalyzeClientDocumentCommandHandler {
     private final PendingDocumentService pendingDocuments;
     private final DocumentTextExtractor extractor;
     private final DocumentClassificationPort classifier;
+    private final AiQuotaGuard quota;
 
     public ClientDocumentAnalysis handle(AnalyzeClientDocumentCommand command) {
         ClientDocumentFile file = ClientDocumentFile.of(command.fileName(), command.contentType(), command.content());
         ProjectKnowledge knowledge = pendingDocuments.preflight(command.organizationId(), command.projectId());
 
         ExtractedText extracted = extractor.extract(file);
-        Optional<DocumentClassification> classification = classify(file, knowledge, extracted.text());
+        Optional<DocumentClassification> classification = classify(command.projectId(), file, knowledge, extracted.text());
         DocumentClassification suggestions = classification
                 .map(ClientDocumentSuggestions::normalize)
                 .orElseGet(DocumentClassification::empty);
@@ -77,16 +81,23 @@ public class AnalyzeClientDocumentCommandHandler {
     }
 
     /** The model's classification, or empty when no model is configured or it failed. */
-    private Optional<DocumentClassification> classify(ClientDocumentFile file, ProjectKnowledge knowledge, String text) {
+    private Optional<DocumentClassification> classify(java.util.UUID projectId, ClientDocumentFile file,
+                                                      ProjectKnowledge knowledge, String text) {
         if (!classifier.isAvailable()) {
             log.info("Document classification skipped for '{}': no AI model is configured", file.fileName());
             return Optional.empty();
         }
+        if (!quota.isAvailable()) {
+            log.info("Document classification skipped for '{}': the monthly AI allowance is used up; "
+                    + "the document is stored unclassified", file.fileName());
+            return Optional.empty();
+        }
         String input = ClientDocumentSuggestions.modelInput(text);
         try {
-            return Optional.of(classifier.classify(new DocumentClassificationRequest(
-                    file.fileName(), knowledge.projectName(), knowledge.projectDomain(), input,
-                    input.length() < text.length())));
+            return Optional.of(AiUsageScope.call(AiFeature.DOCUMENT_CLASSIFICATION, projectId, () ->
+                    classifier.classify(new DocumentClassificationRequest(
+                            file.fileName(), knowledge.projectName(), knowledge.projectDomain(), input,
+                            input.length() < text.length()))));
         } catch (RuntimeException e) {
             log.warn("Document classification failed for '{}'; storing it unclassified: {}",
                     file.fileName(), e.getMessage());

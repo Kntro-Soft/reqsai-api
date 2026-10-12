@@ -1,5 +1,7 @@
 package com.kntro.reqsai.workspace.application.handler;
 
+import org.mockito.Spy;
+import com.kntro.reqsai.shared.application.ai.AiQuotaGuard;
 import com.kntro.reqsai.shared.domain.exception.DomainException;
 import com.kntro.reqsai.workspace.application.command.AnalyzeClientDocumentCommand;
 import com.kntro.reqsai.workspace.application.port.DocumentClassification;
@@ -53,6 +55,7 @@ class AnalyzeClientDocumentCommandHandlerTest {
     @Mock private PendingDocumentService pendingDocuments;
     @Mock private DocumentTextExtractor extractor;
     @Mock private DocumentClassificationPort classifier;
+    @Spy private AiQuotaGuard quota = AiQuotaGuard.UNLIMITED;
     @InjectMocks private AnalyzeClientDocumentCommandHandler handler;
 
     @BeforeEach

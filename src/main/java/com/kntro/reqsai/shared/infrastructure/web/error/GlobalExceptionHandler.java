@@ -186,6 +186,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     private ProblemDetail problem(DomainException ex, HttpServletRequest req) {
         ProblemDetail pd = ProblemDetail.forStatusAndDetail(ex.error().status(), ex.getMessage());
         pd.setProperty("code", ex.error().code());
+        ex.details().forEach(pd::setProperty);
         pd.setProperty("correlationId", correlationId());
         pd.setInstance(URI.create(req.getRequestURI()));
         return pd;

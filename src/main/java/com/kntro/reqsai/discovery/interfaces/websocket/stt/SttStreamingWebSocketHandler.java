@@ -10,6 +10,8 @@ import com.kntro.reqsai.shared.infrastructure.web.websocket.TenantAwareBinaryWeb
 import com.kntro.reqsai.shared.infrastructure.web.websocket.WebSocketJwtHandshakeInterceptor;
 import com.kntro.reqsai.shared.infrastructure.web.websocket.WebSocketQueryParams;
 import com.kntro.reqsai.shared.interfaces.websocket.WebSocketController;
+import com.kntro.reqsai.shared.application.ai.AiUsageReporter;
+import com.kntro.reqsai.shared.application.ai.TokenUsage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
@@ -18,6 +20,8 @@ import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.WebSocketSession;
 
 import java.nio.ByteBuffer;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -64,11 +68,14 @@ public class SttStreamingWebSocketHandler extends TenantAwareBinaryWebSocketHand
     private final StartSttStreamCommandHandler startStream;
     private final AppendTranscriptSegmentCommandHandler appendHandler;
     private final SttSessionRegistry registry;
+    private final AiUsageReporter usage;
 
     /** One provider session per WS connection, keyed by Spring WS session id. */
     private final Map<String, StreamingTranscriptionPort.Session> recognizers = new ConcurrentHashMap<>();
     /** Reverse map to unregister from {@link SttSessionRegistry} on close. */
     private final Map<String, UUID> wsToSession = new ConcurrentHashMap<>();
+    /** When each connection opened, to meter the seconds of audio it carried when it closes. */
+    private final Map<String, Instant> openedAt = new ConcurrentHashMap<>();
 
     /**
      * Opens the upstream STT session via {@link StartSttStreamCommandHandler}.
@@ -95,6 +102,7 @@ public class SttStreamingWebSocketHandler extends TenantAwareBinaryWebSocketHand
                     startStream.handle(new StartSttStreamCommand(sessionId, userId), transcriptListener(ws, sessionId)));
             recognizers.put(ws.getId(), recognizer);
             wsToSession.put(ws.getId(), sessionId);
+            openedAt.put(ws.getId(), Instant.now());
             registry.register(sessionId, ws);
             log.debug("STT stream opened for session {} (ws {})", sessionId, ws.getId());
         } catch (DomainException e) {
@@ -120,7 +128,18 @@ public class SttStreamingWebSocketHandler extends TenantAwareBinaryWebSocketHand
         if (recognizer != null) recognizer.close();
         UUID sessionId = wsToSession.remove(ws.getId());
         if (sessionId != null) registry.unregister(sessionId);
+        meterSeconds(ws);
         log.debug("STT stream closed (ws {}, {})", ws.getId(), status);
+    }
+
+    /** Reports the seconds this connection streamed to the speech-to-text provider (never throws). */
+    private void meterSeconds(WebSocketSession ws) {
+        Instant opened = openedAt.remove(ws.getId());
+        if (opened == null) return;
+        long seconds = Duration.between(opened, Instant.now()).toSeconds();
+        if (seconds > 0) {
+            runWithTenant(ws, () -> usage.report(TokenUsage.audio(null, null, seconds)));
+        }
     }
 
     /** The user id stored by the handshake interceptor, or {@code null} when absent/malformed. */

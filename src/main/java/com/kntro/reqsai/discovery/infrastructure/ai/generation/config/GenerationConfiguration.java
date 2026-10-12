@@ -29,11 +29,12 @@ class GenerationConfiguration {
             ObjectProvider<OpenAiChatModel> openAiChatModel,
             ObjectMapper objectMapper,
             TokenUsageRecorderPort tokenUsageRecorder,
-            @Value("${reqsai.ai.generation.provider:gemini}") String provider) {
+            @Value("${reqsai.ai.generation.provider:gemini}") String provider,
+            @Value("${reqsai.ai.generation.live-model:}") String liveModel) {
         return new RequirementGenerationRouter(
                 provider,
-                new GeminiRequirementGenerationAdapter(chatModel, objectMapper, tokenUsageRecorder),
-                new OpenAiRequirementGenerationAdapter(openAiChatModel, objectMapper, tokenUsageRecorder)
+                new GeminiRequirementGenerationAdapter(chatModel, objectMapper, tokenUsageRecorder, liveModel),
+                new OpenAiRequirementGenerationAdapter(openAiChatModel, objectMapper, tokenUsageRecorder, liveModel)
         );
     }
 }

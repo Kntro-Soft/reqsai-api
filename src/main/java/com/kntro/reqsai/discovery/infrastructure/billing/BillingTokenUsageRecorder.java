@@ -1,43 +1,35 @@
 package com.kntro.reqsai.discovery.infrastructure.billing;
 
-import com.kntro.reqsai.billing.api.BillingModuleApi;
 import com.kntro.reqsai.discovery.application.port.TokenUsageRecorderPort;
-import com.kntro.reqsai.shared.infrastructure.persistence.multitenancy.TenantContext;
+import com.kntro.reqsai.shared.application.ai.AiFeature;
+import com.kntro.reqsai.shared.application.ai.AiUsageReporter;
+import com.kntro.reqsai.shared.application.ai.TokenUsage;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import java.util.UUID;
-
 /**
- * {@link TokenUsageRecorderPort} adapter that meters AI token consumption against the current tenant's
- * subscription via {@code billing::api}. The tenant id bound on the request thread is the JWT
- * {@code orgId} (a plain UUID), which is exactly the organization the subscription is keyed by.
+ * {@link TokenUsageRecorderPort} adapter that hands every model call to the {@link AiUsageReporter}, which
+ * writes the usage ledger and the monthly counter of the current tenant's organization. The feature and
+ * project come from the surrounding {@code AiUsageScope}.
  * <p>
- * Best-effort by contract: any failure (no tenant bound, billing error) is swallowed and logged so
- * metering never interferes with requirement generation.
+ * Best-effort by contract: the reporter never throws and never blocks, so metering cannot interfere with
+ * requirement generation.
  */
 @Component
 @RequiredArgsConstructor
-@Slf4j
 public class BillingTokenUsageRecorder implements TokenUsageRecorderPort {
 
-    private final BillingModuleApi billing;
+    private final AiUsageReporter reporter;
 
     @Override
     public void record(long totalTokens) {
-        if (totalTokens <= 0) {
-            return;
+        if (totalTokens > 0) {
+            reporter.report(TokenUsage.of(AiFeature.OTHER, null, null, totalTokens, 0, 0, null));
         }
-        String tenant = TenantContext.getCurrentTenant();
-        if (tenant == null || tenant.isBlank() || TenantContext.DEFAULT_SCHEMA.equals(tenant)) {
-            log.debug("No tenant bound; skipping token metering of {} tokens", totalTokens);
-            return;
-        }
-        try {
-            billing.recordTokenConsumption(UUID.fromString(tenant), totalTokens);
-        } catch (RuntimeException e) {
-            log.warn("Token metering failed for tenant {} ({} tokens): {}", tenant, totalTokens, e.getMessage());
-        }
+    }
+
+    @Override
+    public void record(TokenUsage usage) {
+        reporter.report(usage);
     }
 }

@@ -68,6 +68,15 @@ public enum SessionEventType {
     /** The analyst named a diarized speaker or set their side (client / team); carries the new description. */
     SPEAKER_UPDATED,
 
+    // AI allowance
+
+    /**
+     * The organization's monthly AI allowance is spent, so live suggestions are paused for this session.
+     * Capture and the transcript keep working; suggestions resume once the allowance renews or the plan
+     * is upgraded. Sent once per pause.
+     */
+    AI_QUOTA_PAUSED,
+
     // Live presence
 
     /**
