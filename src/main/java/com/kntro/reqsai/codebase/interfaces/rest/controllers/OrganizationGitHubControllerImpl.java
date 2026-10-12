@@ -7,7 +7,11 @@ import com.kntro.reqsai.codebase.application.handler.CompleteGitHubInstallComman
 import com.kntro.reqsai.codebase.application.handler.DisconnectGitHubInstallationCommandHandler;
 import com.kntro.reqsai.codebase.application.handler.GetGitHubConnectionQueryHandler;
 import com.kntro.reqsai.codebase.application.handler.StartGitHubInstallCommandHandler;
+import com.kntro.reqsai.codebase.application.handler.ListGitHubRepositoriesQueryHandler;
 import com.kntro.reqsai.codebase.application.query.GetGitHubConnectionQuery;
+import com.kntro.reqsai.codebase.application.query.ListGitHubRepositoriesQuery;
+import com.kntro.reqsai.codebase.application.service.RepositoryAccess;
+import com.kntro.reqsai.codebase.interfaces.rest.dto.response.GitHubRepositoryResponse;
 import com.kntro.reqsai.codebase.interfaces.rest.dto.request.CompleteGitHubInstallRequest;
 import com.kntro.reqsai.codebase.interfaces.rest.dto.response.GitHubConnectionResponse;
 import com.kntro.reqsai.codebase.interfaces.rest.dto.response.GitHubInstallResultResponse;
@@ -20,6 +24,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.UUID;
 
 /** Implementation of the {@link OrganizationGitHubController} API contract. */
@@ -28,6 +33,7 @@ import java.util.UUID;
 public class OrganizationGitHubControllerImpl implements OrganizationGitHubController {
 
     private final GetGitHubConnectionQueryHandler connection;
+    private final ListGitHubRepositoriesQueryHandler repositories;
     private final StartGitHubInstallCommandHandler start;
     private final CompleteGitHubInstallCommandHandler complete;
     private final DisconnectGitHubInstallationCommandHandler disconnect;
@@ -36,6 +42,15 @@ public class OrganizationGitHubControllerImpl implements OrganizationGitHubContr
     @PreAuthorize("@authz.orgOwnerOrAdmin(#orgId, authentication)")
     public ResponseEntity<GitHubConnectionResponse> get(UUID orgId) {
         return ResponseEntity.ok(GitHubResponseMapper.toResponse(connection.handle(new GetGitHubConnectionQuery(orgId))));
+    }
+
+    @Override
+    @PreAuthorize("@authz.orgOwnerOrAdmin(#orgId, authentication)")
+    public ResponseEntity<List<GitHubRepositoryResponse>> repositories(UUID orgId) {
+        if (!orgId.equals(RepositoryAccess.currentOrganization())) return ResponseEntity.ok(List.of());
+        return ResponseEntity.ok(repositories.handle(new ListGitHubRepositoriesQuery(null)).stream()
+                .map(GitHubResponseMapper::toResponse)
+                .toList());
     }
 
     @Override

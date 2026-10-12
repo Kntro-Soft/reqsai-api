@@ -5,6 +5,7 @@ import com.kntro.reqsai.codebase.application.port.CodeRepositoryRepository;
 import com.kntro.reqsai.codebase.domain.model.CodeModule;
 import com.kntro.reqsai.codebase.domain.model.CodeProfile;
 import com.kntro.reqsai.codebase.domain.model.CodeRepository;
+import com.kntro.reqsai.workspace.api.ProjectSetupReporter;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
@@ -28,6 +29,7 @@ public class CodeIndexWriter {
 
     private final CodeRepositoryRepository repositories;
     private final CodeModuleRepository modules;
+    private final ProjectSetupReporter setup;
 
     /** What a run needs to read the repository. */
     public record RunTarget(UUID repositoryId, UUID projectId, String owner, String name, String branch,
@@ -43,6 +45,7 @@ public class CodeIndexWriter {
         if (repo == null) return null;
         repo.startIndexing(Instant.now());
         repositories.save(repo);
+        setup.changed(repo.getProjectId());
         return new RunTarget(repo.getId(), repo.getProjectId(), repo.getOwner(), repo.getName(), repo.getBranch(),
                 repo.getInstallationId());
     }
@@ -53,6 +56,7 @@ public class CodeIndexWriter {
         repositories.findById(repositoryId).ifPresent(repo -> {
             repo.recordStructure(commitSha, fileCount, moduleCount, profile, Instant.now());
             repositories.save(repo);
+            setup.changed(repo.getProjectId());
         });
     }
 
@@ -82,6 +86,7 @@ public class CodeIndexWriter {
         repositories.findById(repositoryId).ifPresent(repo -> {
             repo.recordProgress(modulesDone, Instant.now());
             repositories.save(repo);
+            setup.changed(repo.getProjectId());
         });
     }
 
@@ -96,6 +101,7 @@ public class CodeIndexWriter {
         repositories.findById(repositoryId).ifPresent(repo -> {
             repo.markReady(summarized, profile, Instant.now());
             repositories.save(repo);
+            setup.changed(repo.getProjectId());
         });
     }
 
@@ -118,6 +124,7 @@ public class CodeIndexWriter {
         repositories.findById(repositoryId).ifPresent(repo -> {
             repo.markFailed(reason, Instant.now());
             repositories.save(repo);
+            setup.changed(repo.getProjectId());
         });
     }
 }
