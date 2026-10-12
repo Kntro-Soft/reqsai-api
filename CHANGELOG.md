@@ -55,6 +55,9 @@ follows [Semantic Versioning](https://semver.org/).
     from an uploaded recording.
   - Tenant migrations `V20261009130100__suggestion_evidence_and_code.sql` and
     `V20261009130200__story_origin_and_code.sql`.
+- **Restoring the demo project also resets its integrations.** The connected repositories and their module map,
+  the Jira target (project key and issue type) and the push history are removed, like the rest of the demo's
+  content; the organization's GitHub and Jira connections stay. Before, they survived the restore.
 - **`AggregateRoot.replaceEvent`:** a creation event can be completed before it is published.
 - **Tests:**
   - **Unit:** the parser, filter, redactor, symbols, grouping, stack, quote locator, annotation, and the

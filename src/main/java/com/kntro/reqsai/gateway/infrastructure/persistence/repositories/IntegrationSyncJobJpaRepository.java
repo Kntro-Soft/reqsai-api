@@ -18,4 +18,6 @@ public interface IntegrationSyncJobJpaRepository extends JpaRepository<Integrati
             UUID projectId, IntegrationSyncJobStatus status);
 
     List<IntegrationSyncJob> findTop10ByProjectIdOrderByCreatedAtDesc(UUID projectId);
+
+    void deleteByProjectId(UUID projectId);
 }
