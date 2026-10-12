@@ -88,6 +88,11 @@ public final class DiscoveryExceptions {
         return new EntityNotFoundException(DiscoveryError.SHARE_LINK_UNAVAILABLE, "This share link is not available");
     }
 
+    /** A spectator link cannot decide: the visitor may look but not accept, dismiss, approve or reject. */
+    public static DomainException shareLinkReadOnly() {
+        return new DomainException(DiscoveryError.SHARE_LINK_READ_ONLY, "This share link is read only");
+    }
+
     public static EntityNotFoundException speakerNotFound(java.util.UUID sessionId, String speakerLabel) {
         return new EntityNotFoundException(DiscoveryError.SPEAKER_NOT_FOUND,
                 "Speaker '%s' did not speak in discovery session '%s'".formatted(speakerLabel, sessionId));

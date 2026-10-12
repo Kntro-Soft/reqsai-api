@@ -26,6 +26,8 @@ public final class ShareLinkResponseMapper {
         return new ShareLinkResponse(
                 link.getId(),
                 link.getProjectId(),
+                link.getSessionId(),
+                link.getAccess().name(),
                 link.getCreatedAt(),
                 link.getExpiresAt(),
                 link.getRevokedAt(),

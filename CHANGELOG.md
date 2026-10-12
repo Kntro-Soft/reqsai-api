@@ -9,6 +9,12 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added (Share a session — `feature/137-session-share-link`, #137)
+- Share links can follow one discovery session, as a spectator (`VIEW`: read only) or as a reviewer (`REVIEW`: also accepts or dismisses suggestions and approves or rejects the session's stories). `POST /api/projects/{id}/share-links` takes `sessionId` and `access`; creating a reviewer link needs `SESSION_DECIDE`, a spectator link `SESSION_READ`. The session must belong to the project. Migration `V20261012113000` adds `session_id` and `access` to `public.share_links`; existing links stay backlog links with `REVIEW` access.
+- Public `GET /api/share/session/{token}`: the session's state, the latest 200 final transcript segments, speakers, pending suggestions and the stories it produced (merged ones hidden), meant to be polled while the session is live. `POST .../suggestions/{id}/accept|dismiss` and `POST .../stories/{id}/status` decide with a reviewer link; a spectator link gets `403 SHARE_LINK_READ_ONLY`, and a story outside the session reads as not found.
+- A backlog link no longer opens a session endpoint and a session link no longer opens the backlog; both answer `SHARE_LINK_UNAVAILABLE`.
+- `ShareLinkResponse` carries `sessionId` and `access`.
+
 ## [1.3.0] - 2026-10-11
 
 ### Added
