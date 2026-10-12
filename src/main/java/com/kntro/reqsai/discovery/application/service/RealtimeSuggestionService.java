@@ -12,6 +12,13 @@ import com.kntro.reqsai.discovery.domain.model.SuggestionMode;
 import com.kntro.reqsai.discovery.domain.model.SuggestionStatus;
 import com.kntro.reqsai.discovery.domain.model.SuggestionType;
 import com.kntro.reqsai.discovery.domain.model.UserStory;
+import com.kntro.reqsai.discovery.application.notification.SessionTopics;
+import com.kntro.reqsai.discovery.interfaces.notification.messages.SessionAiQuotaPausedMessage;
+import com.kntro.reqsai.shared.application.ai.AiFeature;
+import com.kntro.reqsai.shared.application.ai.AiQuotaGuard;
+import com.kntro.reqsai.shared.application.ai.AiUsageScope;
+import com.kntro.reqsai.shared.application.notification.RealtimeNotifier;
+import com.kntro.reqsai.shared.domain.exception.DomainException;
 import com.kntro.reqsai.shared.application.port.EmbeddingPort;
 import com.kntro.reqsai.discovery.domain.model.TranscriptSegment;
 import com.kntro.reqsai.shared.domain.support.Assert;
@@ -32,7 +39,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
@@ -90,6 +99,11 @@ public class RealtimeSuggestionService {
     private final SessionLockPort sessionLock;
     private final SessionSpeakerService sessionSpeakers;
     private final CodebaseModuleApi codebase;
+    private final AiQuotaGuard quota;
+    private final RealtimeNotifier notifier;
+
+    /** Sessions already told that their live suggestions are paused by the AI allowance (once per pause). */
+    private final Set<UUID> pausedByQuota = ConcurrentHashMap.newKeySet();
 
     /** Modules of the client's connected code placed in each prompt (the most related to the window). */
     @Value("${discovery.realtime.code-top-k:4}")
@@ -222,15 +236,21 @@ public class RealtimeSuggestionService {
             return 0;
         }
 
-        int maxSequence = pending.getLast().getSequence();
-        GenerationContext context = buildContext(session, text);
-        Optional<GenerationResult> result = generateWindow(sessionId, promptTranscript(sessionId, pending, text),
-                session.getLanguage().value(), context, watermark, maxSequence);
+        if (!allowanceLeft(sessionId, onDemand)) {
+            return 0;
+        }
 
-        List<Suggestion> created = result
-                .map(r -> suggestionCreation.createSuggestions(r, sessionId, session.getProjectId(),
-                        QuoteLocator.of(pending)))
-                .orElse(List.of());
+        int maxSequence = pending.getLast().getSequence();
+        AiFeature feature = force && !onDemand ? AiFeature.FINAL_STORIES : AiFeature.LIVE_SUGGESTIONS;
+        List<Suggestion> created = AiUsageScope.call(feature, session.getProjectId(), () -> {
+            GenerationContext context = buildContext(session, text);
+            Optional<GenerationResult> result = generateWindow(sessionId, promptTranscript(sessionId, pending, text),
+                    session.getLanguage().value(), context, watermark, maxSequence);
+            return result
+                    .map(r -> suggestionCreation.createSuggestions(r, sessionId, session.getProjectId(),
+                            QuoteLocator.of(pending)))
+                    .orElse(List.<Suggestion>of());
+        });
 
         // Persist ONLY the watermark + cadence timestamp with a scoped UPDATE. Do NOT mutate + save the
         // whole aggregate here: this pass loaded the session seconds ago (before the LLM call), so a full
@@ -240,6 +260,32 @@ public class RealtimeSuggestionService {
 
         log.info("Realtime suggestion for session {}: {} suggestions from {} segments (watermark {} -> {}, force={}, onDemand={})", sessionId, created.size(), pending.size(), watermark, maxSequence, force, onDemand);
         return created.size();
+    }
+
+    /**
+     * Whether the organization's monthly AI allowance still has room for this pass. An automatic pass with
+     * the allowance spent pauses quietly: it generates nothing, leaves the watermark where it is so the
+     * transcript waiting is analyzed once the allowance renews, and tells the session once (not on every
+     * segment). "Analizar ahora" is an explicit request, so it fails with {@code AI_QUOTA_EXCEEDED} instead.
+     */
+    private boolean allowanceLeft(UUID sessionId, boolean onDemand) {
+        try {
+            quota.assertAvailable();
+            pausedByQuota.remove(sessionId);
+            return true;
+        } catch (DomainException exceeded) {
+            if (onDemand) {
+                throw exceeded;
+            }
+            if (pausedByQuota.add(sessionId)) {
+                var details = exceeded.details();
+                notifier.broadcast(SessionTopics.of(sessionId), new SessionAiQuotaPausedMessage(sessionId,
+                        (String) details.get("plan"), (Long) details.get("limit"), (Long) details.get("used"),
+                        (String) details.get("resetsAt"), Instant.now()));
+                log.info("Live suggestions of session {} paused: the monthly AI allowance is used up", sessionId);
+            }
+            return false;
+        }
     }
 
     /**

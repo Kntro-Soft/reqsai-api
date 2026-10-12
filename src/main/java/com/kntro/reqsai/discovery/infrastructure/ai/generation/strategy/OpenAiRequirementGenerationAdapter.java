@@ -4,6 +4,7 @@ import tools.jackson.databind.ObjectMapper;
 import com.kntro.reqsai.discovery.application.port.TokenUsageRecorderPort;
 import com.kntro.reqsai.discovery.infrastructure.exception.DiscoveryInfrastructureExceptions;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatModel.ResponseFormat;
@@ -31,7 +32,13 @@ public class OpenAiRequirementGenerationAdapter extends AbstractLlmGenerationAda
 
     public OpenAiRequirementGenerationAdapter(ObjectProvider<OpenAiChatModel> chatModel, ObjectMapper objectMapper,
                                               TokenUsageRecorderPort tokenUsageRecorder) {
-        super(objectMapper, tokenUsageRecorder);
+        this(chatModel, objectMapper, tokenUsageRecorder, null);
+    }
+
+    public OpenAiRequirementGenerationAdapter(ObjectProvider<OpenAiChatModel> chatModel, ObjectMapper objectMapper,
+                                              TokenUsageRecorderPort tokenUsageRecorder,
+                                              @Nullable String liveModel) {
+        super(objectMapper, tokenUsageRecorder, liveModel);
         this.chatModel = chatModel;
     }
 
@@ -52,6 +59,19 @@ public class OpenAiRequirementGenerationAdapter extends AbstractLlmGenerationAda
             throw DiscoveryInfrastructureExceptions.generationUnavailable();
         }
         return callAndExtractText(model, new Prompt(promptText, jsonObjectOutput()));
+    }
+
+    @Override
+    protected String callModel(String promptText, String model) {
+        OpenAiChatModel chat = chatModel.getIfAvailable();
+        if (chat == null) {
+            throw DiscoveryInfrastructureExceptions.generationUnavailable();
+        }
+        OpenAiChatOptions options = OpenAiChatOptions.builder()
+                .model(model)
+                .responseFormat(ResponseFormat.builder().type(ResponseFormat.Type.JSON_OBJECT).build())
+                .build();
+        return callAndExtractText(chat, new Prompt(promptText, options));
     }
 
     static OpenAiChatOptions jsonObjectOutput() {

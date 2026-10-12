@@ -20,6 +20,9 @@ import com.kntro.reqsai.discovery.domain.model.AssistantMessage;
 import com.kntro.reqsai.discovery.domain.model.StoryStatus;
 import com.kntro.reqsai.discovery.domain.model.Suggestion;
 import com.kntro.reqsai.discovery.domain.model.SuggestionStatus;
+import com.kntro.reqsai.shared.application.ai.AiFeature;
+import com.kntro.reqsai.shared.application.ai.AiQuotaGuard;
+import com.kntro.reqsai.shared.application.ai.AiUsageScope;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -63,12 +66,22 @@ public class SendAssistantMessageCommandHandler {
     private final SuggestionRepository suggestions;
     private final UserStoryRepository stories;
     private final DiscoverySessionRepository sessions;
+    private final AiQuotaGuard quota;
 
+    /**
+     * Fails with {@code AI_QUOTA_EXCEEDED} before anything is stored when the monthly AI allowance is
+     * spent; the chat's reading side (history) is unaffected.
+     */
     @Transactional
     public AssistantExchange handle(SendAssistantMessageCommand cmd) {
         if (!generation.isAvailable()) {
             throw DiscoveryExceptions.requirementGenerationFailed("The AI assistant is not available");
         }
+        quota.assertAvailable();
+        return AiUsageScope.call(AiFeature.CHAT, cmd.projectId(), () -> answer(cmd));
+    }
+
+    private AssistantExchange answer(SendAssistantMessageCommand cmd) {
         UUID projectId = cmd.projectId();
         List<ChatTurn> history = messages.findLatestByProjectId(projectId, HISTORY_MESSAGES).stream()
                 .map(m -> new ChatTurn(m.getRole(), m.getContent()))

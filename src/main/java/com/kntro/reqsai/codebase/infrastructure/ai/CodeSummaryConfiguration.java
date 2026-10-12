@@ -1,6 +1,6 @@
 package com.kntro.reqsai.codebase.infrastructure.ai;
 
-import com.kntro.reqsai.billing.api.BillingModuleApi;
+import com.kntro.reqsai.shared.application.ai.AiUsageReporter;
 import com.kntro.reqsai.codebase.application.port.CodeSummaryPort;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.openai.OpenAiChatModel;
@@ -22,8 +22,8 @@ class CodeSummaryConfiguration {
     @ConditionalOnMissingBean(CodeSummaryPort.class)
     CodeSummaryPort codeSummaryAdapter(ObjectProvider<ChatModel> chatModel,
                                        ObjectProvider<OpenAiChatModel> openAiChatModel,
-                                       ObjectMapper objectMapper, BillingModuleApi billing,
+                                       ObjectMapper objectMapper, AiUsageReporter usage,
                                        @Value("${reqsai.ai.generation.provider:gemini}") String provider) {
-        return new LlmCodeSummaryAdapter(provider, chatModel, openAiChatModel, objectMapper, billing);
+        return new LlmCodeSummaryAdapter(provider, chatModel, openAiChatModel, objectMapper, usage);
     }
 }

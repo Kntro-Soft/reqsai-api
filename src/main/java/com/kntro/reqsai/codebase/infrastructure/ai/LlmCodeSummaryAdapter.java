@@ -1,8 +1,9 @@
 package com.kntro.reqsai.codebase.infrastructure.ai;
 
-import com.kntro.reqsai.billing.api.BillingModuleApi;
+import com.kntro.reqsai.shared.application.ai.AiFeature;
+import com.kntro.reqsai.shared.application.ai.AiUsageReporter;
+import com.kntro.reqsai.shared.infrastructure.ai.usage.ChatUsage;
 import com.kntro.reqsai.codebase.application.port.CodeSummaryPort;
-import com.kntro.reqsai.shared.infrastructure.persistence.multitenancy.TenantContext;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.Nullable;
 import org.springframework.ai.chat.model.ChatModel;
@@ -19,7 +20,6 @@ import tools.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.UUID;
 import java.util.regex.Pattern;
 
 /**
@@ -106,16 +106,16 @@ public class LlmCodeSummaryAdapter implements CodeSummaryPort {
     private final ObjectProvider<ChatModel> chatModel;
     private final ObjectProvider<OpenAiChatModel> openAiChatModel;
     private final ObjectMapper objectMapper;
-    private final BillingModuleApi billing;
+    private final AiUsageReporter usage;
 
     public LlmCodeSummaryAdapter(String provider, ObjectProvider<ChatModel> chatModel,
                                  ObjectProvider<OpenAiChatModel> openAiChatModel, ObjectMapper objectMapper,
-                                 BillingModuleApi billing) {
+                                 AiUsageReporter usage) {
         this.provider = provider == null ? "" : provider.strip().toLowerCase(Locale.ROOT);
         this.chatModel = chatModel;
         this.openAiChatModel = openAiChatModel;
         this.objectMapper = objectMapper;
-        this.billing = billing;
+        this.usage = usage;
     }
 
     @Override
@@ -232,17 +232,8 @@ public class LlmCodeSummaryAdapter implements CodeSummaryPort {
         return value == null || value.isBlank() ? null : value.strip();
     }
 
+    /** Best-effort metering of the call against the current tenant; never throws. */
     private void recordTokenUsage(@Nullable ChatResponse response) {
-        try {
-            if (response == null || response.getMetadata() == null || response.getMetadata().getUsage() == null) return;
-            Number total = response.getMetadata().getUsage().getTotalTokens();
-            String tenant = TenantContext.getCurrentTenant();
-            if (total == null || total.longValue() <= 0 || tenant == null || TenantContext.DEFAULT_SCHEMA.equals(tenant)) {
-                return;
-            }
-            billing.recordTokenConsumption(UUID.fromString(tenant), total.longValue());
-        } catch (RuntimeException e) {
-            log.debug("Token metering skipped for code summary: {}", e.getMessage());
-        }
+        ChatUsage.report(usage, response, AiFeature.CODE_INDEX);
     }
 }
