@@ -9,6 +9,23 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **New `overview` module: read-only dashboards of a project and of an organization (#129).**
+  - `GET /api/projects/{projectId}/overview`: stories by status and priority, story points,
+    coverage (acceptance criteria, origin quote, linked code), sessions and stories per week over the
+    last 12 weeks, how often the copilot's proposals were accepted or dismissed, glossary, constraints,
+    documents and assigned members, and the connected code. Each section follows the permission that
+    guards the same data (`STORY_READ`, `SESSION_READ`, `GLOSSARY_READ`, `CONSTRAINT_READ`,
+    `DOCUMENT_READ`, `MEMBER_READ`, `INTEGRATION_READ`) and is `null` without it; `403` when the caller
+    holds none, `404` for an unknown project.
+  - `GET /api/organizations/{organizationId}/overview` (any member): the same figures across the
+    projects the caller may see, the busiest projects and, for owners and admins only, the headcount.
+    Answers `403` for an organization other than the one the token is bound to.
+  - Everything is counted in SQL (`COUNT`/`GROUP BY`/`FILTER`); no entity is loaded. Each context owns its
+    figures behind a new named interface: `discovery::insights`, `workspace::insights` and
+    `CodebaseModuleApi.footprint`. No migration.
+
 ### Changed
 - The release pull request and the back-merge pull request are opened by the GitHub App `reqsai-release-bot` (a short-lived token minted per job from `RELEASE_APP_ID` and `RELEASE_APP_PRIVATE_KEY`), so their CI runs: opened with `GITHUB_TOKEN` they started no `pull_request` workflow. The back-merge turns on auto-merge (merge commit) when the repository allows it; without the App configuration the job fails instead of falling back to `GITHUB_TOKEN`.
 - `produccion.yml` and `rollback.yml` dispatch `reqsai-infra`'s `deploy-mvp.yml` with a `reqsai-release-bot` token limited to `reqsai-infra` (Actions: write) and watch the run with the workflow token, instead of the personal token `INFRA_DEPLOY_TOKEN`, which is no longer used.
