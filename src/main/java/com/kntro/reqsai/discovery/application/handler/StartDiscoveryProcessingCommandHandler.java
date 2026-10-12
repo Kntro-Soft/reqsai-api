@@ -1,5 +1,7 @@
 package com.kntro.reqsai.discovery.application.handler;
 
+import com.kntro.reqsai.shared.application.ai.AiFeature;
+import com.kntro.reqsai.shared.application.ai.AiUsageScope;
 import com.kntro.reqsai.discovery.application.command.StartDiscoveryProcessingCommand;
 import com.kntro.reqsai.discovery.application.port.DiscoverySessionRepository;
 import com.kntro.reqsai.discovery.application.port.GenerationContext;
@@ -88,9 +90,9 @@ public class StartDiscoveryProcessingCommandHandler {
                 .toList();
         String transcript = transcriptFor(session, finals);
         GenerationContext context = contextFor(session);
-        var result = context == null
+        var result = AiUsageScope.call(AiFeature.FINAL_STORIES, session.getProjectId(), () -> context == null
                 ? requirementGeneration.generate(transcript, session.getLanguage().value())
-                : requirementGeneration.generate(transcript, session.getLanguage().value(), context);
+                : requirementGeneration.generate(transcript, session.getLanguage().value(), context));
         // Each story keeps the fragment of the recording it was taken from (traceability).
         QuoteLocator locator = QuoteLocator.of(finals);
         return result.stories().stream()

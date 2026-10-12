@@ -1,5 +1,7 @@
 package com.kntro.reqsai.discovery.application.service;
 
+import com.kntro.reqsai.shared.application.ai.AiFeature;
+import com.kntro.reqsai.shared.application.ai.AiUsageScope;
 import com.kntro.reqsai.codebase.api.DeepCodeSearchPort;
 import com.kntro.reqsai.codebase.api.DeepSearchResult;
 import com.kntro.reqsai.discovery.application.port.CodeVerification;
@@ -82,6 +84,12 @@ public class CodeVerificationService {
      */
     public CodeVerification verify(UUID projectId, String subject, SubjectKind kind, String language,
                                    Duration budget) {
+        return AiUsageScope.call(AiFeature.CODE_DEEP_SEARCH, projectId,
+                () -> doVerify(projectId, subject, kind, language, budget));
+    }
+
+    private CodeVerification doVerify(UUID projectId, String subject, SubjectKind kind, String language,
+                                      Duration budget) {
         long started = System.nanoTime();
         long deadline = started + budget.toNanos();
         if (!verifier.isAvailable()) {
