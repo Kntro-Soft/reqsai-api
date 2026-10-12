@@ -13,6 +13,7 @@ import com.kntro.reqsai.workspace.application.handler.RestoreDemoProjectCommandH
 import com.kntro.reqsai.workspace.application.handler.RestoreProjectCommandHandler;
 import com.kntro.reqsai.workspace.application.handler.UpdateProjectCommandHandler;
 import com.kntro.reqsai.workspace.application.query.GetProjectQuery;
+import com.kntro.reqsai.workspace.application.service.ProjectSetupService;
 import com.kntro.reqsai.workspace.application.query.ListProjectsQuery;
 import com.kntro.reqsai.workspace.domain.model.Project;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.request.CreateProjectRequest;
@@ -45,12 +46,15 @@ public class ProjectControllerImpl implements ProjectController {
     private final RestoreDemoProjectCommandHandler restoreDemoProject;
     private final GetProjectQueryHandler getProject;
     private final ListProjectsQueryHandler listProjects;
+    private final ProjectSetupService projectSetup;
 
     @Override
     @PreAuthorize("@authz.orgOwnerOrAdmin(#orgId, authentication)")
     public ResponseEntity<ProjectResponse> create(UUID orgId, CreateProjectRequest request, Authentication authentication) {
         UUID requestedBy = UUID.fromString(authentication.getName());
-        Project project = createProject.handle(ProjectRequestMapper.toCommand(orgId, request, requestedBy));
+        var command = ProjectRequestMapper.toCommand(orgId, request, requestedBy);
+        projectSetup.validate(command.sources(), requestedBy);
+        Project project = createProject.handle(command);
         
         URI location = ServletUriComponentsBuilder.fromCurrentRequest()
                 .path("/{id}")

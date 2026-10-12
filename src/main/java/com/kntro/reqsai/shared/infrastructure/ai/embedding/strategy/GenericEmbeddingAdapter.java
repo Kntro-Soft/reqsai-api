@@ -1,6 +1,8 @@
 package com.kntro.reqsai.shared.infrastructure.ai.embedding.strategy;
 
+import com.kntro.reqsai.shared.application.ai.AiUsageReporter;
 import com.kntro.reqsai.shared.application.port.EmbeddingPort;
+import com.kntro.reqsai.shared.infrastructure.ai.embedding.EmbeddingMetering;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.beans.factory.ObjectProvider;
 
@@ -16,8 +18,11 @@ public class GenericEmbeddingAdapter implements EmbeddingPort {
 
     private final ObjectProvider<EmbeddingModel> embeddingModel;
 
-    public GenericEmbeddingAdapter(ObjectProvider<EmbeddingModel> embeddingModel) {
+    private final AiUsageReporter usage;
+
+    public GenericEmbeddingAdapter(ObjectProvider<EmbeddingModel> embeddingModel, AiUsageReporter usage) {
         this.embeddingModel = embeddingModel;
+        this.usage = usage;
     }
 
     @Override
@@ -27,6 +32,6 @@ public class GenericEmbeddingAdapter implements EmbeddingPort {
 
     @Override
     public float[] embed(String text) {
-        return embeddingModel.getObject().embed(text);
+        return EmbeddingMetering.embed(embeddingModel.getObject(), text, usage);
     }
 }

@@ -54,6 +54,8 @@ public class SecurityConfiguration {
             // Payment-provider webhooks authenticate by provider signature (HMAC), not JWT — the
             // caller is Stripe, not a logged-in user. The handler verifies the signature itself.
             "/api/billing/webhooks/**",
+            // Code-host webhooks (GitHub App): authenticated by the X-Hub-Signature-256 HMAC, verified by the handler.
+            "/api/code/webhooks/**",
             // Share links (US50): an anonymous client reviews and comments on stories. The token in the
             // path is the credential; the handler resolves the organization from it.
             "/api/share/**"

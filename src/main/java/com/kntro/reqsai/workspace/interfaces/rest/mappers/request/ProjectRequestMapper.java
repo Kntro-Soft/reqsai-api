@@ -1,5 +1,6 @@
 package com.kntro.reqsai.workspace.interfaces.rest.mappers.request;
 
+import com.kntro.reqsai.workspace.api.ProjectSources;
 import com.kntro.reqsai.workspace.application.command.CreateProjectCommand;
 import com.kntro.reqsai.workspace.application.command.UpdateProjectCommand;
 import com.kntro.reqsai.workspace.interfaces.rest.dto.request.CreateProjectRequest;
@@ -30,8 +31,20 @@ public final class ProjectRequestMapper {
                 orEmpty(request.databases()),
                 request.architecture(),
                 request.domain(),
-                requestedBy
+                requestedBy,
+                toSources(request.sources())
         );
+    }
+
+    public static ProjectSources toSources(CreateProjectRequest.@Nullable Sources sources) {
+        if (sources == null) return ProjectSources.none();
+        ProjectSources.Jira jira = sources.jira() == null ? null : new ProjectSources.Jira(
+                sources.jira().connectionId(), sources.jira().projectKey().strip(),
+                sources.jira().issueTypeName().strip(), sources.jira().importStories());
+        List<ProjectSources.GitHub> github = sources.github() == null ? List.of() : sources.github().stream()
+                .map(repo -> new ProjectSources.GitHub(repo.repository().strip(), repo.branch(), repo.installationId()))
+                .toList();
+        return new ProjectSources(jira, github);
     }
 
     public static UpdateProjectCommand toCommand(UUID orgId, UUID projectId, UpdateProjectRequest request, UUID requestedBy) {

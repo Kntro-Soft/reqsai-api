@@ -5,6 +5,7 @@ import com.kntro.reqsai.discovery.application.port.SuggestionRepository;
 import com.kntro.reqsai.discovery.application.port.UserStoryRepository;
 import com.kntro.reqsai.discovery.domain.exception.DiscoveryExceptions;
 import com.kntro.reqsai.discovery.domain.model.Priority;
+import com.kntro.reqsai.discovery.domain.model.StoryStatus;
 import com.kntro.reqsai.discovery.domain.model.Suggestion;
 import com.kntro.reqsai.discovery.domain.model.SuggestionType;
 import com.kntro.reqsai.discovery.domain.model.UserStory;
@@ -32,6 +33,9 @@ import java.util.UUID;
  *       rather than minted as a granularity-violating standalone story.</li>
  *   <li>{@code CLARIFYING_QUESTION} — marks accepted with no story produced ({@code resolvedStoryId=null}).</li>
  * </ul>
+ *
+ * <p>For the story-producing types the analyst also decides the story's review status in the same
+ * transaction: {@link AcceptSuggestionCommand#approve()} ends it {@code APPROVED}, otherwise {@code DRAFT}.
  *
  * <p>The analyst may fully edit the draft before accepting: every {@code edited*} field on the command
  * is an optional override (blank text is treated as absent). When
@@ -75,23 +79,43 @@ public class AcceptSuggestionCommandHandler {
         // and the SuggestionAcceptedEvent — sees the committed set rather than the raw draft.
         applyEditedCriteria(suggestion, cmd);
 
-        UUID resolvedStoryId = switch (suggestion.getType()) {
+        Resolution resolution = switch (suggestion.getType()) {
             case NEW_STORY          -> acceptAsNewStory(suggestion, cmd);
             case UPDATE_STORY       -> acceptAsUpdate(suggestion, cmd);
             case EDGE_CASE          -> acceptAsEdgeCase(suggestion, cmd);
-            case CLARIFYING_QUESTION -> null;
+            case CLARIFYING_QUESTION -> new Resolution(null, null);
         };
 
-        suggestion.accept(resolvedStoryId);
+        suggestion.accept(resolution.storyId(), resolution.status());
         suggestions.save(suggestion);
-        log.info("Suggestion {} ({}) accepted by analyst → resolvedStoryId={}",
-                suggestion.getId(), suggestion.getType(), resolvedStoryId);
+        log.info("Suggestion {} ({}) accepted by analyst → resolvedStoryId={} status={}",
+                suggestion.getId(), suggestion.getType(), resolution.storyId(), resolution.status());
         return suggestion;
+    }
+
+    /** The story an acceptance produced or changed and the review status it ended in. */
+    private record Resolution(@Nullable UUID storyId, @Nullable StoryStatus status) {}
+
+    /**
+     * Sets the review status the analyst chose: {@code APPROVED} when approving, otherwise {@code DRAFT}
+     * (a story that was approved or rejected goes back to review because its content just changed). A
+     * story that already left review (exported, merged) keeps its status.
+     */
+    private static void applyReviewStatus(UserStory story, AcceptSuggestionCommand cmd) {
+        if (story.getStatus().isReviewable()) {
+            story.changeReviewStatus(cmd.approve() ? StoryStatus.APPROVED : StoryStatus.DRAFT);
+        }
+    }
+
+    private Resolution save(UserStory story, AcceptSuggestionCommand cmd) {
+        applyReviewStatus(story, cmd);
+        UserStory saved = storyRepo.save(story);
+        return new Resolution(saved.getId(), saved.getStatus());
     }
 
     // ── Type-specific acceptance logic ────────────────────────────────────────
 
-    private UUID acceptAsNewStory(Suggestion s, AcceptSuggestionCommand cmd) {
+    private Resolution acceptAsNewStory(Suggestion s, AcceptSuggestionCommand cmd) {
         // A suggestion from the assistant chat has no session: its story starts with no originating session.
         UserStory story = s.getSessionId() != null
                 ? new UserStory(s.getSessionId(), s.getProjectId(),
@@ -105,11 +129,13 @@ public class AcceptSuggestionCommandHandler {
         for (Suggestion.DraftCriterion c : s.getDraftAcceptanceCriteria()) {
             story.addAcceptanceCriterion(c.scenario(), c.given(), c.when(), c.then());
         }
+        // Traceability: the story keeps where it was said and the client's code it relates to.
+        story.recordOrigin(s.getSessionId(), s.getEvidenceSequence(), s.getEvidenceQuote(), s.getCodeReferences());
         embedIfAvailable(story);
-        return storyRepo.save(story).getId();
+        return save(story, cmd);
     }
 
-    private UUID acceptAsUpdate(Suggestion s, AcceptSuggestionCommand cmd) {
+    private Resolution acceptAsUpdate(Suggestion s, AcceptSuggestionCommand cmd) {
         UserStory target = resolveTarget(s);
         if (target == null) {
             log.warn("UPDATE_STORY suggestion {} has no usable target story; creating as new story", s.getId());
@@ -125,10 +151,10 @@ public class AcceptSuggestionCommandHandler {
             }
         }
         embedIfAvailable(target);
-        return storyRepo.save(target).getId();
+        return save(target, cmd);
     }
 
-    private UUID acceptAsEdgeCase(Suggestion s, AcceptSuggestionCommand cmd) {
+    private Resolution acceptAsEdgeCase(Suggestion s, AcceptSuggestionCommand cmd) {
         Suggestion.DraftCriterion criterion = s.getDraftAcceptanceCriteria().stream().findFirst().orElse(null);
         UserStory target = resolveTarget(s);
         if (target == null) {
@@ -145,10 +171,10 @@ public class AcceptSuggestionCommandHandler {
             // none). Accepting must still succeed; leave the target unchanged.
             log.warn("EDGE_CASE suggestion {} carries no acceptance criterion; target story {} left unchanged",
                     s.getId(), target.getId());
-            return target.getId();
+            return save(target, cmd);
         }
         target.addAcceptanceCriterion(criterion.scenario(), criterion.given(), criterion.when(), criterion.then());
-        return storyRepo.save(target).getId();
+        return save(target, cmd);
     }
 
     // ── Field resolution (edited override → draft fallback) ───────────────────

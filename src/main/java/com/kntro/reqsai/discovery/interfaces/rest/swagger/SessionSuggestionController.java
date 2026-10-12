@@ -74,7 +74,13 @@ public interface SessionSuggestionController {
 
                     The optional `edited` object fully overrides the draft before persistence \
                     (story fields and/or the acceptance criteria). Omit the body (or pass `{}`) to \
-                    use the draft as-is.""")
+                    use the draft as-is.
+
+                    `approve: true` also approves the resulting story in the same transaction and \
+                    needs STORY_APPROVE on top of SESSION_DECIDE (403 otherwise, nothing changes). \
+                    Without it the story is saved as a draft: a new story starts as DRAFT and a target \
+                    that was approved or rejected goes back to DRAFT. An exported or merged story keeps \
+                    its status. The response carries `resolvedStoryStatus`.""")
     @ApiResponse(responseCode = "200",
             description = "Suggestion accepted",
             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,

@@ -2,6 +2,7 @@ package com.kntro.reqsai.discovery.application.handler;
 
 import com.kntro.reqsai.discovery.application.port.AssistantMessageRepository;
 import com.kntro.reqsai.discovery.application.port.SuggestionRepository;
+import com.kntro.reqsai.discovery.application.service.ResolvedStoryStatusReader;
 import com.kntro.reqsai.discovery.application.query.ListAssistantMessagesQuery;
 import com.kntro.reqsai.discovery.domain.model.AssistantMessage;
 import com.kntro.reqsai.discovery.domain.model.Suggestion;
@@ -28,13 +29,16 @@ public class ListAssistantMessagesQueryHandler {
 
     private final AssistantMessageRepository messages;
     private final SuggestionRepository suggestions;
+    private final ResolvedStoryStatusReader storyStatuses;
 
     @Transactional(readOnly = true)
     public List<AssistantChatEntry> handle(ListAssistantMessagesQuery query) {
         int limit = Math.clamp(query.limit(), 1, MAX_LIMIT);
         List<AssistantMessage> chat = messages.findLatestByProjectId(query.projectId(), limit);
         List<UUID> ids = chat.stream().flatMap(m -> m.getSuggestionIds().stream()).toList();
-        Map<UUID, Suggestion> byId = suggestions.findAllByIdIn(ids).stream()
+        List<Suggestion> raised = suggestions.findAllByIdIn(ids);
+        storyStatuses.attach(query.projectId(), raised);
+        Map<UUID, Suggestion> byId = raised.stream()
                 .collect(Collectors.toMap(Suggestion::getId, Function.identity()));
         return chat.stream()
                 .map(m -> new AssistantChatEntry(m, m.getSuggestionIds().stream()

@@ -20,6 +20,7 @@ public final class ProjectTopics {
 
     static final String PROJECTS_PREFIX = "projects/";
     static final String SESSIONS_SUFFIX = "/sessions";
+    static final String SUGGESTIONS_SUFFIX = "/suggestions";
 
     private ProjectTopics() {
     }
@@ -33,5 +34,16 @@ public final class ProjectTopics {
     public static String sessionsOf(UUID projectId) {
         Objects.requireNonNull(projectId, "projectId");
         return PROJECTS_PREFIX + projectId + SESSIONS_SUFFIX;
+    }
+
+    /**
+     * Logical topic carrying the updates of a project's suggestions that belong to no session (the ones raised
+     * from the assistant chat), such as the result of a deep code verification.
+     *
+     * @return {@code "projects/{projectId}/suggestions"} — the notifier adds the {@code /topic} prefix
+     */
+    public static String suggestionsOf(UUID projectId) {
+        Objects.requireNonNull(projectId, "projectId");
+        return PROJECTS_PREFIX + projectId + SUGGESTIONS_SUFFIX;
     }
 }

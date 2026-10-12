@@ -1,5 +1,7 @@
 package com.kntro.reqsai.billing.api;
 
+import com.kntro.reqsai.shared.application.ai.TokenUsage;
+
 import java.util.UUID;
 
 /**
@@ -49,4 +51,25 @@ public interface BillingModuleApi {
      * @return {@code true} when consumed tokens are below the plan's monthly limit
      */
     boolean hasTokenQuotaAvailable(UUID organizationId);
+
+    /**
+     * Where the organization stands against its monthly token allowance. Fails open: an organization
+     * with no subscription is reported as {@link TokenQuotaStatus#unlimited()}.
+     *
+     * @param organizationId the organization to check
+     * @return the allowance, what is used of it, and whether AI generation may still run
+     */
+    TokenQuotaStatus tokenQuotaStatus(UUID organizationId);
+
+    /**
+     * Records one AI call in the organization's usage ledger and adds its quota weight to the monthly
+     * counter, atomically and at most once per {@link TokenUsage#idempotencyKey()}. Pushes a realtime
+     * warning when the call carries the organization past 80, 90 or 100 percent of its allowance for the
+     * first time this period. The ledger lives in the tenant schema, so the calling thread must be bound
+     * to the organization's tenant.
+     *
+     * @param organizationId the organization that used the AI
+     * @param usage          what the provider reported for the call
+     */
+    void recordAiUsage(UUID organizationId, TokenUsage usage);
 }

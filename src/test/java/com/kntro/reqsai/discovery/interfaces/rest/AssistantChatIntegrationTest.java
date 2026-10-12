@@ -38,6 +38,7 @@ class AssistantChatIntegrationTest extends AbstractIntegrationTest {
 
     private static final String OWNER_USER_ID = "00000000-0000-0000-0000-000000000001";
     private static final String MEMBER_USER_ID = "00000000-0000-0000-0000-000000000009";
+    private static final String APPROVER_USER_ID = "00000000-0000-0000-0000-00000000000a";
     private static final ObjectMapper JSON = new ObjectMapper();
 
     @Autowired
@@ -78,10 +79,11 @@ class AssistantChatIntegrationTest extends AbstractIntegrationTest {
         // Accept the first suggestion from the chat: it becomes a backlog story.
         String first = suggestions.get(0).path("id").asString();
         ResponseEntity<String> accepted = post(OWNER_USER_ID, orgId,
-                "/api/projects/" + projectId + "/suggestions/" + first + "/accept", Map.of());
+                "/api/projects/" + projectId + "/suggestions/" + first + "/accept", Map.of("approve", true));
         assertThat(accepted.getStatusCode()).isEqualTo(HttpStatus.OK);
         JsonNode acceptedBody = JSON.readTree(accepted.getBody());
         assertThat(acceptedBody.path("status").asString()).isEqualTo("ACCEPTED");
+        assertThat(acceptedBody.path("resolvedStoryStatus").asString()).isEqualTo("APPROVED");
         String storyId = acceptedBody.path("resolvedStoryId").asString();
         assertThat(get(OWNER_USER_ID, orgId, "/api/projects/" + projectId + "/stories/" + storyId).getStatusCode())
                 .isEqualTo(HttpStatus.OK);
@@ -105,7 +107,74 @@ class AssistantChatIntegrationTest extends AbstractIntegrationTest {
                 .isEqualTo(HttpStatus.NOT_FOUND);
     }
 
+    @Test
+    @DisplayName("accepting with approve needs STORY_APPROVE on top of SESSION_DECIDE; the response carries the story status")
+    void accept_with_approve_requires_story_approve() {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        String slug = "acme-" + suffix;
+        String schema = "tenant_" + slug;
+        UUID orgId = createOrganization(suffix, slug);
+        jdbcTemplate.update("UPDATE public.organizations SET member_base_permission = 'NONE' WHERE id = ?", orgId);
+        UUID projectId = createProject(orgId, slug);
+        createMember(orgId, Map.of("userId", MEMBER_USER_ID, "email", "decider@example.com",
+                "displayName", "Decider", "role", "MEMBER"));
+        createMember(orgId, Map.of("userId", APPROVER_USER_ID, "email", "approver@example.com",
+                "displayName", "Approver", "role", "MEMBER"));
+        assignRole(orgId, projectId, schema, "decider@example.com", "Decider",
+                List.of("STORY_READ", "SESSION_READ", "SESSION_DECIDE"));
+        assignRole(orgId, projectId, schema, "approver@example.com", "Approver",
+                List.of("STORY_READ", "SESSION_READ", "SESSION_DECIDE", "STORY_APPROVE"));
+
+        List<String> ids = new java.util.ArrayList<>();
+        for (int i = 0; i < 3; i++) {
+            JsonNode exchange = JSON.readTree(post(OWNER_USER_ID, orgId,
+                    "/api/projects/" + projectId + "/assistant/messages",
+                    Map.of("content", "Quiero que el usuario inicie sesión con su cuenta de Google " + i)).getBody());
+            exchange.path("answer").path("suggestions").forEach(x -> ids.add(x.path("id").asString()));
+        }
+        assertThat(ids.size()).isGreaterThanOrEqualTo(2);
+        String base = "/api/projects/" + projectId + "/suggestions/";
+
+        // Without STORY_APPROVE, approving is forbidden and nothing changes: the suggestion stays pending.
+        assertThat(post(MEMBER_USER_ID, orgId, base + ids.get(0) + "/accept", Map.of("approve", true))
+                .getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(get(OWNER_USER_ID, orgId, "/api/projects/" + projectId + "/suggestions?status=PENDING&size=100").getBody()).contains(ids.get(0));
+
+        // The same caller saves it as a draft (an empty body, like an older client): the story is DRAFT,
+        // in the response and in the backlog.
+        JsonNode draft = JSON.readTree(post(MEMBER_USER_ID, orgId, base + ids.get(0) + "/accept",
+                Map.of()).getBody());
+        assertThat(draft.path("status").asString()).isEqualTo("ACCEPTED");
+        assertThat(draft.path("resolvedStoryStatus").asString()).isEqualTo("DRAFT");
+        assertThat(get(OWNER_USER_ID, orgId, "/api/projects/" + projectId + "/stories/"
+                + draft.path("resolvedStoryId").asString()).getBody()).contains("\"status\":\"DRAFT\"");
+
+        // With STORY_APPROVE the story is born APPROVED in the same call, and the feed reports it.
+        JsonNode approved = JSON.readTree(post(APPROVER_USER_ID, orgId, base + ids.get(1) + "/accept",
+                Map.of("approve", true)).getBody());
+        assertThat(approved.path("resolvedStoryStatus").asString()).isEqualTo("APPROVED");
+        assertThat(get(OWNER_USER_ID, orgId, "/api/projects/" + projectId + "/stories/"
+                + approved.path("resolvedStoryId").asString()).getBody()).contains("\"status\":\"APPROVED\"");
+        String accepted = get(OWNER_USER_ID, orgId, "/api/projects/" + projectId + "/suggestions?status=ACCEPTED&size=100").getBody();
+        assertThat(accepted).contains("\"resolvedStoryStatus\":\"APPROVED\"")
+                .contains("\"resolvedStoryStatus\":\"DRAFT\"");
+    }
+
     // ----- helpers -----
+
+    private void assignRole(UUID orgId, UUID projectId, String schema, String email, String roleName,
+                            List<String> permissions) {
+        assertThat(post(OWNER_USER_ID, orgId, "/api/organizations/" + orgId + "/projects/" + projectId + "/roles",
+                Map.of("name", roleName, "permissions", permissions)).getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        String roleId = jdbcTemplate.queryForObject(
+                "SELECT id::text FROM \"" + schema + "\".project_roles WHERE project_id = ?::uuid AND name = ?",
+                String.class, projectId, roleName);
+        String memberId = jdbcTemplate.queryForObject(
+                "SELECT id::text FROM public.members WHERE organization_id = ?::uuid AND email = ?",
+                String.class, orgId, email);
+        assertThat(post(OWNER_USER_ID, orgId, "/api/organizations/" + orgId + "/projects/" + projectId + "/members",
+                Map.of("memberId", memberId, "roleId", roleId)).getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    }
 
     private ResponseEntity<String> get(String userId, UUID orgId, String uri) {
         return client().get().uri(uri)

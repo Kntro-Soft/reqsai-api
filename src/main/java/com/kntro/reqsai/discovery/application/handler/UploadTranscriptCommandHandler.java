@@ -8,6 +8,8 @@ import com.kntro.reqsai.discovery.application.port.TranscriptionResult;
 import com.kntro.reqsai.discovery.domain.exception.DiscoveryExceptions;
 import com.kntro.reqsai.discovery.domain.model.DiscoverySession;
 import com.kntro.reqsai.discovery.domain.model.TranscriptSegment;
+import com.kntro.reqsai.shared.application.ai.AiUsageReporter;
+import com.kntro.reqsai.shared.application.ai.TokenUsage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -36,6 +38,7 @@ public class UploadTranscriptCommandHandler {
     private final DiscoverySessionRepository sessions;
     private final TranscriptionPort transcription;
     private final TranscriptSegmentRepository segments;
+    private final AiUsageReporter usage;
 
     @Transactional
     public DiscoverySession handle(UploadTranscriptCommand command) {
@@ -45,6 +48,7 @@ public class UploadTranscriptCommandHandler {
         var result = transcription.transcribe(
                 command.audioBytes(), command.filename(), session.getLanguage().primaryLanguage());
 
+        usage.report(TokenUsage.audio(session.getProjectId(), null, (result.durationMs() + 999) / 1000));
         List<TranscriptSegment> diarized = diarizedSegments(session, result);
         session.uploadTranscript(result.text(), result.durationMs(), diarized.size());
         DiscoverySession saved = sessions.save(session);

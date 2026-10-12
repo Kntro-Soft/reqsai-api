@@ -80,15 +80,19 @@ class DiscoverySessionControlIntegrationTest extends AbstractIntegrationTest {
                 .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId, "ROLE_USER"))
                 .header("Api-Version", "1")
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(Map.of())
+                .body(Map.of("approve", true))
                 .exchange((req, res) -> ResponseEntity.status(res.getStatusCode()).body(res.bodyTo(String.class)));
         assertThat(accepted.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(accepted.getBody()).contains("\"status\":\"ACCEPTED\"");
+        assertThat(accepted.getBody()).contains("\"status\":\"ACCEPTED\"")
+                .contains("\"resolvedStoryStatus\":\"APPROVED\"");
 
         Integer stories = jdbcTemplate.queryForObject(
                 "SELECT count(*) FROM \"" + schema + "\".user_stories WHERE session_id = ?::uuid",
                 Integer.class, sessionId.toString());
         assertThat(stories).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT status FROM \"" + schema + "\".user_stories WHERE session_id = ?::uuid",
+                String.class, sessionId.toString())).isEqualTo("APPROVED");
     }
 
     @Test

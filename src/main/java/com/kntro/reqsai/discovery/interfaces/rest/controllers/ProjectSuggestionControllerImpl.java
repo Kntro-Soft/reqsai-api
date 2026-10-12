@@ -3,6 +3,7 @@ package com.kntro.reqsai.discovery.interfaces.rest.controllers;
 import com.kntro.reqsai.discovery.application.handler.AcceptSuggestionCommandHandler;
 import com.kntro.reqsai.discovery.application.handler.DismissSuggestionCommandHandler;
 import com.kntro.reqsai.discovery.application.handler.ListProjectSuggestionsQueryHandler;
+import com.kntro.reqsai.discovery.application.handler.VerifySuggestionCodeCommandHandler;
 import com.kntro.reqsai.discovery.application.query.ListProjectSuggestionsQuery;
 import com.kntro.reqsai.discovery.domain.model.SuggestionStatus;
 import com.kntro.reqsai.discovery.interfaces.rest.dto.request.AcceptSuggestionRequest;
@@ -14,6 +15,7 @@ import com.kntro.reqsai.shared.interfaces.pagination.PageCriteria;
 import com.kntro.reqsai.shared.interfaces.pagination.PageResponse;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.RestController;
@@ -28,6 +30,7 @@ public class ProjectSuggestionControllerImpl implements ProjectSuggestionControl
     private final ListProjectSuggestionsQueryHandler listProjectSuggestions;
     private final AcceptSuggestionCommandHandler acceptSuggestion;
     private final DismissSuggestionCommandHandler dismissSuggestion;
+    private final VerifySuggestionCodeCommandHandler verifySuggestionCode;
 
     @Override
     @PreAuthorize("@authz.projectPermission(#projectId, 'SESSION_READ', authentication)")
@@ -41,7 +44,9 @@ public class ProjectSuggestionControllerImpl implements ProjectSuggestionControl
     }
 
     @Override
-    @PreAuthorize("@authz.projectPermission(#projectId, 'SESSION_DECIDE', authentication)")
+    @PreAuthorize("@authz.projectPermission(#projectId, 'SESSION_DECIDE', authentication)"
+            + " and (#request == null or !T(Boolean).TRUE.equals(#request.approve())"
+            + " or @authz.projectPermission(#projectId, 'STORY_APPROVE', authentication))")
     public ResponseEntity<SuggestionResponse> accept(UUID projectId, UUID suggestionId,
                                                      @Nullable AcceptSuggestionRequest request) {
         var suggestion = acceptSuggestion.handleInProject(projectId,
@@ -54,5 +59,13 @@ public class ProjectSuggestionControllerImpl implements ProjectSuggestionControl
     public ResponseEntity<SuggestionResponse> dismiss(UUID projectId, UUID suggestionId) {
         var suggestion = dismissSuggestion.handleInProject(projectId, suggestionId);
         return ResponseEntity.ok(SuggestionResponseMapper.toResponse(suggestion));
+    }
+
+    @Override
+    @PreAuthorize("@authz.projectPermission(#projectId, 'SESSION_DECIDE', authentication)"
+            + " and @authz.projectPermission(#projectId, 'INTEGRATION_READ', authentication)")
+    public ResponseEntity<SuggestionResponse> verifyCode(UUID projectId, UUID suggestionId) {
+        var suggestion = verifySuggestionCode.handle(projectId, suggestionId);
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(SuggestionResponseMapper.toResponse(suggestion));
     }
 }

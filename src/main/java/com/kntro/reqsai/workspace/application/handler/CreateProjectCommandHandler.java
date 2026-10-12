@@ -4,6 +4,7 @@ import com.kntro.reqsai.shared.application.avatar.AvatarDownloadPort;
 import com.kntro.reqsai.workspace.application.command.CreateProjectCommand;
 import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
 import com.kntro.reqsai.workspace.application.port.ProjectRepository;
+import com.kntro.reqsai.workspace.application.service.ProjectSetupService;
 import com.kntro.reqsai.workspace.domain.exception.WorkspaceExceptions;
 import com.kntro.reqsai.workspace.domain.model.Organization;
 import com.kntro.reqsai.workspace.domain.model.Project;
@@ -22,6 +23,7 @@ public class CreateProjectCommandHandler {
     private final ProjectRepository projects;
     private final OrganizationRepository organizations;
     private final AvatarDownloadPort avatarDownloadAdapter;
+    private final ProjectSetupService setup;
 
     @Transactional
     public Project handle(CreateProjectCommand command) {
@@ -60,6 +62,8 @@ public class CreateProjectCommandHandler {
         avatarDownloadAdapter.download(AVATAR_URL_TEMPLATE.formatted(project.getId()))
                 .ifPresent(avatar -> project.applyAvatar(avatar.bytes(), avatar.contentType()));
 
-        return projects.save(project);
+        Project saved = projects.save(project);
+        setup.request(command.organizationId(), saved.getId(), command.requestedBy(), command.sources());
+        return saved;
     }
 }

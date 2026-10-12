@@ -1,5 +1,6 @@
 package com.kntro.reqsai.discovery.interfaces.websocket.stt;
 
+import com.kntro.reqsai.shared.application.ai.AiUsageReporter;
 import com.kntro.reqsai.discovery.application.command.AppendTranscriptSegmentCommand;
 import com.kntro.reqsai.discovery.application.handler.AppendTranscriptSegmentCommandHandler;
 import com.kntro.reqsai.discovery.application.handler.StartSttStreamCommandHandler;
@@ -45,7 +46,7 @@ class SttStreamingWebSocketHandlerTest {
             mock(AppendTranscriptSegmentCommandHandler.class);
     private final SttSessionRegistry registry = new SttSessionRegistry();
     private final SttStreamingWebSocketHandler handler =
-            new SttStreamingWebSocketHandler(startStream, appendHandler, registry);
+            new SttStreamingWebSocketHandler(startStream, appendHandler, registry, AiUsageReporter.NONE);
 
     private final UUID sessionId = UUID.randomUUID();
     private final UUID userId = UUID.randomUUID();

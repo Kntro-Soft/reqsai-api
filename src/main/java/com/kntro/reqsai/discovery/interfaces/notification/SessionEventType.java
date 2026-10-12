@@ -63,10 +63,25 @@ public enum SessionEventType {
     /** The analyst dismissed a suggestion (no backlog change). */
     SUGGESTION_DISMISSED,
 
+    /**
+     * The deep verification of a suggestion against the code started, finished or failed; carries the code
+     * finding, note, references and verification state to apply on the card.
+     */
+    SUGGESTION_CODE_UPDATED,
+
     // Speakers (diarization)
 
     /** The analyst named a diarized speaker or set their side (client / team); carries the new description. */
     SPEAKER_UPDATED,
+
+    // AI allowance
+
+    /**
+     * The organization's monthly AI allowance is spent, so live suggestions are paused for this session.
+     * Capture and the transcript keep working; suggestions resume once the allowance renews or the plan
+     * is upgraded. Sent once per pause.
+     */
+    AI_QUOTA_PAUSED,
 
     // Live presence
 

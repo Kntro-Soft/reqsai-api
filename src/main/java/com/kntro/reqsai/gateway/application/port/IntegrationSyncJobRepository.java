@@ -25,4 +25,7 @@ public interface IntegrationSyncJobRepository {
 
     /** The project's most recent jobs (any status, newest first, bounded to ~10). */
     List<IntegrationSyncJob> findRecent(UUID projectId);
+
+    /** Forgets every job of the project (the demo restore starts it from scratch). */
+    void deleteByProjectId(UUID projectId);
 }

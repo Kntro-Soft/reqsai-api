@@ -4,6 +4,7 @@ import com.kntro.reqsai.discovery.application.command.AcceptSuggestionCommand;
 import com.kntro.reqsai.discovery.application.port.SuggestionRepository;
 import com.kntro.reqsai.discovery.application.port.UserStoryRepository;
 import com.kntro.reqsai.discovery.domain.model.Priority;
+import com.kntro.reqsai.discovery.domain.model.StoryStatus;
 import com.kntro.reqsai.discovery.domain.model.Suggestion;
 import com.kntro.reqsai.discovery.domain.model.SuggestionStatus;
 import com.kntro.reqsai.discovery.domain.model.UserStory;
@@ -244,5 +245,111 @@ class AcceptSuggestionCommandHandlerTest {
     private static AcceptSuggestionCommand accept(Suggestion s) {
         return new AcceptSuggestionCommand(s.getSessionId(), s.getId(),
                 null, null, null, null, null, null, null);
+    }
+
+    private static AcceptSuggestionCommand accept(Suggestion s, boolean approve) {
+        return new AcceptSuggestionCommand(s.getSessionId(), s.getId(),
+                null, null, null, null, null, null, null, approve);
+    }
+
+    private static Suggestion pendingUpdate(UserStory target) {
+        return Suggestion.updateStory(UUID.randomUUID(), target.getProjectId(),
+                "Login", "user", "log in", "access the app", Priority.HIGH, 3,
+                target.getId(), List.of());
+    }
+
+    private static UserStory story() {
+        return new UserStory(UUID.randomUUID(), UUID.randomUUID(),
+                "Login", "user", "log in", "access the app", Priority.HIGH, 3);
+    }
+
+    @Test
+    @DisplayName("NEW_STORY approved is created APPROVED in the same accept; as a draft it stays DRAFT")
+    void should_approve_or_draft_new_story() {
+        when(embeddingPort.isAvailable()).thenReturn(false);
+        when(storyRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        Suggestion approved = pendingNewStory();
+        when(suggestions.findByIdAndSessionIdForUpdate(any(), any())).thenReturn(Optional.of(approved));
+        Suggestion result = handler.handle(accept(approved, true));
+        assertThat(result.getResolvedStoryStatus()).isEqualTo(StoryStatus.APPROVED);
+
+        Suggestion draft = pendingNewStory();
+        when(suggestions.findByIdAndSessionIdForUpdate(any(), any())).thenReturn(Optional.of(draft));
+        result = handler.handle(accept(draft, false));
+        assertThat(result.getResolvedStoryStatus()).isEqualTo(StoryStatus.DRAFT);
+
+        var captor = ArgumentCaptor.forClass(UserStory.class);
+        verify(storyRepo, org.mockito.Mockito.times(2)).save(captor.capture());
+        assertThat(captor.getAllValues()).extracting(UserStory::getStatus)
+                .containsExactly(StoryStatus.APPROVED, StoryStatus.DRAFT);
+    }
+
+    @Test
+    @DisplayName("UPDATE_STORY approve approves a draft target; saving as draft sends an approved target back to DRAFT")
+    void should_approve_or_draft_update_target() {
+        when(embeddingPort.isAvailable()).thenReturn(false);
+        when(storyRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        UserStory draftTarget = story();
+        Suggestion approve = pendingUpdate(draftTarget);
+        when(suggestions.findByIdAndSessionIdForUpdate(any(), any())).thenReturn(Optional.of(approve));
+        when(storyRepo.findById(draftTarget.getId())).thenReturn(Optional.of(draftTarget));
+        assertThat(handler.handle(accept(approve, true)).getResolvedStoryStatus()).isEqualTo(StoryStatus.APPROVED);
+        assertThat(draftTarget.getStatus()).isEqualTo(StoryStatus.APPROVED);
+
+        UserStory approvedTarget = story();
+        approvedTarget.changeReviewStatus(StoryStatus.APPROVED);
+        Suggestion draft = pendingUpdate(approvedTarget);
+        when(suggestions.findByIdAndSessionIdForUpdate(any(), any())).thenReturn(Optional.of(draft));
+        when(storyRepo.findById(approvedTarget.getId())).thenReturn(Optional.of(approvedTarget));
+        assertThat(handler.handle(accept(draft, false)).getResolvedStoryStatus()).isEqualTo(StoryStatus.DRAFT);
+        assertThat(approvedTarget.getStatus()).isEqualTo(StoryStatus.DRAFT);
+    }
+
+    @Test
+    @DisplayName("EDGE_CASE approve approves the target story the criterion was added to")
+    void should_approve_edge_case_target() {
+        UserStory target = story();
+        Suggestion suggestion = Suggestion.edgeCase(UUID.randomUUID(), target.getProjectId(),
+                "Cuenta bloqueada", "usuario", "iniciar sesión", "acceder",
+                Priority.MEDIUM, 2, "inicio de sesión", target.getId(),
+                new Suggestion.DraftCriterion("Bloqueo", "falló 5 intentos", "reintenta", "se bloquea"));
+        when(suggestions.findByIdAndSessionIdForUpdate(any(), any())).thenReturn(Optional.of(suggestion));
+        when(storyRepo.findById(target.getId())).thenReturn(Optional.of(target));
+        when(storyRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        Suggestion result = handler.handle(accept(suggestion, true));
+
+        assertThat(result.getResolvedStoryStatus()).isEqualTo(StoryStatus.APPROVED);
+        assertThat(target.getAcceptanceCriteria()).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("an exported target keeps its status whether approving or saving as draft")
+    void should_keep_status_of_exported_target() {
+        when(embeddingPort.isAvailable()).thenReturn(false);
+        when(storyRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        UserStory target = story();
+        org.springframework.test.util.ReflectionTestUtils.setField(target, "status", StoryStatus.EXPORTED);
+        Suggestion suggestion = pendingUpdate(target);
+        when(suggestions.findByIdAndSessionIdForUpdate(any(), any())).thenReturn(Optional.of(suggestion));
+        when(storyRepo.findById(target.getId())).thenReturn(Optional.of(target));
+
+        Suggestion result = handler.handle(accept(suggestion, true));
+
+        assertThat(result.getResolvedStoryStatus()).isEqualTo(StoryStatus.EXPORTED);
+    }
+
+    @Test
+    @DisplayName("CLARIFYING_QUESTION accept resolves no story and no story status, even with approve")
+    void should_not_resolve_story_for_question() {
+        Suggestion suggestion = Suggestion.clarifyingQuestion(UUID.randomUUID(), UUID.randomUUID(), "¿Cuántos usuarios?");
+        when(suggestions.findByIdAndSessionIdForUpdate(any(), any())).thenReturn(Optional.of(suggestion));
+
+        Suggestion result = handler.handle(accept(suggestion, true));
+
+        assertThat(result.getResolvedStoryId()).isNull();
+        assertThat(result.getResolvedStoryStatus()).isNull();
     }
 }

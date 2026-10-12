@@ -1,5 +1,6 @@
 package com.kntro.reqsai.discovery.interfaces.rest.dto.response;
 
+import com.kntro.reqsai.discovery.domain.model.StoryStatus;
 import com.kntro.reqsai.discovery.domain.model.SuggestionStatus;
 import com.kntro.reqsai.discovery.domain.model.SuggestionType;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -64,6 +65,11 @@ public record SuggestionResponse(
         @Schema(description = "Story created or modified on acceptance; null if not yet accepted or type is CLARIFYING_QUESTION", nullable = true)
         @Nullable UUID resolvedStoryId,
 
+        @Schema(description = "Review status of the resolved story (DRAFT, APPROVED, ...): as it ended when the "
+                + "suggestion was accepted, or its current one when listing; null without a resolved story",
+                nullable = true)
+        @Nullable StoryStatus resolvedStoryStatus,
+
         @Schema(description = "Similarity (0..1) to the target story when this is a duplicate alert", nullable = true)
         @Nullable Double similarity,
 
@@ -71,7 +77,15 @@ public record SuggestionResponse(
         Instant createdAt,
 
         @Schema(description = "When the suggestion was last updated")
-        Instant updatedAt
+        Instant updatedAt,
+
+        @Schema(description = "Where it was said: verbatim fragment and transcript segment; null when unknown",
+                nullable = true)
+        @Nullable SuggestionEvidenceResponse evidence,
+
+        @Schema(description = "What the client's connected code says: already built or in conflict, with the"
+                + " modules; null when no code is connected or it says nothing", nullable = true)
+        @Nullable SuggestionCodeResponse code
 ) {
 
     @Schema(description = "A proposed Given/When/Then acceptance criterion (NEW_STORY draft or EDGE_CASE)")

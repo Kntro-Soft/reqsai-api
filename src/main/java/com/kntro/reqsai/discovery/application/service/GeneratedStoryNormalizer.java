@@ -82,7 +82,7 @@ final class GeneratedStoryNormalizer {
                 : gen.acceptanceCriteria().stream().map(GeneratedStoryNormalizer::criterion).toList();
         return new GenerationResult.GeneratedStory(gen.type(), gen.title(),
                 role(gen.role()), action(gen.action()), benefit(gen.benefit()),
-                gen.priority(), gen.storyPoints(), criteria, gen.relatedTopic(), gen.targetStoryId());
+                gen.priority(), gen.storyPoints(), criteria, gen.relatedTopic(), gen.targetStoryId(), gen.insight());
     }
 
     /** {@code c} with its Given, When and Then normalized; the scenario label is kept. */
