@@ -18,7 +18,9 @@ public final class AssistantMessageResponseMapper {
                 entry.message().getRole().name(),
                 entry.message().getContent(),
                 entry.message().getCreatedAt(),
-                entry.suggestions().stream().map(SuggestionResponseMapper::toResponse).toList());
+                entry.suggestions().stream().map(SuggestionResponseMapper::toResponse).toList(),
+                entry.message().isCodeSearched(),
+                InsightResponseMapper.references(entry.message().getCodeReferences()));
     }
 
     public static AssistantExchangeResponse toResponse(AssistantExchange exchange) {

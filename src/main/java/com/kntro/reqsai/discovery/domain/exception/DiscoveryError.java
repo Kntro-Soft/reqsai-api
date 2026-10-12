@@ -23,7 +23,9 @@ public enum DiscoveryError implements ErrorCatalog {
     SESSION_ACCESS_DENIED(HttpStatus.FORBIDDEN),
     SESSION_ALREADY_ACTIVE(HttpStatus.CONFLICT),
     SHARE_LINK_UNAVAILABLE(HttpStatus.NOT_FOUND),
-    SPEAKER_NOT_FOUND(HttpStatus.NOT_FOUND);
+    SPEAKER_NOT_FOUND(HttpStatus.NOT_FOUND),
+    CODE_REPOSITORY_NOT_READY(HttpStatus.CONFLICT),
+    CODE_VERIFICATION_FAILED(HttpStatus.UNPROCESSABLE_CONTENT);
 
     private final HttpStatus status;
 

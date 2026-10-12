@@ -2,6 +2,7 @@ package com.kntro.reqsai.codebase.application.port;
 
 import org.jspecify.annotations.Nullable;
 
+import java.nio.file.Path;
 import java.util.List;
 import java.util.function.Predicate;
 
@@ -24,6 +25,15 @@ public interface CodeHostPort {
      */
     RepositoryArchive download(String owner, String name, String ref, @Nullable String token,
                                ArchiveLimits limits, Predicate<String> keep);
+
+    /**
+     * Downloads the repository's archive at {@code ref} into a new temporary file, capped at
+     * {@code maxDownloadBytes}. The caller owns the file and must delete it.
+     */
+    Path fetchArchive(String owner, String name, String ref, @Nullable String token, long maxDownloadBytes);
+
+    /** Reads the text files {@code keep} accepts from an archive {@link #fetchArchive} wrote, within the limits. */
+    RepositoryArchive readArchive(Path archive, ArchiveLimits limits, Predicate<String> keep);
 
     record RemoteRepository(String owner, String name, String defaultBranch, String htmlUrl, boolean isPrivate) {
     }

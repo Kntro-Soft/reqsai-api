@@ -2,19 +2,25 @@ package com.kntro.reqsai.discovery.application.handler;
 
 import com.kntro.reqsai.discovery.application.command.StartDiscoveryProcessingCommand;
 import com.kntro.reqsai.discovery.application.port.DiscoverySessionRepository;
+import com.kntro.reqsai.discovery.application.port.GenerationContext;
 import com.kntro.reqsai.discovery.application.port.RequirementGenerationPort;
+import com.kntro.reqsai.discovery.application.port.SuggestionRepository;
 import com.kntro.reqsai.discovery.application.port.TranscriptSegmentRepository;
+import com.kntro.reqsai.discovery.application.service.RealtimeSuggestionService;
 import com.kntro.reqsai.discovery.application.service.SessionSpeakerService;
 import com.kntro.reqsai.discovery.application.service.SpeakerTranscriptFormatter;
 import com.kntro.reqsai.discovery.application.service.QuoteLocator;
 import com.kntro.reqsai.discovery.application.service.StoryExtractionService;
 import com.kntro.reqsai.discovery.domain.exception.DiscoveryExceptions;
 import com.kntro.reqsai.discovery.domain.model.DiscoverySession;
+import com.kntro.reqsai.discovery.domain.model.Suggestion;
+import com.kntro.reqsai.discovery.domain.model.SuggestionStatus;
 import com.kntro.reqsai.discovery.domain.model.TranscriptSegment;
 import com.kntro.reqsai.discovery.domain.model.UserStory;
 import com.kntro.reqsai.shared.domain.exception.DomainException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,11 +46,16 @@ import java.util.UUID;
 @Slf4j
 public class StartDiscoveryProcessingCommandHandler {
 
+    /** Characters of the transcript used to look up related stories and code (a whole meeting is far longer). */
+    private static final int CONTEXT_QUERY_CHARS = 6000;
+
     private final DiscoverySessionRepository sessions;
     private final RequirementGenerationPort requirementGeneration;
     private final StoryExtractionService storyExtraction;
     private final TranscriptSegmentRepository segments;
     private final SessionSpeakerService sessionSpeakers;
+    private final RealtimeSuggestionService contextService;
+    private final SuggestionRepository suggestions;
 
     @Transactional
     public ProcessingResult handle(StartDiscoveryProcessingCommand command) {
@@ -75,13 +86,36 @@ public class StartDiscoveryProcessingCommandHandler {
         List<TranscriptSegment> finals = segments.findAllBySessionId(session.getId()).stream()
                 .filter(TranscriptSegment::isFinal)
                 .toList();
-        var result = requirementGeneration.generate(transcriptFor(session, finals), session.getLanguage().value());
+        String transcript = transcriptFor(session, finals);
+        GenerationContext context = contextFor(session);
+        var result = context == null
+                ? requirementGeneration.generate(transcript, session.getLanguage().value())
+                : requirementGeneration.generate(transcript, session.getLanguage().value(), context);
         // Each story keeps the fragment of the recording it was taken from (traceability).
         QuoteLocator locator = QuoteLocator.of(finals);
         return result.stories().stream()
                 .map(gen -> storyExtraction.extractOne(gen, session.getId(), session.getProjectId(), locator))
                 .flatMap(Optional::stream)
                 .toList();
+    }
+
+    /**
+     * The same context a live pass gets: backlog candidates, glossary and constraints, and the modules of the
+     * connected code related to the conversation. Fails open: without it (no context, lookup failure) the stories
+     * are generated from the transcript alone, as before.
+     */
+    private @Nullable GenerationContext contextFor(DiscoverySession session) {
+        try {
+            String text = session.getTranscript() == null ? "" : session.getTranscript();
+            String query = text.length() <= CONTEXT_QUERY_CHARS ? text : text.substring(0, CONTEXT_QUERY_CHARS);
+            List<Suggestion> pending = suggestions.findAllBySessionIdAndStatus(session.getId(),
+                    SuggestionStatus.PENDING);
+            return contextService.contextFor(session.getProjectId(), query, pending).orElse(null);
+        } catch (RuntimeException e) {
+            log.warn("Session {}: stories will be generated without project context: {}", session.getId(),
+                    e.getMessage());
+            return null;
+        }
     }
 
     /** The diarized transcript as tagged speaker turns when its segments carry speakers, else the stored text. */

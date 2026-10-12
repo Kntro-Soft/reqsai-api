@@ -1,10 +1,12 @@
 package com.kntro.reqsai.discovery.interfaces.notification.mappers;
 
 import com.kntro.reqsai.discovery.domain.event.SuggestionAcceptedEvent;
+import com.kntro.reqsai.discovery.domain.event.SuggestionCodeVerifiedEvent;
 import com.kntro.reqsai.discovery.domain.event.SuggestionCreatedEvent;
 import com.kntro.reqsai.discovery.domain.event.SuggestionDismissedEvent;
 import com.kntro.reqsai.discovery.domain.model.SuggestionStatus;
 import com.kntro.reqsai.discovery.interfaces.notification.SessionEventType;
+import com.kntro.reqsai.discovery.interfaces.notification.messages.SessionSuggestionCodeMessage;
 import com.kntro.reqsai.discovery.interfaces.notification.messages.SessionSuggestionMessage;
 import com.kntro.reqsai.discovery.interfaces.rest.mappers.response.InsightResponseMapper;
 
@@ -45,5 +47,13 @@ public final class SuggestionNotificationMapper {
                 null, null, e.occurredAt(),
                 InsightResponseMapper.evidence(e.evidenceSequence(), e.evidenceQuote()),
                 InsightResponseMapper.code(e.codeFinding(), e.codeNote(), e.codeReferences()));
+    }
+
+    public static SessionSuggestionCodeMessage toCodeUpdatedMessage(SuggestionCodeVerifiedEvent e) {
+        return new SessionSuggestionCodeMessage(
+                e.sessionId(), e.projectId(), e.suggestionId(), SessionEventType.SUGGESTION_CODE_UPDATED,
+                InsightResponseMapper.code(e.codeFinding(), e.codeNote(), e.codeReferences(), e.state(),
+                        e.verdict(), e.verifiedAt(), e.error()),
+                e.occurredAt());
     }
 }

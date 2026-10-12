@@ -93,6 +93,16 @@ class GitHubCodeHostAdapter implements CodeHostPort {
     @Override
     public RepositoryArchive download(String owner, String name, String ref, @Nullable String token,
                                       ArchiveLimits limits, Predicate<String> keep) {
+        Path archive = fetchArchive(owner, name, ref, token, limits.maxDownloadBytes());
+        try {
+            return readArchive(archive, limits, keep);
+        } finally {
+            deleteQuietly(archive);
+        }
+    }
+
+    @Override
+    public Path fetchArchive(String owner, String name, String ref, @Nullable String token, long maxDownloadBytes) {
         Path archive = null;
         try {
             archive = Files.createTempFile("reqsai-repo-", ".zip");
@@ -104,18 +114,32 @@ class GitHubCodeHostAdapter implements CodeHostPort {
                             owner + "/" + name + "@" + ref, token);
                 }
             }
-            copyCapped(response.body(), archive, limits.maxDownloadBytes());
+            copyCapped(response.body(), archive, maxDownloadBytes);
+            return archive;
+        } catch (IOException e) {
+            deleteQuietly(archive);
+            throw CodebaseExceptions.hostUnavailable("could not read the repository archive");
+        } catch (RuntimeException e) {
+            deleteQuietly(archive);
+            throw e;
+        }
+    }
+
+    @Override
+    public RepositoryArchive readArchive(Path archive, ArchiveLimits limits, Predicate<String> keep) {
+        try {
             return read(archive, limits, keep);
         } catch (IOException e) {
             throw CodebaseExceptions.hostUnavailable("could not read the repository archive");
-        } finally {
-            if (archive != null) {
-                try {
-                    Files.deleteIfExists(archive);
-                } catch (IOException e) {
-                    log.debug("Could not delete temporary archive {}", archive);
-                }
-            }
+        }
+    }
+
+    private static void deleteQuietly(@Nullable Path archive) {
+        if (archive == null) return;
+        try {
+            Files.deleteIfExists(archive);
+        } catch (IOException e) {
+            log.debug("Could not delete temporary archive {}", archive);
         }
     }
 
