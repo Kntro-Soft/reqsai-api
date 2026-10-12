@@ -48,4 +48,37 @@ class ShareLinkTest {
         assertThat(link.isActive(NOW.plusSeconds(90))).isFalse();
         assertThat(link.getRevokedAt()).isEqualTo(NOW.plusSeconds(60));
     }
+
+    @Test
+    @DisplayName("a backlog link is not a session link and its visitor may review")
+    void backlog_link() {
+        ShareLink link = ShareLink.issue(UUID.randomUUID(), UUID.randomUUID(), "t", 7, NOW);
+
+        assertThat(link.isSessionLink()).isFalse();
+        assertThat(link.getSessionId()).isNull();
+        assertThat(link.canReview()).isTrue();
+    }
+
+    @Test
+    @DisplayName("a session link names its session and only a REVIEW link may decide")
+    void session_link() {
+        UUID session = UUID.randomUUID();
+        ShareLink spectator = ShareLink.issueForSession(
+                UUID.randomUUID(), UUID.randomUUID(), session, ShareAccess.VIEW, "t", 7, NOW);
+        ShareLink reviewer = ShareLink.issueForSession(
+                UUID.randomUUID(), UUID.randomUUID(), session, ShareAccess.REVIEW, "u", 7, NOW);
+
+        assertThat(spectator.isSessionLink()).isTrue();
+        assertThat(spectator.getSessionId()).isEqualTo(session);
+        assertThat(spectator.canReview()).isFalse();
+        assertThat(reviewer.canReview()).isTrue();
+    }
+
+    @Test
+    @DisplayName("a session link needs a session")
+    void session_link_requires_session() {
+        assertThatThrownBy(() -> ShareLink.issueForSession(
+                UUID.randomUUID(), UUID.randomUUID(), null, ShareAccess.VIEW, "t", 7, NOW))
+                .isInstanceOf(DomainException.class);
+    }
 }

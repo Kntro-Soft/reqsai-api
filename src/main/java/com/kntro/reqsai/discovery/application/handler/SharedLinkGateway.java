@@ -26,10 +26,20 @@ public class SharedLinkGateway {
     private final ShareLinkRepository links;
     private final TenantSchemaResolver tenantSchemaResolver;
 
+    /** Runs {@code work} for an active link that shares a project's backlog. */
     public <T> T withActiveLink(String token, Function<ShareLink, T> work) {
+        return run(token, false, work);
+    }
+
+    /** Runs {@code work} for an active link that follows a discovery session. */
+    public <T> T withActiveSessionLink(String token, Function<ShareLink, T> work) {
+        return run(token, true, work);
+    }
+
+    private <T> T run(String token, boolean sessionLink, Function<ShareLink, T> work) {
         ShareLink link = (token == null || token.isBlank() ? null
                 : links.findByTokenHash(HashUtils.sha256(token)).orElse(null));
-        if (link == null || !link.isActive(Instant.now())) {
+        if (link == null || !link.isActive(Instant.now()) || link.isSessionLink() != sessionLink) {
             throw DiscoveryExceptions.shareLinkUnavailable();
         }
         String tenantId = link.getOrganizationId().toString();

@@ -35,10 +35,16 @@ public class ShareLinkControllerImpl implements ShareLinkController {
     private final ListStoryFeedbackQueryHandler listFeedback;
 
     @Override
-    @PreAuthorize("@authz.projectPermission(#projectId, 'STORY_WRITE', authentication)")
+    @PreAuthorize("@authz.projectPermission(#projectId, 'STORY_WRITE', authentication)"
+            + " and (#request == null or #request.sessionId() == null"
+            + " or (@authz.projectPermission(#projectId, 'SESSION_READ', authentication)"
+            + " and (#request.accessOrDefault().name() != 'REVIEW'"
+            + " or @authz.projectPermission(#projectId, 'SESSION_DECIDE', authentication))))")
     public ResponseEntity<ShareLinkResponse> create(UUID projectId, @Nullable CreateShareLinkRequest request) {
-        int days = request == null ? CreateShareLinkRequest.DEFAULT_DAYS : request.daysOrDefault();
-        var issued = createLink.handle(new CreateShareLinkCommand(projectId, days));
+        var issued = createLink.handle(request == null
+                ? new CreateShareLinkCommand(projectId, CreateShareLinkRequest.DEFAULT_DAYS)
+                : new CreateShareLinkCommand(projectId, request.daysOrDefault(), request.sessionId(),
+                        request.accessOrDefault()));
         return ResponseEntity.status(HttpStatus.CREATED).body(ShareLinkResponseMapper.toResponse(issued));
     }
 
