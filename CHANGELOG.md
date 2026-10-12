@@ -18,6 +18,51 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [1.2.0] - 2026-10-10
 
+### Added (Code-aware copilot — `feature/code-aware-copilot`)
+
+- **New `codebase` module: the client's code connected to a project.**
+  - `POST/GET /api/projects/{projectId}/code/repositories` (`INTEGRATION_WRITE`/`INTEGRATION_READ`), plus
+    `POST …/{id}/reindex`, `DELETE …/{id}` (`INTEGRATION_DELETE`) and `GET …/{id}/modules`.
+  - GitHub repositories are checked first, then indexed in the background. The run downloads the zipball,
+    keeps source files, manifests and READMEs, removes secrets and detects the stack. It groups modules by
+    folder and describes them: endpoints and entities from the code; summary, capabilities and implemented
+    business rules from the AI; and an embedding.
+  - No raw code and no credential is ever stored.
+  - Reindex only redescribes modules whose files changed.
+  - Tenant migration `V20261009130000__code_repositories.sql`. See `docs/CODE_COPILOT.md`.
+- **GitHub connected through the ReqsAI GitHub App, like Jira, once per organization.**
+  - `GET /api/organizations/{orgId}/code/github`, `POST …/install` (install URL with a signed state),
+    `POST …/installations` (complete: the OAuth code must show the user can access the installation),
+    `DELETE …/installations/{installationId}` (owners and admins).
+  - Projects pick from what the installations share: `GET /api/projects/{projectId}/code/github` and
+    `…/repositories`. Private repositories are read with installation tokens minted per use (1 hour),
+    never stored; connecting no longer takes a pasted token (`accessToken` removed, `installationId` added;
+    responses say `source` and `autoUpdate` instead of `hasToken`).
+  - `POST /api/code/webhooks/github` (signature-verified): a push reindexes the repository (queued during a
+    run); removed repositories, uninstalls and suspensions stop the updates and say why.
+  - Common migration `V20261009140000__code_host_installations.sql`; tenant migration
+    `V20261009140000__code_repositories_github_app.sql`. Setup of the App in `docs/CODE_COPILOT.md`.
+- **Suggestions read the client's code.**
+  - Realtime passes and assistant-chat requirements put an EXISTING SYSTEM section in the prompt: the
+    overview and the 4 modules nearest to the conversation.
+  - The model flags each story `ALREADY_EXISTS` or `CONFLICTS_WITH_CODE`, with a note and the modules it
+    relates to.
+- **Every suggestion keeps its evidence:** the verbatim fragment and the transcript segment holding it
+  (`QuoteLocator`).
+- **API changes:**
+  - `SuggestionResponse` and the live `SUGGESTION_*` messages gain `evidence` and `code`.
+  - An accepted story keeps them as `origin` and `codeReferences` on `UserStoryResponse`, as do stories
+    from an uploaded recording.
+  - Tenant migrations `V20261009130100__suggestion_evidence_and_code.sql` and
+    `V20261009130200__story_origin_and_code.sql`.
+- **`AggregateRoot.replaceEvent`:** a creation event can be completed before it is published.
+- **Tests:**
+  - **Unit:** the parser, filter, redactor, symbols, grouping, stack, quote locator, annotation, and the
+    adapter's code section and insight parsing.
+  - **GitHub adapter:** against a local fake (redirects, private tokens, limits).
+  - **End to end:** `CodeCopilotIntegrationTest` covers connect, index, profile, modules, a chat
+    requirement flagged against the code, accept, reindex, private token and disconnect.
+
 ### Changed (Release pipeline — `feature/119-release-pipeline`, #119)
 
 - **Gitflow release candidates, model C + tag at the end.** `release.yml` (on `release/X.Y.Z` and

@@ -67,7 +67,7 @@ class SessionRealtimeMessageSerializationTest {
                 org.junit.jupiter.params.provider.Arguments.of(
                         new SessionSuggestionMessage(sessionId, UUID.randomUUID(), SessionEventType.SUGGESTION_GENERATED,
                                 SuggestionType.NEW_STORY, SuggestionStatus.PENDING, null, null, null, null, null, null,
-                                null, null, null, List.of(), null, now),
+                                null, null, null, List.of(), null, now, null, null),
                         SessionEventType.SUGGESTION_GENERATED),
                 org.junit.jupiter.params.provider.Arguments.of(
                         new SessionLifecycleMessage(sessionId, UUID.randomUUID(), SessionEventType.SESSION_CREATED,

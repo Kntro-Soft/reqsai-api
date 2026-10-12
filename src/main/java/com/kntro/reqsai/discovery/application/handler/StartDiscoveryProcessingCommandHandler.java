@@ -6,6 +6,7 @@ import com.kntro.reqsai.discovery.application.port.RequirementGenerationPort;
 import com.kntro.reqsai.discovery.application.port.TranscriptSegmentRepository;
 import com.kntro.reqsai.discovery.application.service.SessionSpeakerService;
 import com.kntro.reqsai.discovery.application.service.SpeakerTranscriptFormatter;
+import com.kntro.reqsai.discovery.application.service.QuoteLocator;
 import com.kntro.reqsai.discovery.application.service.StoryExtractionService;
 import com.kntro.reqsai.discovery.domain.exception.DiscoveryExceptions;
 import com.kntro.reqsai.discovery.domain.model.DiscoverySession;
@@ -71,18 +72,20 @@ public class StartDiscoveryProcessingCommandHandler {
     }
 
     private List<UserStory> generateAndPersistStories(DiscoverySession session) {
-        var result = requirementGeneration.generate(transcriptFor(session), session.getLanguage().value());
+        List<TranscriptSegment> finals = segments.findAllBySessionId(session.getId()).stream()
+                .filter(TranscriptSegment::isFinal)
+                .toList();
+        var result = requirementGeneration.generate(transcriptFor(session, finals), session.getLanguage().value());
+        // Each story keeps the fragment of the recording it was taken from (traceability).
+        QuoteLocator locator = QuoteLocator.of(finals);
         return result.stories().stream()
-                .map(gen -> storyExtraction.extractOne(gen, session.getId(), session.getProjectId()))
+                .map(gen -> storyExtraction.extractOne(gen, session.getId(), session.getProjectId(), locator))
                 .flatMap(Optional::stream)
                 .toList();
     }
 
     /** The diarized transcript as tagged speaker turns when its segments carry speakers, else the stored text. */
-    private String transcriptFor(DiscoverySession session) {
-        List<TranscriptSegment> finals = segments.findAllBySessionId(session.getId()).stream()
-                .filter(TranscriptSegment::isFinal)
-                .toList();
+    private String transcriptFor(DiscoverySession session, List<TranscriptSegment> finals) {
         if (!SpeakerTranscriptFormatter.hasSpeakers(finals)) {
             return session.getTranscript();
         }

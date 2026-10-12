@@ -6,6 +6,7 @@ import com.kntro.reqsai.discovery.application.port.GenerationResult;
 import com.kntro.reqsai.discovery.application.port.RequirementGenerationPort;
 import com.kntro.reqsai.discovery.application.port.TranscriptSegmentRepository;
 import com.kntro.reqsai.discovery.application.service.SessionSpeakerService;
+import com.kntro.reqsai.discovery.application.service.QuoteLocator;
 import com.kntro.reqsai.discovery.application.service.StoryExtractionService;
 import com.kntro.reqsai.discovery.domain.exception.DiscoveryError;
 import com.kntro.reqsai.discovery.domain.model.Priority;
@@ -34,6 +35,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /**
@@ -70,7 +72,7 @@ class StartDiscoveryProcessingCommandHandlerTest {
                         Priority.HIGH, 3, List.of())));
         when(requirementGeneration.generate(any(), any())).thenReturn(generationResult);
         UserStory mockStory = mock(UserStory.class);
-        when(storyExtraction.extractOne(any(), any(), any())).thenReturn(Optional.of(mockStory));
+        when(storyExtraction.extractOne(any(), any(), any(), any(QuoteLocator.class))).thenReturn(Optional.of(mockStory));
 
         // Act
         var outcome = handler.handle(new StartDiscoveryProcessingCommand(session.getId()));
@@ -79,8 +81,8 @@ class StartDiscoveryProcessingCommandHandlerTest {
         assertThat(outcome.session().getStatus()).isEqualTo(SessionStatus.COMPLETED);
         assertThat(outcome.stories()).hasSize(1);
         verify(requirementGeneration).generate(any(), any());
-        verify(storyExtraction).extractOne(
-                generationResult.stories().getFirst(), session.getId(), session.getProjectId());
+        verify(storyExtraction).extractOne(eq(generationResult.stories().getFirst()), eq(session.getId()),
+                eq(session.getProjectId()), any(QuoteLocator.class));
     }
 
     @Test
@@ -190,7 +192,7 @@ class StartDiscoveryProcessingCommandHandlerTest {
         GenerationResult generationResult = new GenerationResult(List.of(
                 new GenerationResult.GeneratedStory("Dup", "u", "a", "b", Priority.HIGH, 3, List.of())));
         when(requirementGeneration.generate(any(), any())).thenReturn(generationResult);
-        when(storyExtraction.extractOne(any(), any(), any())).thenReturn(Optional.empty());
+        when(storyExtraction.extractOne(any(), any(), any(), any(QuoteLocator.class))).thenReturn(Optional.empty());
 
         // Act
         var outcome = handler.handle(new StartDiscoveryProcessingCommand(session.getId()));

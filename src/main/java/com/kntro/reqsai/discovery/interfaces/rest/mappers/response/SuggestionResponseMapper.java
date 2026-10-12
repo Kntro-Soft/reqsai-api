@@ -32,6 +32,8 @@ public final class SuggestionResponseMapper {
                 s.getResolvedStoryId(),
                 s.getSimilarity(),
                 s.getCreatedAt(),
-                s.getUpdatedAt());
+                s.getUpdatedAt(),
+                InsightResponseMapper.evidence(s.getEvidenceSequence(), s.getEvidenceQuote()),
+                InsightResponseMapper.code(s.getCodeFinding(), s.getCodeNote(), s.getCodeReferences()));
     }
 }

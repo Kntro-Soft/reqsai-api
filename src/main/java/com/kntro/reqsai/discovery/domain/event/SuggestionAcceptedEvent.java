@@ -1,5 +1,7 @@
 package com.kntro.reqsai.discovery.domain.event;
 
+import com.kntro.reqsai.discovery.domain.model.CodeFinding;
+import com.kntro.reqsai.discovery.domain.model.CodeReference;
 import com.kntro.reqsai.discovery.domain.model.Priority;
 import com.kntro.reqsai.discovery.domain.model.Suggestion;
 import com.kntro.reqsai.discovery.domain.model.SuggestionType;
@@ -31,7 +33,12 @@ public record SuggestionAcceptedEvent(
         @Nullable String question,
         List<Suggestion.DraftCriterion> draftAcceptanceCriteria,
         @Nullable UUID resolvedStoryId,
-        Instant occurredAt
+        Instant occurredAt,
+        @Nullable Integer evidenceSequence,
+        @Nullable String evidenceQuote,
+        @Nullable CodeFinding codeFinding,
+        @Nullable String codeNote,
+        List<CodeReference> codeReferences
 ) implements DomainEvent {
 
     public static SuggestionAcceptedEvent of(Suggestion s) {
@@ -41,7 +48,9 @@ public record SuggestionAcceptedEvent(
                 s.getDraftPriority(), s.getDraftStoryPoints(),
                 s.getRelatedTopic(), s.getTargetStoryId(), s.getQuestion(),
                 s.getDraftAcceptanceCriteria(),
-                s.getResolvedStoryId(), Instant.now());
+                s.getResolvedStoryId(), Instant.now(),
+                s.getEvidenceSequence(), s.getEvidenceQuote(), s.getCodeFinding(), s.getCodeNote(),
+                List.copyOf(s.getCodeReferences()));
     }
 
     @Override

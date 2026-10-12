@@ -1,5 +1,8 @@
 package com.kntro.reqsai.discovery.application.service;
 
+import com.kntro.reqsai.codebase.api.CodeModuleView;
+import com.kntro.reqsai.codebase.api.CodeOverview;
+import com.kntro.reqsai.codebase.api.CodebaseModuleApi;
 import com.kntro.reqsai.discovery.application.port.*;
 import com.kntro.reqsai.discovery.domain.exception.DiscoveryError;
 import com.kntro.reqsai.discovery.domain.exception.DiscoveryExceptions;
@@ -86,6 +89,11 @@ public class RealtimeSuggestionService {
     private final UserStoryReindexService reindexService;
     private final SessionLockPort sessionLock;
     private final SessionSpeakerService sessionSpeakers;
+    private final CodebaseModuleApi codebase;
+
+    /** Modules of the client's connected code placed in each prompt (the most related to the window). */
+    @Value("${discovery.realtime.code-top-k:4}")
+    private int codeTopK;
 
     @Value("${discovery.realtime.context-top-k:5}")
     private int contextTopK;
@@ -220,7 +228,8 @@ public class RealtimeSuggestionService {
                 session.getLanguage().value(), context, watermark, maxSequence);
 
         List<Suggestion> created = result
-                .map(r -> suggestionCreation.createSuggestions(r, sessionId, session.getProjectId()))
+                .map(r -> suggestionCreation.createSuggestions(r, sessionId, session.getProjectId(),
+                        QuoteLocator.of(pending)))
                 .orElse(List.of());
 
         // Persist ONLY the watermark + cadence timestamp with a scoped UPDATE. Do NOT mutate + save the
@@ -342,8 +351,38 @@ public class RealtimeSuggestionService {
                 ? workspaceApi.findRelevantContext(projectId, queryEmbedding, contextTopK)
                 : workspaceApi.findProjectSnapshot(projectId);
         return snapshot
-                .map(s -> GenerationContext.from(s, backlog, alreadySuggested))
+                .map(s -> GenerationContext.from(s, backlog, alreadySuggested)
+                        .withCode(codeContextFor(projectId, queryEmbedding, recentText)))
                 .orElse(null);
+    }
+
+    /**
+     * What the client's connected code says, for the prompt: the product overview and the modules most related
+     * to the conversation, keyed {@code C1}, {@code C2}… for the model to cite. Null when no code is connected or
+     * the lookup fails — the copilot then works as before.
+     */
+    private GenerationContext.@Nullable CodeContext codeContextFor(UUID projectId, float @Nullable [] queryEmbedding,
+                                                                   String recentText) {
+        try {
+            Optional<CodeOverview> overview = codebase.findOverview(projectId);
+            if (overview.isEmpty()) {
+                return null;
+            }
+            List<CodeModuleView> modules = codebase.findRelevantModules(projectId, queryEmbedding, recentText,
+                    codeTopK);
+            List<GenerationContext.CodeModuleEntry> entries = new ArrayList<>(modules.size());
+            for (int i = 0; i < modules.size(); i++) {
+                CodeModuleView m = modules.get(i);
+                entries.add(new GenerationContext.CodeModuleEntry("C" + (i + 1), m.repository(), m.path(), m.name(),
+                        m.summary(), m.capabilities(), m.businessRules(), m.url()));
+            }
+            log.debug("Code context for project {}: {} modules {}", projectId, entries.size(),
+                    entries.stream().map(e -> e.key() + ":" + e.name()).toList());
+            return new GenerationContext.CodeContext(overview.get().overview(), entries);
+        } catch (RuntimeException e) {
+            log.debug("Code context skipped for project {}: {}", projectId, e.getMessage());
+            return null;
+        }
     }
 
     /**
