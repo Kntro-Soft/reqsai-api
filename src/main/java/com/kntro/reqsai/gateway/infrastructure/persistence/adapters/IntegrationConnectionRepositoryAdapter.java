@@ -40,9 +40,9 @@ public class IntegrationConnectionRepositoryAdapter implements IntegrationConnec
     }
 
     @Override
-    public boolean existsByOrganizationIdAndProviderAndStatusNot(
-            UUID organizationId, IntegrationProviderType provider, ConnectionStatus status) {
-        return jpa.existsByOrganizationIdAndProviderAndStatusNot(organizationId, provider, status);
+    public boolean existsActiveBySite(UUID organizationId, IntegrationProviderType provider, String siteUrl) {
+        return jpa.existsByOrganizationIdAndProviderAndSiteUrlAndStatusNot(
+                organizationId, provider, siteUrl, ConnectionStatus.DISCONNECTED);
     }
 
     @Override

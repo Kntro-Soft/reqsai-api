@@ -15,6 +15,6 @@ public interface IntegrationConnectionJpaRepository extends JpaRepository<Integr
 
     List<IntegrationConnection> findAllByOrganizationIdOrderByCreatedAtDesc(UUID organizationId);
 
-    boolean existsByOrganizationIdAndProviderAndStatusNot(
-            UUID organizationId, IntegrationProviderType provider, ConnectionStatus status);
+    boolean existsByOrganizationIdAndProviderAndSiteUrlAndStatusNot(
+            UUID organizationId, IntegrationProviderType provider, String siteUrl, ConnectionStatus status);
 }

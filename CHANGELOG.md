@@ -9,6 +9,9 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed (Jira sites — `feature/143-jira-multi-site`, #143)
+- An organization can connect several Jira sites, like GitHub accounts. The same site twice (by its normalized URL) is still refused with `409 INTEGRATION_ALREADY_CONNECTED`; disconnecting one site leaves the others. Tenant migration `V20261012133000` replaces the unique index per organization and provider with one per organization, provider and site. A project's single push target is unchanged.
+
 ## [1.4.0] - 2026-10-12
 
 ### Added (Share a session — `feature/137-session-share-link`, #137)
