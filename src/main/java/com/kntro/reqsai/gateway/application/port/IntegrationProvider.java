@@ -65,7 +65,7 @@ public interface IntegrationProvider {
     }
 
     /** A remote project ({key,name}). */
-    record RemoteProject(String key, String name) {}
+    record RemoteProject(String key, String name, @Nullable String description) {}
 
     /** A remote issue type ({id,name}). */
     record RemoteIssueType(String id, String name) {}

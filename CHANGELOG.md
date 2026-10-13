@@ -12,6 +12,9 @@ follows [Semantic Versioning](https://semver.org/).
 ### Fixed (AI allowance gaps — `feature/141-quota-gaps`, #141)
 - Uploading a recording (`POST /api/sessions/{id}/upload`), processing a session into stories (`POST /api/sessions/{id}/process`) and verifying a suggestion against the code (`POST /api/projects/{id}/suggestions/{id}/verify-code`) now check the monthly AI allowance first and answer `402 AI_QUOTA_EXCEEDED` when it is spent, before touching the session (it keeps its status). Recording live, transcribing, sharing, exporting and reading are not affected.
 
+### Added (Source profile data — `feature/145-source-profile`, #145)
+- `GET .../integrations/{connectionId}/jira/projects` returns each project's `description` and `GET .../code/github/repositories` each repository's `language`, so the create-project wizard can fill the project's profile from the chosen sources.
+
 ### Changed (Jira sites — `feature/143-jira-multi-site`, #143)
 - An organization can connect several Jira sites, like GitHub accounts. The same site twice (by its normalized URL) is still refused with `409 INTEGRATION_ALREADY_CONNECTED`; disconnecting one site leaves the others. Tenant migration `V20261012133000` replaces the unique index per organization and provider with one per organization, provider and site. A project's single push target is unchanged.
 
