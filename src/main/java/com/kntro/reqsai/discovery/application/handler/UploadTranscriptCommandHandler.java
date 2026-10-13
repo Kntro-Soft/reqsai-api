@@ -1,5 +1,6 @@
 package com.kntro.reqsai.discovery.application.handler;
 
+import com.kntro.reqsai.shared.application.ai.AiQuotaGuard;
 import com.kntro.reqsai.discovery.application.command.UploadTranscriptCommand;
 import com.kntro.reqsai.discovery.application.port.DiscoverySessionRepository;
 import com.kntro.reqsai.discovery.application.port.TranscriptSegmentRepository;
@@ -39,9 +40,11 @@ public class UploadTranscriptCommandHandler {
     private final TranscriptionPort transcription;
     private final TranscriptSegmentRepository segments;
     private final AiUsageReporter usage;
+    private final AiQuotaGuard quota;
 
     @Transactional
     public DiscoverySession handle(UploadTranscriptCommand command) {
+        quota.assertAvailable();
         DiscoverySession session = sessions.findById(command.sessionId())
                 .orElseThrow(() -> DiscoveryExceptions.sessionNotFound(command.sessionId()));
 
