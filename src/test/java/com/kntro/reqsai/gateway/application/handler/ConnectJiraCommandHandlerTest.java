@@ -49,8 +49,8 @@ class ConnectJiraCommandHandlerTest {
     @DisplayName("verifies the credential then persists an encrypted connection")
     void connects_after_verifying() {
         UUID orgId = UUID.randomUUID();
-        when(connections.existsByOrganizationIdAndProviderAndStatusNot(
-                eq(orgId), eq(IntegrationProviderType.JIRA), eq(ConnectionStatus.DISCONNECTED))).thenReturn(false);
+        when(connections.existsActiveBySite(
+                eq(orgId), eq(IntegrationProviderType.JIRA), eq("https://acme.atlassian.net"))).thenReturn(false);
         when(jiraProvider.verify(any())).thenReturn("Jane Admin");
         when(connections.save(any(IntegrationConnection.class))).thenAnswer(i -> i.getArgument(0));
 
@@ -68,8 +68,8 @@ class ConnectJiraCommandHandlerTest {
     @DisplayName("rejects a second active connection with a 409 domain error")
     void rejects_duplicate() {
         UUID orgId = UUID.randomUUID();
-        when(connections.existsByOrganizationIdAndProviderAndStatusNot(
-                eq(orgId), eq(IntegrationProviderType.JIRA), eq(ConnectionStatus.DISCONNECTED))).thenReturn(true);
+        when(connections.existsActiveBySite(
+                eq(orgId), eq(IntegrationProviderType.JIRA), eq("https://acme.atlassian.net"))).thenReturn(true);
 
         assertThatThrownBy(() -> handler.handle(new ConnectJiraCommand(
                 orgId, "https://acme.atlassian.net", "pm@acme.com", "tok", UUID.randomUUID())))
@@ -83,8 +83,8 @@ class ConnectJiraCommandHandlerTest {
     @DisplayName("propagates a verification failure and persists nothing")
     void propagates_verify_failure() {
         UUID orgId = UUID.randomUUID();
-        when(connections.existsByOrganizationIdAndProviderAndStatusNot(
-                eq(orgId), eq(IntegrationProviderType.JIRA), eq(ConnectionStatus.DISCONNECTED))).thenReturn(false);
+        when(connections.existsActiveBySite(
+                eq(orgId), eq(IntegrationProviderType.JIRA), eq("https://acme.atlassian.net"))).thenReturn(false);
         when(jiraProvider.verify(any())).thenThrow(IntegrationsInfrastructureExceptions.jiraAuthFailed());
 
         assertThatThrownBy(() -> handler.handle(new ConnectJiraCommand(

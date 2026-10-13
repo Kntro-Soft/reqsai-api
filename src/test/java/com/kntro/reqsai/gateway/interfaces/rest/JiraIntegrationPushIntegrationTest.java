@@ -231,7 +231,24 @@ class JiraIntegrationPushIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("rejects a second active Jira connection with 409")
+    @DisplayName("an organization connects several Jira sites, each one once")
+    void connects_several_sites() {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        String orgId = createOrg(suffix, "acme-" + suffix);
+
+        assertThat(connectJira(orgId, "https://acme.atlassian.net").getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(connectJira(orgId, "https://beta.atlassian.net").getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(connectJira(orgId, "https://beta.atlassian.net/").getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+
+        ResponseEntity<String> listed = client().get().uri("/api/organizations/{orgId}/integrations", orgId)
+                .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId, "ROLE_USER"))
+                .header("Api-Version", "1")
+                .exchange((req, res) -> ResponseEntity.status(res.getStatusCode()).body(res.bodyTo(String.class)));
+        assertThat(listed.getBody()).contains("https://acme.atlassian.net").contains("https://beta.atlassian.net");
+    }
+
+    @Test
+    @DisplayName("rejects the same Jira site twice with 409")
     void rejects_duplicate_connection() {
         String suffix = UUID.randomUUID().toString().substring(0, 8);
         String orgId = createOrg(suffix, "acme-" + suffix);
@@ -262,11 +279,15 @@ class JiraIntegrationPushIntegrationTest extends AbstractIntegrationTest {
     }
 
     private ResponseEntity<String> connectJira(String orgId) {
+        return connectJira(orgId, "https://acme.atlassian.net");
+    }
+
+    private ResponseEntity<String> connectJira(String orgId, String siteUrl) {
         return client().post().uri("/api/organizations/{orgId}/integrations/jira", orgId)
                 .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId, "ROLE_USER"))
                 .header("Api-Version", "1")
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(Map.of("siteUrl", "https://acme.atlassian.net", "email", "pm@acme.com", "apiToken", "tok"))
+                .body(Map.of("siteUrl", siteUrl, "email", "pm@acme.com", "apiToken", "tok"))
                 .exchange((req, res) -> ResponseEntity.status(res.getStatusCode()).body(res.bodyTo(String.class)));
     }
 
