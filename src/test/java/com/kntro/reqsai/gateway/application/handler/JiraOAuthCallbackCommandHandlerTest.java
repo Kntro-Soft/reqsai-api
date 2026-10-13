@@ -76,8 +76,7 @@ class JiraOAuthCallbackCommandHandlerTest {
         when(oauth.exchangeCode("auth-code")).thenReturn(tokens());
         when(oauth.accessibleResources("access-abc"))
                 .thenReturn(List.of(new Site("cloud-1", "https://acme.atlassian.net", "Acme")));
-        when(connections.existsByOrganizationIdAndProviderAndStatusNot(
-                any(), any(), any())).thenReturn(false);
+        when(connections.existsActiveBySite(any(), any(), any())).thenReturn(false);
         when(connections.save(any(IntegrationConnection.class))).thenAnswer(i -> i.getArgument(0));
 
         JiraOAuthCallbackResult result = handler.handle(command(null));
@@ -115,7 +114,7 @@ class JiraOAuthCallbackCommandHandlerTest {
         when(oauth.accessibleResources("access-abc")).thenReturn(List.of(
                 new Site("cloud-1", "https://acme.atlassian.net", "Acme"),
                 new Site("cloud-2", "https://beta.atlassian.net", "Beta")));
-        when(connections.existsByOrganizationIdAndProviderAndStatusNot(any(), any(), any())).thenReturn(false);
+        when(connections.existsActiveBySite(any(), any(), any())).thenReturn(false);
         when(connections.save(any(IntegrationConnection.class))).thenAnswer(i -> i.getArgument(0));
 
         // Step 1: no cloudId -> returns sites, caches tokens under the state (nothing saved yet).
@@ -141,7 +140,7 @@ class JiraOAuthCallbackCommandHandlerTest {
         when(oauth.accessibleResources("access-abc")).thenReturn(List.of(
                 new Site("cloud-1", "https://acme.atlassian.net", "Acme"),
                 new Site("cloud-2", "https://beta.atlassian.net", "Beta")));
-        when(connections.existsByOrganizationIdAndProviderAndStatusNot(any(), any(), any())).thenReturn(false);
+        when(connections.existsActiveBySite(any(), any(), any())).thenReturn(false);
         when(connections.save(any(IntegrationConnection.class))).thenAnswer(i -> i.getArgument(0));
 
         JiraOAuthCallbackResult result = handler.handle(command("cloud-2"));
@@ -157,8 +156,7 @@ class JiraOAuthCallbackCommandHandlerTest {
         when(oauth.exchangeCode("auth-code")).thenReturn(tokens());
         when(oauth.accessibleResources("access-abc"))
                 .thenReturn(List.of(new Site("cloud-1", "https://acme.atlassian.net", "Acme")));
-        when(connections.existsByOrganizationIdAndProviderAndStatusNot(
-                any(), any(), any())).thenReturn(true);
+        when(connections.existsActiveBySite(any(), any(), any())).thenReturn(true);
 
         assertThatThrownBy(() -> handler.handle(command(null)))
                 .isInstanceOf(DomainException.class);
