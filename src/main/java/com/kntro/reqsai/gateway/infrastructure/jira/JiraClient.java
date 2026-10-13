@@ -1,5 +1,6 @@
 package com.kntro.reqsai.gateway.infrastructure.jira;
 
+import org.jspecify.annotations.Nullable;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -97,7 +98,7 @@ public class JiraClient {
     /** GET /project/search → visible projects. */
     public List<JiraProject> listProjects(JiraApiContext ctx) {
         ProjectSearch search = exchange(() -> restClient.get()
-                .uri(ctx.apiBase() + "/project/search?maxResults=100")
+                .uri(ctx.apiBase() + "/project/search?expand=description&maxResults=100")
                 .header("Authorization", ctx.authHeader())
                 .accept(MediaType.APPLICATION_JSON)
                 .retrieve()
@@ -358,7 +359,7 @@ public class JiraClient {
     private record Myself(String displayName) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record JiraProject(String key, String name) {}
+    public record JiraProject(String key, String name, @Nullable String description) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     private record ProjectSearch(List<JiraProject> values) {}

@@ -17,6 +17,8 @@ public record GitHubRepositoryResponse(
         @JsonProperty("private") @Schema(name = "private") boolean isPrivate,
         @Schema(nullable = true) @Nullable String description,
         @Schema(nullable = true) @Nullable Instant pushedAt,
+        @Schema(description = "Main language GitHub reports for it", example = "Java", nullable = true)
+        @Nullable String language,
         @Schema(description = "Whether the project already reads it") boolean connected
 ) {
 }

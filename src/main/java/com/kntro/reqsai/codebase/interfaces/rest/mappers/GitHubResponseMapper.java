@@ -36,6 +36,6 @@ public final class GitHubResponseMapper {
         var repo = available.repository();
         return new GitHubRepositoryResponse(available.installationId(), repo.owner(), repo.name(),
                 repo.owner() + "/" + repo.name(), repo.defaultBranch(), repo.htmlUrl(), repo.isPrivate(),
-                repo.description(), repo.pushedAt(), available.connected());
+                repo.description(), repo.pushedAt(), repo.language(), available.connected());
     }
 }

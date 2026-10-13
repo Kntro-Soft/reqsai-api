@@ -9,6 +9,9 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added (Source profile data — `feature/145-source-profile`, #145)
+- `GET .../integrations/{connectionId}/jira/projects` returns each project's `description` and `GET .../code/github/repositories` each repository's `language`, so the create-project wizard can fill the project's profile from the chosen sources.
+
 ## [1.4.0] - 2026-10-12
 
 ### Added (Share a session — `feature/137-session-share-link`, #137)
