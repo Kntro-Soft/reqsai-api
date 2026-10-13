@@ -172,7 +172,8 @@ class GitHubAppAdapter implements GitHubAppPort {
                         repo.path("html_url").asString(props.webUrl + "/" + owner + "/" + name),
                         repo.path("private").asBoolean(false),
                         text(repo.path("description")),
-                        instant(repo.path("pushed_at"))));
+                        instant(repo.path("pushed_at")),
+                        text(repo.path("language"))));
             }
             if (items.size() < PAGE_SIZE) break;
         }

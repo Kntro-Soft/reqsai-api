@@ -42,6 +42,7 @@ public interface GitHubAppPort {
     }
 
     record AppRepository(String owner, String name, String defaultBranch, String htmlUrl, boolean isPrivate,
-                         @Nullable String description, @Nullable Instant pushedAt) {
+                         @Nullable String description, @Nullable Instant pushedAt,
+                         @Nullable String language) {
     }
 }
