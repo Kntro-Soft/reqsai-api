@@ -19,8 +19,8 @@ public interface IntegrationConnectionRepository {
 
     List<IntegrationConnection> findAllByOrganizationId(UUID organizationId);
 
-    boolean existsByOrganizationIdAndProviderAndStatusNot(
-            UUID organizationId, IntegrationProviderType provider, ConnectionStatus status);
+    /** Whether the organization already has a live (not disconnected) connection to this very site. */
+    boolean existsActiveBySite(UUID organizationId, IntegrationProviderType provider, String siteUrl);
 
     void delete(IntegrationConnection connection);
 }
