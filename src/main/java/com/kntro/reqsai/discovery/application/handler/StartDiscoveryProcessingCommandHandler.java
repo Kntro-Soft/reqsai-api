@@ -1,5 +1,6 @@
 package com.kntro.reqsai.discovery.application.handler;
 
+import com.kntro.reqsai.shared.application.ai.AiQuotaGuard;
 import com.kntro.reqsai.shared.application.ai.AiFeature;
 import com.kntro.reqsai.shared.application.ai.AiUsageScope;
 import com.kntro.reqsai.discovery.application.command.StartDiscoveryProcessingCommand;
@@ -58,9 +59,11 @@ public class StartDiscoveryProcessingCommandHandler {
     private final SessionSpeakerService sessionSpeakers;
     private final RealtimeSuggestionService contextService;
     private final SuggestionRepository suggestions;
+    private final AiQuotaGuard quota;
 
     @Transactional
     public ProcessingResult handle(StartDiscoveryProcessingCommand command) {
+        quota.assertAvailable();
         DiscoverySession session = loadAndValidate(command.sessionId());
         session.startProcessing();
         sessions.save(session);

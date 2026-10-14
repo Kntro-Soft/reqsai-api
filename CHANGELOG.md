@@ -9,6 +9,9 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed (AI allowance gaps — `feature/141-quota-gaps`, #141)
+- Uploading a recording (`POST /api/sessions/{id}/upload`), processing a session into stories (`POST /api/sessions/{id}/process`) and verifying a suggestion against the code (`POST /api/projects/{id}/suggestions/{id}/verify-code`) now check the monthly AI allowance first and answer `402 AI_QUOTA_EXCEEDED` when it is spent, before touching the session (it keeps its status). Recording live, transcribing, sharing, exporting and reading are not affected.
+
 ### Added (Source profile data — `feature/145-source-profile`, #145)
 - `GET .../integrations/{connectionId}/jira/projects` returns each project's `description` and `GET .../code/github/repositories` each repository's `language`, so the create-project wizard can fill the project's profile from the chosen sources.
 

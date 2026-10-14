@@ -1,5 +1,6 @@
 package com.kntro.reqsai.discovery.application.handler;
 
+import com.kntro.reqsai.shared.application.ai.AiQuotaGuard;
 import com.kntro.reqsai.discovery.application.command.StartDiscoveryProcessingCommand;
 import com.kntro.reqsai.discovery.application.port.DiscoverySessionRepository;
 import com.kntro.reqsai.discovery.application.port.GenerationResult;
@@ -63,6 +64,9 @@ class StartDiscoveryProcessingCommandHandlerTest {
     private RealtimeSuggestionService contextService;
     @Mock
     private SuggestionRepository suggestions;
+    @Mock
+    private AiQuotaGuard quota;
+
     @InjectMocks
     private StartDiscoveryProcessingCommandHandler handler;
 
@@ -190,6 +194,20 @@ class StartDiscoveryProcessingCommandHandlerTest {
         org.mockito.ArgumentCaptor<String> query = org.mockito.ArgumentCaptor.forClass(String.class);
         verify(contextService).contextFor(any(), query.capture(), any());
         assertThat(query.getValue()).hasSizeLessThanOrEqualTo(6000);
+    }
+
+    @Test
+    @DisplayName("should refuse before touching the session when the AI allowance is spent")
+    void should_refuse_when_quota_spent() {
+        UUID id = UUID.randomUUID();
+        doThrow(new com.kntro.reqsai.shared.domain.exception.DomainException(
+                com.kntro.reqsai.discovery.domain.exception.DiscoveryError.SHARE_LINK_UNAVAILABLE, "spent"))
+                .when(quota).assertAvailable();
+
+        assertThatThrownBy(() -> handler.handle(new StartDiscoveryProcessingCommand(id)))
+                .isInstanceOf(com.kntro.reqsai.shared.domain.exception.DomainException.class);
+
+        verifyNoInteractions(sessions);
     }
 
     @Test
