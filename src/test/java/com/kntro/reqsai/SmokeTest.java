@@ -73,6 +73,16 @@ class SmokeTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void documentsEveryModuleWithControllers() {
+        ResponseEntity<String> config = get("/api-docs/swagger-config");
+        assertThat(config.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(config.getBody()).contains("workspace", "discovery", "iam", "billing",
+                "codebase", "gateway", "overview", "search");
+        assertThat(get("/api-docs/codebase").getBody()).contains("/code");
+        assertThat(get("/api-docs/gateway").getBody()).contains("/integrations");
+    }
+
+    @Test
     void protectedActuatorEndpointRequiresAuth() {
         // metrics is exposed but must be secured (only health/** is public).
         HttpStatusCode status = get("/actuator/metrics").getStatusCode();

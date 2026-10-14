@@ -9,6 +9,9 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed (OpenAPI groups — `bugfix/149-openapi-groups`, #149)
+- Swagger UI now has groups for `codebase` (code copilot and GitHub), `gateway` (Jira integrations), `overview` and `search`; before, only workspace, discovery, iam and billing were documented, so those endpoints were missing from `/swagger-ui.html` and `/api-docs/*`.
+
 ### Fixed (AI allowance gaps — `feature/141-quota-gaps`, #141)
 - Uploading a recording (`POST /api/sessions/{id}/upload`), processing a session into stories (`POST /api/sessions/{id}/process`) and verifying a suggestion against the code (`POST /api/projects/{id}/suggestions/{id}/verify-code`) now check the monthly AI allowance first and answer `402 AI_QUOTA_EXCEEDED` when it is spent, before touching the session (it keeps its status). Recording live, transcribing, sharing, exporting and reading are not affected.
 
