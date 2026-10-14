@@ -38,7 +38,7 @@ public class StubJiraOAuthConfig {
         @Override
         public List<JiraProject> listProjects(JiraApiContext ctx) {
             apiBases.add(ctx.apiBase());
-            return List.of(new JiraProject("PAY", "Payments"));
+            return List.of(new JiraProject("PAY", "Payments", "Pagos y cobros"));
         }
 
         @Override

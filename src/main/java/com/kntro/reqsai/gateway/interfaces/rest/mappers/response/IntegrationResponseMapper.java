@@ -45,7 +45,7 @@ public final class IntegrationResponseMapper {
     }
 
     public static JiraProjectResponse toResponse(RemoteProject p) {
-        return new JiraProjectResponse(p.key(), p.name());
+        return new JiraProjectResponse(p.key(), p.name(), p.description());
     }
 
     public static JiraIssueTypeResponse toResponse(RemoteIssueType t) {

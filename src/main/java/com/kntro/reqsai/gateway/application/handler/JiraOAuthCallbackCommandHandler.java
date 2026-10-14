@@ -10,7 +10,6 @@ import com.kntro.reqsai.gateway.application.service.JiraOAuthPendingTokenCache;
 import com.kntro.reqsai.gateway.application.service.JiraOAuthPendingTokenCache.Pending;
 import com.kntro.reqsai.gateway.application.service.JiraOAuthStateService;
 import com.kntro.reqsai.gateway.domain.exception.IntegrationsExceptions;
-import com.kntro.reqsai.gateway.domain.model.ConnectionStatus;
 import com.kntro.reqsai.gateway.domain.model.IntegrationConnection;
 import com.kntro.reqsai.gateway.domain.model.IntegrationProviderType;
 import com.kntro.reqsai.gateway.application.config.JiraOAuthProperties;
@@ -32,7 +31,7 @@ import java.util.List;
  *       already-consumed code;</li>
  *   <li>if a {@code cloudId} is given use it, else if exactly one site auto-select it, else return the
  *       site list WITHOUT saving (the frontend re-POSTs with a chosen {@code cloudId});</li>
- *   <li>on selection, enforce one active connection per org ({@code INTEGRATION_ALREADY_CONNECTED}),
+ *   <li>on selection, refuse a site the org already has connected ({@code INTEGRATION_ALREADY_CONNECTED}),
  *       persist an encrypted OAUTH2 connection, and evict the cached tokens.</li>
  * </ol>
  */
@@ -78,8 +77,8 @@ public class JiraOAuthCallbackCommandHandler {
             return JiraOAuthCallbackResult.needsSiteSelection(sites);
         }
 
-        if (connections.existsByOrganizationIdAndProviderAndStatusNot(
-                command.organizationId(), IntegrationProviderType.JIRA, ConnectionStatus.DISCONNECTED)) {
+        if (connections.existsActiveBySite(
+                command.organizationId(), IntegrationProviderType.JIRA, IntegrationConnection.normalizeSiteUrl(chosen.url()))) {
             throw IntegrationsExceptions.alreadyConnected(
                     command.organizationId(), IntegrationProviderType.JIRA.name());
         }

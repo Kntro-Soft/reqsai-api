@@ -1,5 +1,6 @@
 package com.kntro.reqsai.discovery.application.handler;
 
+import com.kntro.reqsai.shared.application.ai.AiQuotaGuard;
 import com.kntro.reqsai.discovery.application.port.SuggestionRepository;
 import com.kntro.reqsai.discovery.application.service.CodeVerificationService;
 import com.kntro.reqsai.discovery.application.service.SuggestionCodeVerificationJob;
@@ -28,9 +29,11 @@ public class VerifySuggestionCodeCommandHandler {
     private final SuggestionRepository suggestions;
     private final CodeVerificationService verification;
     private final SuggestionCodeVerificationJob job;
+    private final AiQuotaGuard quota;
 
     @Transactional
     public Suggestion handle(UUID projectId, UUID suggestionId) {
+        quota.assertAvailable();
         Suggestion suggestion = suggestions.findByIdAndProjectIdForUpdate(suggestionId, projectId)
                 .orElseThrow(() -> DiscoveryExceptions.suggestionNotFound(suggestionId));
         if (!verification.hasReadyRepository(projectId)) {

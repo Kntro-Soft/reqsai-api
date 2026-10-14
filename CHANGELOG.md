@@ -9,6 +9,23 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-13
+
+### Fixed (Branch cleanup — `bugfix/147-branch-cleanup-pulls`, #147)
+- The weekly branch cleanup read each branch's pull requests with `gh api -f`, which sends a POST to the create-pull-request endpoint instead of listing, so every lookup failed with 422 and the open-PR and `do-not-delete` protections were never checked. It now lists with `--method GET`, and a branch whose PRs cannot be read is left alone.
+
+### Fixed (OpenAPI groups — `bugfix/149-openapi-groups`, #149)
+- Swagger UI now has groups for `codebase` (code copilot and GitHub), `gateway` (Jira integrations), `overview` and `search`; before, only workspace, discovery, iam and billing were documented, so those endpoints were missing from `/swagger-ui.html` and `/api-docs/*`.
+
+### Fixed (AI allowance gaps — `feature/141-quota-gaps`, #141)
+- Uploading a recording (`POST /api/sessions/{id}/upload`), processing a session into stories (`POST /api/sessions/{id}/process`) and verifying a suggestion against the code (`POST /api/projects/{id}/suggestions/{id}/verify-code`) now check the monthly AI allowance first and answer `402 AI_QUOTA_EXCEEDED` when it is spent, before touching the session (it keeps its status). Recording live, transcribing, sharing, exporting and reading are not affected.
+
+### Added (Source profile data — `feature/145-source-profile`, #145)
+- `GET .../integrations/{connectionId}/jira/projects` returns each project's `description` and `GET .../code/github/repositories` each repository's `language`, so the create-project wizard can fill the project's profile from the chosen sources.
+
+### Changed (Jira sites — `feature/143-jira-multi-site`, #143)
+- An organization can connect several Jira sites, like GitHub accounts. The same site twice (by its normalized URL) is still refused with `409 INTEGRATION_ALREADY_CONNECTED`; disconnecting one site leaves the others. Tenant migration `V20261012133000` replaces the unique index per organization and provider with one per organization, provider and site. A project's single push target is unchanged.
+
 ## [1.4.0] - 2026-10-12
 
 ### Added (Share a session — `feature/137-session-share-link`, #137)

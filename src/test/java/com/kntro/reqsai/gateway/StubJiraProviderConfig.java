@@ -36,7 +36,7 @@ public class StubJiraProviderConfig {
 
             @Override
             public List<RemoteProject> listProjects(ProviderCredentials credentials) {
-                return List.of(new RemoteProject("PAY", "Payments"));
+                return List.of(new RemoteProject("PAY", "Payments", "Pagos y cobros"));
             }
 
             @Override

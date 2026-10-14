@@ -39,7 +39,7 @@ public class JiraProvider implements IntegrationProvider {
     @Override
     public List<RemoteProject> listProjects(ProviderCredentials c) {
         return jira.listProjects(contextFor(c)).stream()
-                .map(p -> new RemoteProject(p.key(), p.name()))
+                .map(p -> new RemoteProject(p.key(), p.name(), p.description()))
                 .toList();
     }
 

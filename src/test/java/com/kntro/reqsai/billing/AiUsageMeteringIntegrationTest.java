@@ -200,6 +200,37 @@ class AiUsageMeteringIntegrationTest extends AbstractIntegrationTest {
         assertThat(problem.path("used").asLong()).isGreaterThanOrEqualTo(100_000L);
         assertThat(get(bearer, chat).getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(get(bearer, "/api/projects/" + org.projectId() + "/stories").getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        // Uploading a recording, processing a session into stories and verifying a suggestion against the code
+        // spend tokens too: they are refused, and the session keeps its state.
+        UUID session = UUID.randomUUID();
+        jdbc.update("INSERT INTO \"tenant_" + org.slug() + "\".discovery_sessions (id, project_id, title, language, status,"
+                + " created_at, updated_at) VALUES (?, ?, 'Reunión', 'es-PE', 'STOPPED', now(), now())",
+                session, org.projectId());
+        ResponseEntity<String> processed = client().post().uri("/api/sessions/" + session + "/process")
+                .header("Authorization", bearer).header("Api-Version", "1")
+                .exchange((req, res) -> ResponseEntity.status(res.getStatusCode()).body(res.bodyTo(String.class)));
+        assertThat(processed.getStatusCode()).isEqualTo(HttpStatus.PAYMENT_REQUIRED);
+        assertThat(JSON.readTree(processed.getBody()).path("code").asString()).isEqualTo("AI_QUOTA_EXCEEDED");
+        assertThat(jdbc.queryForObject("SELECT status FROM \"tenant_" + org.slug() + "\".discovery_sessions WHERE id = ?",
+                String.class, session)).isEqualTo("STOPPED");
+        var audio = new org.springframework.util.LinkedMultiValueMap<String, Object>();
+        audio.add("file", new org.springframework.core.io.ByteArrayResource(new byte[] {1, 2, 3}) {
+            @Override
+            public String getFilename() {
+                return "reunion.wav";
+            }
+        });
+        ResponseEntity<String> uploaded = client().post().uri("/api/sessions/" + session + "/upload")
+                .header("Authorization", bearer).header("Api-Version", "1")
+                .contentType(MediaType.MULTIPART_FORM_DATA).body(audio)
+                .exchange((req, res) -> ResponseEntity.status(res.getStatusCode()).body(res.bodyTo(String.class)));
+        assertThat(uploaded.getStatusCode()).isEqualTo(HttpStatus.PAYMENT_REQUIRED);
+        ResponseEntity<String> verified = client().post()
+                .uri("/api/projects/" + org.projectId() + "/suggestions/" + UUID.randomUUID() + "/verify-code")
+                .header("Authorization", bearer).header("Api-Version", "1")
+                .exchange((req, res) -> ResponseEntity.status(res.getStatusCode()).body(res.bodyTo(String.class)));
+        assertThat(verified.getStatusCode()).isEqualTo(HttpStatus.PAYMENT_REQUIRED);
         clearInvocations(notifier);
 
         // The period elapses: the allowance is available again at once, and the first call starts a fresh one.
