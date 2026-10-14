@@ -1,6 +1,8 @@
 package com.kntro.reqsai.codebase.interfaces.rest.swagger;
 
 import com.kntro.reqsai.codebase.interfaces.rest.dto.request.CompleteGitHubInstallRequest;
+import com.kntro.reqsai.codebase.interfaces.rest.dto.request.ProposeProjectProfileRequest;
+import com.kntro.reqsai.codebase.interfaces.rest.dto.response.ProjectProfileResponse;
 import com.kntro.reqsai.codebase.interfaces.rest.dto.response.GitHubConnectionResponse;
 import com.kntro.reqsai.codebase.interfaces.rest.dto.response.GitHubRepositoryResponse;
 import com.kntro.reqsai.codebase.interfaces.rest.dto.response.GitHubInstallResultResponse;
@@ -57,6 +59,22 @@ public interface OrganizationGitHubController {
     @GetMapping(value = "/repositories", version = ApiVersioning.V1)
     ResponseEntity<List<GitHubRepositoryResponse>> repositories(
             @Parameter(description = "Organization", required = true) @PathVariable UUID orgId);
+
+    @Operation(summary = "Propose a new project's profile from its sources",
+            description = """
+                    Reads the README and manifests of the picked repositories (and takes the picked Jira project's \
+                    text) and has the AI propose a name, description, domain, architecture and technical profile \
+                    for a project that does not exist yet, so the create-project wizard can fill them in. Needs the \
+                    AI allowance (402 AI_QUOTA_EXCEEDED when spent). Without an AI model it answers from the \
+                    sources' metadata alone, with generated=false.""")
+    @ApiResponse(responseCode = "200", description = "The proposal")
+    @ApiResponseBadRequest
+    @ApiStandardErrorResponses
+    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
+    @PostMapping(value = "/project-profile", consumes = MediaType.APPLICATION_JSON_VALUE, version = ApiVersioning.V1)
+    ResponseEntity<ProjectProfileResponse> projectProfile(
+            @Parameter(description = "Organization", required = true) @PathVariable UUID orgId,
+            @Valid @RequestBody ProposeProjectProfileRequest request);
 
     @Operation(summary = "Start installing the GitHub App",
             description = """

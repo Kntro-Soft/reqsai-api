@@ -19,6 +19,13 @@ public interface CodeSummaryPort {
     @Nullable String summarizeOverview(OverviewDigest digest);
 
     /**
+     * Proposes a new project's profile from what its sources say: the repositories' descriptions, READMEs and
+     * manifests and, when there is one, the Jira project. Never null; a field the data does not support is
+     * empty.
+     */
+    ProjectProfile proposeProfile(ProfileDigest digest);
+
+    /**
      * What the model reads about one module: its files and symbols, and excerpts of its most telling
      * files (secrets already removed).
      */
@@ -30,5 +37,20 @@ public interface CodeSummaryPort {
     }
 
     record OverviewDigest(String repository, @Nullable String readme, List<String> modules, String language) {
+    }
+
+    /** What the model reads to propose a project profile; every text is untrusted data. */
+    record ProfileDigest(List<RepositoryDigest> repositories, @Nullable String jiraName,
+                         @Nullable String jiraDescription, String language) {
+    }
+
+    record RepositoryDigest(String fullName, @Nullable String description, @Nullable String language,
+                            @Nullable String readme, String manifests) {
+    }
+
+    /** A proposed project profile; the lists are empty and the texts null when the data says nothing. */
+    record ProjectProfile(@Nullable String name, @Nullable String description, @Nullable String domain,
+                          @Nullable String architecture, List<String> programmingLanguages,
+                          List<String> frameworks, List<String> clientPlatforms, List<String> databases) {
     }
 }
