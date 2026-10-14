@@ -18,6 +18,8 @@ public enum AiFeature {
     /** Describing the modules of a connected repository. */
     CODE_INDEX,
 
+    /** Proposing a new project's name, description and technical profile from its Jira and GitHub sources. */
+    PROJECT_SETUP,
     /** Questions asked directly to the code of a connected repository. */
     CODE_DEEP_SEARCH,
 

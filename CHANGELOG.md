@@ -9,6 +9,11 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-10-14
+
+### Added (AI project profile — `feature/153-ai-project-profile`, #153)
+- `POST /api/organizations/{orgId}/code/github/project-profile` (owners and admins, like the other GitHub endpoints of the organization): for a project that does not exist yet, reads the README and manifests of the picked repositories (at most 3, through the organization's GitHub App, nothing else of the code) plus the picked Jira project's name and description, and has the AI propose a name, description, domain, architecture, languages, frameworks, client platforms and databases covering all the sources (`"te-tengo-general-api"` and `"te-tengo-mobile-flutter"` become "Te Tengo"). Needs the AI allowance (`402 AI_QUOTA_EXCEEDED` when spent), is metered as the new `PROJECT_SETUP` feature and treats every source text as untrusted data. Without a model, or when its reply cannot be read, it answers with `generated: false` from the sources' metadata.
+
 ## [1.5.0] - 2026-10-13
 
 ### Fixed (Branch cleanup — `bugfix/147-branch-cleanup-pulls`, #147)
