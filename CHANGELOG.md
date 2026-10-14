@@ -12,6 +12,9 @@ follows [Semantic Versioning](https://semver.org/).
 ### Fixed (Branch cleanup — `bugfix/147-branch-cleanup-pulls`, #147)
 - The weekly branch cleanup read each branch's pull requests with `gh api -f`, which sends a POST to the create-pull-request endpoint instead of listing, so every lookup failed with 422 and the open-PR and `do-not-delete` protections were never checked. It now lists with `--method GET`, and a branch whose PRs cannot be read is left alone.
 
+### Fixed (OpenAPI groups — `bugfix/149-openapi-groups`, #149)
+- Swagger UI now has groups for `codebase` (code copilot and GitHub), `gateway` (Jira integrations), `overview` and `search`; before, only workspace, discovery, iam and billing were documented, so those endpoints were missing from `/swagger-ui.html` and `/api-docs/*`.
+
 ### Fixed (AI allowance gaps — `feature/141-quota-gaps`, #141)
 - Uploading a recording (`POST /api/sessions/{id}/upload`), processing a session into stories (`POST /api/sessions/{id}/process`) and verifying a suggestion against the code (`POST /api/projects/{id}/suggestions/{id}/verify-code`) now check the monthly AI allowance first and answer `402 AI_QUOTA_EXCEEDED` when it is spent, before touching the session (it keeps its status). Recording live, transcribing, sharing, exporting and reading are not affected.
 

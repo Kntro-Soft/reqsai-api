@@ -95,6 +95,38 @@ public class OpenApiConfiguration {
     }
 
     @Bean
+    public GroupedOpenApi codebaseApi() {
+        return GroupedOpenApi.builder()
+                .group("codebase")
+                .packagesToScan("com.kntro.reqsai.codebase.interfaces")
+                .build();
+    }
+
+    @Bean
+    public GroupedOpenApi gatewayApi() {
+        return GroupedOpenApi.builder()
+                .group("gateway")
+                .packagesToScan("com.kntro.reqsai.gateway.interfaces")
+                .build();
+    }
+
+    @Bean
+    public GroupedOpenApi overviewApi() {
+        return GroupedOpenApi.builder()
+                .group("overview")
+                .packagesToScan("com.kntro.reqsai.overview.interfaces")
+                .build();
+    }
+
+    @Bean
+    public GroupedOpenApi searchApi() {
+        return GroupedOpenApi.builder()
+                .group("search")
+                .packagesToScan("com.kntro.reqsai.search.interfaces")
+                .build();
+    }
+
+    @Bean
     @Profile("dev")
     public GroupedOpenApi devToolsApi() {
         return GroupedOpenApi.builder()
