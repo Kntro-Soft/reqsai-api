@@ -9,6 +9,11 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.6.1] - 2026-10-21
+
+### Changed
+- Dependency updates: the minor and patch group (5 libraries), `org.owasp.dependencycheck` 13.0.0 and `actions/create-github-app-token`.
+
 ## [1.6.0] - 2026-10-14
 
 ### Added (AI project profile — `feature/153-ai-project-profile`, #153)
