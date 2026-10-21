@@ -2,13 +2,13 @@ plugins {
     java
     id("org.springframework.boot") version "4.1.1"
     id("io.spring.dependency-management") version "1.1.7"
-    id("com.diffplug.spotless") version "8.10.0"
-    id("org.owasp.dependencycheck") version "12.2.2"
+    id("com.diffplug.spotless") version "8.10.4"
+    id("org.owasp.dependencycheck") version "13.0.0"
     jacoco
 }
 
 group = "com.kntro"
-version = "1.6.0"
+version = "1.6.1"
 description = "backend-reqsai"
 
 java {
@@ -82,7 +82,7 @@ dependencies {
     // ==================================
     // OPENAPI
     // ==================================
-    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.0")
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.1")
 
     // ==================================
     // SPRING AI
@@ -90,7 +90,7 @@ dependencies {
     implementation("org.springframework.ai:spring-ai-advisors-vector-store")
     implementation("org.springframework.ai:spring-ai-starter-model-ollama")
     implementation("org.springframework.ai:spring-ai-starter-model-openai")
-    implementation("com.deepgram:deepgram-java-sdk:0.8.0")
+    implementation("com.deepgram:deepgram-java-sdk:0.11.0")
     implementation("org.springframework.ai:spring-ai-starter-model-google-genai")
     implementation("org.springframework.ai:spring-ai-starter-vector-store-pgvector")
 
@@ -143,7 +143,7 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     testCompileOnly("org.projectlombok:lombok")
     mockitoAgent("org.mockito:mockito-core") { isTransitive = false }
-    testImplementation("com.tngtech.archunit:archunit-junit5:1.5.0")
+    testImplementation("com.tngtech.archunit:archunit-junit5:1.5.1")
 }
 
 dependencyManagement {
