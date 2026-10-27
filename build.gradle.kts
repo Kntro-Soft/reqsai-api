@@ -112,7 +112,7 @@ dependencies {
     // CLIENT DOCUMENTS (text extraction)
     // ==================================
     implementation("org.apache.pdfbox:pdfbox:3.0.8")
-    implementation("org.apache.poi:poi-ooxml:5.5.1")
+    implementation("org.apache.poi:poi-ooxml:6.0.0")
 
     // ==================================
     // ANNOTATION PROCESSORS
