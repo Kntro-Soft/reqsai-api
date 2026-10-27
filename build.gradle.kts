@@ -1,6 +1,6 @@
 plugins {
     java
-    id("org.springframework.boot") version "4.1.1"
+    id("org.springframework.boot") version "4.1.2"
     id("io.spring.dependency-management") version "1.1.7"
     id("com.diffplug.spotless") version "8.10.4"
     id("org.owasp.dependencycheck") version "13.0.0"
@@ -82,7 +82,7 @@ dependencies {
     // ==================================
     // OPENAPI
     // ==================================
-    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.1")
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.2.0")
 
     // ==================================
     // SPRING AI
@@ -90,7 +90,7 @@ dependencies {
     implementation("org.springframework.ai:spring-ai-advisors-vector-store")
     implementation("org.springframework.ai:spring-ai-starter-model-ollama")
     implementation("org.springframework.ai:spring-ai-starter-model-openai")
-    implementation("com.deepgram:deepgram-java-sdk:0.11.0")
+    implementation("com.deepgram:deepgram-java-sdk:0.11.2")
     implementation("org.springframework.ai:spring-ai-starter-model-google-genai")
     implementation("org.springframework.ai:spring-ai-starter-vector-store-pgvector")
 
