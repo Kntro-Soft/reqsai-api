@@ -9,6 +9,9 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added (Story quality score — `feature/168-story-quality-score`, #168)
+- `POST` and `GET /api/projects/{projectId}/stories/{storyId}/quality` (`STORY_WRITE` / `STORY_READ`) evaluate a story and return its latest assessment: a 0–100 score (mean of ambiguity, atomicity, verifiability and completeness, after ISO/IEC/IEEE 29148 and the Quality User Story framework) with an observation and a suggestion for each characteristic. The evaluation is rule-based behind a `StoryQualityEvaluator` port (Spanish/English ambiguity lexicon, no AI call, no AI allowance). A story already evaluated is re-evaluated when it or its criteria change; `GET` before any evaluation answers `404 STORY_QUALITY_NOT_EVALUATED`. Migration `V20261118120000__story_quality_assessment.sql`.
+
 ## [1.6.1] - 2026-10-21
 
 ### Changed

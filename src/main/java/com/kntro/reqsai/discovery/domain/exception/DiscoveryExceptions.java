@@ -39,6 +39,11 @@ public final class DiscoveryExceptions {
                 "Acceptance criterion '%s' not found on this story".formatted(id));
     }
 
+    public static EntityNotFoundException storyQualityNotEvaluated(java.util.UUID storyId) {
+        return new EntityNotFoundException(DiscoveryError.STORY_QUALITY_NOT_EVALUATED,
+                "User story '%s' has not been quality-evaluated yet".formatted(storyId));
+    }
+
     public static DomainException requirementGenerationFailed(String reason) {
         return new DomainException(DiscoveryError.REQUIREMENT_GENERATION_FAILED,
                 "Requirement generation failed: " + reason);

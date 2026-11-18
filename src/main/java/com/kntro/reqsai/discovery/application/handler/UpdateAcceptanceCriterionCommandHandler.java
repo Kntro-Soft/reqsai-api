@@ -2,6 +2,7 @@ package com.kntro.reqsai.discovery.application.handler;
 
 import com.kntro.reqsai.discovery.application.command.UpdateAcceptanceCriterionCommand;
 import com.kntro.reqsai.discovery.application.port.UserStoryRepository;
+import com.kntro.reqsai.discovery.application.service.StoryQualityAssessor;
 import com.kntro.reqsai.discovery.domain.exception.DiscoveryExceptions;
 import com.kntro.reqsai.discovery.domain.model.AcceptanceCriterion;
 import com.kntro.reqsai.discovery.domain.model.UserStory;
@@ -14,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class UpdateAcceptanceCriterionCommandHandler {
 
     private final UserStoryRepository stories;
+    private final StoryQualityAssessor qualityAssessor;
 
     /**
      * Updates the criterion and returns it so the controller can map the response
@@ -25,6 +27,7 @@ public class UpdateAcceptanceCriterionCommandHandler {
                 .orElseThrow(() -> DiscoveryExceptions.userStoryNotFound(command.storyId()));
         AcceptanceCriterion updated = story.updateAcceptanceCriterion(command.criterionId(), command.scenario(), command.given(), command.when(), command.then());
         stories.save(story);
+        qualityAssessor.refreshIfAssessed(story);
         return updated;
     }
 }
