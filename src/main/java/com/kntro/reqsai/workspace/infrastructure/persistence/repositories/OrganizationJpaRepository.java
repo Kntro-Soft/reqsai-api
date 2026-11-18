@@ -1,11 +1,13 @@
 package com.kntro.reqsai.workspace.infrastructure.persistence.repositories;
 
+import com.kntro.reqsai.workspace.domain.model.OrgStatus;
 import com.kntro.reqsai.workspace.domain.model.Organization;
 import com.kntro.reqsai.workspace.domain.valueobjects.Slug;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -26,4 +28,6 @@ public interface OrganizationJpaRepository extends JpaRepository<Organization, U
     boolean existsByIdAndOwnerId(UUID id, UUID ownerId);
 
     List<Organization> findAllByOwnerIdOrderByCreatedAtDesc(UUID ownerId);
+
+    List<Organization> findAllByStatusIn(Collection<OrgStatus> statuses);
 }

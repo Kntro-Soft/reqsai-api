@@ -9,6 +9,9 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added (Audio retention purge — `feature/166-audio-retention-purge`, #166)
+- Uploaded recordings are now kept (`session_audio_contents`, up to 50 MB; with retention 0 or an unreadable policy nothing is kept; with -1 it is kept and never purged). A scheduled job (`reqsai.discovery.audio-retention`, daily at 03:30 by default, batch of 200) walks the tenants and deletes the audios older than the organization's retention days, skipping sessions in progress and keeping the transcript and the stories. The session response gains `audioState` (`NONE`, `STORED`, `PURGED`) and `audioPurgedAt`. Migration `V20261118110000__audio_retention_purge.sql`; see `docs/AUDIO_RETENTION.md`.
+
 ## [1.6.1] - 2026-10-21
 
 ### Changed
