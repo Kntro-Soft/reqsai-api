@@ -21,6 +21,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -119,8 +120,36 @@ public interface ProjectSessionController {
             @RequestParam(required = false) String sortDirection);
 
     @Operation(
+            summary = "Confirm the participants' consent to the recording",
+            description = """
+                    Records that the analyst confirmed the participants consented to the recording \
+                    (Ley N.° 29733, personal data protection), with the confirming user and the date. \
+                    Required before `POST /{sessionId}/start`. Only while the session is DRAFT \
+                    (422 INVALID_SESSION_STATUS otherwise). Idempotent: confirming again keeps the first \
+                    confirmation. Requires SESSION_RUN.""")
+    @ApiResponse(
+            responseCode = "200",
+            description = "Consent recorded — `recordingConsentAt` and `recordingConsentBy` are set",
+            content = @Content(
+                    mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    schema = @Schema(implementation = DiscoverySessionResponse.class)))
+    @ApiResponseNotFound
+    @ApiStandardErrorResponses
+    @SecurityRequirement(name = OpenApiConfiguration.BEARER_SCHEME)
+    @PostMapping(path = "/{sessionId}/consent", version = ApiVersioning.V1)
+    ResponseEntity<DiscoverySessionResponse> confirmConsent(
+            @Parameter(description = "Project the session belongs to", required = true)
+            @PathVariable UUID projectId,
+            @Parameter(description = "Session identifier", required = true)
+            @PathVariable UUID sessionId,
+            @Parameter(hidden = true) Authentication authentication);
+
+    @Operation(
             summary = "Start recording a discovery session",
-            description = "Transitions a discovery session status from DRAFT to RECORDING to authorize streaming capture.")
+            description = """
+                    Transitions a discovery session status from DRAFT to RECORDING to authorize streaming capture. \
+                    The participants' consent must have been confirmed first with `POST /{sessionId}/consent`; \
+                    otherwise the capture is not started (422 RECORDING_CONSENT_REQUIRED).""")
     @ApiResponse(
             responseCode = "200",
             description = "Session started recording",

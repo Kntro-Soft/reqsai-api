@@ -187,6 +187,7 @@ class DiscoverySessionControlIntegrationTest extends AbstractIntegrationTest {
     }
 
     private ResponseEntity<String> start(String orgId, UUID projectId, UUID sessionId) {
+        post(orgId, "/api/projects/" + projectId + "/sessions/" + sessionId + "/consent");
         return post(orgId, "/api/projects/" + projectId + "/sessions/" + sessionId + "/start");
     }
 

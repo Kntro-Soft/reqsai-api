@@ -79,6 +79,14 @@ public class DiscoverySession extends AggregateRoot {
     @Column(name = "processing_error", length = PROCESSING_ERROR_MAX)
     private String processingError;
 
+    /** When the analyst confirmed that the participants consented to the recording (Ley N.° 29733); {@code null} until confirmed. */
+    @Column(name = "recording_consent_at")
+    private @Nullable Instant recordingConsentAt;
+
+    /** The user who confirmed the participants' consent; {@code null} until confirmed. */
+    @Column(name = "recording_consent_by", columnDefinition = "uuid")
+    private @Nullable UUID recordingConsentBy;
+
     protected DiscoverySession() {
         super();
     }
@@ -134,6 +142,35 @@ public class DiscoverySession extends AggregateRoot {
         this.status = SessionStatus.FAILED;
         this.processingError = Assert.maxLength(Assert.notBlank(reason, "reason"), "reason", PROCESSING_ERROR_MAX);
         registerEvent(DiscoverySessionProcessingFailedEvent.of(getId(), projectId, reason));
+    }
+
+    /**
+     * Records that the analyst confirmed the participants consented to the recording, with who and when.
+     * Only before the capture starts ({@code DRAFT}). Idempotent: the first confirmation is kept so the
+     * audit trail never moves.
+     */
+    public void confirmRecordingConsent(UUID userId, Instant now) {
+        Assert.notNull(userId, "userId");
+        Assert.notNull(now, "now");
+        Assert.isTrue(this.status == SessionStatus.DRAFT, "status",
+                "confirmRecordingConsent requires DRAFT but was " + this.status, DiscoveryError.INVALID_SESSION_STATUS);
+        if (hasRecordingConsent()) {
+            return;
+        }
+        this.recordingConsentBy = userId;
+        this.recordingConsentAt = now;
+    }
+
+    /** Whether the participants' consent to the recording has been confirmed. */
+    public boolean hasRecordingConsent() {
+        return this.recordingConsentAt != null && this.recordingConsentBy != null;
+    }
+
+    /** Guard of the live capture start: rejects with {@link DiscoveryError#RECORDING_CONSENT_REQUIRED} until consent is confirmed. */
+    public void requireRecordingConsent() {
+        Assert.isTrue(hasRecordingConsent(), "recordingConsent",
+                "the participants' consent to the recording must be confirmed before the capture starts",
+                DiscoveryError.RECORDING_CONSENT_REQUIRED);
     }
 
     /** Live recording path: {@code DRAFT → RECORDING}. Overrides {@code startedAt} to the actual recording start. */

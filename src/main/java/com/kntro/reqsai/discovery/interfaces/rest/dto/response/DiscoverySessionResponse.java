@@ -62,6 +62,12 @@ public record DiscoverySessionResponse(
 
         @Schema(description = "When the assistant analyzes the conversation: AUTO (on its own) or MANUAL (only on demand)",
                 example = "AUTO", allowableValues = {"AUTO", "MANUAL"})
-        String suggestionMode
+        String suggestionMode,
+
+        @Schema(description = "When the analyst confirmed the participants' consent to the recording; null until confirmed", example = "2026-06-15T13:58:00Z", nullable = true)
+        @Nullable Instant recordingConsentAt,
+
+        @Schema(description = "User who confirmed the participants' consent; null until confirmed", example = "019756a0-1234-7abc-8def-000000000003", nullable = true)
+        @Nullable UUID recordingConsentBy
 ) {
 }

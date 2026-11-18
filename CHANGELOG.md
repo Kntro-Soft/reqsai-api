@@ -9,6 +9,9 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added (Recording consent — `feature/165-recording-consent`, #165)
+- `POST /api/projects/{projectId}/sessions/{sessionId}/consent` (`SESSION_RUN`) records who confirmed the participants' consent to the recording and when (Ley N.° 29733). It is idempotent and only accepted while the session is a draft. Starting the capture without it answers `422 RECORDING_CONSENT_REQUIRED`. `DiscoverySessionResponse` gains `recordingConsentAt` and `recordingConsentBy`. Migration `V20261118100000__recording_consent.sql`.
+
 ## [1.6.1] - 2026-10-21
 
 ### Changed
