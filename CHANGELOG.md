@@ -9,6 +9,9 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added (Story sources — `feature/167-story-source-fragments`, #167)
+- `GET /api/projects/{projectId}/stories/{storyId}/sources` (`STORY_READ`) returns the story's origin (`SESSION`, `MANUAL` or `UNAVAILABLE`) and the transcript fragments it came from, with the session, the moment of the meeting (`startMs`/`endMs`, `occurredAt`), the text and the speaker. A story keeps every fragment it was generated or refined from (`story_source_fragments`); the fragment that older stories already had is copied by the migration `V20261118130000__story_source_fragments.sql`. See `docs/STORY_SOURCES.md`.
+
 ## [1.6.1] - 2026-10-21
 
 ### Changed
