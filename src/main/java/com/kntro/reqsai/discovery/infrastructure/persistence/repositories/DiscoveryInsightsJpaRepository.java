@@ -1,5 +1,6 @@
 package com.kntro.reqsai.discovery.infrastructure.persistence.repositories;
 
+import com.kntro.reqsai.discovery.domain.model.StoryStatus;
 import com.kntro.reqsai.discovery.domain.model.UserStory;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -13,7 +14,8 @@ import java.util.UUID;
 
 /**
  * Native grouped aggregates behind the dashboards. Anchored on
- * {@link UserStory} only to get a JPA repository; every query counts in SQL
+ * {@link UserStory} only to get a JPA repository; every query but
+ * {@link #decidedBetween} counts in SQL
  * over the given project ids and returns plain rows, so no entity is hydrated.
  * They run on the tenant connection, so {@code search_path} already targets the
  * right schema.
@@ -151,4 +153,39 @@ public interface DiscoveryInsightsJpaRepository extends JpaRepository<UserStory,
             group by project_id
             """, nativeQuery = true)
     List<Object[]> sessionActivity(@Param("projectIds") Collection<UUID> projectIds);
+
+    /**
+     * Stories of the project whose current review decision has one of
+     * {@code statuses} and was taken during {@code [start, end)}, with their
+     * criteria. The only query here that loads entities: their text is what the
+     * quality indicators compare.
+     */
+    @Query("""
+            select distinct s from UserStory s left join fetch s.acceptanceCriteria
+            where s.projectId = :projectId and s.status in :statuses
+              and s.reviewedAt >= :start and s.reviewedAt < :end
+            """)
+    List<UserStory> decidedBetween(@Param("projectId") UUID projectId, @Param("statuses") Collection<StoryStatus> statuses,
+            @Param("start") Instant start, @Param("end") Instant end);
+
+    /**
+     * Row shape: {@code [id, title, purpose, endedAt, inDraft, decided, undated, lastDecidedAt]} of the sessions that
+     * ended during {@code [start, end)}; {@code decided} counts their approved, rejected or exported stories,
+     * {@code undated} those of them with no recorded decision time.
+     */
+    @SuppressWarnings("SqlResolve")
+    @Query(value = """
+            select s.id, s.title, s.purpose, s.ended_at,
+                   count(u.id) filter (where u.status = 'DRAFT'),
+                   count(u.id) filter (where u.status in ('APPROVED', 'REJECTED', 'EXPORTED')),
+                   count(u.id) filter (where u.status in ('APPROVED', 'REJECTED', 'EXPORTED') and u.reviewed_at is null),
+                   max(u.reviewed_at) filter (where u.status in ('APPROVED', 'REJECTED', 'EXPORTED'))
+            from discovery_sessions s
+            left join user_stories u on u.session_id = s.id
+            where s.project_id = :projectId and s.ended_at >= :start and s.ended_at < :end
+            group by s.id, s.title, s.purpose, s.ended_at
+            order by s.ended_at, s.id
+            """, nativeQuery = true)
+    List<Object[]> sessionsEndedBetween(@Param("projectId") UUID projectId, @Param("start") Instant start,
+            @Param("end") Instant end);
 }

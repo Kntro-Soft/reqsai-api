@@ -3,6 +3,8 @@ package com.kntro.reqsai.discovery.application.port;
 import com.kntro.reqsai.discovery.domain.model.Priority;
 import com.kntro.reqsai.discovery.domain.model.SessionStatus;
 import com.kntro.reqsai.discovery.domain.model.StoryStatus;
+import com.kntro.reqsai.discovery.domain.model.UserStory;
+import com.kntro.reqsai.discovery.insights.HeldSession;
 import com.kntro.reqsai.discovery.insights.ProjectActivity;
 import com.kntro.reqsai.discovery.insights.RecentSession;
 import com.kntro.reqsai.discovery.insights.RecentStory;
@@ -54,6 +56,18 @@ public interface DiscoveryInsightsRepository {
      * session.
      */
     List<ProjectActivity> activityByProject(Collection<UUID> projectIds);
+
+    /**
+     * The stories of the project approved, exported or rejected during
+     * {@code [from, to)}, criteria included.
+     */
+    List<UserStory> storiesDecidedBetween(UUID projectId, Instant from, Instant to);
+
+    /**
+     * The meetings of the project that ended during {@code [from, to)}, oldest
+     * first, each with the instant its stories' review finished.
+     */
+    List<HeldSession> sessionsEndedBetween(UUID projectId, Instant from, Instant to);
 
     /**
      * Points and coverage of the live stories ({@code DRAFT}, {@code APPROVED},

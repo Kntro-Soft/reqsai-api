@@ -62,6 +62,10 @@ public record DiscoverySessionResponse(
 
         @Schema(description = "When the assistant analyzes the conversation: AUTO (on its own) or MANUAL (only on demand)",
                 example = "AUTO", allowableValues = {"AUTO", "MANUAL"})
-        String suggestionMode
+        String suggestionMode,
+
+        @Schema(description = "What the meeting is for: DISCOVERY (requirements elicitation) or CLARIFICATION (a follow-up to clarify requirements)",
+                example = "DISCOVERY", allowableValues = {"DISCOVERY", "CLARIFICATION"})
+        String purpose
 ) {
 }

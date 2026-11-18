@@ -9,6 +9,9 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added (Quality indicators — `feature/169-quality-indicators`, #169)
+- `GET /api/projects/{projectId}/quality-metrics?from&to` (`STORY_READ` and `SESSION_READ`, last 30 days by default) returns the rate of AI stories accepted without major rewriting (approved or exported stories whose final text keeps at least 80 % similarity with the generated one, over the stories decided in the period), the post-processing time per session (mean and median, from the end of the session to the last review decision) and the clarification meetings. A metric that cannot be computed is `null`, never an invented value. Sessions gain a `purpose` (`DISCOVERY` by default, or `CLARIFICATION`) and stories keep `reviewed_at` and the generated text. Migration `V20261118140000__quality_metrics.sql`; see `docs/QUALITY_INDICATORS.md`.
+
 ## [1.6.1] - 2026-10-21
 
 ### Changed

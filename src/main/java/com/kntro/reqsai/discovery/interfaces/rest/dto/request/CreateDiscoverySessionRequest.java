@@ -2,7 +2,9 @@ package com.kntro.reqsai.discovery.interfaces.rest.dto.request;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import org.jspecify.annotations.Nullable;
 
 @Schema(description = "Request body to create a requirements-elicitation session")
 public record CreateDiscoverySessionRequest(
@@ -25,6 +27,17 @@ public record CreateDiscoverySessionRequest(
                 requiredMode = Schema.RequiredMode.REQUIRED)
         @NotBlank
         @Size(max = 8)
-        String language
+        String language,
+
+        @Schema(
+                description = "What the meeting is for: DISCOVERY (requirements elicitation, default) or CLARIFICATION "
+                        + "(a follow-up held to clarify requirements already captured)",
+                example = "DISCOVERY",
+                allowableValues = {"DISCOVERY", "CLARIFICATION"},
+                requiredMode = Schema.RequiredMode.NOT_REQUIRED,
+                nullable = true)
+        @Pattern(regexp = "DISCOVERY|CLARIFICATION")
+        @Nullable
+        String purpose
 ) {
 }
