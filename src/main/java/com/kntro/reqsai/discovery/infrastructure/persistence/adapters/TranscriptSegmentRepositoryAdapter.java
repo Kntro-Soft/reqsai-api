@@ -50,6 +50,11 @@ public class TranscriptSegmentRepositoryAdapter implements TranscriptSegmentRepo
     }
 
     @Override
+    public List<TranscriptSegment> findFinalBySessionIdBetween(UUID sessionId, int fromSequence, int toSequence) {
+        return jpa.findFinalBySessionIdBetween(sessionId, fromSequence, toSequence);
+    }
+
+    @Override
     public long countFinalBySessionId(UUID sessionId) {
         return jpa.countBySessionIdAndIsFinalTrue(sessionId);
     }

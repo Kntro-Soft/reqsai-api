@@ -45,6 +45,12 @@ public interface TranscriptSegmentRepository {
     List<TranscriptSegment> findFinalBySessionIdAfter(UUID sessionId, int afterSequence);
 
     /**
+     * Finalized segments whose {@code sequence} is between {@code fromSequence} and {@code toSequence}, both
+     * inclusive, ascending. Reads the few segments a story's source fragment runs across.
+     */
+    List<TranscriptSegment> findFinalBySessionIdBetween(UUID sessionId, int fromSequence, int toSequence);
+
+    /**
      * The speaker label and time range of every finalized segment that carries a diarization label, in
      * ascending {@code sequence} order. Feeds the speaker roster (numbered by first appearance) and the
      * overlapping-speech detection without loading the segment texts.

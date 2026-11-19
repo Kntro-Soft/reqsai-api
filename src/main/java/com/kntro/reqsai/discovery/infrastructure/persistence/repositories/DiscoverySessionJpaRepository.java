@@ -10,6 +10,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -38,4 +39,17 @@ public interface DiscoverySessionJpaRepository extends JpaRepository<DiscoverySe
     int advanceSuggestionWatermark(@Param("sessionId") UUID sessionId,
                                    @Param("sequence") int sequence,
                                    @Param("suggestedAt") Instant suggestedAt);
+
+    /** Stored, not yet purged audios of sessions that are not in progress, oldest first (see the partial index). */
+    @Query("""
+            select s from DiscoverySession s
+             where s.audioStoredAt is not null
+               and s.audioPurgedAt is null
+               and s.audioStoredAt <= :storedBefore
+               and s.status not in :inProgress
+             order by s.audioStoredAt asc
+            """)
+    List<DiscoverySession> findAudioPurgeCandidates(@Param("storedBefore") Instant storedBefore,
+                                                    @Param("inProgress") Collection<SessionStatus> inProgress,
+                                                    Pageable pageable);
 }

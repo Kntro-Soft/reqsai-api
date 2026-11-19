@@ -2,6 +2,7 @@ package com.kntro.reqsai.discovery.application.handler;
 
 import com.kntro.reqsai.shared.application.ai.AiQuotaGuard;
 import com.kntro.reqsai.discovery.application.command.UploadTranscriptCommand;
+import com.kntro.reqsai.discovery.application.port.AudioStoragePort;
 import com.kntro.reqsai.discovery.application.port.DiscoverySessionRepository;
 import com.kntro.reqsai.discovery.application.port.TranscriptSegmentRepository;
 import com.kntro.reqsai.discovery.application.port.TranscriptionPort;
@@ -11,11 +12,13 @@ import com.kntro.reqsai.discovery.domain.model.DiscoverySession;
 import com.kntro.reqsai.discovery.domain.model.TranscriptSegment;
 import com.kntro.reqsai.shared.application.ai.AiUsageReporter;
 import com.kntro.reqsai.shared.application.ai.TokenUsage;
+import com.kntro.reqsai.workspace.api.WorkspaceModuleApi;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -28,6 +31,10 @@ import java.util.List;
  * {@link TranscriptSegment} carrying its speaker and timing, numbered from 1 in time order. The session
  * then shows "Hablante 1", "Hablante 2"… like a live one, the analyst can name them, and processing reads
  * the transcript as tagged speaker turns (US40). Without speaker labels only the text is stored, as before.
+ *
+ * <p>The uploaded recording is kept so the organization's retention policy (US15) can delete it later (US69),
+ * unless the organization asked for audios to be deleted immediately ({@code 0} days), in which case nothing is
+ * stored. The transcript and the stories never depend on the stored audio.
  */
 @Component
 @RequiredArgsConstructor
@@ -41,6 +48,8 @@ public class UploadTranscriptCommandHandler {
     private final TranscriptSegmentRepository segments;
     private final AiUsageReporter usage;
     private final AiQuotaGuard quota;
+    private final WorkspaceModuleApi workspace;
+    private final AudioStoragePort audioStorage;
 
     @Transactional
     public DiscoverySession handle(UploadTranscriptCommand command) {
@@ -54,13 +63,28 @@ public class UploadTranscriptCommandHandler {
         usage.report(TokenUsage.audio(session.getProjectId(), null, (result.durationMs() + 999) / 1000));
         List<TranscriptSegment> diarized = diarizedSegments(session, result);
         session.uploadTranscript(result.text(), result.durationMs(), diarized.size());
+        boolean audioKept = retainAudio(session, command);
         DiscoverySession saved = sessions.save(session);
         if (!diarized.isEmpty()) {
             segments.saveAll(diarized);
         }
-        log.info("Transcript uploaded for session {} ({} chars, {}ms, {} speaker segments) — status STOPPED",
-                saved.getId(), result.text().length(), result.durationMs(), diarized.size());
+        log.info("Transcript uploaded for session {} ({} chars, {}ms, {} speaker segments, audio kept: {}) — status STOPPED",
+                saved.getId(), result.text().length(), result.durationMs(), diarized.size(), audioKept);
         return saved;
+    }
+
+    /**
+     * Stores the recording and starts its retention period, unless the organization keeps no audio (retention
+     * of {@code 0} days) or its policy cannot be read, in which case nothing is stored.
+     */
+    private boolean retainAudio(DiscoverySession session, UploadTranscriptCommand command) {
+        boolean keep = workspace.currentAudioRetentionDays().filter(days -> days != 0).isPresent();
+        if (!keep) {
+            return false;
+        }
+        audioStorage.store(session.getId(), command.filename(), command.audioBytes());
+        session.retainAudio(Instant.now());
+        return true;
     }
 
     /** The provider's speaker-labelled utterances as final segments in time order; none without diarization. */

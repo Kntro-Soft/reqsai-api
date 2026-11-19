@@ -1,8 +1,10 @@
 package com.kntro.reqsai.discovery.interfaces.rest.mappers.response;
 
+import com.kntro.reqsai.discovery.domain.model.StoryQualityAssessment;
 import com.kntro.reqsai.discovery.domain.model.UserStory;
 import com.kntro.reqsai.discovery.interfaces.rest.dto.response.StoryOriginResponse;
 import com.kntro.reqsai.discovery.interfaces.rest.dto.response.UserStoryResponse;
+import org.jspecify.annotations.Nullable;
 
 /** Maps the {@link UserStory} aggregate to its response DTO. */
 public final class UserStoryResponseMapper {
@@ -12,6 +14,11 @@ public final class UserStoryResponseMapper {
     }
 
     public static UserStoryResponse toResponse(UserStory story) {
+        return toResponse(story, null);
+    }
+
+    /** The story with its quality, as the story lists show it. */
+    public static UserStoryResponse toResponse(UserStory story, @Nullable StoryQualityAssessment quality) {
         return new UserStoryResponse(
                 story.getId(),
                 story.getProjectId(),
@@ -32,6 +39,7 @@ public final class UserStoryResponseMapper {
                 story.getOriginQuote() == null ? null
                         : new StoryOriginResponse(story.getOriginSessionId(), story.getOriginSequence(),
                                 story.getOriginQuote()),
-                InsightResponseMapper.references(story.getCodeReferences()));
+                InsightResponseMapper.references(story.getCodeReferences()),
+                quality == null ? null : StoryQualityResponseMapper.toResponse(quality));
     }
 }

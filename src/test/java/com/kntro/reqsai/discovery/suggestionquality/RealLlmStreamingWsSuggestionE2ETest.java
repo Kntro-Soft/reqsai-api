@@ -511,6 +511,7 @@ class RealLlmStreamingWsSuggestionE2ETest extends AbstractIntegrationTest {
     }
 
     private ResponseEntity<String> start(UUID projectId, UUID sessionId) {
+        post("/api/projects/" + projectId + "/sessions/" + sessionId + "/consent");
         return post("/api/projects/" + projectId + "/sessions/" + sessionId + "/start");
     }
 

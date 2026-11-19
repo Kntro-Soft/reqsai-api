@@ -65,7 +65,13 @@ class DiscoverySessionLifecycleIntegrationTest extends AbstractIntegrationTest {
         String sessionIdString = body.split("\"id\":\"")[1].split("\"")[0];
         UUID sessionId = UUID.fromString(sessionIdString);
 
-        // 3. Start Recording (DRAFT -> RECORDING)
+        // 3. Confirm the participants' consent, then start recording (DRAFT -> RECORDING)
+        ResponseEntity<String> consentRes = client().post().uri("/api/projects/{p}/sessions/{s}/consent", projectId, sessionId)
+                .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId, "ROLE_USER"))
+                .header("Api-Version", "1")
+                .exchange((_, response) -> ResponseEntity.status(response.getStatusCode()).body(response.bodyTo(String.class)));
+        assertThat(consentRes.getStatusCode()).isEqualTo(HttpStatus.OK);
+
         ResponseEntity<String> startRes = client().post().uri("/api/projects/{p}/sessions/{s}/start", projectId, sessionId)
                 .header("Authorization", TestJwtFactory.bearer(USER_ID, orgId, "ROLE_USER"))
                 .header("Api-Version", "1")

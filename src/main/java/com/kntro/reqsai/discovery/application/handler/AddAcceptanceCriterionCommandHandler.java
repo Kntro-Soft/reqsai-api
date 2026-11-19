@@ -2,6 +2,7 @@ package com.kntro.reqsai.discovery.application.handler;
 
 import com.kntro.reqsai.discovery.application.command.AddAcceptanceCriterionCommand;
 import com.kntro.reqsai.discovery.application.port.UserStoryRepository;
+import com.kntro.reqsai.discovery.application.service.StoryQualityAssessor;
 import com.kntro.reqsai.discovery.domain.exception.DiscoveryExceptions;
 import com.kntro.reqsai.discovery.domain.model.AcceptanceCriterion;
 import com.kntro.reqsai.discovery.domain.model.UserStory;
@@ -14,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class AddAcceptanceCriterionCommandHandler {
 
     private final UserStoryRepository stories;
+    private final StoryQualityAssessor qualityAssessor;
 
     @Transactional
     public AcceptanceCriterion handle(AddAcceptanceCriterionCommand command) {
@@ -22,6 +24,7 @@ public class AddAcceptanceCriterionCommandHandler {
         AcceptanceCriterion criterion = story.addAcceptanceCriterion(
                 command.scenario(), command.given(), command.when(), command.then());
         stories.save(story);
+        qualityAssessor.refreshIfAssessed(story);
         return criterion;
     }
 }

@@ -1,6 +1,7 @@
 package com.kntro.reqsai.workspace.infrastructure.persistence.adapters;
 
 import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
+import com.kntro.reqsai.workspace.domain.model.OrgStatus;
 import com.kntro.reqsai.workspace.domain.model.Organization;
 import com.kntro.reqsai.workspace.domain.valueobjects.Slug;
 import com.kntro.reqsai.workspace.infrastructure.persistence.repositories.OrganizationJpaRepository;
@@ -47,5 +48,10 @@ public class OrganizationRepositoryAdapter implements OrganizationRepository {
     @Override
     public List<Organization> findAllByIdIn(Collection<UUID> ids) {
         return ids.isEmpty() ? List.of() : jpa.findAllById(ids);
+    }
+
+    @Override
+    public List<Organization> findAllByStatusIn(Collection<OrgStatus> statuses) {
+        return jpa.findAllByStatusIn(statuses);
     }
 }

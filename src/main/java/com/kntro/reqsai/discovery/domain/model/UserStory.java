@@ -14,6 +14,7 @@ import jakarta.persistence.Table;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.OrderBy;
 import lombok.Getter;
 import org.hibernate.annotations.Array;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -118,6 +119,14 @@ public class UserStory extends AggregateRoot {
      */
     @Column(name = "generated_text", columnDefinition = "text")
     private @Nullable String generatedText;
+    /**
+     * Every fragment of a meeting the story comes from (US72): the one it was generated or accepted from,
+     * and those of the suggestions that later refined it. Empty for a manual story and for one created
+     * before fragments were kept.
+     */
+    @OneToMany(mappedBy = "story", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @OrderBy("createdAt ASC, id ASC")
+    private List<StorySourceFragment> sourceFragments = new ArrayList<>();
 
     protected UserStory() {
         super();
@@ -182,8 +191,28 @@ public class UserStory extends AggregateRoot {
             this.originQuote = text.length() <= 500 ? text : text.substring(0, 497) + "...";
             this.originSessionId = sessionId;
             this.originSequence = sessionId == null ? null : sequence;
+            addSource(sessionId, sequence, quote);
         }
         this.codeReferences = references == null ? new ArrayList<>() : new ArrayList<>(references);
+    }
+
+    /**
+     * Keeps one more fragment of a meeting the story comes from: the session, the transcript segment where
+     * the quote starts (null when it was not located) and the quote. Nothing is kept without a session or a
+     * quote, nor a quote of that session the story already has.
+     */
+    public void addSource(@Nullable UUID sessionId, @Nullable Integer sequence, @Nullable String quote) {
+        if (sessionId == null || quote == null || quote.isBlank()) {
+            return;
+        }
+        if (sourceFragments.stream().noneMatch(f -> f.sameAs(sessionId, quote))) {
+            sourceFragments.add(new StorySourceFragment(this, sessionId, sequence, quote));
+        }
+    }
+
+    /** Returns an unmodifiable view of the meeting fragments the story comes from, oldest first. */
+    public List<StorySourceFragment> getSourceFragments() {
+        return Collections.unmodifiableList(sourceFragments);
     }
 
     /**

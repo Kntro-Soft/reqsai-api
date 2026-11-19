@@ -11,6 +11,8 @@ import com.kntro.reqsai.discovery.application.query.GetProjectStoryQuery;
 import com.kntro.reqsai.discovery.application.query.ListProjectStoriesQuery;
 import com.kntro.reqsai.discovery.application.query.StoryFilter;
 import com.kntro.reqsai.discovery.domain.model.Priority;
+import com.kntro.reqsai.discovery.application.service.StoryQualityReader;
+import com.kntro.reqsai.discovery.domain.model.StoryQualityAssessment;
 import com.kntro.reqsai.discovery.domain.model.StoryStatus;
 import com.kntro.reqsai.discovery.domain.model.UserStory;
 import com.kntro.reqsai.discovery.interfaces.rest.dto.request.BatchDeleteUserStoriesRequest;
@@ -25,6 +27,7 @@ import com.kntro.reqsai.discovery.interfaces.rest.swagger.ProjectStoryController
 import com.kntro.reqsai.shared.interfaces.pagination.PageCriteria;
 import com.kntro.reqsai.shared.interfaces.pagination.PageResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.RestController;
@@ -32,6 +35,7 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.net.URI;
 import java.time.Instant;
+import java.util.Map;
 import java.util.UUID;
 
 /** Implementation of the {@link ProjectStoryController} API contract. */
@@ -42,6 +46,7 @@ public class ProjectStoryControllerImpl implements ProjectStoryController {
     private final CreateUserStoryCommandHandler createUserStory;
     private final GetProjectStoryQueryHandler getUserStory;
     private final ListProjectStoriesQueryHandler listUserStories;
+    private final StoryQualityReader storyQuality;
     private final UpdateUserStoryCommandHandler updateUserStory;
     private final ChangeUserStoryStatusCommandHandler changeUserStoryStatus;
     private final DeleteUserStoryCommandHandler deleteUserStory;
@@ -76,11 +81,11 @@ public class ProjectStoryControllerImpl implements ProjectStoryController {
                 parseEnum(Priority.class, priority, "priority"),
                 createdAfter,
                 createdBefore);
-        PageResponse<UserStoryResponse> response = PageResponse.of(
-                listUserStories.handle(new ListProjectStoriesQuery(
-                        projectId, PageCriteria.of(page, size, sortBy, sortDirection), filter))
-                        .map(UserStoryResponseMapper::toResponse));
-        return ResponseEntity.ok(response);
+        Page<UserStory> stories = listUserStories.handle(new ListProjectStoriesQuery(
+                projectId, PageCriteria.of(page, size, sortBy, sortDirection), filter));
+        Map<UUID, StoryQualityAssessment> quality = storyQuality.read(stories.getContent());
+        return ResponseEntity.ok(PageResponse.of(
+                stories.map(story -> UserStoryResponseMapper.toResponse(story, quality.get(story.getId())))));
     }
 
     @Override

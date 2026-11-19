@@ -60,6 +60,10 @@ public record UserStoryResponse(
         @Nullable StoryOriginResponse origin,
 
         @Schema(description = "Modules of the client's connected code the story relates to")
-        List<CodeReferenceResponse> codeReferences
+        List<CodeReferenceResponse> codeReferences,
+
+        @Schema(description = "Quality of the story (score and one finding per characteristic). Only the story lists fill it: the stored assessment, or a fresh evaluation when the story was never assessed; null elsewhere",
+                nullable = true)
+        @Nullable StoryQualityResponse quality
 ) {
 }

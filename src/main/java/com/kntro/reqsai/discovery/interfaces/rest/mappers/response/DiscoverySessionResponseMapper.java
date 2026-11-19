@@ -46,7 +46,11 @@ public final class DiscoverySessionResponseMapper {
                 stats != null ? stats.suggestionsPending() : null,
                 stats != null ? stats.questionsAsked() : null,
                 session.getSuggestionMode().name(),
-                session.getPurpose().name());
+                session.getPurpose().name(),
+                session.getRecordingConsentAt(),
+                session.getRecordingConsentBy(),
+                session.getAudioState().name(),
+                session.getAudioPurgedAt());
     }
 
     /**
