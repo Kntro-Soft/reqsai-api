@@ -158,7 +158,7 @@ Each successful provider call is one row of `ai_usage_events` in the organizatio
 tokens it added to the quota (`quota_tokens`) and, for speech-to-text, `audio_seconds`. `idempotency_key` is
 the provider's call id, so a call reported twice is stored and counted once. The feature is one of
 `LIVE_SUGGESTIONS`, `CHAT`, `FINAL_STORIES` (the pass that flushes a meeting when it stops), `CODE_INDEX`,
-`CODE_DEEP_SEARCH`, `DOCUMENT_CLASSIFICATION`, `EMBEDDINGS`, `TRANSCRIPTION` or `OTHER`.
+`CODE_DEEP_SEARCH`, `DOCUMENT_CLASSIFICATION`, `STORY_IMPROVEMENT` (proposing an AI improvement of a story, `docs/STORY_IMPROVEMENT.md`), `EMBEDDINGS`, `TRANSCRIPTION` or `OTHER`.
 
 The caller names the feature and project with `AiUsageScope.call(feature, projectId, ...)`; adapters report
 through the shared `AiUsageReporter`, which writes on a small worker pool so the AI call never waits for, or
@@ -184,7 +184,7 @@ counts as tokens.
   (`WARNING_80`, `WARNING_90`, `EXHAUSTED`) and a `TOKEN_QUOTA_WARNING` message is pushed to
   `/topic/organizations/{orgId}/usage`, once per level per period (the level reached is stored in
   `subscriptions.quota_warning_percent` with a conditional UPDATE and zeroed with the counter).
-- At 100 % AI generation stops and nothing else does: the chat, "Analizar ahora" and other explicit AI requests fail
+- At 100 % AI generation stops and nothing else does: the chat, "Analizar ahora", "Mejorar con IA" and other explicit AI requests fail
   with `AI_QUOTA_EXCEEDED` (HTTP 402; `plan`, `limit`, `used` and `resetsAt` in the body); live suggestions pause
   quietly, once telling the session with an `AI_QUOTA_PAUSED` message on `/topic/sessions/{id}` and picking the
   transcript up again when the allowance renews; code indexing keeps the structural description of the modules;

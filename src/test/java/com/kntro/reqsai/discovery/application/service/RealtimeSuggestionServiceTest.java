@@ -761,4 +761,37 @@ class RealtimeSuggestionServiceTest {
             verifyNoInteractions(suggestionCreation);
         }
     }
+
+    @Test
+    @DisplayName("profileContextFor reads the project profile nearest to the text, with no backlog and no reindexing")
+    void profile_context_has_no_backlog() {
+        UUID projectId = UUID.randomUUID();
+        float[] vector = new float[]{0.1f, 0.2f};
+        ProjectSnapshot snapshot = new ProjectSnapshot(projectId, "PayApp", "Payment platform",
+                List.of("Java"), List.of("Spring"), List.of("Web"), List.of("PostgreSQL"), "Microservices", "Finance",
+                List.of("PCI-DSS compliant"), List.of(new GlossaryTermSnapshot("Sprint", "Iteration")));
+        when(embeddingPort.isAvailable()).thenReturn(true);
+        when(embeddingPort.embed(any())).thenReturn(vector);
+        when(workspaceApi.findRelevantContext(eq(projectId), eq(vector), eq(5))).thenReturn(Optional.of(snapshot));
+
+        GenerationContext context = service.profileContextFor(projectId, "Exportar el backlog").orElseThrow();
+
+        assertThat(context.projectName()).isEqualTo("PayApp");
+        assertThat(context.constraints()).containsExactly("PCI-DSS compliant");
+        assertThat(context.glossaryTerms()).extracting(GenerationContext.GlossaryEntry::term).containsExactly("Sprint");
+        assertThat(context.existingStories()).isEmpty();
+        assertThat(context.alreadySuggested()).isEmpty();
+        verifyNoInteractions(stories, reindexService, codebase);
+    }
+
+    @Test
+    @DisplayName("profileContextFor falls back to the whole profile without embeddings, and is empty for an unknown project")
+    void profile_context_without_embeddings() {
+        UUID projectId = UUID.randomUUID();
+        when(embeddingPort.isAvailable()).thenReturn(false);
+        when(workspaceApi.findProjectSnapshot(projectId)).thenReturn(Optional.empty());
+
+        assertThat(service.profileContextFor(projectId, "texto")).isEmpty();
+        verify(workspaceApi, never()).findRelevantContext(any(), any(), anyInt());
+    }
 }

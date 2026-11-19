@@ -375,6 +375,20 @@ public class RealtimeSuggestionService {
         return Optional.ofNullable(buildContext(projectId, text, pending, "project " + projectId));
     }
 
+    /**
+     * The project's profile for text that is not a transcript, such as a story to improve: description, domain,
+     * technical profile, and the glossary terms, constraints and client documents nearest to {@code text} (all of
+     * them when no embedding is available). No backlog and no code: nothing is retrieved or reindexed, so it only
+     * reads. Empty when the project no longer exists.
+     */
+    public Optional<GenerationContext> profileContextFor(UUID projectId, String text) {
+        float[] queryEmbedding = tryEmbed(text);
+        Optional<ProjectSnapshot> snapshot = queryEmbedding != null
+                ? workspaceApi.findRelevantContext(projectId, queryEmbedding, contextTopK)
+                : workspaceApi.findProjectSnapshot(projectId);
+        return snapshot.map(GenerationContext::from);
+    }
+
     private @Nullable GenerationContext buildContext(UUID projectId, String recentText, List<Suggestion> pending,
                                                      String scope) {
         float[] queryEmbedding = tryEmbed(recentText);

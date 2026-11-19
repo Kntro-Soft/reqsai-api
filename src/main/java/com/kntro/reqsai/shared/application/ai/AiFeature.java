@@ -26,6 +26,9 @@ public enum AiFeature {
     /** Reading an uploaded client document into a summary, glossary terms and constraints. */
     DOCUMENT_CLASSIFICATION,
 
+    /** Proposing an improved version of a story that does not meet the quality characteristics. */
+    STORY_IMPROVEMENT,
+
     /** Embedding vectors for similarity search; billable but cheap, so weighted down in the quota. */
     EMBEDDINGS,
 
