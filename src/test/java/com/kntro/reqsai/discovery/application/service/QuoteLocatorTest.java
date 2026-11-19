@@ -55,4 +55,23 @@ class QuoteLocatorTest {
         assertThat(QuoteLocator.locate(null, SEGMENTS)).isNull();
         assertThat(QuoteLocator.NONE.sequenceOf("cualquier cosa")).isNull();
     }
+
+    @Test
+    @DisplayName("US72: the span of a quote is the segment holding it, or the first and last of those it runs across")
+    void span() {
+        assertThat(QuoteLocator.span("el comensal pueda CANCELAR su reserva", SEGMENTS))
+                .isEqualTo(new QuoteLocator.Span(5, 5));
+
+        List<TranscriptSegment> live = List.of(
+                new TranscriptSegment(SESSION, 1, "0", "Somos un restaurante y queremos reservas en línea.", 0, 1000, true),
+                new TranscriptSegment(SESSION, 2, "0", "Como cliente, quiero reservar una mesa desde la página web,", 1000, 2000, true),
+                new TranscriptSegment(SESSION, 3, "0", "eligiendo la fecha, la hora y el número de personas,", 2000, 3000, true),
+                new TranscriptSegment(SESSION, 4, "0", "para no tener que llamar por teléfono.", 3000, 4000, true));
+        assertThat(QuoteLocator.span("Como cliente, quiero reservar una mesa desde la página web, eligiendo la "
+                + "fecha, la hora y el número de personas, para no tener que llamar por teléfono.", live))
+                .isEqualTo(new QuoteLocator.Span(2, 4));
+        assertThat(QuoteLocator.span("reservar una mesa en la web eligiendo fecha, hora y número de personas", live))
+                .isEqualTo(new QuoteLocator.Span(2, 3));
+        assertThat(QuoteLocator.span("necesitamos exportar a Excel", SEGMENTS)).isNull();
+    }
 }

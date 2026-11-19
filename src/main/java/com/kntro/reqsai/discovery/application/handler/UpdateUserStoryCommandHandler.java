@@ -2,6 +2,7 @@ package com.kntro.reqsai.discovery.application.handler;
 
 import com.kntro.reqsai.discovery.application.command.UpdateUserStoryCommand;
 import com.kntro.reqsai.discovery.application.port.UserStoryRepository;
+import com.kntro.reqsai.discovery.application.service.StoryQualityAssessor;
 import com.kntro.reqsai.discovery.domain.exception.DiscoveryExceptions;
 import com.kntro.reqsai.discovery.domain.model.UserStory;
 import lombok.RequiredArgsConstructor;
@@ -16,7 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
  * Deliberately a straight field update: unlike creation, it does NOT run deduplication or recompute
  * the similarity embedding. A manual edit is analyst intent, not a new candidate to dedup against the
  * backlog, so the story keeps its existing indexed/embedded state (the async re-index pass already
- * covers stories that need a fresh embedding).
+ * covers stories that need a fresh embedding). A story that already has a quality assessment gets it
+ * refreshed, so the score never describes text that is no longer there.
  */
 @Component
 @RequiredArgsConstructor
@@ -24,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class UpdateUserStoryCommandHandler {
 
     private final UserStoryRepository stories;
+    private final StoryQualityAssessor qualityAssessor;
 
     @Transactional
     public UserStory handle(UpdateUserStoryCommand command) {
@@ -34,6 +37,7 @@ public class UpdateUserStoryCommandHandler {
                 command.benefit(), command.priority(), command.storyPoints());
 
         UserStory saved = stories.save(story);
+        qualityAssessor.refreshIfAssessed(saved);
         log.info("User story {} updated for project {}", saved.getId(), command.projectId());
         return saved;
     }

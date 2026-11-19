@@ -30,6 +30,11 @@ constraints and a context summary. It follows the same `reqsai.ai.generation.pro
 (`openai` → `OpenAiChatModel` in JSON mode, otherwise the configured `ChatModel`). With no chat model
 configured the upload still works: the document is stored unclassified, with an excerpt as summary.
 
+The story improvement (US73, `docs/STORY_IMPROVEMENT.md`) is one more consumer of the generation capability: its
+`StoryImprovementPort` follows the same `reqsai.ai.generation.provider` switch, so a local model behind either provider
+serves it too. Without a chat model the proposal answers `422 REQUIREMENT_GENERATION_FAILED`; applying a reviewed
+proposal needs no model.
+
 ## Provider options per capability
 
 | Capability | Local (free, offline)                                                      | Cloud (managed)                                      |

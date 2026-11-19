@@ -39,6 +39,7 @@ class StartRecordingCommandHandlerTest {
     void should_start_when_none_active() {
         UUID projectId = UUID.randomUUID();
         DiscoverySession session = DiscoverySessionMother.draft().withProjectId(projectId).build();
+        session.confirmRecordingConsent(UUID.randomUUID(), Instant.now());
         when(sessions.findById(session.getId())).thenReturn(Optional.of(session));
         when(sessions.findActiveByProjectId(projectId)).thenReturn(Optional.empty());
         when(sessions.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -53,6 +54,7 @@ class StartRecordingCommandHandlerTest {
     void should_reject_when_another_active() {
         UUID projectId = UUID.randomUUID();
         DiscoverySession session = DiscoverySessionMother.draft().withProjectId(projectId).build();
+        session.confirmRecordingConsent(UUID.randomUUID(), Instant.now());
         DiscoverySession active = DiscoverySessionMother.draft().withProjectId(projectId).build();
         active.startRecording(Instant.now());
         when(sessions.findById(session.getId())).thenReturn(Optional.of(session));
@@ -64,6 +66,23 @@ class StartRecordingCommandHandlerTest {
                     assertThat(((DomainException) e).error()).isEqualTo(DiscoveryError.SESSION_ALREADY_ACTIVE);
                     assertThat(e.getMessage()).contains(active.getId().toString());
                 });
+        verify(sessions, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("should not start the capture and report the reason when the consent was not confirmed")
+    void should_reject_when_consent_not_confirmed() {
+        UUID projectId = UUID.randomUUID();
+        DiscoverySession session = DiscoverySessionMother.draft().withProjectId(projectId).build();
+        when(sessions.findById(session.getId())).thenReturn(Optional.of(session));
+
+        assertThatThrownBy(() -> handler.handle(new StartRecordingCommand(projectId, session.getId())))
+                .isInstanceOf(DomainException.class)
+                .satisfies(e -> {
+                    assertThat(((DomainException) e).error()).isEqualTo(DiscoveryError.RECORDING_CONSENT_REQUIRED);
+                    assertThat(e.getMessage()).contains("consent");
+                });
+        assertThat(session.getStatus()).isEqualTo(SessionStatus.DRAFT);
         verify(sessions, never()).save(any());
     }
 }

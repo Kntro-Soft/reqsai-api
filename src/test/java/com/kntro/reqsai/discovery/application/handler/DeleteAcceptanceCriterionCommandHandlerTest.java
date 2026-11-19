@@ -2,6 +2,7 @@ package com.kntro.reqsai.discovery.application.handler;
 
 import com.kntro.reqsai.discovery.application.command.DeleteAcceptanceCriterionCommand;
 import com.kntro.reqsai.discovery.application.port.UserStoryRepository;
+import com.kntro.reqsai.discovery.application.service.StoryQualityAssessor;
 import com.kntro.reqsai.discovery.domain.model.AcceptanceCriterion;
 import com.kntro.reqsai.discovery.domain.model.UserStory;
 import com.kntro.reqsai.discovery.mothers.UserStoryMother;
@@ -27,12 +28,14 @@ class DeleteAcceptanceCriterionCommandHandlerTest {
 
     @Mock
     private UserStoryRepository stories;
+    @Mock
+    private StoryQualityAssessor qualityAssessor;
 
     private DeleteAcceptanceCriterionCommandHandler handler;
 
     @BeforeEach
     void setUp() {
-        handler = new DeleteAcceptanceCriterionCommandHandler(stories);
+        handler = new DeleteAcceptanceCriterionCommandHandler(stories, qualityAssessor);
     }
 
     @Test
@@ -55,6 +58,7 @@ class DeleteAcceptanceCriterionCommandHandlerTest {
 
         // Assert
         verify(stories).save(story);
+        verify(qualityAssessor).refreshIfAssessed(story);
         assertThat(story.getAcceptanceCriteria()).isEmpty();
     }
 
@@ -75,5 +79,6 @@ class DeleteAcceptanceCriterionCommandHandlerTest {
                 .isInstanceOf(DomainException.class);
 
         verify(stories, never()).save(any());
+        verifyNoInteractions(qualityAssessor);
     }
 }

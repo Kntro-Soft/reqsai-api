@@ -14,6 +14,7 @@ import jakarta.persistence.Table;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.OrderBy;
 import lombok.Getter;
 import org.hibernate.annotations.Array;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -21,6 +22,7 @@ import org.hibernate.type.SqlTypes;
 import org.jspecify.annotations.Nullable;
 
 import java.text.Normalizer;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -37,8 +39,8 @@ import java.util.UUID;
 @Getter
 public class UserStory extends AggregateRoot {
 
-    private static final int TITLE_MAX = 200;
-    private static final int FIELD_MAX = 500;
+    public static final int TITLE_MAX = 200;
+    public static final int FIELD_MAX = 500;
     private static final int ENUM_MAX = 16;
     /**
      * Cosine similarity threshold above which two stories are considered near-duplicates.
@@ -101,6 +103,30 @@ public class UserStory extends AggregateRoot {
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "code_refs", columnDefinition = "jsonb", nullable = false)
     private List<CodeReference> codeReferences = new ArrayList<>();
+
+    // ── Review decision and generated baseline (US71 quality indicators) ─────────
+
+    /**
+     * When the current review decision (approved or rejected) was taken; null while the story is in draft and
+     * for decisions taken before it was recorded.
+     */
+    @Column(name = "reviewed_at")
+    private @Nullable Instant reviewedAt;
+
+    /**
+     * The text the AI proposed, frozen when the story was generated or accepted from a suggestion; null for
+     * stories that did not come from the AI. See {@link StoryText}.
+     */
+    @Column(name = "generated_text", columnDefinition = "text")
+    private @Nullable String generatedText;
+    /**
+     * Every fragment of a meeting the story comes from (US72): the one it was generated or accepted from,
+     * and those of the suggestions that later refined it. Empty for a manual story and for one created
+     * before fragments were kept.
+     */
+    @OneToMany(mappedBy = "story", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @OrderBy("createdAt ASC, id ASC")
+    private List<StorySourceFragment> sourceFragments = new ArrayList<>();
 
     protected UserStory() {
         super();
@@ -165,8 +191,28 @@ public class UserStory extends AggregateRoot {
             this.originQuote = text.length() <= 500 ? text : text.substring(0, 497) + "...";
             this.originSessionId = sessionId;
             this.originSequence = sessionId == null ? null : sequence;
+            addSource(sessionId, sequence, quote);
         }
         this.codeReferences = references == null ? new ArrayList<>() : new ArrayList<>(references);
+    }
+
+    /**
+     * Keeps one more fragment of a meeting the story comes from: the session, the transcript segment where
+     * the quote starts (null when it was not located) and the quote. Nothing is kept without a session or a
+     * quote, nor a quote of that session the story already has.
+     */
+    public void addSource(@Nullable UUID sessionId, @Nullable Integer sequence, @Nullable String quote) {
+        if (sessionId == null || quote == null || quote.isBlank()) {
+            return;
+        }
+        if (sourceFragments.stream().noneMatch(f -> f.sameAs(sessionId, quote))) {
+            sourceFragments.add(new StorySourceFragment(this, sessionId, sequence, quote));
+        }
+    }
+
+    /** Returns an unmodifiable view of the meeting fragments the story comes from, oldest first. */
+    public List<StorySourceFragment> getSourceFragments() {
+        return Collections.unmodifiableList(sourceFragments);
     }
 
     /**
@@ -252,12 +298,40 @@ public class UserStory extends AggregateRoot {
      * no-op.
      */
     public void changeReviewStatus(StoryStatus target) {
+        changeReviewStatus(target, Instant.now());
+    }
+
+    /** As {@link #changeReviewStatus(StoryStatus)}, with the instant the decision is taken. */
+    public void changeReviewStatus(StoryStatus target, Instant decidedAt) {
         Assert.notNull(target, "status");
+        Assert.notNull(decidedAt, "decidedAt");
         Assert.isTrue(target.isReviewable(), "status",
                 "a review can only set DRAFT, APPROVED or REJECTED but was " + target, DiscoveryError.INVALID_STORY_STATUS);
         Assert.isTrue(this.status.isReviewable(), "status",
                 "a review requires DRAFT, APPROVED or REJECTED but the story is " + this.status, DiscoveryError.INVALID_STORY_STATUS);
+        if (target == this.status) {
+            return;
+        }
         this.status = target;
+        this.reviewedAt = target == StoryStatus.DRAFT ? null : decidedAt;
+    }
+
+    /**
+     * Freezes what the story says now as the text the AI proposed. Call it once, when the AI-generated story is
+     * complete (criteria included), or again when an accepted AI update changed it.
+     */
+    public void captureGeneratedText() {
+        this.generatedText = StoryText.of(this);
+    }
+
+    /** Freezes {@code text}, composed with {@link StoryText}, as the text the AI proposed. */
+    public void captureGeneratedText(String text) {
+        this.generatedText = Assert.notBlank(text, "generatedText");
+    }
+
+    /** What the story says now, composed like {@link #getGeneratedText()}. */
+    public String currentText() {
+        return StoryText.of(this);
     }
 
     /**

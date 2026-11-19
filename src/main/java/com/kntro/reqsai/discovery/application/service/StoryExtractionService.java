@@ -71,6 +71,7 @@ public class StoryExtractionService {
                 String quote = gen.insight().evidenceQuote();
                 story.recordOrigin(sessionId, locator.sequenceOf(quote), quote, gen.insight().codeReferences());
             }
+            story.captureGeneratedText();
             deduplication.embedAndGuardDuplicates(story);
             return Optional.of(stories.save(story));
         } catch (DomainException e) {

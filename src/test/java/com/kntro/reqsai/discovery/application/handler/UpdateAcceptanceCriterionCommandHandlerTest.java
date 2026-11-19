@@ -2,6 +2,7 @@ package com.kntro.reqsai.discovery.application.handler;
 
 import com.kntro.reqsai.discovery.application.command.UpdateAcceptanceCriterionCommand;
 import com.kntro.reqsai.discovery.application.port.UserStoryRepository;
+import com.kntro.reqsai.discovery.application.service.StoryQualityAssessor;
 import com.kntro.reqsai.discovery.domain.model.AcceptanceCriterion;
 import com.kntro.reqsai.discovery.domain.model.UserStory;
 import com.kntro.reqsai.discovery.mothers.UserStoryMother;
@@ -27,12 +28,14 @@ class UpdateAcceptanceCriterionCommandHandlerTest {
 
     @Mock
     private UserStoryRepository stories;
+    @Mock
+    private StoryQualityAssessor qualityAssessor;
 
     private UpdateAcceptanceCriterionCommandHandler handler;
 
     @BeforeEach
     void setUp() {
-        handler = new UpdateAcceptanceCriterionCommandHandler(stories);
+        handler = new UpdateAcceptanceCriterionCommandHandler(stories, qualityAssessor);
     }
 
     @Test
@@ -63,6 +66,7 @@ class UpdateAcceptanceCriterionCommandHandlerTest {
         assertThat(result.getThen()).isEqualTo("updated then");
 
         verify(stories).save(story);
+        verify(qualityAssessor).refreshIfAssessed(story);
     }
 
     @Test
@@ -84,5 +88,6 @@ class UpdateAcceptanceCriterionCommandHandlerTest {
                 .isInstanceOf(DomainException.class);
 
         verify(stories, never()).save(any());
+        verifyNoInteractions(qualityAssessor);
     }
 }

@@ -24,6 +24,9 @@ public interface TranscriptSegmentJpaRepository extends JpaRepository<Transcript
     @Query("SELECT ts FROM TranscriptSegment ts WHERE ts.sessionId = :sessionId AND ts.isFinal = true AND ts.sequence < :beforeSequence ORDER BY ts.sequence DESC")
     List<TranscriptSegment> findFinalBySessionIdBefore(@Param("sessionId") UUID sessionId, @Param("beforeSequence") int beforeSequence, Pageable pageable);
 
+    @Query("SELECT ts FROM TranscriptSegment ts WHERE ts.sessionId = :sessionId AND ts.isFinal = true AND ts.sequence BETWEEN :fromSequence AND :toSequence ORDER BY ts.sequence ASC")
+    List<TranscriptSegment> findFinalBySessionIdBetween(@Param("sessionId") UUID sessionId, @Param("fromSequence") int fromSequence, @Param("toSequence") int toSequence);
+
     long countBySessionIdAndIsFinalTrue(UUID sessionId);
 
     @Query("SELECT new com.kntro.reqsai.discovery.domain.model.SpeakerSpan(ts.speakerLabel, ts.startMs, ts.endMs) "

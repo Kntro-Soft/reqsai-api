@@ -8,6 +8,7 @@ import com.kntro.reqsai.discovery.domain.model.StoryStatus;
 import com.kntro.reqsai.discovery.domain.model.Suggestion;
 import com.kntro.reqsai.discovery.domain.model.SuggestionStatus;
 import com.kntro.reqsai.discovery.domain.model.UserStory;
+import com.kntro.reqsai.discovery.mothers.UserStoryMother;
 import com.kntro.reqsai.shared.application.port.EmbeddingPort;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -351,5 +352,79 @@ class AcceptSuggestionCommandHandlerTest {
 
         assertThat(result.getResolvedStoryId()).isNull();
         assertThat(result.getResolvedStoryStatus()).isNull();
+    }
+
+    @Test
+    @DisplayName("US72: accepting a NEW_STORY suggestion keeps the fragment of the meeting it was said in")
+    void should_keep_the_source_fragment_of_a_new_story() {
+        Suggestion suggestion = pendingNewStory();
+        suggestion.annotate(8, "Queremos entrar con la cuenta de Google", null, null, null);
+        when(suggestions.findByIdAndSessionIdForUpdate(any(), any())).thenReturn(Optional.of(suggestion));
+        when(embeddingPort.isAvailable()).thenReturn(false);
+        when(storyRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        handler.handle(accept(suggestion));
+
+        var captor = ArgumentCaptor.forClass(UserStory.class);
+        verify(storyRepo).save(captor.capture());
+        assertThat(captor.getValue().getSourceFragments()).singleElement().satisfies(f -> {
+            assertThat(f.getSessionId()).isEqualTo(suggestion.getSessionId());
+            assertThat(f.getSequence()).isEqualTo(8);
+            assertThat(f.getQuote()).isEqualTo("Queremos entrar con la cuenta de Google");
+        });
+    }
+
+    @Test
+    @DisplayName("US72: accepting an UPDATE_STORY or EDGE_CASE suggestion adds its fragment to the target story")
+    void should_add_the_fragment_to_the_target_story() {
+        when(embeddingPort.isAvailable()).thenReturn(false);
+        when(storyRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        UserStory target = story();
+        UUID sessionId = UUID.randomUUID();
+        UserStory manual = UserStoryMother.draft().withProjectId(target.getProjectId()).build();
+        Suggestion update = Suggestion.updateStory(sessionId, target.getProjectId(),
+                "Login", "user", "log in", "access the app", Priority.HIGH, 3, target.getId(), List.of());
+        update.annotate(3, "También con Facebook", null, null, null);
+        Suggestion edge = Suggestion.edgeCase(sessionId, manual.getProjectId(),
+                "Cuenta bloqueada", "usuario", "iniciar sesión", "acceder", Priority.MEDIUM, 2,
+                "inicio de sesión", manual.getId(),
+                new Suggestion.DraftCriterion("Bloqueo", "falló 5 veces", "reintenta", "se bloquea"));
+        edge.annotate(null, "Se bloquea tras cinco intentos", null, null, null);
+        when(storyRepo.findById(target.getId())).thenReturn(Optional.of(target));
+        when(storyRepo.findById(manual.getId())).thenReturn(Optional.of(manual));
+        when(suggestions.findByIdAndSessionIdForUpdate(any(), any())).thenReturn(Optional.of(update), Optional.of(edge));
+
+        handler.handle(accept(update));
+        handler.handle(accept(edge));
+
+        assertThat(target.getSourceFragments()).singleElement().satisfies(f -> {
+            assertThat(f.getQuote()).isEqualTo("También con Facebook");
+            assertThat(f.getSequence()).isEqualTo(3);
+        });
+        assertThat(manual.getSessionId()).isNull();
+        assertThat(manual.getSourceFragments()).singleElement().satisfies(f -> {
+            assertThat(f.getSessionId()).isEqualTo(sessionId);
+            assertThat(f.getSequence()).isNull();
+        });
+    }
+
+    @Test
+    @DisplayName("US72: a suggestion without evidence, or from the assistant chat, leaves no fragment")
+    void should_leave_no_fragment_without_evidence_or_session() {
+        when(embeddingPort.isAvailable()).thenReturn(false);
+        when(storyRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        Suggestion withoutEvidence = pendingNewStory();
+        Suggestion fromChat = Suggestion.newStory(null, UUID.randomUUID(),
+                "Login", "user", "log in", "access the app", Priority.HIGH, 3);
+        fromChat.annotate(null, "Algo dicho en el chat", null, null, null);
+        when(suggestions.findByIdAndSessionIdForUpdate(any(), any())).thenReturn(Optional.of(withoutEvidence));
+        when(suggestions.findByIdAndProjectIdForUpdate(any(), any())).thenReturn(Optional.of(fromChat));
+
+        handler.handle(accept(withoutEvidence));
+        handler.handleInProject(fromChat.getProjectId(), accept(fromChat));
+
+        var captor = ArgumentCaptor.forClass(UserStory.class);
+        verify(storyRepo, org.mockito.Mockito.times(2)).save(captor.capture());
+        assertThat(captor.getAllValues()).allSatisfy(s -> assertThat(s.getSourceFragments()).isEmpty());
     }
 }

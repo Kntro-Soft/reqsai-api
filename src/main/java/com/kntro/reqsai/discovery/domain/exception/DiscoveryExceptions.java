@@ -4,6 +4,7 @@ import com.kntro.reqsai.discovery.domain.model.SuggestionStatus;
 import com.kntro.reqsai.shared.domain.exception.DomainException;
 import com.kntro.reqsai.shared.domain.exception.EntityNotFoundException;
 
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -39,6 +40,11 @@ public final class DiscoveryExceptions {
                 "Acceptance criterion '%s' not found on this story".formatted(id));
     }
 
+    public static EntityNotFoundException storyQualityNotEvaluated(java.util.UUID storyId) {
+        return new EntityNotFoundException(DiscoveryError.STORY_QUALITY_NOT_EVALUATED,
+                "User story '%s' has not been quality-evaluated yet".formatted(storyId));
+    }
+
     public static DomainException requirementGenerationFailed(String reason) {
         return new DomainException(DiscoveryError.REQUIREMENT_GENERATION_FAILED,
                 "Requirement generation failed: " + reason);
@@ -63,6 +69,13 @@ public final class DiscoveryExceptions {
     public static DomainException codeVerificationFailed(String reason) {
         return new DomainException(DiscoveryError.CODE_VERIFICATION_FAILED,
                 "The verification in the code failed: " + reason);
+    }
+
+    /** An improved story was applied while some pending-value placeholders were still in its text. */
+    public static DomainException improvementPendingValues(List<String> tokens) {
+        return new DomainException(DiscoveryError.IMPROVEMENT_PENDING_VALUES,
+                "The improved story still has %d pending value(s) to fill in before it can be applied: %s"
+                        .formatted(tokens.size(), String.join(", ", tokens)));
     }
 
     public static DomainException edgeCaseWithoutTarget(java.util.UUID id) {

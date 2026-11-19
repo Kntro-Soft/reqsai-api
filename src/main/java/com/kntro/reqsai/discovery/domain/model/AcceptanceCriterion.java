@@ -24,8 +24,8 @@ import org.jspecify.annotations.Nullable;
 @Getter
 public class AcceptanceCriterion extends AuditableEntity {
 
-    private static final int FIELD_MAX = 1000;
-    private static final int SCENARIO_MAX = 200;
+    public static final int FIELD_MAX = 1000;
+    public static final int SCENARIO_MAX = 200;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "story_id", nullable = false, updatable = false)

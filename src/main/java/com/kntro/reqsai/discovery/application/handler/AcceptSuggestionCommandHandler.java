@@ -6,6 +6,7 @@ import com.kntro.reqsai.discovery.application.port.UserStoryRepository;
 import com.kntro.reqsai.discovery.domain.exception.DiscoveryExceptions;
 import com.kntro.reqsai.discovery.domain.model.Priority;
 import com.kntro.reqsai.discovery.domain.model.StoryStatus;
+import com.kntro.reqsai.discovery.domain.model.StoryText;
 import com.kntro.reqsai.discovery.domain.model.Suggestion;
 import com.kntro.reqsai.discovery.domain.model.SuggestionType;
 import com.kntro.reqsai.discovery.domain.model.UserStory;
@@ -75,13 +76,16 @@ public class AcceptSuggestionCommandHandler {
     }
 
     private Suggestion accept(Suggestion suggestion, AcceptSuggestionCommand cmd) {
+        // What the AI proposed, before the analyst's edits replace the draft criteria (quality indicators).
+        String proposedText = StoryText.of(suggestion);
+
         // Apply the analyst's edited acceptance criteria (when sent) up front so every accept path —
         // and the SuggestionAcceptedEvent — sees the committed set rather than the raw draft.
         applyEditedCriteria(suggestion, cmd);
 
         Resolution resolution = switch (suggestion.getType()) {
-            case NEW_STORY          -> acceptAsNewStory(suggestion, cmd);
-            case UPDATE_STORY       -> acceptAsUpdate(suggestion, cmd);
+            case NEW_STORY          -> acceptAsNewStory(suggestion, cmd, proposedText);
+            case UPDATE_STORY       -> acceptAsUpdate(suggestion, cmd, proposedText);
             case EDGE_CASE          -> acceptAsEdgeCase(suggestion, cmd);
             case CLARIFYING_QUESTION -> new Resolution(null, null);
         };
@@ -115,7 +119,7 @@ public class AcceptSuggestionCommandHandler {
 
     // ── Type-specific acceptance logic ────────────────────────────────────────
 
-    private Resolution acceptAsNewStory(Suggestion s, AcceptSuggestionCommand cmd) {
+    private Resolution acceptAsNewStory(Suggestion s, AcceptSuggestionCommand cmd, String proposedText) {
         // A suggestion from the assistant chat has no session: its story starts with no originating session.
         UserStory story = s.getSessionId() != null
                 ? new UserStory(s.getSessionId(), s.getProjectId(),
@@ -131,15 +135,16 @@ public class AcceptSuggestionCommandHandler {
         }
         // Traceability: the story keeps where it was said and the client's code it relates to.
         story.recordOrigin(s.getSessionId(), s.getEvidenceSequence(), s.getEvidenceQuote(), s.getCodeReferences());
+        story.captureGeneratedText(proposedText);
         embedIfAvailable(story);
         return save(story, cmd);
     }
 
-    private Resolution acceptAsUpdate(Suggestion s, AcceptSuggestionCommand cmd) {
+    private Resolution acceptAsUpdate(Suggestion s, AcceptSuggestionCommand cmd, String proposedText) {
         UserStory target = resolveTarget(s);
         if (target == null) {
             log.warn("UPDATE_STORY suggestion {} has no usable target story; creating as new story", s.getId());
-            return acceptAsNewStory(s, cmd);
+            return acceptAsNewStory(s, cmd, proposedText);
         }
         target.updateFrom(title(s, cmd), role(s, cmd), action(s, cmd), benefit(s, cmd),
                 priority(s, cmd), storyPoints(s, cmd));
@@ -150,6 +155,9 @@ public class AcceptSuggestionCommandHandler {
                 target.addAcceptanceCriterion(c.scenario(), c.given(), c.when(), c.then());
             }
         }
+        rebaseGeneratedText(target, cmd);
+        // Traceability: the story also comes from where this suggestion was said.
+        target.addSource(s.getSessionId(), s.getEvidenceSequence(), s.getEvidenceQuote());
         embedIfAvailable(target);
         return save(target, cmd);
     }
@@ -174,7 +182,30 @@ public class AcceptSuggestionCommandHandler {
             return save(target, cmd);
         }
         target.addAcceptanceCriterion(criterion.scenario(), criterion.given(), criterion.when(), criterion.then());
+        rebaseGeneratedText(target, cmd);
+        target.addSource(s.getSessionId(), s.getEvidenceSequence(), s.getEvidenceQuote());
         return save(target, cmd);
+    }
+
+    /**
+     * An AI-generated story that the AI itself updated (an accepted update or edge case, taken as proposed) still
+     * says what the AI proposes, so its baseline moves with it. Any analyst edit leaves the baseline alone: that
+     * change is the analyst's.
+     */
+    private static void rebaseGeneratedText(UserStory story, AcceptSuggestionCommand cmd) {
+        if (story.getGeneratedText() != null && !hasAnalystEdits(cmd)) {
+            story.captureGeneratedText();
+        }
+    }
+
+    private static boolean hasAnalystEdits(AcceptSuggestionCommand cmd) {
+        return isPresent(cmd.editedTitle()) || isPresent(cmd.editedRole()) || isPresent(cmd.editedAction())
+                || isPresent(cmd.editedBenefit()) || cmd.editedPriority() != null || cmd.editedStoryPoints() != null
+                || cmd.editedAcceptanceCriteria() != null;
+    }
+
+    private static boolean isPresent(@Nullable String value) {
+        return value != null && !value.isBlank();
     }
 
     // ── Field resolution (edited override → draft fallback) ───────────────────

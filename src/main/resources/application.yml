@@ -138,6 +138,11 @@ reqsai:
       email-verification-expiration: ${IAM_EMAIL_VERIFICATION_EXPIRATION:24h}
   invitation:
     expiry: ${INVITATION_EXPIRY:7d}
+  discovery:
+    audio-retention:
+      enabled: ${AUDIO_RETENTION_PURGE_ENABLED:true}
+      cron: ${AUDIO_RETENTION_PURGE_CRON:0 30 3 * * *}
+      batch-size: ${AUDIO_RETENTION_PURGE_BATCH_SIZE:200}
   billing:
     # Active payment gateway: 'fake' (default, no real charges) or 'stripe'.
     payment-provider: ${BILLING_PAYMENT_PROVIDER:fake}

@@ -10,7 +10,8 @@ import org.springframework.http.HttpStatus;
 public enum OverviewError implements ErrorCatalog {
 
     OVERVIEW_PROJECT_NOT_FOUND(HttpStatus.NOT_FOUND), OVERVIEW_ACCESS_DENIED(
-            HttpStatus.FORBIDDEN), OVERVIEW_ORGANIZATION_MISMATCH(HttpStatus.FORBIDDEN);
+            HttpStatus.FORBIDDEN), OVERVIEW_ORGANIZATION_MISMATCH(HttpStatus.FORBIDDEN), QUALITY_ACCESS_DENIED(
+                    HttpStatus.FORBIDDEN), QUALITY_INVALID_PERIOD(HttpStatus.BAD_REQUEST);
 
     private final HttpStatus status;
 

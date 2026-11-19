@@ -5,6 +5,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -43,4 +44,11 @@ public interface DiscoverySessionRepository {
      * @param suggestedAt       the instant of this suggestion pass
      */
     void advanceSuggestionWatermark(UUID sessionId, int suggestedSequence, Instant suggestedAt);
+
+    /**
+     * Sessions whose stored audio is due for deletion by the retention purge: stored at or before
+     * {@code storedBefore}, not purged yet and not in progress. Oldest first, at most {@code limit}.
+     * Tenant-scoped: only the active schema is searched.
+     */
+    List<DiscoverySession> findAudioPurgeCandidates(Instant storedBefore, int limit);
 }

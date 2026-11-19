@@ -32,4 +32,11 @@ public interface DiscoveryInsightsPort {
      * with none are absent.
      */
     List<ProjectActivity> activityByProject(Collection<UUID> projectIds);
+
+    /**
+     * The stories decided and the meetings held in one project during
+     * {@code [from, to)}, with what is needed to judge how much the AI's stories
+     * were rewritten and how long their review took.
+     */
+    QualityEvidence qualityEvidence(UUID projectId, Instant from, Instant to);
 }

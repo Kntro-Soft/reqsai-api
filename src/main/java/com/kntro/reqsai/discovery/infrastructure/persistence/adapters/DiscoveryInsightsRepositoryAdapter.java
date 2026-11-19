@@ -4,7 +4,9 @@ import com.kntro.reqsai.discovery.application.port.DiscoveryInsightsRepository;
 import com.kntro.reqsai.discovery.domain.model.Priority;
 import com.kntro.reqsai.discovery.domain.model.SessionStatus;
 import com.kntro.reqsai.discovery.domain.model.StoryStatus;
+import com.kntro.reqsai.discovery.domain.model.UserStory;
 import com.kntro.reqsai.discovery.infrastructure.persistence.repositories.DiscoveryInsightsJpaRepository;
+import com.kntro.reqsai.discovery.insights.HeldSession;
 import com.kntro.reqsai.discovery.insights.ProjectActivity;
 import com.kntro.reqsai.discovery.insights.RecentSession;
 import com.kntro.reqsai.discovery.insights.RecentStory;
@@ -105,6 +107,24 @@ public class DiscoveryInsightsRepositoryAdapter implements DiscoveryInsightsRepo
         return counts.entrySet().stream()
                 .map(e -> new ProjectActivity(e.getKey(), e.getValue()[0], e.getValue()[1], latest.get(e.getKey())))
                 .sorted(Comparator.comparing(ProjectActivity::projectId)).toList();
+    }
+
+    @Override
+    public List<UserStory> storiesDecidedBetween(UUID projectId, Instant from, Instant to) {
+        return jpa.decidedBetween(projectId, List.of(StoryStatus.APPROVED, StoryStatus.EXPORTED, StoryStatus.REJECTED),
+                from, to);
+    }
+
+    @Override
+    public List<HeldSession> sessionsEndedBetween(UUID projectId, Instant from, Instant to) {
+        return jpa.sessionsEndedBetween(projectId, from, to).stream().map(row -> {
+            long inDraft = num(row[4]);
+            long decided = num(row[5]);
+            long undated = num(row[6]);
+            // Finished only when every story left draft and every decision has its time.
+            Instant finished = inDraft == 0 && decided > 0 && undated == 0 && row[7] != null ? instant(row[7]) : null;
+            return new HeldSession(uuid(row[0]), (String) row[1], (String) row[2], instant(row[3]), finished);
+        }).toList();
     }
 
     private static <E extends Enum<E>> Map<E, Long> counts(List<Object[]> rows, Class<E> type,

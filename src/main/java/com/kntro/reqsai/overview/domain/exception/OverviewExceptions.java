@@ -25,4 +25,14 @@ public final class OverviewExceptions {
         return new DomainException(OverviewError.OVERVIEW_ORGANIZATION_MISMATCH,
                 "The session is not bound to organization " + organizationId);
     }
+
+    public static DomainException qualityAccessDenied(UUID projectId, UUID userId) {
+        return new DomainException(OverviewError.QUALITY_ACCESS_DENIED,
+                "User %s needs STORY_READ and SESSION_READ to read the quality indicators of project %s"
+                        .formatted(userId, projectId));
+    }
+
+    public static DomainException invalidPeriod(String reason) {
+        return new DomainException(OverviewError.QUALITY_INVALID_PERIOD, "Invalid period: " + reason);
+    }
 }

@@ -1,14 +1,14 @@
 plugins {
     java
-    id("org.springframework.boot") version "4.1.1"
+    id("org.springframework.boot") version "4.1.2"
     id("io.spring.dependency-management") version "1.1.7"
-    id("com.diffplug.spotless") version "8.10.4"
+    id("com.diffplug.spotless") version "8.11.0"
     id("org.owasp.dependencycheck") version "13.0.0"
     jacoco
 }
 
 group = "com.kntro"
-version = "1.6.1"
+version = "1.7.0"
 description = "backend-reqsai"
 
 java {
@@ -82,7 +82,7 @@ dependencies {
     // ==================================
     // OPENAPI
     // ==================================
-    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.1")
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.2.0")
 
     // ==================================
     // SPRING AI
@@ -90,7 +90,7 @@ dependencies {
     implementation("org.springframework.ai:spring-ai-advisors-vector-store")
     implementation("org.springframework.ai:spring-ai-starter-model-ollama")
     implementation("org.springframework.ai:spring-ai-starter-model-openai")
-    implementation("com.deepgram:deepgram-java-sdk:0.11.0")
+    implementation("com.deepgram:deepgram-java-sdk:0.11.4")
     implementation("org.springframework.ai:spring-ai-starter-model-google-genai")
     implementation("org.springframework.ai:spring-ai-starter-vector-store-pgvector")
 
@@ -112,7 +112,7 @@ dependencies {
     // CLIENT DOCUMENTS (text extraction)
     // ==================================
     implementation("org.apache.pdfbox:pdfbox:3.0.8")
-    implementation("org.apache.poi:poi-ooxml:5.5.1")
+    implementation("org.apache.poi:poi-ooxml:6.0.0")
 
     // ==================================
     // ANNOTATION PROCESSORS
@@ -156,6 +156,7 @@ dependencyManagement {
 tasks.withType<Test> {
     useJUnitPlatform()
     maxParallelForks = (Runtime.getRuntime().availableProcessors() / 2).coerceAtLeast(1)
+    maxHeapSize = "2g"
     jvmArgs("-javaagent:${mockitoAgent.asPath}")
 }
 

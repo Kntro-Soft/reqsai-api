@@ -35,5 +35,18 @@ public enum SessionStatus {
     COMPLETED,
 
     /** AI generation failed; the reason is in {@code processingError}. */
-    FAILED
+    FAILED;
+
+    /**
+     * Whether the session is still being captured or processed ({@code RECORDING}, {@code PAUSED} or
+     * {@code PROCESSING}). The retention purge never deletes the audio of such a session.
+     */
+    public boolean isInProgress() {
+        return this == RECORDING || this == PAUSED || this == PROCESSING;
+    }
+
+    /** The statuses for which {@link #isInProgress()} holds. */
+    public static java.util.Set<SessionStatus> inProgress() {
+        return java.util.EnumSet.of(RECORDING, PAUSED, PROCESSING);
+    }
 }

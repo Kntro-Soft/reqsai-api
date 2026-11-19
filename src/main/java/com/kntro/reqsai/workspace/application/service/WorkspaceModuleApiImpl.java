@@ -1,10 +1,12 @@
 package com.kntro.reqsai.workspace.application.service;
 
+import com.kntro.reqsai.workspace.api.AudioRetentionPolicy;
 import com.kntro.reqsai.workspace.api.GlossaryTermSnapshot;
 import com.kntro.reqsai.workspace.api.ProjectDocumentSnapshot;
 import com.kntro.reqsai.workspace.api.ProjectSnapshot;
 import com.kntro.reqsai.workspace.api.WorkspaceModuleApi;
 import com.kntro.reqsai.shared.infrastructure.persistence.multitenancy.TenantContext;
+import com.kntro.reqsai.shared.infrastructure.persistence.multitenancy.TenantSchemaResolver;
 import com.kntro.reqsai.workspace.application.port.GlossaryRepository;
 import com.kntro.reqsai.workspace.application.port.MemberRepository;
 import com.kntro.reqsai.workspace.application.port.OrganizationRepository;
@@ -15,6 +17,7 @@ import com.kntro.reqsai.workspace.domain.model.Glossary;
 import com.kntro.reqsai.workspace.domain.model.GlossaryTerm;
 import com.kntro.reqsai.workspace.domain.model.Member;
 import com.kntro.reqsai.workspace.domain.model.MemberStatus;
+import com.kntro.reqsai.workspace.domain.model.OrgStatus;
 import com.kntro.reqsai.workspace.domain.model.Permission;
 import com.kntro.reqsai.workspace.domain.model.Project;
 import com.kntro.reqsai.workspace.domain.model.ProjectConstraint;
@@ -115,6 +118,27 @@ class WorkspaceModuleApiImpl implements WorkspaceModuleApi {
     public Optional<String> findMemberDisplayName(UUID organizationId, UUID userId) {
         return members.findByOrganizationIdAndUserIdAndStatus(organizationId, userId, MemberStatus.ACTIVE)
                 .map(Member::getDisplayName);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<Integer> currentAudioRetentionDays() {
+        UUID orgId = currentTenantOrgId();
+        if (orgId == null) {
+            return Optional.empty();
+        }
+        return organizations.findById(orgId).map(org -> org.getSettings().audioRetentionDays());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<AudioRetentionPolicy> listAudioRetentionPolicies() {
+        return organizations.findAllByStatusIn(List.of(OrgStatus.ACTIVE, OrgStatus.INACTIVE)).stream()
+                .map(org -> new AudioRetentionPolicy(
+                        org.getId().toString(),
+                        TenantSchemaResolver.SCHEMA_PREFIX + org.getSlug().value().toLowerCase(),
+                        org.getSettings().audioRetentionDays()))
+                .toList();
     }
 
     /** The organization bound to the current request/callback thread, or {@code null} when none is. */
