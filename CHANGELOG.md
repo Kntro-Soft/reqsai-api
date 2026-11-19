@@ -12,6 +12,9 @@ follows [Semantic Versioning](https://semver.org/).
 ### Added (Story sources — `feature/167-story-source-fragments`, #167)
 - `GET /api/projects/{projectId}/stories/{storyId}/sources` (`STORY_READ`) returns the story's origin (`SESSION`, `MANUAL` or `UNAVAILABLE`) and the transcript fragments it came from, with the session, the moment of the meeting (`startMs`/`endMs`, `occurredAt`), the text and the speaker. A story keeps every fragment it was generated or refined from (`story_source_fragments`); the fragment that older stories already had is copied by the migration `V20261118130000__story_source_fragments.sql`. See `docs/STORY_SOURCES.md`.
 
+### Added (Recording consent — `feature/165-recording-consent`, #165)
+- `POST /api/projects/{projectId}/sessions/{sessionId}/consent` (`SESSION_RUN`) records who confirmed the participants' consent to the recording and when (Ley N.° 29733). It is idempotent and only accepted while the session is a draft. Starting the capture without it answers `422 RECORDING_CONSENT_REQUIRED`. `DiscoverySessionResponse` gains `recordingConsentAt` and `recordingConsentBy`. Migration `V20261118100000__recording_consent.sql`.
+
 ### Added (Audio retention purge — `feature/166-audio-retention-purge`, #166)
 - Uploaded recordings are now kept (`session_audio_contents`, up to 50 MB; with retention 0 or an unreadable policy nothing is kept; with -1 it is kept and never purged). A scheduled job (`reqsai.discovery.audio-retention`, daily at 03:30 by default, batch of 200) walks the tenants and deletes the audios older than the organization's retention days, skipping sessions in progress and keeping the transcript and the stories. The session response gains `audioState` (`NONE`, `STORED`, `PURGED`) and `audioPurgedAt`. Migration `V20261118110000__audio_retention_purge.sql`; see `docs/AUDIO_RETENTION.md`.
 

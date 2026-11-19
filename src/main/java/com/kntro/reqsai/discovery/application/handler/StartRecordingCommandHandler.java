@@ -18,6 +18,9 @@ import java.time.Instant;
  * ({@code RECORDING} or {@code PAUSED}) at a time. The check runs inside the transaction; the
  * partial unique index {@code uq_sessions_project_active} is the concurrency backstop, so two
  * simultaneous starts cannot both win even if their reads interleave.
+ *
+ * <p>The capture only starts once the analyst has confirmed the participants' consent to the recording
+ * (Ley N.° 29733); otherwise it is rejected with {@code RECORDING_CONSENT_REQUIRED}.
  */
 @Component
 @RequiredArgsConstructor
@@ -31,6 +34,8 @@ public class StartRecordingCommandHandler {
         DiscoverySession session = sessions.findById(command.sessionId())
                 .filter(s -> s.getProjectId().equals(command.projectId()))
                 .orElseThrow(() -> DiscoveryExceptions.sessionNotFound(command.sessionId()));
+
+        session.requireRecordingConsent();
 
         sessions.findActiveByProjectId(command.projectId())
                 .filter(active -> !active.getId().equals(session.getId()))
