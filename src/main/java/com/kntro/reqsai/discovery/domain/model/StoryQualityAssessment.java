@@ -10,6 +10,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -68,7 +69,8 @@ public class StoryQualityAssessment extends AggregateRoot {
                 "there must be exactly one finding per quality characteristic");
         this.findings = new ArrayList<>(findings);
         this.score = overallScore(findings);
-        this.evaluatedAt = evaluatedAt;
+        // The database keeps microseconds: truncating here makes what is returned equal to what is stored.
+        this.evaluatedAt = evaluatedAt.truncatedTo(ChronoUnit.MICROS);
     }
 
     /** Weighted average of the findings' scores, rounded to the nearest integer. */

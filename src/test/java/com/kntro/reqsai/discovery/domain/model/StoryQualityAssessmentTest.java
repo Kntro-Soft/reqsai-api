@@ -46,6 +46,16 @@ class StoryQualityAssessmentTest {
     }
 
     @Test
+    @DisplayName("the evaluation instant keeps microseconds, the precision the database stores")
+    void evaluation_instant_is_truncated_to_microseconds() {
+        Instant withNanos = Instant.parse("2026-11-18T12:00:00.123456789Z");
+
+        StoryQualityAssessment assessment = StoryQualityAssessment.evaluate(STORY, findings(100, 100, 100, 100), withNanos);
+
+        assertThat(assessment.getEvaluatedAt()).isEqualTo(Instant.parse("2026-11-18T12:00:00.123456Z"));
+    }
+
+    @Test
     @DisplayName("a story that meets none scores 0")
     void zero_score() {
         assertThat(StoryQualityAssessment.evaluate(STORY, findings(0, 0, 0, 0), NOW).getScore()).isZero();
