@@ -1,5 +1,6 @@
 package com.kntro.reqsai.workspace.application.port;
 
+import com.kntro.reqsai.workspace.domain.model.OrgStatus;
 import com.kntro.reqsai.workspace.domain.model.Organization;
 import com.kntro.reqsai.workspace.domain.valueobjects.Slug;
 
@@ -27,4 +28,7 @@ public interface OrganizationRepository {
 
     /** Organizations by id — used to resolve the orgs a user is a member of. */
     List<Organization> findAllByIdIn(Collection<UUID> ids);
+
+    /** Organizations in any of the given lifecycle statuses (e.g. every tenant that has a schema). */
+    List<Organization> findAllByStatusIn(Collection<OrgStatus> statuses);
 }

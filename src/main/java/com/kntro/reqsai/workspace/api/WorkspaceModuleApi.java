@@ -1,5 +1,6 @@
 package com.kntro.reqsai.workspace.api;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -61,4 +62,17 @@ public interface WorkspaceModuleApi {
      * @return the member's display name, or empty when there is no active membership
      */
     Optional<String> findMemberDisplayName(UUID organizationId, UUID userId);
+
+    /**
+     * The audio retention period (days) of the <em>currently bound tenant</em>, as set in its generation
+     * settings: {@code 0} = delete the audio right away, {@code -1} = keep it forever. Returns
+     * {@link Optional#empty()} when no tenant is bound or the organization is unknown.
+     */
+    Optional<Integer> currentAudioRetentionDays();
+
+    /**
+     * The audio retention policy of every organization whose tenant schema exists and is not deleted, so a
+     * scheduled job (which has no request and therefore no bound tenant) can visit each tenant in turn.
+     */
+    List<AudioRetentionPolicy> listAudioRetentionPolicies();
 }

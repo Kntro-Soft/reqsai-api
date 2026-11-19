@@ -13,6 +13,9 @@ follows [Semantic Versioning](https://semver.org/).
 - `POST` and `GET /api/projects/{projectId}/stories/{storyId}/quality` (`STORY_WRITE` / `STORY_READ`) evaluate a story and return its latest assessment: a 0–100 score (mean of ambiguity, atomicity, verifiability and completeness, after ISO/IEC/IEEE 29148 and the Quality User Story framework) with an observation and a suggestion for each characteristic. The evaluation is rule-based behind a `StoryQualityEvaluator` port (Spanish/English ambiguity lexicon, no AI call, no AI allowance). A story already evaluated is re-evaluated when it or its criteria change; `GET` before any evaluation answers `404 STORY_QUALITY_NOT_EVALUATED`. Migration `V20261118120000__story_quality_assessment.sql`.
 - The story lists (`GET /api/projects/{projectId}/stories` and `GET /api/sessions/{sessionId}/stories`) carry the quality of each story in a new `quality` field: the stored assessment, or a fresh evaluation, not stored, for a story never assessed (`StoryQualityReader`), fetched in one query per page.
 
+### Added (Audio retention purge — `feature/166-audio-retention-purge`, #166)
+- Uploaded recordings are now kept (`session_audio_contents`, up to 50 MB; with retention 0 or an unreadable policy nothing is kept; with -1 it is kept and never purged). A scheduled job (`reqsai.discovery.audio-retention`, daily at 03:30 by default, batch of 200) walks the tenants and deletes the audios older than the organization's retention days, skipping sessions in progress and keeping the transcript and the stories. The session response gains `audioState` (`NONE`, `STORED`, `PURGED`) and `audioPurgedAt`. Migration `V20261118110000__audio_retention_purge.sql`; see `docs/AUDIO_RETENTION.md`.
+
 ## [1.6.1] - 2026-10-21
 
 ### Changed
@@ -1438,6 +1441,7 @@ follows [Semantic Versioning](https://semver.org/).
   terms** (`glossary_terms`, joined to its project via `glossaries`) and **project documents**
   (`project_documents`), filtered by the same accessible-project scope so no inaccessible-project row
   leaks.
+
 ### Added (Organization management — `feature/org-management-endpoints`)
 
 - **Transfer ownership** — `POST /api/organizations/{orgId}/transfer-ownership` (body

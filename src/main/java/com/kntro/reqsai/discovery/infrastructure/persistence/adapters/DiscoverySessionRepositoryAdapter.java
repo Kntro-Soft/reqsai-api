@@ -6,6 +6,7 @@ import com.kntro.reqsai.discovery.domain.model.SessionStatus;
 import com.kntro.reqsai.discovery.infrastructure.persistence.repositories.DiscoverySessionJpaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
@@ -45,5 +46,10 @@ public class DiscoverySessionRepositoryAdapter implements DiscoverySessionReposi
     @Override
     public void advanceSuggestionWatermark(UUID sessionId, int suggestedSequence, Instant suggestedAt) {
         jpa.advanceSuggestionWatermark(sessionId, suggestedSequence, suggestedAt);
+    }
+
+    @Override
+    public List<DiscoverySession> findAudioPurgeCandidates(Instant storedBefore, int limit) {
+        return jpa.findAudioPurgeCandidates(storedBefore, SessionStatus.inProgress(), PageRequest.ofSize(limit));
     }
 }

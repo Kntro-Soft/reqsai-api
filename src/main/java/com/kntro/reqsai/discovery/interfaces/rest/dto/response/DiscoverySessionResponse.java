@@ -62,6 +62,13 @@ public record DiscoverySessionResponse(
 
         @Schema(description = "When the assistant analyzes the conversation: AUTO (on its own) or MANUAL (only on demand)",
                 example = "AUTO", allowableValues = {"AUTO", "MANUAL"})
-        String suggestionMode
+        String suggestionMode,
+
+        @Schema(description = "What became of the uploaded recording: STORED (kept until the organization's retention period runs out), PURGED (deleted by the retention policy; the transcript and stories remain) or NONE (no audio was kept)",
+                example = "STORED", allowableValues = {"NONE", "STORED", "PURGED"})
+        String audioState,
+
+        @Schema(description = "When the retention policy deleted the recording; null unless audioState is PURGED", example = "2026-07-15T03:30:00Z", nullable = true)
+        @Nullable Instant audioPurgedAt
 ) {
 }
