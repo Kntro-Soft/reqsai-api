@@ -156,6 +156,7 @@ dependencyManagement {
 tasks.withType<Test> {
     useJUnitPlatform()
     maxParallelForks = (Runtime.getRuntime().availableProcessors() / 2).coerceAtLeast(1)
+    maxHeapSize = "2g"
     jvmArgs("-javaagent:${mockitoAgent.asPath}")
 }
 

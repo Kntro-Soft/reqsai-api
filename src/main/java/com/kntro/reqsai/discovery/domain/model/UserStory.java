@@ -39,8 +39,8 @@ import java.util.UUID;
 @Getter
 public class UserStory extends AggregateRoot {
 
-    private static final int TITLE_MAX = 200;
-    private static final int FIELD_MAX = 500;
+    public static final int TITLE_MAX = 200;
+    public static final int FIELD_MAX = 500;
     private static final int ENUM_MAX = 16;
     /**
      * Cosine similarity threshold above which two stories are considered near-duplicates.
