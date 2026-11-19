@@ -18,6 +18,10 @@ spring:
     locations: classpath:db/migration/common
 
 reqsai:
+  discovery:
+    audio-retention:
+      enabled: false
+      batch-size: 2
   jwt:
     public-key-path: classpath:certs/public_key.pem
     issuer: reqsai-test
