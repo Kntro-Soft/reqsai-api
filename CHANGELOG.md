@@ -9,6 +9,8 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-11-18
+
 ### Added (Improve a story with AI — `feature/175-improve-story-with-ai`, #175)
 - `POST /api/projects/{projectId}/stories/{storyId}/quality/improvement` (`STORY_WRITE`) asks the AI for an improved version of a story and returns a proposal: the improved story, the `[[...]]` pending values it could not fill without inventing (each with a hint question for the analyst), the fixes made and the `expectedQuality` of the proposal (rule-based, not stored). The model gets the story, its unmet quality findings, the project glossary and constraints and the meeting fragments it comes from, all as untrusted data; it may never state a number, limit, name or rule the sources do not state, and its reply is parsed defensively and checked (lengths, declared tokens). Nothing is stored. Needs the AI allowance (`402 AI_QUOTA_EXCEEDED` when spent, `422 REQUIREMENT_GENERATION_FAILED` when no model is available), is metered as the new `STORY_IMPROVEMENT` feature and follows `reqsai.ai.generation.provider` (`StoryImprovementPort`).
 - `POST .../quality/improvement/apply` (`STORY_WRITE`) applies the proposal as the analyst reviewed it, in one transaction: it replaces the title, role, action, benefit and acceptance criteria, then evaluates and stores the quality. A `[[...]]` token left in any text answers `422 IMPROVEMENT_PENDING_VALUES`. Like a manual edit it keeps the status and does not touch `generated_text`, so an applied improvement counts as a rewrite in the quality indicators. No migration. See `docs/STORY_IMPROVEMENT.md`.
