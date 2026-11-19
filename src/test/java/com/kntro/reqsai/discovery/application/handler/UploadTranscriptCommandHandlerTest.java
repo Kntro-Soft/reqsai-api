@@ -3,14 +3,17 @@ package com.kntro.reqsai.discovery.application.handler;
 import com.kntro.reqsai.shared.application.ai.AiQuotaGuard;
 import com.kntro.reqsai.shared.application.ai.AiUsageReporter;
 import com.kntro.reqsai.discovery.application.command.UploadTranscriptCommand;
+import com.kntro.reqsai.discovery.application.port.AudioStoragePort;
 import com.kntro.reqsai.discovery.application.port.DiscoverySessionRepository;
 import com.kntro.reqsai.discovery.application.port.TranscriptSegmentRepository;
 import com.kntro.reqsai.discovery.application.port.TranscriptionPort;
 import com.kntro.reqsai.discovery.application.port.TranscriptionResult;
+import com.kntro.reqsai.discovery.domain.model.AudioState;
 import com.kntro.reqsai.discovery.domain.model.DiscoverySession;
 import com.kntro.reqsai.discovery.domain.model.SessionStatus;
 import com.kntro.reqsai.discovery.domain.model.TranscriptSegment;
 import com.kntro.reqsai.discovery.mothers.DiscoverySessionMother;
+import com.kntro.reqsai.workspace.api.WorkspaceModuleApi;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -46,6 +49,10 @@ class UploadTranscriptCommandHandlerTest {
     private AiUsageReporter usage;
     @Mock
     private AiQuotaGuard quota;
+    @Mock
+    private WorkspaceModuleApi workspace;
+    @Mock
+    private AudioStoragePort audioStorage;
 
     @InjectMocks
     private UploadTranscriptCommandHandler handler;
@@ -67,6 +74,74 @@ class UploadTranscriptCommandHandlerTest {
         assertThat(saved.getAudioDurationMs()).isEqualTo(42_000L);
         assertThat(saved.getStatus()).isEqualTo(SessionStatus.STOPPED);
         verify(segments, never()).saveAll(any());
+    }
+
+    @Test
+    @DisplayName("should keep the uploaded recording and start its retention period when the organization retains audios (US69)")
+    void should_keep_the_recording_when_the_organization_retains_audios() {
+        DiscoverySession session = DiscoverySessionMother.draft().withLanguage("es-PE").build();
+        byte[] audio = {1, 2, 3};
+        when(sessions.findById(session.getId())).thenReturn(Optional.of(session));
+        when(transcription.transcribe(audio, "reunion.mp3", "es"))
+                .thenReturn(TranscriptionResult.textOnly("Quiero reservar una mesa.", 42_000L));
+        when(workspace.currentAudioRetentionDays()).thenReturn(Optional.of(30));
+        when(sessions.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DiscoverySession saved = handler.handle(new UploadTranscriptCommand(session.getId(), audio, "reunion.mp3"));
+
+        verify(audioStorage).store(session.getId(), "reunion.mp3", audio);
+        assertThat(saved.getAudioState()).isEqualTo(AudioState.STORED);
+        assertThat(saved.getAudioStoredAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("should keep the recording when the organization keeps audios forever")
+    void should_keep_the_recording_when_retention_is_forever() {
+        DiscoverySession session = DiscoverySessionMother.draft().build();
+        byte[] audio = {1, 2, 3};
+        when(sessions.findById(session.getId())).thenReturn(Optional.of(session));
+        when(transcription.transcribe(any(), any(), any()))
+                .thenReturn(TranscriptionResult.textOnly("Quiero reservar una mesa.", 42_000L));
+        when(workspace.currentAudioRetentionDays()).thenReturn(Optional.of(-1));
+        when(sessions.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DiscoverySession saved = handler.handle(new UploadTranscriptCommand(session.getId(), audio, "reunion.mp3"));
+
+        verify(audioStorage).store(session.getId(), "reunion.mp3", audio);
+        assertThat(saved.getAudioState()).isEqualTo(AudioState.STORED);
+    }
+
+    @Test
+    @DisplayName("should not store the recording when the organization deletes audios immediately (0 days)")
+    void should_not_store_the_recording_when_retention_is_zero() {
+        DiscoverySession session = DiscoverySessionMother.draft().build();
+        when(sessions.findById(session.getId())).thenReturn(Optional.of(session));
+        when(transcription.transcribe(any(), any(), any()))
+                .thenReturn(TranscriptionResult.textOnly("Quiero reservar una mesa.", 42_000L));
+        when(workspace.currentAudioRetentionDays()).thenReturn(Optional.of(0));
+        when(sessions.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DiscoverySession saved = handler.handle(new UploadTranscriptCommand(session.getId(), new byte[] {1}, "reunion.mp3"));
+
+        verify(audioStorage, never()).store(any(), any(), any());
+        assertThat(saved.getAudioState()).isEqualTo(AudioState.NONE);
+        assertThat(saved.getStatus()).isEqualTo(SessionStatus.STOPPED);
+    }
+
+    @Test
+    @DisplayName("should not store the recording when the organization's policy cannot be read")
+    void should_not_store_the_recording_without_a_policy() {
+        DiscoverySession session = DiscoverySessionMother.draft().build();
+        when(sessions.findById(session.getId())).thenReturn(Optional.of(session));
+        when(transcription.transcribe(any(), any(), any()))
+                .thenReturn(TranscriptionResult.textOnly("Quiero reservar una mesa.", 42_000L));
+        when(workspace.currentAudioRetentionDays()).thenReturn(Optional.empty());
+        when(sessions.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DiscoverySession saved = handler.handle(new UploadTranscriptCommand(session.getId(), new byte[] {1}, "reunion.mp3"));
+
+        verify(audioStorage, never()).store(any(), any(), any());
+        assertThat(saved.getAudioState()).isEqualTo(AudioState.NONE);
     }
 
     @Test
