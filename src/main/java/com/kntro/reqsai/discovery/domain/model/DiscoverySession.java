@@ -86,6 +86,13 @@ public class DiscoverySession extends AggregateRoot {
     /** The user who confirmed the participants' consent; {@code null} until confirmed. */
     @Column(name = "recording_consent_by", columnDefinition = "uuid")
     private @Nullable UUID recordingConsentBy;
+    /** When the uploaded recording was stored; {@code null} when no audio was kept for this session. */
+    @Column(name = "audio_stored_at")
+    private @Nullable Instant audioStoredAt;
+
+    /** When the retention policy deleted the stored recording; {@code null} while it is still there. */
+    @Column(name = "audio_purged_at")
+    private @Nullable Instant audioPurgedAt;
 
     protected DiscoverySession() {
         super();
@@ -227,6 +234,47 @@ public class DiscoverySession extends AggregateRoot {
         this.status = SessionStatus.STOPPED;
         this.endedAt = Assert.notNull(now, "now");
         registerEvent(DiscoverySessionRecordingStoppedEvent.of(getId(), projectId, title, language.value(), startedAt));
+    }
+
+    /** Records that the uploaded recording was stored, which starts its retention period. */
+    public void retainAudio(Instant now) {
+        Assert.notNull(now, "now");
+        Assert.isTrue(this.audioStoredAt == null, "audioStoredAt", "the session already has a stored audio",
+                DiscoveryError.AUDIO_NOT_PURGEABLE);
+        this.audioStoredAt = now;
+    }
+
+    /** Whether the recording is still stored, was deleted by the retention policy, or was never kept. */
+    public AudioState getAudioState() {
+        if (audioStoredAt == null) {
+            return AudioState.NONE;
+        }
+        return audioPurgedAt == null ? AudioState.STORED : AudioState.PURGED;
+    }
+
+    /**
+     * Whether the retention purge may delete this session's audio: it is stored, was stored at or before
+     * {@code storedBefore} (now minus the retention period) and the session is not in progress.
+     */
+    public boolean isAudioPurgeable(Instant storedBefore) {
+        return getAudioState() == AudioState.STORED
+                && !audioStoredAt.isAfter(storedBefore)
+                && !status.isInProgress();
+    }
+
+    /**
+     * Marks the stored recording as deleted by the retention policy. The transcript, the segments and the
+     * stories of the session are not touched. Refused when there is no stored audio (so a repeated purge is
+     * a no-op for the caller to skip) or while the session is still in progress.
+     */
+    public void purgeAudio(Instant now) {
+        Assert.notNull(now, "now");
+        Assert.isTrue(getAudioState() == AudioState.STORED, "audioPurgedAt",
+                "purgeAudio requires a stored audio but it was " + getAudioState(), DiscoveryError.AUDIO_NOT_PURGEABLE);
+        Assert.isTrue(!status.isInProgress(), "status",
+                "the audio of a session in progress cannot be purged but the session is " + this.status,
+                DiscoveryError.AUDIO_NOT_PURGEABLE);
+        this.audioPurgedAt = now;
     }
 
     /** Advances the realtime-suggestion watermark; never moves it backwards. */

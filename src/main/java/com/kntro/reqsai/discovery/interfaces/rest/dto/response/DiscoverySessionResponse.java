@@ -68,6 +68,12 @@ public record DiscoverySessionResponse(
         @Nullable Instant recordingConsentAt,
 
         @Schema(description = "User who confirmed the participants' consent; null until confirmed", example = "019756a0-1234-7abc-8def-000000000003", nullable = true)
-        @Nullable UUID recordingConsentBy
+        @Nullable UUID recordingConsentBy,
+        @Schema(description = "What became of the uploaded recording: STORED (kept until the organization's retention period runs out), PURGED (deleted by the retention policy; the transcript and stories remain) or NONE (no audio was kept)",
+                example = "STORED", allowableValues = {"NONE", "STORED", "PURGED"})
+        String audioState,
+
+        @Schema(description = "When the retention policy deleted the recording; null unless audioState is PURGED", example = "2026-07-15T03:30:00Z", nullable = true)
+        @Nullable Instant audioPurgedAt
 ) {
 }
