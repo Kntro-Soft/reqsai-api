@@ -1,6 +1,7 @@
 package com.kntro.reqsai.discovery.interfaces.rest.mappers.request;
 
 import com.kntro.reqsai.discovery.application.command.CreateDiscoverySessionCommand;
+import com.kntro.reqsai.discovery.domain.model.SessionPurpose;
 import com.kntro.reqsai.discovery.interfaces.rest.dto.request.CreateDiscoverySessionRequest;
 
 import java.util.UUID;
@@ -13,6 +14,8 @@ public final class DiscoverySessionRequestMapper {
     }
 
     public static CreateDiscoverySessionCommand toCommand(UUID projectId, CreateDiscoverySessionRequest request) {
-        return new CreateDiscoverySessionCommand(projectId, request.title(), request.language());
+        SessionPurpose purpose = request.purpose() == null ? SessionPurpose.DISCOVERY
+                : SessionPurpose.valueOf(request.purpose());
+        return new CreateDiscoverySessionCommand(projectId, request.title(), request.language(), purpose);
     }
 }

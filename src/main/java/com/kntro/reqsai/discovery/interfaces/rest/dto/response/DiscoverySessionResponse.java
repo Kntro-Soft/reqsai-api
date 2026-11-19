@@ -64,6 +64,9 @@ public record DiscoverySessionResponse(
                 example = "AUTO", allowableValues = {"AUTO", "MANUAL"})
         String suggestionMode,
 
+        @Schema(description = "What the meeting is for: DISCOVERY (requirements elicitation) or CLARIFICATION (a follow-up to clarify requirements)",
+                example = "DISCOVERY", allowableValues = {"DISCOVERY", "CLARIFICATION"})
+        String purpose,
         @Schema(description = "When the analyst confirmed the participants' consent to the recording; null until confirmed", example = "2026-06-15T13:58:00Z", nullable = true)
         @Nullable Instant recordingConsentAt,
 

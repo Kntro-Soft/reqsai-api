@@ -22,7 +22,7 @@ public class CreateDiscoverySessionCommandHandler {
 
     @Transactional
     public DiscoverySession handle(CreateDiscoverySessionCommand command) {
-        DiscoverySession session = new DiscoverySession(command.projectId(), command.title(), LanguageCode.of(command.language()));
+        DiscoverySession session = new DiscoverySession(command.projectId(), command.title(), LanguageCode.of(command.language()), command.purpose());
         DiscoverySession saved = sessions.save(session);
         log.info("Discovery session {} created for project {}", saved.getId(), command.projectId());
         return saved;

@@ -79,6 +79,10 @@ public class DiscoverySession extends AggregateRoot {
     @Column(name = "processing_error", length = PROCESSING_ERROR_MAX)
     private String processingError;
 
+    /** What the meeting is for: a discovery meeting or a follow-up to clarify requirements (US71). */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "purpose", nullable = false, length = STATUS_MAX)
+    private SessionPurpose purpose = SessionPurpose.DISCOVERY;
     /** When the analyst confirmed that the participants consented to the recording (Ley N.° 29733); {@code null} until confirmed. */
     @Column(name = "recording_consent_at")
     private @Nullable Instant recordingConsentAt;
@@ -99,7 +103,12 @@ public class DiscoverySession extends AggregateRoot {
     }
 
     public DiscoverySession(UUID projectId, String title, LanguageCode language) {
+        this(projectId, title, language, SessionPurpose.DISCOVERY);
+    }
+
+    public DiscoverySession(UUID projectId, String title, LanguageCode language, SessionPurpose purpose) {
         super();
+        this.purpose = Assert.notNull(purpose, "purpose");
         this.projectId = Assert.notNull(projectId, "projectId");
         this.title = Assert.maxLength(Assert.notBlank(title, "title"), "title", TITLE_MAX);
         this.language = Assert.notNull(language, "language");

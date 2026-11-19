@@ -2,6 +2,7 @@ package com.kntro.reqsai.discovery.application.handler;
 
 import com.kntro.reqsai.discovery.application.command.UpdateUserStoryCommand;
 import com.kntro.reqsai.discovery.application.port.UserStoryRepository;
+import com.kntro.reqsai.discovery.application.service.StoryQualityAssessor;
 import com.kntro.reqsai.discovery.domain.exception.DiscoveryError;
 import com.kntro.reqsai.discovery.domain.model.Priority;
 import com.kntro.reqsai.discovery.domain.model.UserStory;
@@ -23,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -35,6 +37,8 @@ class UpdateUserStoryCommandHandlerTest {
 
     @Mock
     private UserStoryRepository stories;
+    @Mock
+    private StoryQualityAssessor qualityAssessor;
     @InjectMocks
     private UpdateUserStoryCommandHandler handler;
 
@@ -61,6 +65,7 @@ class UpdateUserStoryCommandHandlerTest {
         // draft mother creates the story without an embedding; a manual edit must not add one
         assertThat(result.getEmbedding()).isNull();
         verify(stories).save(story);
+        verify(qualityAssessor).refreshIfAssessed(story);
     }
 
     @Test
@@ -75,5 +80,6 @@ class UpdateUserStoryCommandHandlerTest {
                 .satisfies(ex -> assertThat(((EntityNotFoundException) ex).error())
                         .isEqualTo(DiscoveryError.USER_STORY_NOT_FOUND));
         verify(stories, never()).save(any());
+        verifyNoInteractions(qualityAssessor);
     }
 }

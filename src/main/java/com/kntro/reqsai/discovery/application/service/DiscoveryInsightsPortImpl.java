@@ -6,15 +6,19 @@ import com.kntro.reqsai.discovery.application.port.DiscoveryInsightsRepository.S
 import com.kntro.reqsai.discovery.domain.model.Priority;
 import com.kntro.reqsai.discovery.domain.model.SessionStatus;
 import com.kntro.reqsai.discovery.domain.model.StoryStatus;
+import com.kntro.reqsai.discovery.domain.model.UserStory;
 import com.kntro.reqsai.discovery.insights.BacklogInsights;
+import com.kntro.reqsai.discovery.insights.DecidedStory;
 import com.kntro.reqsai.discovery.insights.DiscoveryInsightsPort;
 import com.kntro.reqsai.discovery.insights.ProjectActivity;
+import com.kntro.reqsai.discovery.insights.QualityEvidence;
 import com.kntro.reqsai.discovery.insights.SessionInsights;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -69,6 +73,22 @@ class DiscoveryInsightsPortImpl implements DiscoveryInsightsPort {
     @Transactional(readOnly = true)
     public List<ProjectActivity> activityByProject(Collection<UUID> projectIds) {
         return projectIds.isEmpty() ? List.of() : insights.activityByProject(projectIds);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public QualityEvidence qualityEvidence(UUID projectId, Instant from, Instant to) {
+        List<DecidedStory> decided = new ArrayList<>();
+        long withoutBaseline = 0;
+        for (UserStory story : insights.storiesDecidedBetween(projectId, from, to)) {
+            if (story.getGeneratedText() == null) {
+                withoutBaseline++;
+            } else {
+                decided.add(new DecidedStory(story.getId(), story.getStatus().name(), story.getGeneratedText(),
+                        story.currentText()));
+            }
+        }
+        return new QualityEvidence(decided, withoutBaseline, insights.sessionsEndedBetween(projectId, from, to));
     }
 
     private static <E extends Enum<E>> Map<String, Long> filled(E[] values, Map<E, Long> counts) {

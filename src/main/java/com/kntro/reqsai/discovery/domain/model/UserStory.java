@@ -22,6 +22,7 @@ import org.hibernate.type.SqlTypes;
 import org.jspecify.annotations.Nullable;
 
 import java.text.Normalizer;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -103,6 +104,21 @@ public class UserStory extends AggregateRoot {
     @Column(name = "code_refs", columnDefinition = "jsonb", nullable = false)
     private List<CodeReference> codeReferences = new ArrayList<>();
 
+    // ── Review decision and generated baseline (US71 quality indicators) ─────────
+
+    /**
+     * When the current review decision (approved or rejected) was taken; null while the story is in draft and
+     * for decisions taken before it was recorded.
+     */
+    @Column(name = "reviewed_at")
+    private @Nullable Instant reviewedAt;
+
+    /**
+     * The text the AI proposed, frozen when the story was generated or accepted from a suggestion; null for
+     * stories that did not come from the AI. See {@link StoryText}.
+     */
+    @Column(name = "generated_text", columnDefinition = "text")
+    private @Nullable String generatedText;
     /**
      * Every fragment of a meeting the story comes from (US72): the one it was generated or accepted from,
      * and those of the suggestions that later refined it. Empty for a manual story and for one created
@@ -282,12 +298,40 @@ public class UserStory extends AggregateRoot {
      * no-op.
      */
     public void changeReviewStatus(StoryStatus target) {
+        changeReviewStatus(target, Instant.now());
+    }
+
+    /** As {@link #changeReviewStatus(StoryStatus)}, with the instant the decision is taken. */
+    public void changeReviewStatus(StoryStatus target, Instant decidedAt) {
         Assert.notNull(target, "status");
+        Assert.notNull(decidedAt, "decidedAt");
         Assert.isTrue(target.isReviewable(), "status",
                 "a review can only set DRAFT, APPROVED or REJECTED but was " + target, DiscoveryError.INVALID_STORY_STATUS);
         Assert.isTrue(this.status.isReviewable(), "status",
                 "a review requires DRAFT, APPROVED or REJECTED but the story is " + this.status, DiscoveryError.INVALID_STORY_STATUS);
+        if (target == this.status) {
+            return;
+        }
         this.status = target;
+        this.reviewedAt = target == StoryStatus.DRAFT ? null : decidedAt;
+    }
+
+    /**
+     * Freezes what the story says now as the text the AI proposed. Call it once, when the AI-generated story is
+     * complete (criteria included), or again when an accepted AI update changed it.
+     */
+    public void captureGeneratedText() {
+        this.generatedText = StoryText.of(this);
+    }
+
+    /** Freezes {@code text}, composed with {@link StoryText}, as the text the AI proposed. */
+    public void captureGeneratedText(String text) {
+        this.generatedText = Assert.notBlank(text, "generatedText");
+    }
+
+    /** What the story says now, composed like {@link #getGeneratedText()}. */
+    public String currentText() {
+        return StoryText.of(this);
     }
 
     /**

@@ -9,6 +9,13 @@ follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added (Quality indicators — `feature/169-quality-indicators`, #169)
+- `GET /api/projects/{projectId}/quality-metrics?from&to` (`STORY_READ` and `SESSION_READ`, last 30 days by default) returns the rate of AI stories accepted without major rewriting (approved or exported stories whose final text keeps at least 80 % similarity with the generated one, over the stories decided in the period), the post-processing time per session (mean and median, from the end of the session to the last review decision) and the clarification meetings. A metric that cannot be computed is `null`, never an invented value. Sessions gain a `purpose` (`DISCOVERY` by default, or `CLARIFICATION`) and stories keep `reviewed_at` and the generated text. Migration `V20261118140000__quality_metrics.sql`; see `docs/QUALITY_INDICATORS.md`.
+
+### Added (Story quality score — `feature/168-story-quality-score`, #168)
+- `POST` and `GET /api/projects/{projectId}/stories/{storyId}/quality` (`STORY_WRITE` / `STORY_READ`) evaluate a story and return its latest assessment: a 0–100 score (mean of ambiguity, atomicity, verifiability and completeness, after ISO/IEC/IEEE 29148 and the Quality User Story framework) with an observation and a suggestion for each characteristic. The evaluation is rule-based behind a `StoryQualityEvaluator` port (Spanish/English ambiguity lexicon, no AI call, no AI allowance). A story already evaluated is re-evaluated when it or its criteria change; `GET` before any evaluation answers `404 STORY_QUALITY_NOT_EVALUATED`. Migration `V20261118120000__story_quality_assessment.sql`.
+- The story lists (`GET /api/projects/{projectId}/stories` and `GET /api/sessions/{sessionId}/stories`) carry the quality of each story in a new `quality` field: the stored assessment, or a fresh evaluation, not stored, for a story never assessed (`StoryQualityReader`), fetched in one query per page.
+
 ### Added (Story sources — `feature/167-story-source-fragments`, #167)
 - `GET /api/projects/{projectId}/stories/{storyId}/sources` (`STORY_READ`) returns the story's origin (`SESSION`, `MANUAL` or `UNAVAILABLE`) and the transcript fragments it came from, with the session, the moment of the meeting (`startMs`/`endMs`, `occurredAt`), the text and the speaker. A story keeps every fragment it was generated or refined from (`story_source_fragments`); the fragment that older stories already had is copied by the migration `V20261118130000__story_source_fragments.sql`. See `docs/STORY_SOURCES.md`.
 

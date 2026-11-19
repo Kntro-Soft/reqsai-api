@@ -2,6 +2,7 @@ package com.kntro.reqsai.discovery.application.handler;
 
 import com.kntro.reqsai.discovery.application.command.DeleteAcceptanceCriterionCommand;
 import com.kntro.reqsai.discovery.application.port.UserStoryRepository;
+import com.kntro.reqsai.discovery.application.service.StoryQualityAssessor;
 import com.kntro.reqsai.discovery.domain.exception.DiscoveryExceptions;
 import com.kntro.reqsai.discovery.domain.model.UserStory;
 import lombok.RequiredArgsConstructor;
@@ -13,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class DeleteAcceptanceCriterionCommandHandler {
 
     private final UserStoryRepository stories;
+    private final StoryQualityAssessor qualityAssessor;
 
     @Transactional
     public void handle(DeleteAcceptanceCriterionCommand command) {
@@ -20,5 +22,6 @@ public class DeleteAcceptanceCriterionCommandHandler {
                 .orElseThrow(() -> DiscoveryExceptions.userStoryNotFound(command.storyId()));
         story.removeAcceptanceCriterion(command.criterionId());
         stories.save(story);
+        qualityAssessor.refreshIfAssessed(story);
     }
 }
