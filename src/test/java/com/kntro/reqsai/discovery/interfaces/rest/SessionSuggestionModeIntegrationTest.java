@@ -68,6 +68,7 @@ class SessionSuggestionModeIntegrationTest extends AbstractIntegrationTest {
         assertThat(tooEarly.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT);
         assertThat(tooEarly.getBody()).contains("INVALID_SESSION_STATUS");
 
+        assertThat(post(OWNER_USER_ID, orgId, base + "/consent", null).getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(post(OWNER_USER_ID, orgId, base + "/start", null).getStatusCode()).isEqualTo(HttpStatus.OK);
         ResponseEntity<String> analyzed = post(OWNER_USER_ID, orgId, base + "/analyze", null);
         assertThat(analyzed.getStatusCode()).isEqualTo(HttpStatus.OK);

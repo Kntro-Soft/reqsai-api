@@ -150,6 +150,8 @@ public class AcceptSuggestionCommandHandler {
                 target.addAcceptanceCriterion(c.scenario(), c.given(), c.when(), c.then());
             }
         }
+        // Traceability: the story also comes from where this suggestion was said.
+        target.addSource(s.getSessionId(), s.getEvidenceSequence(), s.getEvidenceQuote());
         embedIfAvailable(target);
         return save(target, cmd);
     }
@@ -174,6 +176,7 @@ public class AcceptSuggestionCommandHandler {
             return save(target, cmd);
         }
         target.addAcceptanceCriterion(criterion.scenario(), criterion.given(), criterion.when(), criterion.then());
+        target.addSource(s.getSessionId(), s.getEvidenceSequence(), s.getEvidenceQuote());
         return save(target, cmd);
     }
 

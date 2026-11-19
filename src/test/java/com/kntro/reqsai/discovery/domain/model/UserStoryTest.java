@@ -195,4 +195,74 @@ class UserStoryTest {
                 .satisfies(e -> assertThat(((DomainException) e).error()).isEqualTo(DiscoveryError.INVALID_STORY_STATUS));
         assertThat(story.getStatus()).isEqualTo(current);
     }
+
+    @Test
+    @DisplayName("US72: a story keeps the fragment of the meeting it comes from")
+    void should_keep_the_source_fragment_of_a_session() {
+        // Arrange
+        UUID sessionId = UUID.randomUUID();
+        UserStory story = new UserStory(sessionId, UUID.randomUUID(), "Reservar", "cliente", "reservar", "ir", Priority.HIGH, 3);
+
+        // Act
+        story.recordOrigin(sessionId, 12, "  Necesito reservar una mesa en línea  ", null);
+
+        // Assert
+        assertThat(story.getSourceFragments()).singleElement().satisfies(f -> {
+            assertThat(f.getSessionId()).isEqualTo(sessionId);
+            assertThat(f.getSequence()).isEqualTo(12);
+            assertThat(f.getQuote()).isEqualTo("Necesito reservar una mesa en línea");
+            assertThat(f.getStory()).isSameAs(story);
+        });
+    }
+
+    @Test
+    @DisplayName("US72: a story created manually has no source fragments")
+    void should_have_no_source_when_created_manually() {
+        // Act
+        UserStory story = UserStoryMother.draft().build();
+        story.recordOrigin(null, null, "una cita de un chat", null);
+        story.addSource(null, null, "otra cita");
+
+        // Assert
+        assertThat(story.getSessionId()).isNull();
+        assertThat(story.getSourceFragments()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("US72: later suggestions add fragments, without repeating the same quote of a session")
+    void should_add_fragments_without_repeating_a_quote() {
+        // Arrange
+        UUID sessionId = UUID.randomUUID();
+        UUID otherSession = UUID.randomUUID();
+        UserStory story = new UserStory(sessionId, UUID.randomUUID(), "Reservar", "cliente", "reservar", "ir", Priority.HIGH, 3);
+        story.recordOrigin(sessionId, 4, "Quiero reservar", null);
+
+        // Act
+        story.addSource(sessionId, 9, "Quiero reservar");
+        story.addSource(sessionId, 9, "También cancelar la reserva");
+        story.addSource(otherSession, null, "Quiero reservar");
+        story.addSource(sessionId, 20, "   ");
+        story.addSource(null, 20, "sin sesión");
+
+        // Assert
+        assertThat(story.getSourceFragments()).extracting(StorySourceFragment::getQuote)
+                .containsExactly("Quiero reservar", "También cancelar la reserva", "Quiero reservar");
+        assertThat(story.getSourceFragments().get(2).getSequence()).isNull();
+    }
+
+    @Test
+    @DisplayName("US72: an over-long quote is cut to the column size and a non-positive sequence is rejected")
+    void should_bound_the_stored_fragment() {
+        // Arrange
+        UUID sessionId = UUID.randomUUID();
+        UserStory story = new UserStory(sessionId, UUID.randomUUID(), "Reservar", "cliente", "reservar", "ir", Priority.HIGH, 3);
+
+        // Act
+        story.addSource(sessionId, 1, "x".repeat(800));
+
+        // Assert
+        assertThat(story.getSourceFragments().getFirst().getQuote()).hasSize(StorySourceFragment.QUOTE_MAX).endsWith("...");
+        assertThatThrownBy(() -> story.addSource(sessionId, 0, "otra"))
+                .isInstanceOf(DomainException.class);
+    }
 }
