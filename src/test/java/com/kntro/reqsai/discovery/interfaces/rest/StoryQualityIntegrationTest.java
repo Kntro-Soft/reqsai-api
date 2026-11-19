@@ -187,6 +187,31 @@ class StoryQualityIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("the story list carries the quality of every story, evaluating on the fly the ones never assessed without storing it")
+    void story_list_carries_quality() throws Exception {
+        Tenant tenant = newTenant();
+        String assessed = createStory(tenant, GOOD_STORY);
+        addCriterion(tenant, assessed, GOOD_CRITERION);
+        evaluate(tenant, assessed);
+        String neverAssessed = createStory(tenant, VAGUE_STORY);
+
+        ResponseEntity<String> res = client().get().uri("/api/projects/{p}/stories", tenant.projectId())
+                .header("Authorization", bearer(tenant))
+                .header("Api-Version", "1")
+                .exchange((req, response) -> ResponseEntity.status(response.getStatusCode()).body(response.bodyTo(String.class)), false);
+
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<String, JsonNode> byId = new HashMap<>();
+        for (JsonNode story : objectMapper.readTree(res.getBody()).get("content")) {
+            byId.put(story.get("id").asText(), story);
+        }
+        assertThat(byId.get(assessed).get("quality").get("score").asInt()).isEqualTo(100);
+        assertThat(byId.get(neverAssessed).get("quality").get("score").asInt()).isLessThan(100);
+        assertThat(byId.get(neverAssessed).get("quality").get("characteristics")).hasSize(4);
+        assertThat(storedAssessments(tenant, neverAssessed)).isZero();
+    }
+
+    @Test
     @DisplayName("deleting the story removes its assessment")
     void deleting_the_story_removes_the_assessment() throws Exception {
         Tenant tenant = newTenant();

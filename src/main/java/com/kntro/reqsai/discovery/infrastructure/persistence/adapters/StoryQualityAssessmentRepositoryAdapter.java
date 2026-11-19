@@ -6,6 +6,8 @@ import com.kntro.reqsai.discovery.infrastructure.persistence.repositories.StoryQ
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -24,5 +26,10 @@ public class StoryQualityAssessmentRepositoryAdapter implements StoryQualityAsse
     @Override
     public Optional<StoryQualityAssessment> findByStoryId(UUID storyId) {
         return jpa.findByStoryId(storyId);
+    }
+
+    @Override
+    public List<StoryQualityAssessment> findAllByStoryIdIn(Collection<UUID> storyIds) {
+        return storyIds.isEmpty() ? List.of() : jpa.findAllByStoryIdIn(storyIds);
     }
 }
