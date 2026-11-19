@@ -43,32 +43,41 @@ public interface QuoteLocator {
 
     /** The sequence of the segment where the quote starts, or null; {@code segments} in transcript order. */
     static @Nullable Integer locate(@Nullable String quote, List<TranscriptSegment> segments) {
+        Span span = span(quote, segments);
+        return span == null ? null : span.startSequence();
+    }
+
+    /**
+     * The segments a quote runs across: the sequence where it starts and the one where it ends (the same one
+     * when it fits in a single segment), or null when it cannot be placed; {@code segments} in transcript order.
+     */
+    static @Nullable Span span(@Nullable String quote, List<TranscriptSegment> segments) {
         String wanted = normalize(quote);
         if (wanted.isBlank()) return null;
         List<String> texts = segments.stream().map(s -> normalize(s.getText())).toList();
 
         for (int i = 0; i < texts.size(); i++) {
-            if (texts.get(i).contains(wanted)) return segments.get(i).getSequence();
+            if (texts.get(i).contains(wanted)) return spanOf(segments, i, i);
         }
         for (int i = 0; i < texts.size(); i++) {
             StringBuilder joined = new StringBuilder(texts.get(i));
             for (int j = i + 1; j < Math.min(texts.size(), i + MAX_SPAN); j++) {
                 joined.append(' ').append(texts.get(j));
                 int at = joined.indexOf(wanted);
-                if (at >= 0 && at < texts.get(i).length()) return segments.get(i).getSequence();
+                if (at >= 0 && at < texts.get(i).length()) return spanOf(segments, i, j);
             }
         }
         return closest(words(wanted), texts, segments);
     }
 
     /**
-     * The start of the run of up to {@link #MAX_SPAN} segments holding most of the quote's words. A run
-     * starts at a segment that shares words with the quote; on a tie the shorter, then the earlier, run wins.
+     * The run of up to {@link #MAX_SPAN} segments holding most of the quote's words. A run starts at a segment
+     * that shares words with the quote; on a tie the shorter, then the earlier, run wins.
      */
-    private static @Nullable Integer closest(Set<String> quoteWords, List<String> texts,
-                                             List<TranscriptSegment> segments) {
+    private static @Nullable Span closest(Set<String> quoteWords, List<String> texts,
+                                          List<TranscriptSegment> segments) {
         if (quoteWords.isEmpty()) return null;
-        Integer best = null;
+        Span best = null;
         long bestShared = 0;
         for (int i = 0; i < texts.size(); i++) {
             Set<String> run = new HashSet<>();
@@ -79,12 +88,20 @@ public interface QuoteLocator {
                 long shared = quoteWords.stream().filter(run::contains).count();
                 if (shared > bestShared) {
                     bestShared = shared;
-                    best = segments.get(i).getSequence();
+                    best = spanOf(segments, i, j);
                 }
             }
         }
         double coverage = (double) bestShared / quoteWords.size();
         return bestShared >= 2 && coverage >= MIN_COVERAGE ? best : null;
+    }
+
+    private static Span spanOf(List<TranscriptSegment> segments, int from, int to) {
+        return new Span(segments.get(from).getSequence(), segments.get(to).getSequence());
+    }
+
+    /** The first and last transcript segment (by sequence) a quote runs across. */
+    record Span(int startSequence, int endSequence) {
     }
 
     private static String normalize(@Nullable String value) {

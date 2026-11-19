@@ -2,12 +2,14 @@ package com.kntro.reqsai.discovery.interfaces.rest.controllers;
 
 import com.kntro.reqsai.discovery.application.command.AnalyzeSessionNowCommand;
 import com.kntro.reqsai.discovery.application.command.ChangeSuggestionModeCommand;
+import com.kntro.reqsai.discovery.application.command.ConfirmRecordingConsentCommand;
 import com.kntro.reqsai.discovery.application.command.PauseRecordingCommand;
 import com.kntro.reqsai.discovery.application.command.ResumeRecordingCommand;
 import com.kntro.reqsai.discovery.application.command.StartRecordingCommand;
 import com.kntro.reqsai.discovery.application.command.StopRecordingCommand;
 import com.kntro.reqsai.discovery.application.handler.AnalyzeSessionNowCommandHandler;
 import com.kntro.reqsai.discovery.application.handler.ChangeSuggestionModeCommandHandler;
+import com.kntro.reqsai.discovery.application.handler.ConfirmRecordingConsentCommandHandler;
 import com.kntro.reqsai.discovery.application.handler.CreateDiscoverySessionCommandHandler;
 import com.kntro.reqsai.discovery.application.handler.GetProjectSessionQueryHandler;
 import com.kntro.reqsai.discovery.application.handler.ListProjectSessionsQueryHandler;
@@ -31,6 +33,7 @@ import com.kntro.reqsai.shared.interfaces.pagination.PageResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
@@ -45,6 +48,7 @@ public class ProjectSessionControllerImpl implements ProjectSessionController {
     private final CreateDiscoverySessionCommandHandler createSession;
     private final GetProjectSessionQueryHandler getSession;
     private final ListProjectSessionsQueryHandler listSessions;
+    private final ConfirmRecordingConsentCommandHandler confirmRecordingConsent;
     private final StartRecordingCommandHandler startRecording;
     private final PauseRecordingCommandHandler pauseRecording;
     private final ResumeRecordingCommandHandler resumeRecording;
@@ -78,6 +82,16 @@ public class ProjectSessionControllerImpl implements ProjectSessionController {
                         projectId, PageCriteria.of(page, size, sortBy, sortDirection)))
                         .map(s -> DiscoverySessionResponseMapper.toResponse(s.session(), s.stats())));
         return ResponseEntity.ok(response);
+    }
+
+    @Override
+    @PreAuthorize("@authz.projectPermission(#projectId, 'SESSION_RUN', authentication)")
+    public ResponseEntity<DiscoverySessionResponse> confirmConsent(UUID projectId, UUID sessionId,
+                                                                   Authentication authentication) {
+        UUID requestedBy = UUID.fromString(authentication.getName());
+        DiscoverySession session = confirmRecordingConsent.handle(
+                new ConfirmRecordingConsentCommand(projectId, sessionId, requestedBy));
+        return ResponseEntity.ok(DiscoverySessionResponseMapper.toResponse(session));
     }
 
     @Override

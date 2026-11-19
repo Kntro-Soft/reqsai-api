@@ -1,6 +1,7 @@
 package com.kntro.reqsai.discovery.application.service;
 
 import com.kntro.reqsai.discovery.application.port.GenerationResult;
+import com.kntro.reqsai.discovery.application.port.StoryInsight;
 import com.kntro.reqsai.discovery.application.port.SuggestionRepository;
 import com.kntro.reqsai.discovery.application.port.UserStoryRepository;
 import com.kntro.reqsai.discovery.domain.event.UserStoryNearDuplicateDetectedEvent;
@@ -207,5 +208,41 @@ class StoryExtractionServiceTest {
         assertThat(validResult).isPresent();
         assertThat(validResult.get().getTitle()).isEqualTo("Good story");
         assertThat(duplicateResult).isEmpty();
+    }
+
+    @Test
+    @DisplayName("US72: a story generated with a quote keeps the fragment of the meeting it was located in")
+    void should_keep_the_source_fragment_of_the_generated_story() {
+        UUID sessionId = UUID.randomUUID();
+        UUID projectId = UUID.randomUUID();
+        var gen = new GenerationResult.GeneratedStory(
+                "Login con Google", "usuario", "autenticarme con Google", "no necesitar contraseña",
+                Priority.HIGH, 3, List.of())
+                .withInsight(StoryInsight.evidence("quiero entrar con mi cuenta de Google"));
+        when(stories.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        QuoteLocator locator = quote -> 6;
+
+        UserStory story = service.extractOne(gen, sessionId, projectId, locator).orElseThrow();
+
+        assertThat(story.getSourceFragments()).singleElement().satisfies(f -> {
+            assertThat(f.getSessionId()).isEqualTo(sessionId);
+            assertThat(f.getSequence()).isEqualTo(6);
+            assertThat(f.getQuote()).isEqualTo("quiero entrar con mi cuenta de Google");
+        });
+    }
+
+    @Test
+    @DisplayName("US72: a story generated without a quote keeps no fragment")
+    void should_keep_no_fragment_without_a_quote() {
+        UUID sessionId = UUID.randomUUID();
+        var gen = new GenerationResult.GeneratedStory(
+                "Login con Google", "usuario", "autenticarme con Google", "no necesitar contraseña",
+                Priority.HIGH, 3, List.of());
+        when(stories.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        UserStory story = service.extractOne(gen, sessionId, UUID.randomUUID()).orElseThrow();
+
+        assertThat(story.getSessionId()).isEqualTo(sessionId);
+        assertThat(story.getSourceFragments()).isEmpty();
     }
 }

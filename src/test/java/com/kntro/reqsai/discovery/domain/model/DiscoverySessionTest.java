@@ -9,6 +9,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -334,5 +335,61 @@ class DiscoverySessionTest {
         session.stopRecording(java.time.Instant.now());
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> session.changeSuggestionMode(SuggestionMode.MANUAL))
                 .isInstanceOf(com.kntro.reqsai.shared.domain.exception.DomainException.class);
+    }
+
+    @Test
+    @DisplayName("should record who confirmed the participants' consent and when (US70)")
+    void should_record_recording_consent() {
+        DiscoverySession session = DiscoverySessionMother.draft().build();
+        UUID userId = UUID.randomUUID();
+        Instant now = Instant.parse("2026-11-18T15:00:00Z");
+
+        assertThat(session.hasRecordingConsent()).isFalse();
+        session.confirmRecordingConsent(userId, now);
+
+        assertThat(session.hasRecordingConsent()).isTrue();
+        assertThat(session.getRecordingConsentBy()).isEqualTo(userId);
+        assertThat(session.getRecordingConsentAt()).isEqualTo(now);
+        assertThat(session.getStatus()).isEqualTo(SessionStatus.DRAFT);
+    }
+
+    @Test
+    @DisplayName("should keep the first confirmation when the consent is confirmed again")
+    void should_keep_first_recording_consent() {
+        DiscoverySession session = DiscoverySessionMother.draft().build();
+        UUID first = UUID.randomUUID();
+        Instant firstAt = Instant.parse("2026-11-18T15:00:00Z");
+        session.confirmRecordingConsent(first, firstAt);
+
+        session.confirmRecordingConsent(UUID.randomUUID(), firstAt.plusSeconds(60));
+
+        assertThat(session.getRecordingConsentBy()).isEqualTo(first);
+        assertThat(session.getRecordingConsentAt()).isEqualTo(firstAt);
+    }
+
+    @Test
+    @DisplayName("should reject confirming the consent once the session is no longer DRAFT")
+    void should_reject_consent_when_not_draft() {
+        DiscoverySession session = DiscoverySessionMother.draft().build();
+        session.startRecording(Instant.now());
+
+        assertThatThrownBy(() -> session.confirmRecordingConsent(UUID.randomUUID(), Instant.now()))
+                .isInstanceOf(DomainException.class)
+                .satisfies(e -> assertThat(((DomainException) e).error())
+                        .isEqualTo(DiscoveryError.INVALID_SESSION_STATUS));
+    }
+
+    @Test
+    @DisplayName("should require the consent with RECORDING_CONSENT_REQUIRED until it is confirmed")
+    void should_require_recording_consent() {
+        DiscoverySession session = DiscoverySessionMother.draft().build();
+
+        assertThatThrownBy(session::requireRecordingConsent)
+                .isInstanceOf(DomainException.class)
+                .satisfies(e -> assertThat(((DomainException) e).error())
+                        .isEqualTo(DiscoveryError.RECORDING_CONSENT_REQUIRED));
+
+        session.confirmRecordingConsent(UUID.randomUUID(), Instant.now());
+        session.requireRecordingConsent();
     }
 }
